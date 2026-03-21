@@ -86,7 +86,7 @@ Top-level navigation (V1):
 - Tooltips for all non-obvious controls.
 
 ## UX Deliverables by Milestone
-- M1: Navigation map + wireframe set (low fidelity).
+- M1: Navigation map + wireframe set (low fidelity). Baseline artifact: `GAMEFORGE_UX_WIREFRAME_BASELINE_V1.md`.
 - M2: Interview UX flow + summary panel.
 - M3: Prototype progress UX and recovery states.
 - M4: Editor interaction model finalized.
