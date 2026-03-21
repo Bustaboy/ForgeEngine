@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -58,6 +59,77 @@ class TestPrototypeGeneration(unittest.TestCase):
 
             scene_payload = json.loads((project_root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"))
             self.assertEqual(scene_payload["scene_id"], "baseline_scene")
+
+    def test_orchestrator_escapes_brief_strings_in_generated_cpp(self):
+        tricky_brief = {
+            "concept": "My \"Quoted\" \\\\ Game",
+            "mechanics": {"core_loop": "Line1\\nLine2 with \\\"quote\\\" and \\\\ slash"},
+            "style": {},
+            "narrative": {},
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            brief_path = Path(temp_dir) / "brief.json"
+            brief_path.write_text(json.dumps(tricky_brief), encoding="utf-8")
+            output_dir = Path(temp_dir) / "out"
+
+            proc = run_cmd([
+                sys.executable,
+                str(ORCHESTRATOR),
+                "--generate-prototype",
+                str(brief_path),
+                "--output",
+                str(output_dir),
+            ])
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+            runtime_main = (output_dir / "my-quoted-game" / "runtime" / "main.cpp").read_text(encoding="utf-8")
+            self.assertIn('Project: My \\"Quoted\\"', runtime_main)
+            self.assertIn("\\\\\\\\ Game", runtime_main)
+            self.assertIn("Core loop seed: Line1\\\\nLine2 with", runtime_main)
+
+            if shutil.which("g++"):
+                compile_proc = run_cmd([
+                    "g++",
+                    "-std=c++17",
+                    "runtime/main.cpp",
+                    "-o",
+                    "runtime/prototype_runtime",
+                ], cwd=output_dir / "my-quoted-game")
+                self.assertEqual(compile_proc.returncode, 0, compile_proc.stdout + compile_proc.stderr)
+
+    def test_orchestrator_launch_without_gpp_returns_controlled_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "out"
+            proc_gen = run_cmd([
+                sys.executable,
+                str(ORCHESTRATOR),
+                "--generate-prototype",
+                str(SAMPLE_BRIEF),
+                "--output",
+                str(output_dir),
+            ])
+            self.assertEqual(proc_gen.returncode, 0, proc_gen.stdout + proc_gen.stderr)
+
+            env = dict(os.environ)
+            env["PATH"] = ""
+            proc_launch = subprocess.run(
+                [
+                    sys.executable,
+                    str(ORCHESTRATOR),
+                    "--generate-prototype",
+                    str(SAMPLE_BRIEF),
+                    "--output",
+                    str(output_dir),
+                    "--launch",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                env=env,
+            )
+            self.assertEqual(proc_launch.returncode, 127, proc_launch.stdout + proc_launch.stderr)
+            self.assertIn("ERROR: g++ not found.", proc_launch.stdout)
 
     def test_smoke_script_generation_and_launch(self):
         if not shutil.which("g++"):

@@ -209,6 +209,16 @@ def _write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _escape_cpp_string_literal(value: object) -> str:
+    text = str(value or "")
+    text = text.replace("\\", "\\\\")
+    text = text.replace('"', '\\"')
+    text = text.replace("\n", "\\n")
+    text = text.replace("\r", "\\r")
+    text = text.replace("\t", "\\t")
+    return text
+
+
 def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     brief = json.loads(brief_path.read_text(encoding="utf-8"))
     concept = brief.get("concept", "GameForge Prototype")
@@ -266,6 +276,9 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     _write_text(prototype_root / "ui" / "hud_layout.json", json.dumps(ui_layout, indent=2))
     _write_text(prototype_root / "save" / "savegame_hook.json", json.dumps(save_stub, indent=2))
 
+    escaped_concept = _escape_cpp_string_literal(concept)
+    escaped_core_loop = _escape_cpp_string_literal(mechanics.get("core_loop", ""))
+
     runtime_main = f'''#include <fstream>
 #include <iostream>
 #include <string>
@@ -274,8 +287,8 @@ int main() {{
     std::cout << "GameForge V1 prototype runtime (C++ baseline)\\n";
     std::cout << "Mode: local-first, single-player, no-code-first\\n";
     std::cout << "Rendering direction: Vulkan-first\\n";
-    std::cout << "Project: {concept}\\n";
-    std::cout << "Core loop seed: {mechanics.get("core_loop", "") }\\n";
+    std::cout << "Project: {escaped_concept}\\n";
+    std::cout << "Core loop seed: {escaped_core_loop}\\n";
 
     std::ifstream scene("scene/scene_scaffold.json");
     std::ifstream player("scripts/player_controller.json");
@@ -338,7 +351,12 @@ One-click local launch commands:
 
 def _launch_generated_prototype(prototype_root: Path) -> int:
     compile_cmd = ["g++", "-std=c++17", "runtime/main.cpp", "-o", "runtime/prototype_runtime"]
-    compile_proc = subprocess.run(compile_cmd, cwd=prototype_root, text=True, capture_output=True)
+    try:
+        compile_proc = subprocess.run(compile_cmd, cwd=prototype_root, text=True, capture_output=True)
+    except FileNotFoundError:
+        print("ERROR: g++ not found. Install g++ to compile and launch generated prototypes.")
+        return 127
+
     if compile_proc.returncode != 0:
         print(compile_proc.stdout)
         print(compile_proc.stderr)
