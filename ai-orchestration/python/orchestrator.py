@@ -251,6 +251,26 @@ def _build_regeneration_conflict_prompt(conflicts: list[RegenerationConflict]) -
     )
 
 
+def _resolve_safe_regeneration_destination(prototype_root: Path, target_path: str) -> Path:
+    candidate_input = target_path.strip()
+    if not candidate_input:
+        raise ValueError("Regeneration target path cannot be blank.")
+
+    normalized_input = candidate_input.replace("\\", "/")
+    if re.match(r"^[a-zA-Z]:[\\/]", candidate_input):
+        raise ValueError(f"Drive-qualified regeneration path is not allowed: {target_path}")
+    if normalized_input.startswith("/") or normalized_input.startswith("//"):
+        raise ValueError(f"Absolute regeneration path is not allowed: {target_path}")
+
+    resolved_root = prototype_root.resolve()
+    resolved_target = (resolved_root / Path(normalized_input)).resolve()
+    try:
+        resolved_target.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(f"Regeneration target escapes prototype root: {target_path}") from exc
+    return resolved_target
+
+
 def apply_partial_regeneration(
     prototype_root: Path,
     updates: dict[str, str],
@@ -276,7 +296,8 @@ def apply_partial_regeneration(
             )
             continue
 
-        _write_text(prototype_root / normalized_target, updates[target_path])
+        destination = _resolve_safe_regeneration_destination(prototype_root, target_path)
+        _write_text(destination, updates[target_path])
         updated_files.append(normalized_target)
 
     requires_confirmation = bool(conflicts)

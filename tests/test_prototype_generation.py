@@ -198,6 +198,36 @@ class TestPrototypeGeneration(unittest.TestCase):
                 '{"version": 2}',
             )
 
+    def test_partial_regeneration_rejects_traversal_outside_prototype_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            root = temp_root / "prototype"
+            root.mkdir(parents=True, exist_ok=True)
+            escaped_target = temp_root / "escaped.json"
+
+            with self.assertRaisesRegex(ValueError, "escapes prototype root"):
+                orchestrator.apply_partial_regeneration(
+                    prototype_root=root,
+                    updates={"../escaped.json": '{"bad": true}'},
+                    locked_paths=[],
+                    confirm_destructive=False,
+                )
+
+            self.assertFalse(escaped_target.exists())
+
+    def test_partial_regeneration_rejects_absolute_targets(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "prototype"
+            root.mkdir(parents=True, exist_ok=True)
+
+            with self.assertRaisesRegex(ValueError, "Absolute regeneration path is not allowed"):
+                orchestrator.apply_partial_regeneration(
+                    prototype_root=root,
+                    updates={"/tmp/should-not-write.json": '{"bad": true}'},
+                    locked_paths=[],
+                    confirm_destructive=False,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
