@@ -31,6 +31,23 @@ internal static class Program
             }
         }
 
+        if (args.Length > 0 && args[0] == "--interview-uncertainty")
+        {
+            if (args.Length < 4)
+            {
+                Console.WriteLine("Usage: --interview-uncertainty <session-path> <topic> <user-input> [selection-index]");
+                return 4;
+            }
+
+            var sessionPath = args[1];
+            var topic = args[2];
+            var userInput = args[3];
+            var selectionIndex = args.Length > 4 && int.TryParse(args[4], out var parsedIndex) ? parsedIndex : 0;
+
+            await RunInterviewUncertaintyFlowAsync(sessionPath, topic, userInput, selectionIndex);
+            return 0;
+        }
+
         var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
         var fullRuntimePath = Path.GetFullPath(runtimePath);
 
@@ -61,5 +78,50 @@ internal static class Program
         Console.WriteLine($"Interview schema version: {loaded.SchemaVersion}");
         Console.WriteLine($"Interview concept: {loaded.Concept}");
         Console.WriteLine("Interview persistence smoke test passed.");
+    }
+
+    private static async Task RunInterviewUncertaintyFlowAsync(string sessionPath, string topic, string userInput, int selectionIndex)
+    {
+        var response = await UncertaintyOptionBridge.GenerateOptionsAsync(userInput, topic);
+        if (!response.Ambiguous)
+        {
+            Console.WriteLine("Input is already clear; no uncertainty options generated.");
+            return;
+        }
+
+        if (response.Options.Count != 3)
+        {
+            throw new InvalidOperationException($"Expected exactly 3 options, got {response.Options.Count}.");
+        }
+
+        for (var i = 0; i < response.Options.Count; i++)
+        {
+            var option = response.Options[i];
+            Console.WriteLine($"[{i}] {option.Title}: {option.Summary} (Tradeoff: {option.Tradeoff})");
+        }
+
+        var safeIndex = Math.Clamp(selectionIndex, 0, response.Options.Count - 1);
+        var selected = response.Options[safeIndex];
+
+        var session = File.Exists(sessionPath)
+            ? await InterviewSessionStore.LoadAsync(sessionPath)
+            : new InterviewSession();
+
+        var decision = new UncertaintyDecision
+        {
+            Topic = response.Topic,
+            SourceInput = response.SourceInput,
+            Options = response.Options,
+            SelectedOptionId = selected.OptionId,
+        };
+
+        var updated = session with
+        {
+            UncertaintyDecisions = [.. session.UncertaintyDecisions, decision],
+        };
+
+        await InterviewSessionStore.SaveAsync(sessionPath, updated);
+        Console.WriteLine($"Selected option persisted: {selected.OptionId}");
+        Console.WriteLine($"Next question: {InterviewQuestionPlanner.BuildNextQuestion(updated)}");
     }
 }

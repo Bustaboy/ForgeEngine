@@ -14,7 +14,8 @@
     "mechanics",
     "narrative",
     "style",
-    "constraints"
+    "constraints",
+    "uncertainty_decisions"
   ],
   "properties": {
     "schema_version": {
@@ -38,45 +39,110 @@
     "genre_weights": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rts_sim", "rpg"],
+      "required": [
+        "rts_sim",
+        "rpg"
+      ],
       "properties": {
-        "rts_sim": { "type": "number", "minimum": 0, "maximum": 1 },
-        "rpg": { "type": "number", "minimum": 0, "maximum": 1 }
+        "rts_sim": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "rpg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "mechanics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["core_loop", "progression_systems", "failure_states", "simulation_depth_notes"],
+      "required": [
+        "core_loop",
+        "progression_systems",
+        "failure_states",
+        "simulation_depth_notes"
+      ],
       "properties": {
-        "core_loop": { "type": "string" },
-        "progression_systems": { "type": "array", "items": { "type": "string" } },
-        "failure_states": { "type": "array", "items": { "type": "string" } },
-        "simulation_depth_notes": { "type": "string" }
+        "core_loop": {
+          "type": "string"
+        },
+        "progression_systems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "failure_states": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "simulation_depth_notes": {
+          "type": "string"
+        }
       }
     },
     "narrative": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["premise", "player_fantasy", "tone", "world_notes", "quest_structure"],
+      "required": [
+        "premise",
+        "player_fantasy",
+        "tone",
+        "world_notes",
+        "quest_structure"
+      ],
       "properties": {
-        "premise": { "type": "string" },
-        "player_fantasy": { "type": "string" },
-        "tone": { "type": "string" },
-        "world_notes": { "type": "string" },
-        "quest_structure": { "type": "array", "items": { "type": "string" } }
+        "premise": {
+          "type": "string"
+        },
+        "player_fantasy": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "world_notes": {
+          "type": "string"
+        },
+        "quest_structure": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "style": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preset", "art_direction", "camera_direction", "ui_direction", "audio_direction"],
+      "required": [
+        "preset",
+        "art_direction",
+        "camera_direction",
+        "ui_direction",
+        "audio_direction"
+      ],
       "properties": {
-        "preset": { "type": "string" },
-        "art_direction": { "type": "string" },
-        "camera_direction": { "type": "string" },
-        "ui_direction": { "type": "string" },
-        "audio_direction": { "type": "string" }
+        "preset": {
+          "type": "string"
+        },
+        "art_direction": {
+          "type": "string"
+        },
+        "camera_direction": {
+          "type": "string"
+        },
+        "ui_direction": {
+          "type": "string"
+        },
+        "audio_direction": {
+          "type": "string"
+        }
       }
     },
     "constraints": {
@@ -92,13 +158,94 @@
       "properties": {
         "target_platforms": {
           "type": "array",
-          "items": { "type": "string", "enum": ["windows", "ubuntu"] },
+          "items": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "ubuntu"
+            ]
+          },
           "minItems": 1
         },
-        "content_rating_target": { "type": "string" },
-        "scope_constraints": { "type": "array", "items": { "type": "string" } },
-        "technical_constraints": { "type": "array", "items": { "type": "string" } },
-        "accessibility_constraints": { "type": "array", "items": { "type": "string" } }
+        "content_rating_target": {
+          "type": "string"
+        },
+        "scope_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "technical_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "accessibility_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "uncertainty_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topic",
+          "source_input",
+          "options",
+          "selected_option_id"
+        ],
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "source_input": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "option_id",
+                "title",
+                "summary",
+                "tradeoff"
+              ],
+              "properties": {
+                "option_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tradeoff": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "selected_option_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     }
   }

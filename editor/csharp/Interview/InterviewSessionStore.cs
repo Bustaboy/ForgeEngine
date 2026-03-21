@@ -24,6 +24,7 @@ public static class InterviewSessionStore
         "narrative",
         "style",
         "constraints",
+        "uncertainty_decisions",
     ];
 
     public static async Task SaveAsync(string path, InterviewSession session, CancellationToken cancellationToken = default)
@@ -69,6 +70,9 @@ public static class InterviewSessionStore
         RequireProperty(root, "created_at_utc", JsonValueKind.String);
         RequireProperty(root, "updated_at_utc", JsonValueKind.String);
         RequireProperty(root, "concept", JsonValueKind.String);
+
+        var uncertaintyDecisions = RequireProperty(root, "uncertainty_decisions", JsonValueKind.Array);
+        ValidateUncertaintyDecisions(uncertaintyDecisions);
 
         var genreWeights = RequireProperty(root, "genre_weights", JsonValueKind.Object);
         RequireOnlyProperties(genreWeights, ["rts_sim", "rpg"], "genre_weights");
@@ -118,6 +122,8 @@ public static class InterviewSessionStore
 
         ValidateGenreWeight("genre_weights.rts_sim", session.GenreWeights.RtsSim);
         ValidateGenreWeight("genre_weights.rpg", session.GenreWeights.Rpg);
+
+        ValidateUncertaintyDecisionModel(session.UncertaintyDecisions);
 
         if (session.Constraints.TargetPlatforms.Count == 0)
         {
@@ -199,6 +205,69 @@ public static class InterviewSessionStore
         {
             throw new InterviewSchemaException(
                 $"Property '{context}.{propertyName}' must contain at least {minItems} item(s).");
+        }
+    }
+
+    private static void ValidateUncertaintyDecisions(JsonElement uncertaintyDecisions)
+    {
+        var index = 0;
+        foreach (var decision in uncertaintyDecisions.EnumerateArray())
+        {
+            if (decision.ValueKind != JsonValueKind.Object)
+            {
+                throw new InterviewSchemaException($"uncertainty_decisions[{index}] must be an object.");
+            }
+
+            RequireOnlyProperties(decision, ["topic", "source_input", "options", "selected_option_id"], $"uncertainty_decisions[{index}]");
+            RequireProperty(decision, "topic", JsonValueKind.String);
+            RequireProperty(decision, "source_input", JsonValueKind.String);
+            var options = RequireProperty(decision, "options", JsonValueKind.Array);
+            RequireProperty(decision, "selected_option_id", JsonValueKind.String);
+
+            var optionCount = 0;
+            foreach (var option in options.EnumerateArray())
+            {
+                if (option.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InterviewSchemaException($"uncertainty_decisions[{index}].options[{optionCount}] must be an object.");
+                }
+
+                RequireOnlyProperties(option, ["option_id", "title", "summary", "tradeoff"], $"uncertainty_decisions[{index}].options[{optionCount}]");
+                RequireProperty(option, "option_id", JsonValueKind.String);
+                RequireProperty(option, "title", JsonValueKind.String);
+                RequireProperty(option, "summary", JsonValueKind.String);
+                RequireProperty(option, "tradeoff", JsonValueKind.String);
+                optionCount++;
+            }
+
+            if (optionCount != 3)
+            {
+                throw new InterviewSchemaException($"uncertainty_decisions[{index}].options must contain exactly 3 options.");
+            }
+
+            index++;
+        }
+    }
+
+    private static void ValidateUncertaintyDecisionModel(IReadOnlyList<UncertaintyDecision> decisions)
+    {
+        for (var i = 0; i < decisions.Count; i++)
+        {
+            var decision = decisions[i];
+            if (decision.Options.Count != 3)
+            {
+                throw new InterviewSchemaException($"uncertainty_decisions[{i}].options must contain exactly 3 options.");
+            }
+
+            if (string.IsNullOrWhiteSpace(decision.SelectedOptionId))
+            {
+                throw new InterviewSchemaException($"uncertainty_decisions[{i}].selected_option_id must be a non-empty string.");
+            }
+
+            if (!decision.Options.Any(option => option.OptionId == decision.SelectedOptionId))
+            {
+                throw new InterviewSchemaException($"uncertainty_decisions[{i}].selected_option_id must match one of the option_ids.");
+            }
         }
     }
 

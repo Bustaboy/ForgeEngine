@@ -85,6 +85,36 @@ public sealed record ConstraintsSection
     public List<string> AccessibilityConstraints { get; init; } = [];
 }
 
+public sealed record UncertaintyOption
+{
+    [JsonPropertyName("option_id")]
+    public string OptionId { get; init; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; init; } = string.Empty;
+
+    [JsonPropertyName("summary")]
+    public string Summary { get; init; } = string.Empty;
+
+    [JsonPropertyName("tradeoff")]
+    public string Tradeoff { get; init; } = string.Empty;
+}
+
+public sealed record UncertaintyDecision
+{
+    [JsonPropertyName("topic")]
+    public string Topic { get; init; } = string.Empty;
+
+    [JsonPropertyName("source_input")]
+    public string SourceInput { get; init; } = string.Empty;
+
+    [JsonPropertyName("options")]
+    public List<UncertaintyOption> Options { get; init; } = [];
+
+    [JsonPropertyName("selected_option_id")]
+    public string SelectedOptionId { get; init; } = string.Empty;
+}
+
 public sealed record InterviewSession
 {
     [JsonPropertyName("schema_version")]
@@ -116,4 +146,7 @@ public sealed record InterviewSession
 
     [JsonPropertyName("constraints")]
     public ConstraintsSection Constraints { get; init; } = new();
+
+    [JsonPropertyName("uncertainty_decisions")]
+    public List<UncertaintyDecision> UncertaintyDecisions { get; init; } = [];
 }
