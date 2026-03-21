@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GameForge.Editor.Interview;
 
 internal static class Program
@@ -45,6 +46,24 @@ internal static class Program
             var selectionIndex = args.Length > 4 && int.TryParse(args[4], out var parsedIndex) ? parsedIndex : 0;
 
             await RunInterviewUncertaintyFlowAsync(sessionPath, topic, userInput, selectionIndex);
+            return 0;
+        }
+
+        if (args.Length > 0 && args[0] == "--interview-think-for-me")
+        {
+            if (args.Length < 4)
+            {
+                Console.WriteLine("Usage: --interview-think-for-me <session-path> <topic> <user-input> [selection-index] [--confirm]");
+                return 5;
+            }
+
+            var sessionPath = args[1];
+            var topic = args[2];
+            var userInput = args[3];
+            var selectionIndex = args.Length > 4 && int.TryParse(args[4], out var parsedIndex) ? parsedIndex : 0;
+            var confirm = args.Any(arg => string.Equals(arg, "--confirm", StringComparison.OrdinalIgnoreCase));
+
+            await RunInterviewThinkForMeFlowAsync(sessionPath, topic, userInput, selectionIndex, confirm);
             return 0;
         }
 
@@ -123,5 +142,64 @@ internal static class Program
         await InterviewSessionStore.SaveAsync(sessionPath, updated);
         Console.WriteLine($"Selected option persisted: {selected.OptionId}");
         Console.WriteLine($"Next question: {InterviewQuestionPlanner.BuildNextQuestion(updated)}");
+    }
+
+    private static async Task RunInterviewThinkForMeFlowAsync(string sessionPath, string topic, string userInput, int selectionIndex, bool confirm)
+    {
+        var response = await UncertaintyOptionBridge.GenerateThinkForMeDirectionsAsync(userInput, topic);
+        if (!response.Triggered)
+        {
+            Console.WriteLine("Think-for-me mode was not triggered. Keep interview in normal question mode.");
+            return;
+        }
+
+        if (response.Proposals.Count != 3)
+        {
+            throw new InvalidOperationException($"Expected exactly 3 think-for-me proposals, got {response.Proposals.Count}.");
+        }
+
+        Console.WriteLine(response.HumanSummaryMarkdown);
+        var safeIndex = Math.Clamp(selectionIndex, 0, response.Proposals.Count - 1);
+        var selected = response.Proposals[safeIndex];
+        var proposalPayload = JsonSerializer.Serialize(selected.PrototypeSeed);
+
+        if (!confirm)
+        {
+            Console.WriteLine($"Pending direction (not committed): {selected.DirectionId}");
+            Console.WriteLine("Confirmation required. Re-run with --confirm to commit this direction.");
+            Console.WriteLine($"prototype_seed={proposalPayload}");
+            return;
+        }
+
+        var session = File.Exists(sessionPath)
+            ? await InterviewSessionStore.LoadAsync(sessionPath)
+            : new InterviewSession();
+
+        var options = response.Proposals
+            .Select(proposal => new UncertaintyOption
+            {
+                OptionId = proposal.DirectionId,
+                Title = proposal.Title,
+                Summary = proposal.ElevatorPitch,
+                Tradeoff = proposal.Tradeoff,
+            })
+            .ToList();
+
+        var decision = new UncertaintyDecision
+        {
+            Topic = response.Topic,
+            SourceInput = response.SourceInput,
+            Options = options,
+            SelectedOptionId = selected.DirectionId,
+        };
+
+        var updated = session with
+        {
+            UncertaintyDecisions = [.. session.UncertaintyDecisions, decision],
+        };
+
+        await InterviewSessionStore.SaveAsync(sessionPath, updated);
+        Console.WriteLine($"Direction committed after explicit confirmation: {selected.DirectionId}");
+        Console.WriteLine($"prototype_seed={proposalPayload}");
     }
 }

@@ -133,4 +133,55 @@ public sealed class InterviewUncertaintyTests
         Assert.Contains("Dramatic", nextQuestion);
         Assert.Contains("core mechanic", nextQuestion);
     }
+
+    [Fact]
+    public void ThinkForMeEnvelope_MapsConfirmationGateAndThreeProposals()
+    {
+        var payload = """
+        {
+          "mode": "think-for-me",
+          "topic": "concept",
+          "source_input": "think of something",
+          "triggered": true,
+          "confirmation_required": true,
+          "proposals": [
+            {
+              "direction_id": "concept-a",
+              "title": "A",
+              "elevator_pitch": "Pitch A",
+              "gameplay_pillars": ["one"],
+              "prototype_seed": {"rendering": "vulkan-first"},
+              "tradeoff": "Tradeoff A"
+            },
+            {
+              "direction_id": "concept-b",
+              "title": "B",
+              "elevator_pitch": "Pitch B",
+              "gameplay_pillars": ["two"],
+              "prototype_seed": {"rendering": "vulkan-first"},
+              "tradeoff": "Tradeoff B"
+            },
+            {
+              "direction_id": "concept-c",
+              "title": "C",
+              "elevator_pitch": "Pitch C",
+              "gameplay_pillars": ["three"],
+              "prototype_seed": {"rendering": "vulkan-first"},
+              "tradeoff": "Tradeoff C"
+            }
+          ],
+          "human_summary_markdown": "## Proposals"
+        }
+        """;
+
+        var envelope = JsonSerializer.Deserialize<ThinkForMeResponseEnvelope>(payload, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        });
+
+        Assert.NotNull(envelope);
+        Assert.True(envelope!.ConfirmationRequired);
+        Assert.Equal(3, envelope.Proposals.Count);
+        Assert.Equal("think-for-me", envelope.Mode);
+    }
 }
