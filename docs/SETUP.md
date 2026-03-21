@@ -11,17 +11,22 @@ This setup is intentionally simple and local-first for Milestone 1.
 - AI orchestration stack lock: Python.
 - Rendering direction: Vulkan-first.
 
+## Entrypoint Boundaries (V1)
+- Main app entrypoint: **C# editor launcher shell**.
+- Game runtime entrypoint: **C++ runtime**.
+- Python entrypoint: **optional**, for AI orchestration/automation commands only (not required for app startup).
+
 ## Prerequisites
 ### Ubuntu
 - `g++` with C++17 support.
+- .NET SDK 8+ (`dotnet`) for C# app startup.
 - Git.
 
 ### Windows
 - PowerShell 7+ (`pwsh`) recommended.
 - MinGW-w64 `g++` with C++17 support available in PATH.
+- .NET SDK 8+ (`dotnet`) for C# app startup.
 - Git.
-
-> Python is reserved for AI orchestration/tooling flows and is **not** a hard dependency for core runtime bootstrapping in this milestone.
 
 ## Bootstrap Command
 
@@ -39,10 +44,25 @@ cd ForgeEngine
 pwsh -f scripts/bootstrap.ps1
 ```
 
+## Optional Runtime-Only Mode
+
+Use this when the C# toolchain is not installed yet but you want to verify runtime compilation.
+
+Ubuntu/Linux:
+```bash
+./scripts/bootstrap.sh --runtime-only
+```
+
+Windows (PowerShell):
+```powershell
+pwsh -f scripts/bootstrap.ps1 -RuntimeOnly
+```
+
 ## What Bootstrap Does
 1. Verifies required repository folders exist.
-2. Compiles the minimal runtime app entrypoint from `runtime/cpp/main.cpp`.
-3. Starts the minimal app binary.
+2. Compiles the C++ runtime entrypoint from `runtime/cpp/main.cpp`.
+3. Starts C# app entrypoint (`editor/csharp/Program.cs` via `dotnet run`) by default.
+4. If runtime-only mode is used, starts the C++ runtime binary directly.
 
 ## Startup Verification Notes
 
@@ -53,26 +73,14 @@ Expected successful output includes:
 - `OK - editor/csharp`
 - `OK - runtime/cpp`
 - `OK - ai-orchestration/python`
-- `GameForge V1 minimal app (C++ runtime)`
-- `App started successfully.`
-- `Bootstrap completed successfully.`
+- `== Building Runtime Entrypoint (C++) ==`
+- `== Starting C# App Entrypoint ==`
+- `Editor launcher started successfully.`
 
 ### Windows verification
 Expected successful output includes:
 - `GameForge V1 bootstrap (Windows)`
 - The same `OK - ...` structure checks as Ubuntu.
-- `GameForge V1 minimal app (C++ runtime)`
-- `App started successfully.`
-- `Bootstrap completed successfully.`
-
-## Manual Minimal App Run
-
-### Ubuntu/Linux
-```bash
-./build/runtime/gameforge_runtime
-```
-
-### Windows (PowerShell)
-```powershell
-.\build\runtime\gameforge_runtime.exe
-```
+- `== Building Runtime Entrypoint (C++) ==`
+- `== Starting C# App Entrypoint ==`
+- `Editor launcher started successfully.`

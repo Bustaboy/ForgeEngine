@@ -5,6 +5,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build/runtime"
 RUNTIME_SRC="$REPO_ROOT/runtime/cpp/main.cpp"
 RUNTIME_BIN="$BUILD_DIR/gameforge_runtime"
+EDITOR_PROJECT="$REPO_ROOT/editor/csharp/GameForge.Editor.csproj"
+RUNTIME_ONLY="${1:-}"
 
 required_paths=(
   "$REPO_ROOT/app"
@@ -39,7 +41,20 @@ mkdir -p "$BUILD_DIR"
 echo "== Building Runtime Entrypoint (C++) =="
 g++ -std=c++17 "$RUNTIME_SRC" -o "$RUNTIME_BIN"
 
-echo "== Starting Minimal App =="
-"$RUNTIME_BIN"
+if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
+  echo "== Starting Runtime Only =="
+  "$RUNTIME_BIN"
+  echo "Bootstrap completed successfully (runtime-only)."
+  exit 0
+fi
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "WARNING: dotnet SDK not found; cannot start C# app entrypoint."
+  echo "Run './scripts/bootstrap.sh --runtime-only' for runtime-only verification."
+  exit 2
+fi
+
+echo "== Starting C# App Entrypoint =="
+dotnet run --project "$EDITOR_PROJECT" -- "$RUNTIME_BIN"
 
 echo "Bootstrap completed successfully."

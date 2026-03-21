@@ -3,10 +3,10 @@
 GameForge V1 is a **local-first, single-player, no-code-first** game creation project.
 
 This repository currently provides the **Milestone 1 skeleton**:
-- `app/` app-level module placeholder
-- `editor/` C# editor placeholder
-- `runtime/` C++ runtime placeholder (minimal runnable entrypoint)
-- `ai-orchestration/` Python orchestration placeholder
+- `app/` app startup/module boundary docs
+- `editor/` C# editor launcher shell (main app entrypoint)
+- `runtime/` C++ runtime placeholder (generated game runtime entrypoint)
+- `ai-orchestration/` Python orchestration placeholder (tooling/automation only)
 - `docs/` setup and project docs
 - `scripts/` local bootstrap scripts
 
@@ -22,11 +22,10 @@ This repository currently provides the **Milestone 1 skeleton**:
 pwsh -f scripts/bootstrap.ps1
 ```
 
-## Minimal App Start Command
+## Optional Runtime-Only Verification
 
-The minimal app entrypoint is built and launched from `runtime/cpp/main.cpp` by the bootstrap scripts.
+If .NET SDK is not available yet, you can still verify the C++ runtime build path:
 
-Manual Ubuntu/Linux run (after bootstrap):
 ```bash
-./build/runtime/gameforge_runtime
+./scripts/bootstrap.sh --runtime-only
 ```

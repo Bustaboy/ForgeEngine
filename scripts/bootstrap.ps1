@@ -1,9 +1,14 @@
+param(
+    [switch]$RuntimeOnly
+)
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildDir = Join-Path $repoRoot "build/runtime"
 $runtimeSrc = Join-Path $repoRoot "runtime/cpp/main.cpp"
 $runtimeBin = Join-Path $buildDir "gameforge_runtime.exe"
+$editorProject = Join-Path $repoRoot "editor/csharp/GameForge.Editor.csproj"
 
 $requiredPaths = @(
     (Join-Path $repoRoot "app"),
@@ -42,7 +47,21 @@ New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 Write-Host "== Building Runtime Entrypoint (C++) =="
 & $gpp.Source "-std=c++17" $runtimeSrc "-o" $runtimeBin
 
-Write-Host "== Starting Minimal App =="
-& $runtimeBin
+if ($RuntimeOnly) {
+    Write-Host "== Starting Runtime Only =="
+    & $runtimeBin
+    Write-Host "Bootstrap completed successfully (runtime-only)."
+    exit 0
+}
+
+$dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+if (-not $dotnet) {
+    Write-Host "WARNING: dotnet SDK not found; cannot start C# app entrypoint."
+    Write-Host "Run: pwsh -f scripts/bootstrap.ps1 -RuntimeOnly"
+    exit 2
+}
+
+Write-Host "== Starting C# App Entrypoint =="
+& $dotnet.Source "run" "--project" $editorProject "--" $runtimeBin
 
 Write-Host "Bootstrap completed successfully."

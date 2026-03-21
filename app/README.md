@@ -1,7 +1,12 @@
 # App Module
 
-This folder is reserved for top-level application orchestration artifacts.
+GameForge V1 application startup is anchored to the **C# editor/launcher shell** (`editor/csharp/Program.cs`).
 
-For Milestone 1, the minimal runnable app entrypoint is the C++ runtime skeleton in `runtime/cpp/main.cpp`, launched by:
+Module boundaries for V1:
+- **App entrypoint (launcher/editor shell):** C#
+- **Game runtime entrypoint (generated game runtime):** C++ (`runtime/cpp/main.cpp`)
+- **AI orchestration/tooling automation:** Python (`ai-orchestration/python/`), optional for app startup
+
+Bootstrap commands:
 - Ubuntu/Linux: `./scripts/bootstrap.sh`
 - Windows: `pwsh -f scripts/bootstrap.ps1`
