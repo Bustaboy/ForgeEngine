@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace GameForge.Editor.Interview;
 
-public sealed class InterviewSchemaException(string message) : InvalidDataException(message);
+public sealed class InterviewSchemaException(string message) : Exception(message);
 
 public static class InterviewSessionStore
 {
