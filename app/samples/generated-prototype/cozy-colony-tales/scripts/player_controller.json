@@ -1,0 +1,17 @@
+{
+  "schema": "gameforge.player_controller.v1",
+  "movement": {
+    "forward": "W",
+    "back": "S",
+    "left": "A",
+    "right": "D",
+    "jump": "Space"
+  },
+  "look": {
+    "mouse_sensitivity": 1.0
+  },
+  "interaction": {
+    "primary": "Mouse0",
+    "secondary": "Mouse1"
+  }
+}

@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 
 
 UNCERTAINTY_CUES = {
@@ -195,11 +199,184 @@ def generate_think_for_me_directions(user_input: str, topic: str = "game-directi
     )
 
 
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "prototype"
+
+
+def _write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _escape_cpp_string_literal(value: object) -> str:
+    text = str(value or "")
+    text = text.replace("\\", "\\\\")
+    text = text.replace('"', '\\"')
+    text = text.replace("\n", "\\n")
+    text = text.replace("\r", "\\r")
+    text = text.replace("\t", "\\t")
+    return text
+
+
+def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    concept = brief.get("concept", "GameForge Prototype")
+    mechanics = brief.get("mechanics", {})
+    style = brief.get("style", {})
+    narrative = brief.get("narrative", {})
+
+    prototype_root = output_dir / _slugify(concept)
+    prototype_root.mkdir(parents=True, exist_ok=True)
+
+    manifest = {
+        "generator": "gameforge-v1-prototype",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source_brief": str(brief_path),
+        "project_name": concept,
+        "platforms": ["windows", "ubuntu"],
+        "rendering": "vulkan-first",
+        "scope": "single-player baseline",
+    }
+
+    scene = {
+        "scene_id": "baseline_scene",
+        "player_spawn": {"x": 0, "y": 1, "z": 0},
+        "camera": {"mode": "third_person", "follow_player": True},
+        "world_notes": narrative.get("world_notes", ""),
+    }
+
+    player_controller = {
+        "schema": "gameforge.player_controller.v1",
+        "movement": {"forward": "W", "back": "S", "left": "A", "right": "D", "jump": "Space"},
+        "look": {"mouse_sensitivity": 1.0},
+        "interaction": {"primary": "Mouse0", "secondary": "Mouse1"},
+    }
+
+    ui_layout = {
+        "schema": "gameforge.ui.hud.v1",
+        "widgets": [
+            {"id": "quest_tracker", "anchor": "top-left", "enabled": True},
+            {"id": "health_bar", "anchor": "top-center", "enabled": True},
+            {"id": "hint_text", "anchor": "bottom-center", "enabled": True},
+        ],
+        "ui_direction": style.get("ui_direction", "Minimal readable HUD"),
+    }
+
+    save_stub = {
+        "schema": "gameforge.save.v1",
+        "active_slot": "slot_01",
+        "last_checkpoint": "baseline_scene:start",
+        "player_state": {"level": 1, "xp": 0},
+    }
+
+    _write_text(prototype_root / "prototype-manifest.json", json.dumps(manifest, indent=2))
+    _write_text(prototype_root / "scene" / "scene_scaffold.json", json.dumps(scene, indent=2))
+    _write_text(prototype_root / "scripts" / "player_controller.json", json.dumps(player_controller, indent=2))
+    _write_text(prototype_root / "ui" / "hud_layout.json", json.dumps(ui_layout, indent=2))
+    _write_text(prototype_root / "save" / "savegame_hook.json", json.dumps(save_stub, indent=2))
+
+    escaped_concept = _escape_cpp_string_literal(concept)
+    escaped_core_loop = _escape_cpp_string_literal(mechanics.get("core_loop", ""))
+
+    runtime_main = f'''#include <fstream>
+#include <iostream>
+#include <string>
+
+int main() {{
+    std::cout << "GameForge V1 prototype runtime (C++ baseline)\\n";
+    std::cout << "Mode: local-first, single-player, no-code-first\\n";
+    std::cout << "Rendering direction: Vulkan-first\\n";
+    std::cout << "Project: {escaped_concept}\\n";
+    std::cout << "Core loop seed: {escaped_core_loop}\\n";
+
+    std::ifstream scene("scene/scene_scaffold.json");
+    std::ifstream player("scripts/player_controller.json");
+    std::ifstream ui("ui/hud_layout.json");
+    std::ifstream save("save/savegame_hook.json");
+
+    if (!scene.good() || !player.good() || !ui.good() || !save.good()) {{
+        std::cerr << "Missing generated scaffold files.\\n";
+        return 2;
+    }}
+
+    std::cout << "Scene scaffold loaded.\\n";
+    std::cout << "Player controller loaded.\\n";
+    std::cout << "Basic UI loaded.\\n";
+    std::cout << "Save/load hook loaded.\\n";
+    std::cout << "Prototype launch success.\\n";
+    return 0;
+}}
+'''
+
+    launch_sh = """#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$PROJECT_DIR"
+g++ -std=c++17 runtime/main.cpp -o runtime/prototype_runtime
+./runtime/prototype_runtime
+"""
+
+    launch_ps1 = """$ErrorActionPreference = 'Stop'
+$projectDir = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+Set-Location $projectDir
+g++ -std=c++17 runtime/main.cpp -o runtime/prototype_runtime.exe
+./runtime/prototype_runtime.exe
+"""
+
+    readme = f"""# Generated Prototype: {concept}
+
+This project was generated from a saved interview brief.
+
+Included baseline scaffold:
+- Scene/world scaffold (`scene/scene_scaffold.json`)
+- Player control stub (`scripts/player_controller.json`)
+- Basic UI config (`ui/hud_layout.json`)
+- Save/load hook (`save/savegame_hook.json`)
+
+One-click local launch commands:
+- Ubuntu: `./launch_prototype.sh`
+- Windows PowerShell: `pwsh -f ./launch_prototype.ps1`
+"""
+
+    _write_text(prototype_root / "runtime" / "main.cpp", runtime_main)
+    _write_text(prototype_root / "launch_prototype.sh", launch_sh)
+    _write_text(prototype_root / "launch_prototype.ps1", launch_ps1)
+    _write_text(prototype_root / "README.md", readme)
+    (prototype_root / "launch_prototype.sh").chmod(0o755)
+
+    return prototype_root
+
+
+def _launch_generated_prototype(prototype_root: Path) -> int:
+    compile_cmd = ["g++", "-std=c++17", "runtime/main.cpp", "-o", "runtime/prototype_runtime"]
+    try:
+        compile_proc = subprocess.run(compile_cmd, cwd=prototype_root, text=True, capture_output=True)
+    except FileNotFoundError:
+        print("ERROR: g++ not found. Install g++ to compile and launch generated prototypes.")
+        return 127
+
+    if compile_proc.returncode != 0:
+        print(compile_proc.stdout)
+        print(compile_proc.stderr)
+        return compile_proc.returncode
+
+    run_proc = subprocess.run(["./runtime/prototype_runtime"], cwd=prototype_root, text=True, capture_output=True)
+    print(run_proc.stdout, end="")
+    if run_proc.returncode != 0:
+        print(run_proc.stderr, end="")
+    return run_proc.returncode
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GameForge V1 AI orchestration skeleton")
     parser.add_argument("--suggest-uncertain", dest="uncertain_input", help="User reply to evaluate for uncertainty")
     parser.add_argument("--think-for-me", dest="think_for_me_input", help="User reply to evaluate for think-for-me mode")
     parser.add_argument("--topic", default="game-direction", help="Interview topic for the option ids")
+    parser.add_argument("--generate-prototype", dest="brief_path", help="Path to saved interview brief JSON")
+    parser.add_argument("--output", default="build/generated-prototypes", help="Output directory for generated prototypes")
+    parser.add_argument("--launch", action="store_true", help="Compile and launch generated prototype runtime")
     return parser.parse_args()
 
 
@@ -214,6 +391,13 @@ def main() -> int:
     if args.think_for_me_input is not None:
         response = generate_think_for_me_directions(args.think_for_me_input, args.topic)
         print(json.dumps(asdict(response), indent=2))
+        return 0
+
+    if args.brief_path:
+        prototype_root = _generate_prototype(Path(args.brief_path), Path(args.output))
+        print(f"Generated prototype at: {prototype_root}")
+        if args.launch:
+            return _launch_generated_prototype(prototype_root)
         return 0
 
     print("GameForge V1 AI orchestration skeleton (Python)")

@@ -1,0 +1,12 @@
+{
+  "generator": "gameforge-v1-prototype",
+  "generated_at_utc": "2026-03-21T15:37:31.996637+00:00",
+  "source_brief": "app/samples/interview-brief.sample.json",
+  "project_name": "Cozy Colony Tales",
+  "platforms": [
+    "windows",
+    "ubuntu"
+  ],
+  "rendering": "vulkan-first",
+  "scope": "single-player baseline"
+}
