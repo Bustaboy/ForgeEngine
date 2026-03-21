@@ -49,5 +49,7 @@ V1 release candidate can proceed only if:
 
 ## Execution Notes
 - Automate P0 tests first.
+- Use language-native test suites per layer: C++ runtime tests in C++ framework, C# editor tests in a C# test framework, and Python tests for orchestration behavior.
+- Keep cross-system smoke tests Python-driven when practical to exercise end-to-end local flows.
 - Run cross-platform smoke tests every sprint once Milestone 1 is complete.
 - Track pass/fail history per build for trend visibility.
