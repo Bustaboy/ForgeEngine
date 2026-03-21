@@ -30,6 +30,10 @@ Use these rules for every prompt:
    - Preserve existing work, request migrations for breaking changes.
 8. **Ask for assumptions explicitly**
    - If unknowns exist, require Codex to list assumptions before implementation.
+9. **Use explicit output contracts**
+   - Require summary, files changed, commands run, tests, and known limitations every time.
+10. **Require fail-fast clarification**
+   - If a task depends on unknown requirements, Codex must ask before coding.
 
 ---
 
@@ -100,6 +104,45 @@ Output Format:
 - Tests/checks run
 - Known limitations / follow-up tasks
 ```
+
+---
+
+## 3.1) Context Packet Template (Use Before Large Tasks)
+Use this to keep prompts deterministic and reduce drift:
+
+```text
+Context Packet:
+- Objective: <single sentence>
+- Constraints: <hard rules>
+- In-scope files: <explicit list>
+- Out-of-scope files: <explicit list>
+- Existing decisions to preserve: <bullet list>
+- Required validations: <commands>
+- Stop conditions: <when Codex must pause and ask>
+```
+
+---
+
+## 3.2) Clarification/Blocker Protocol (Mandatory)
+When blocked by ambiguity or missing data, Codex should return:
+1. What is blocked
+2. Why it is blocked
+3. 2–3 options
+4. Recommended option with tradeoffs
+5. Minimal next change that can still be safely done now
+
+Codex should not proceed with speculative architecture changes while blocked.
+
+---
+
+## 3.3) Prompt Mode Selector
+Use one mode label at the top of each prompt:
+- `MODE: IMPLEMENT` (default; create/modify functionality)
+- `MODE: REFACTOR` (no behavior changes unless explicitly approved)
+- `MODE: TEST` (add/improve validation only)
+- `MODE: DOCS` (documentation-only changes)
+
+This keeps PR intent clear and avoids mixed-scope output.
 
 ---
 
@@ -510,6 +553,20 @@ Quality Gate Review:
 
 ---
 
+## 6.1) Output Contract for Every Codex Response
+Require this fixed structure in every implementation response:
+1. Plan (short)
+2. Files changed
+3. Why each change was made
+4. Commands run
+5. Test/check results
+6. Risks/limitations
+7. Next recommended prompt
+
+If any section is missing, treat the response as incomplete.
+
+---
+
 ## 7) “Don’t Let Codex Do This” Checklist
 Reject any output that:
 - introduces multiplayer in V1,
@@ -517,7 +574,17 @@ Reject any output that:
 - implements core runtime systems in Python,
 - bypasses confirmation for major destructive edits,
 - lacks tests/checks for behavior changes,
-- ships large unreviewable rewrites when incremental changes are possible.
+- ships large unreviewable rewrites when incremental changes are possible,
+- edits files outside declared in-scope set without justification.
+
+---
+
+## 7.1) Prompt Hygiene Rules for Better Codex Results
+1. Keep prompts under ~250 lines where possible.
+2. Avoid combining architecture + implementation + migration in one prompt.
+3. Prefer “one feature, one validation path” prompts.
+4. Always include exact file paths whenever known.
+5. Include at least one negative constraint (`Do not...`) for risky areas.
 
 ---
 
@@ -535,3 +602,12 @@ Return:
 - commands run,
 - next recommended prompt.
 ```
+
+---
+
+## 9) Supporting Docs Required for Stable Execution
+Use these docs as operational anchors:
+- `GAMEFORGE_DECISIONS_LOCK.md` (final locked decisions and change control)
+- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` (release and sprint pass/fail matrix)
+
+When prompts conflict with prior assumptions, update these docs first, then proceed with implementation.
