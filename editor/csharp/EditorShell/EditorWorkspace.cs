@@ -241,7 +241,7 @@ public sealed class EditorWorkspace
         var changed = false;
         foreach (var update in updates)
         {
-            if (destination.TryGetValue(update.Key, out var previous) && previous.ValueEquals(update.Value))
+            if (destination.TryGetValue(update.Key, out var previous) && JsonElement.DeepEquals(previous, update.Value))
             {
                 continue;
             }
