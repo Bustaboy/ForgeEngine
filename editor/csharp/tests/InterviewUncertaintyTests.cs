@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GameForge.Editor.Interview;
 
 namespace GameForge.Editor.Tests;
@@ -81,6 +82,28 @@ public sealed class InterviewUncertaintyTests
                 File.Delete(path);
             }
         }
+    }
+
+
+    [Fact]
+    public void SuggestionEnvelope_MapsSnakeCaseSourceInput()
+    {
+        var payload = """
+        {
+          "topic": "genre",
+          "source_input": "I do not know",
+          "ambiguous": true,
+          "options": []
+        }
+        """;
+
+        var envelope = JsonSerializer.Deserialize<SuggestionResponseEnvelope>(payload, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        });
+
+        Assert.NotNull(envelope);
+        Assert.Equal("I do not know", envelope!.SourceInput);
     }
 
     [Fact]

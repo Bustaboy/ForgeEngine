@@ -178,6 +178,7 @@ class TestInterviewContract(unittest.TestCase):
             session_payload = json.loads(session_path.read_text(encoding="utf-8"))
             self.assertEqual(len(session_payload["uncertainty_decisions"]), 1)
             decision = session_payload["uncertainty_decisions"][0]
+            self.assertEqual(decision["source_input"], "I don't know")
             self.assertEqual(len(decision["options"]), 3)
             selected = decision["selected_option_id"]
             option_ids = {opt["option_id"] for opt in decision["options"]}

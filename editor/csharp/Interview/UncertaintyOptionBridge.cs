@@ -1,13 +1,21 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace GameForge.Editor.Interview;
 
 public sealed record SuggestionResponseEnvelope
 {
+    [JsonPropertyName("topic")]
     public string Topic { get; init; } = string.Empty;
+
+    [JsonPropertyName("source_input")]
     public string SourceInput { get; init; } = string.Empty;
+
+    [JsonPropertyName("ambiguous")]
     public bool Ambiguous { get; init; }
+
+    [JsonPropertyName("options")]
     public List<UncertaintyOption> Options { get; init; } = [];
 }
 
@@ -17,6 +25,10 @@ public static class UncertaintyOptionBridge
     {
         var projectRoot = ResolveProjectRoot();
         var scriptPath = Path.Combine(projectRoot, "ai-orchestration", "python", "orchestrator.py");
+        if (!File.Exists(scriptPath))
+        {
+            throw new FileNotFoundException($"Could not find orchestrator.py at '{scriptPath}'.", scriptPath);
+        }
 
         var startInfo = new ProcessStartInfo
         {
@@ -60,7 +72,20 @@ public static class UncertaintyOptionBridge
 
     private static string ResolveProjectRoot()
     {
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "ai-orchestration", "python", "orchestrator.py");
+            if (File.Exists(candidate))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Could not resolve GameForge repository root from '{AppContext.BaseDirectory}'.");
     }
 
     private static string ResolvePythonExecutable()
