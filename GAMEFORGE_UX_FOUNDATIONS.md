@@ -104,6 +104,9 @@ Top-level navigation (V1):
 - In-app tutorials for every tool (focus on essential onboarding only).
 - Multi-user collaborative editor UX.
 
+## Supporting UX Copy Artifact
+- Canonical UX copy baseline for core actions, warnings, and confirmations: `GAMEFORGE_UX_COPY_STANDARDS_V1.md`.
+
 ## Change Control
 - Major UX flow changes must update:
   - `GAMEFORGE_V1_BLUEPRINT.md`
