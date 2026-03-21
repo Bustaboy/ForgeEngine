@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GameForge.Editor.EditorShell;
 using GameForge.Editor.Interview;
 
 internal static class Program
@@ -64,6 +65,17 @@ internal static class Program
             var confirm = args.Any(arg => string.Equals(arg, "--confirm", StringComparison.OrdinalIgnoreCase));
 
             await RunInterviewThinkForMeFlowAsync(sessionPath, topic, userInput, selectionIndex, confirm);
+            return 0;
+        }
+
+
+        if (args.Length > 0 && args[0] == "--editor-shell-smoke")
+        {
+            var projectRoot = args.Length > 1
+                ? args[1]
+                : Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
+
+            await RunEditorShellSmokeAsync(projectRoot);
             return 0;
         }
 
@@ -202,4 +214,32 @@ internal static class Program
         Console.WriteLine($"Direction committed after explicit confirmation: {selected.DirectionId}");
         Console.WriteLine($"prototype_seed={proposalPayload}");
     }
+
+    private static async Task RunEditorShellSmokeAsync(string projectRoot)
+    {
+        var snapshot = await EditorProjectLoader.LoadGeneratedProjectAsync(projectRoot);
+        var workspace = new EditorWorkspace(snapshot);
+
+        var selectedObjectId = snapshot.SceneObjects.First().ObjectId;
+        if (!workspace.SelectObject(selectedObjectId))
+        {
+            throw new InvalidOperationException($"Failed to select object: {selectedObjectId}");
+        }
+
+        Console.WriteLine($"Project opened: {snapshot.ProjectName}");
+        Console.WriteLine($"Rendering path: {snapshot.Rendering}");
+        Console.WriteLine($"Platforms: {string.Join(", ", snapshot.Platforms)}");
+        Console.WriteLine("Docked panels:");
+
+        foreach (var panel in workspace.Layout.Panels.OrderBy(panel => panel.DockZone).ThenBy(panel => panel.Order))
+        {
+            Console.WriteLine($"- {panel.DisplayName} [{panel.PanelId}] dock={panel.DockZone}");
+        }
+
+        Console.WriteLine($"Selected object: {workspace.SelectedObject?.DisplayName}");
+        Console.WriteLine($"Inspector simple keys: {string.Join(", ", workspace.Inspector!.SimpleSection.Keys)}");
+        Console.WriteLine($"AI context target: {workspace.AiContext!.ObjectLabel} ({workspace.AiContext.ObjectType})");
+        Console.WriteLine("Editor shell smoke passed.");
+    }
+
 }
