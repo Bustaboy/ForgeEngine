@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import importlib.util
 from pathlib import Path
 
 
@@ -13,6 +14,11 @@ ORCHESTRATOR = REPO_ROOT / "ai-orchestration" / "python" / "orchestrator.py"
 SAMPLE_BRIEF = REPO_ROOT / "app" / "samples" / "interview-brief.sample.json"
 SAMPLE_PROJECT = REPO_ROOT / "app" / "samples" / "generated-prototype" / "cozy-colony-tales"
 SMOKE_SCRIPT = REPO_ROOT / "scripts" / "smoke_prototype_launch.py"
+
+spec = importlib.util.spec_from_file_location("orchestrator", ORCHESTRATOR)
+orchestrator = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = orchestrator
+spec.loader.exec_module(orchestrator)
 
 
 def run_cmd(cmd, cwd=REPO_ROOT):
@@ -139,6 +145,88 @@ class TestPrototypeGeneration(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("Prototype launch success.", proc.stdout)
         self.assertIn("Prototype generation + launch smoke test passed.", proc.stdout)
+
+    def test_partial_regeneration_skips_locked_paths_without_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "prototype"
+            (root / "scene").mkdir(parents=True, exist_ok=True)
+            (root / "ui").mkdir(parents=True, exist_ok=True)
+            (root / "scene" / "scene_scaffold.json").write_text('{"version": 1}', encoding="utf-8")
+            (root / "ui" / "hud_layout.json").write_text('{"version": 1}', encoding="utf-8")
+
+            result = orchestrator.apply_partial_regeneration(
+                prototype_root=root,
+                updates={
+                    "scene/scene_scaffold.json": '{"version": 2}',
+                    "ui/hud_layout.json": '{"version": 2}',
+                },
+                locked_paths=["scene"],
+                confirm_destructive=False,
+            )
+
+            self.assertTrue(result.requires_confirmation)
+            self.assertIn("scene/scene_scaffold.json", result.skipped_locked_files)
+            self.assertIn("scene/scene_scaffold.json", result.conflict_prompt)
+            self.assertEqual(
+                (root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"),
+                '{"version": 1}',
+            )
+            self.assertEqual(
+                (root / "ui" / "hud_layout.json").read_text(encoding="utf-8"),
+                '{"version": 2}',
+            )
+
+    def test_partial_regeneration_overwrites_locked_paths_after_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "prototype"
+            (root / "scene").mkdir(parents=True, exist_ok=True)
+            (root / "scene" / "scene_scaffold.json").write_text('{"version": 1}', encoding="utf-8")
+
+            result = orchestrator.apply_partial_regeneration(
+                prototype_root=root,
+                updates={"scene/scene_scaffold.json": '{"version": 2}'},
+                locked_paths=["scene"],
+                confirm_destructive=True,
+            )
+
+            self.assertFalse(result.requires_confirmation)
+            self.assertEqual(result.conflicts, [])
+            self.assertEqual(result.skipped_locked_files, [])
+            self.assertEqual(result.updated_files, ["scene/scene_scaffold.json"])
+            self.assertEqual(
+                (root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"),
+                '{"version": 2}',
+            )
+
+    def test_partial_regeneration_rejects_traversal_outside_prototype_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            root = temp_root / "prototype"
+            root.mkdir(parents=True, exist_ok=True)
+            escaped_target = temp_root / "escaped.json"
+
+            with self.assertRaisesRegex(ValueError, "escapes prototype root"):
+                orchestrator.apply_partial_regeneration(
+                    prototype_root=root,
+                    updates={"../escaped.json": '{"bad": true}'},
+                    locked_paths=[],
+                    confirm_destructive=False,
+                )
+
+            self.assertFalse(escaped_target.exists())
+
+    def test_partial_regeneration_rejects_absolute_targets(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "prototype"
+            root.mkdir(parents=True, exist_ok=True)
+
+            with self.assertRaisesRegex(ValueError, "Absolute regeneration path is not allowed"):
+                orchestrator.apply_partial_regeneration(
+                    prototype_root=root,
+                    updates={"/tmp/should-not-write.json": '{"bad": true}'},
+                    locked_paths=[],
+                    confirm_destructive=False,
+                )
 
 
 if __name__ == "__main__":
