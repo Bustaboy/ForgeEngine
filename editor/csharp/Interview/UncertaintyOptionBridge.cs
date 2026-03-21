@@ -19,9 +19,88 @@ public sealed record SuggestionResponseEnvelope
     public List<UncertaintyOption> Options { get; init; } = [];
 }
 
+public sealed record DirectionProposalEnvelope
+{
+    [JsonPropertyName("direction_id")]
+    public string DirectionId { get; init; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; init; } = string.Empty;
+
+    [JsonPropertyName("elevator_pitch")]
+    public string ElevatorPitch { get; init; } = string.Empty;
+
+    [JsonPropertyName("gameplay_pillars")]
+    public List<string> GameplayPillars { get; init; } = [];
+
+    [JsonPropertyName("prototype_seed")]
+    public Dictionary<string, JsonElement> PrototypeSeed { get; init; } = [];
+
+    [JsonPropertyName("tradeoff")]
+    public string Tradeoff { get; init; } = string.Empty;
+}
+
+public sealed record ThinkForMeResponseEnvelope
+{
+    [JsonPropertyName("mode")]
+    public string Mode { get; init; } = string.Empty;
+
+    [JsonPropertyName("topic")]
+    public string Topic { get; init; } = string.Empty;
+
+    [JsonPropertyName("source_input")]
+    public string SourceInput { get; init; } = string.Empty;
+
+    [JsonPropertyName("triggered")]
+    public bool Triggered { get; init; }
+
+    [JsonPropertyName("confirmation_required")]
+    public bool ConfirmationRequired { get; init; }
+
+    [JsonPropertyName("proposals")]
+    public List<DirectionProposalEnvelope> Proposals { get; init; } = [];
+
+    [JsonPropertyName("human_summary_markdown")]
+    public string HumanSummaryMarkdown { get; init; } = string.Empty;
+}
+
 public static class UncertaintyOptionBridge
 {
     public static async Task<SuggestionResponseEnvelope> GenerateOptionsAsync(string userInput, string topic, CancellationToken cancellationToken = default)
+    {
+        var stdout = await RunOrchestratorAsync(
+            "--suggest-uncertain",
+            userInput,
+            "--topic",
+            topic,
+            cancellationToken);
+
+        var response = JsonSerializer.Deserialize<SuggestionResponseEnvelope>(stdout, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        });
+
+        return response ?? throw new InvalidOperationException("Python uncertainty option bridge returned invalid JSON.");
+    }
+
+    public static async Task<ThinkForMeResponseEnvelope> GenerateThinkForMeDirectionsAsync(string userInput, string topic, CancellationToken cancellationToken = default)
+    {
+        var stdout = await RunOrchestratorAsync(
+            "--think-for-me",
+            userInput,
+            "--topic",
+            topic,
+            cancellationToken);
+
+        var response = JsonSerializer.Deserialize<ThinkForMeResponseEnvelope>(stdout, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        });
+
+        return response ?? throw new InvalidOperationException("Python think-for-me bridge returned invalid JSON.");
+    }
+
+    private static async Task<string> RunOrchestratorAsync(string firstFlag, string firstValue, string secondFlag, string secondValue, CancellationToken cancellationToken)
     {
         var projectRoot = ResolveProjectRoot();
         var scriptPath = Path.Combine(projectRoot, "ai-orchestration", "python", "orchestrator.py");
@@ -36,10 +115,10 @@ public static class UncertaintyOptionBridge
             ArgumentList =
             {
                 scriptPath,
-                "--suggest-uncertain",
-                userInput,
-                "--topic",
-                topic,
+                firstFlag,
+                firstValue,
+                secondFlag,
+                secondValue,
             },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -47,7 +126,7 @@ public static class UncertaintyOptionBridge
         };
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start Python uncertainty option bridge.");
+            ?? throw new InvalidOperationException("Failed to start Python orchestration bridge.");
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -59,15 +138,10 @@ public static class UncertaintyOptionBridge
 
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"Python uncertainty option bridge failed: {stderr}");
+            throw new InvalidOperationException($"Python orchestration bridge failed: {stderr}");
         }
 
-        var response = JsonSerializer.Deserialize<SuggestionResponseEnvelope>(stdout, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-        });
-
-        return response ?? throw new InvalidOperationException("Python uncertainty option bridge returned invalid JSON.");
+        return stdout;
     }
 
     private static string ResolveProjectRoot()

@@ -213,6 +213,64 @@ class TestInterviewContract(unittest.TestCase):
         self.assertTrue(payload["ambiguous"])
         self.assertEqual(len(payload["options"]), 3)
 
+    def test_python_orchestrator_supports_think_for_me_cli(self):
+        proc = run_cmd([
+            sys.executable,
+            "ai-orchestration/python/orchestrator.py",
+            "--think-for-me",
+            "think of something",
+            "--topic",
+            "concept",
+        ])
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["triggered"])
+        self.assertTrue(payload["confirmation_required"])
+        self.assertEqual(len(payload["proposals"]), 3)
+        self.assertTrue(payload["human_summary_markdown"].strip())
+
+    def test_dotnet_think_for_me_requires_confirmation_to_commit_if_available(self):
+        if not shutil.which("dotnet"):
+            self.skipTest("dotnet SDK not available")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            session_path = Path(temp_dir) / "session.json"
+            unconfirmed = run_cmd([
+                "dotnet",
+                "run",
+                "--project",
+                str(EDITOR_CSPROJ),
+                "--",
+                "--interview-think-for-me",
+                str(session_path),
+                "concept",
+                "think of something",
+                "1",
+            ])
+
+            self.assertEqual(unconfirmed.returncode, 0, unconfirmed.stdout + unconfirmed.stderr)
+            self.assertIn("Pending direction (not committed)", unconfirmed.stdout)
+            self.assertFalse(session_path.exists())
+
+            confirmed = run_cmd([
+                "dotnet",
+                "run",
+                "--project",
+                str(EDITOR_CSPROJ),
+                "--",
+                "--interview-think-for-me",
+                str(session_path),
+                "concept",
+                "think of something",
+                "1",
+                "--confirm",
+            ])
+
+            self.assertEqual(confirmed.returncode, 0, confirmed.stdout + confirmed.stderr)
+            self.assertIn("Direction committed after explicit confirmation", confirmed.stdout)
+            self.assertTrue(session_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

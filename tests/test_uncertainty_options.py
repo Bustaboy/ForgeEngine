@@ -29,6 +29,18 @@ class TestUncertaintyOptions(unittest.TestCase):
         self.assertFalse(response.ambiguous)
         self.assertEqual(response.options, [])
 
+    def test_think_for_me_mode_returns_three_directional_concepts(self):
+        response = orchestrator.generate_think_for_me_directions("think for me", topic="concept")
+        self.assertTrue(response.triggered)
+        self.assertTrue(response.confirmation_required)
+        self.assertEqual(len(response.proposals), 3)
+        self.assertTrue(response.human_summary_markdown.strip())
+
+    def test_think_for_me_mode_requires_trigger_phrase(self):
+        response = orchestrator.generate_think_for_me_directions("I already know what I want", topic="concept")
+        self.assertFalse(response.triggered)
+        self.assertEqual(response.proposals, [])
+
 
 if __name__ == "__main__":
     unittest.main()
