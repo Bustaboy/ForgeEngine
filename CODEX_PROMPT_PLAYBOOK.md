@@ -55,7 +55,8 @@ Follow these requirements strictly:
 - Use Vulkan-first rendering direction.
 - Make small, reviewable changes with clear acceptance criteria.
 - For each task: (1) plan, (2) implement, (3) run checks, (4) summarize deliverables and risks.
-- If requirements are ambiguous, state assumptions and proceed with safest scoped option.
+- If requirements are ambiguous and could affect architecture, data model, or scope boundaries, stop and ask for clarification before coding.
+- Only proceed on assumptions when ambiguity is minor, non-breaking, and explicitly documented in output.
 ```
 
 ---

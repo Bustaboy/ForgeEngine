@@ -350,36 +350,53 @@ UX reference:
 
 ## 16) Implementation Milestones (2-Person Side Project)
 
-### Milestone 1: Interview + Concept Core
+Milestone ordering is aligned to `GAMEFORGE_EXECUTION_PLAN.md` and `CODEX_PROMPT_PLAYBOOK.md`.
+
+### Milestone 0: UX Foundation
+- UX wireframes and navigation map
+- UX copy and labeling standards
+- non-coder-first interaction checks
+
+### Milestone 1: Project Foundation & Architecture
+- repository/module skeleton
+- bootstrap/run flow
+- architecture baseline and stack lock
+
+### Milestone 2: Interview + Concept Core
 - Q&A engine
 - preference memory
 - 3-option suggestion logic
 - concept document output
 
-### Milestone 2: Prototype Generator
+### Milestone 3: Prototype Generator
 - one-click prototype build
 - regeneration/edit cycle
 - gameplay-first iteration pipeline
 
-### Milestone 3: Visual Editor + AI Co-Pilot
+### Milestone 4: Visual Editor + AI Co-Pilot
 - object selection + chat edit
 - simple/advanced panels
 - lock/unlock, undo/redo, snapshots
 
-### Milestone 4: Genre Foundations
+### Milestone 5: Genre Foundations
 - RTS/sim basic systems
 - RPG basic systems
 - consequence tracking + branch visualization
 
-### Milestone 5: Testing + Publish Assistant
+### Milestone 6: Assets + Style Consistency
+- asset ingestion/categorization
+- style presets and consistency helpers
+- license allow-list enforcement hooks
+
+### Milestone 7: Testing Assistant
 - bot testing harness
 - AI playtest report
-- Steam readiness score + checklist
+- test escalation and reporting UX
 
-### Milestone 6: Local-First Hardening + Cloud Hooks
-- performance stabilization for target spec
-- provider integration scaffolding
+### Milestone 8: Publish Assistant + Release Candidate
+- Steam readiness score + checklist
 - policy/commercial flow wiring
+- audit trail and release-candidate gating
 
 ---
 
