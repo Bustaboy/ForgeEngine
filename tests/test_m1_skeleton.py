@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,7 +21,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
         compile_proc = run_cmd(["g++", "-std=c++17", str(RUNTIME_SRC), "-o", str(RUNTIME_BIN)])
         self.assertEqual(compile_proc.returncode, 0, compile_proc.stderr)
 
-        run_proc = run_cmd([str(RUNTIME_BIN)])
+        run_proc = run_cmd([str(RUNTIME_BIN), str(REPO_ROOT)])
         self.assertEqual(run_proc.returncode, 0, run_proc.stderr)
         self.assertIn("GameForge V1 minimal app (C++ runtime)", run_proc.stdout)
         self.assertIn("App started successfully.", run_proc.stdout)
@@ -106,7 +107,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Python entrypoint: **optional**", setup)
 
     def test_ai_orchestration_placeholder_runs(self):
-        proc = run_cmd(["python3", "ai-orchestration/python/orchestrator.py"])
+        proc = run_cmd([sys.executable, "ai-orchestration/python/orchestrator.py"])
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("AI orchestration skeleton", proc.stdout)
 

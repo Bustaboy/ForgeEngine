@@ -49,7 +49,7 @@ Write-Host "== Building Runtime Entrypoint (C++) =="
 
 if ($RuntimeOnly) {
     Write-Host "== Starting Runtime Only =="
-    & $runtimeBin
+    & $runtimeBin $repoRoot
     Write-Host "Bootstrap completed successfully (runtime-only)."
     exit 0
 }

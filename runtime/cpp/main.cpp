@@ -3,13 +3,15 @@
 #include <string>
 #include <vector>
 
-int main() {
-    const std::filesystem::path repo_root = std::filesystem::current_path();
+int main(int argc, char* argv[]) {
+    const std::filesystem::path repo_root =
+        (argc > 1) ? std::filesystem::path(argv[1]) : std::filesystem::current_path();
 
     std::cout << "GameForge V1 minimal app (C++ runtime)\n";
     std::cout << "Mode: local-first, single-player, no-code-first\n";
     std::cout << "Target OS: Windows + Ubuntu\n";
     std::cout << "Rendering direction: Vulkan-first\n";
+    std::cout << "Repo root: " << repo_root.string() << "\n";
 
     const std::vector<std::string> required_paths = {
         "app",

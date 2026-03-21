@@ -43,7 +43,7 @@ g++ -std=c++17 "$RUNTIME_SRC" -o "$RUNTIME_BIN"
 
 if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
   echo "== Starting Runtime Only =="
-  "$RUNTIME_BIN"
+  "$RUNTIME_BIN" "$REPO_ROOT"
   echo "Bootstrap completed successfully (runtime-only)."
   exit 0
 fi
