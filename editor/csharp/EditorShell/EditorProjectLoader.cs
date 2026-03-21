@@ -25,7 +25,7 @@ public static class EditorProjectLoader
         }
 
         await using var manifestStream = File.OpenRead(manifestPath);
-        var manifestDoc = await JsonDocument.ParseAsync(manifestStream);
+        using var manifestDoc = await JsonDocument.ParseAsync(manifestStream);
 
         var root = manifestDoc.RootElement;
         var projectName = root.GetProperty("project_name").GetString() ?? "Generated Project";
@@ -39,7 +39,7 @@ public static class EditorProjectLoader
             .ToList();
 
         await using var sceneStream = File.OpenRead(scenePath);
-        var sceneDoc = await JsonDocument.ParseAsync(sceneStream);
+        using var sceneDoc = await JsonDocument.ParseAsync(sceneStream);
         var sceneRoot = sceneDoc.RootElement;
 
         var sceneObjects = BuildSceneObjects(sceneRoot);
