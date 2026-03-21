@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "session_id": "sample-session-v1",
+  "created_at_utc": "2026-03-20T12:00:00Z",
+  "updated_at_utc": "2026-03-20T12:30:00Z",
+  "concept": "Cozy Colony Tales",
+  "genre_weights": {
+    "rts_sim": 0.6,
+    "rpg": 0.4
+  },
+  "mechanics": {
+    "core_loop": "Gather resources, expand settlement, and complete social quests",
+    "progression_systems": [
+      "Town upgrade tiers",
+      "Companion affinity",
+      "Light skill unlocks"
+    ],
+    "failure_states": [
+      "Resource shortages",
+      "Unresolved weekly quests"
+    ],
+    "simulation_depth_notes": "Medium complexity economy with approachable pacing"
+  },
+  "narrative": {
+    "premise": "Build a resilient frontier town around an ancient relic grove.",
+    "player_fantasy": "Lead a cozy but strategic colony that grows with your decisions.",
+    "tone": "Hopeful, warm, and grounded",
+    "world_notes": "Four seasonal biomes and neighboring factions shape event pacing.",
+    "quest_structure": [
+      "Seasonal arcs",
+      "Companion side quests",
+      "Settlement milestones"
+    ]
+  },
+  "style": {
+    "preset": "Cozy Stylized",
+    "art_direction": "Painterly stylized 3D",
+    "camera_direction": "Third-person with tactical zoom",
+    "ui_direction": "Readable panels with icon-first widgets",
+    "audio_direction": "Warm acoustic ambience with subtle simulation feedback"
+  },
+  "constraints": {
+    "target_platforms": [
+      "windows",
+      "ubuntu"
+    ],
+    "content_rating_target": "Teen",
+    "scope_constraints": [
+      "Single-player only",
+      "No marketplace",
+      "No first-party cloud hosting"
+    ],
+    "technical_constraints": [
+      "Vulkan-first",
+      "C++ runtime",
+      "C# editor",
+      "Python AI orchestration"
+    ],
+    "accessibility_constraints": [
+      "Colorblind-friendly palette",
+      "Remappable controls"
+    ]
+  },
+  "uncertainty_decisions": []
+}

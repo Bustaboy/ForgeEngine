@@ -1,0 +1,21 @@
+{
+  "schema": "gameforge.ui.hud.v1",
+  "widgets": [
+    {
+      "id": "quest_tracker",
+      "anchor": "top-left",
+      "enabled": true
+    },
+    {
+      "id": "health_bar",
+      "anchor": "top-center",
+      "enabled": true
+    },
+    {
+      "id": "hint_text",
+      "anchor": "bottom-center",
+      "enabled": true
+    }
+  ],
+  "ui_direction": "Readable panels with icon-first widgets"
+}

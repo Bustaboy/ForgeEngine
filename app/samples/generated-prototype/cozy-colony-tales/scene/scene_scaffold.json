@@ -1,0 +1,13 @@
+{
+  "scene_id": "baseline_scene",
+  "player_spawn": {
+    "x": 0,
+    "y": 1,
+    "z": 0
+  },
+  "camera": {
+    "mode": "third_person",
+    "follow_player": true
+  },
+  "world_notes": "Four seasonal biomes and neighboring factions shape event pacing."
+}
