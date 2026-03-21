@@ -15,6 +15,22 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "--interview-validate-file")
+        {
+            var payloadPath = args.Length > 1 ? args[1] : throw new ArgumentException("Missing payload path");
+            try
+            {
+                await InterviewSessionStore.LoadAsync(payloadPath);
+                Console.WriteLine("Interview payload validation passed.");
+                return 0;
+            }
+            catch (InterviewSchemaException ex)
+            {
+                Console.WriteLine($"Interview payload validation failed: {ex.Message}");
+                return 3;
+            }
+        }
+
         var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
         var fullRuntimePath = Path.GetFullPath(runtimePath);
 

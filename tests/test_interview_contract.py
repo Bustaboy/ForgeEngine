@@ -45,7 +45,9 @@ class TestInterviewContract(unittest.TestCase):
         self.assertIn("public static class InterviewSessionStore", store_text)
         self.assertIn("SaveAsync", store_text)
         self.assertIn("LoadAsync", store_text)
-        self.assertIn("Unsupported interview schema version", store_text)
+        self.assertIn("RequireOnlyProperties", store_text)
+        self.assertIn("RequireStringArray", store_text)
+        self.assertIn("Unsupported platform", store_text)
 
     def test_dotnet_smoke_round_trip_if_available(self):
         if not shutil.which("dotnet"):
@@ -69,6 +71,64 @@ class TestInterviewContract(unittest.TestCase):
             session_payload = json.loads(session_path.read_text(encoding="utf-8"))
             self.assertEqual(session_payload["schema_version"], 1)
             self.assertEqual(session_payload["concept"], "Smoke test concept")
+
+    def test_dotnet_rejects_malformed_payload_if_available(self):
+        if not shutil.which("dotnet"):
+            self.skipTest("dotnet SDK not available")
+
+        malformed_payload = {
+            "schema_version": 1,
+            "session_id": "bad-session",
+            "created_at_utc": "2026-01-01T00:00:00Z",
+            "updated_at_utc": "2026-01-01T00:00:00Z",
+            "concept": "invalid",
+            "genre_weights": {"rts_sim": 1.2, "rpg": -0.1},
+            "mechanics": {
+                "core_loop": "",
+                "progression_systems": [],
+                "failure_states": [],
+                "simulation_depth_notes": ""
+            },
+            "narrative": {
+                "premise": "",
+                "player_fantasy": "",
+                "tone": "",
+                "world_notes": "",
+                "quest_structure": []
+            },
+            "style": {
+                "preset": "",
+                "art_direction": "",
+                "camera_direction": "",
+                "ui_direction": "",
+                "audio_direction": ""
+            },
+            "constraints": {
+                "target_platforms": ["macos"],
+                "content_rating_target": "",
+                "scope_constraints": [],
+                "technical_constraints": [],
+                "accessibility_constraints": []
+            },
+            "unexpected": true,
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload_path = Path(temp_dir) / "bad-session.json"
+            payload_path.write_text(json.dumps(malformed_payload), encoding="utf-8")
+
+            proc = run_cmd([
+                "dotnet",
+                "run",
+                "--project",
+                str(EDITOR_CSPROJ),
+                "--",
+                "--interview-validate-file",
+                str(payload_path),
+            ])
+
+            self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+            self.assertIn("Interview payload validation failed", proc.stdout)
 
 
 if __name__ == "__main__":
