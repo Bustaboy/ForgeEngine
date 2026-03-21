@@ -60,3 +60,70 @@ public sealed record EditorProjectSnapshot
 
     public required IReadOnlyList<SceneObject> SceneObjects { get; init; }
 }
+
+public enum AiEditImpactLevel
+{
+    Minor = 0,
+    Major = 1,
+}
+
+public sealed record AiMutationRequest
+{
+    public required string MutationId { get; init; }
+
+    public required string TargetObjectId { get; init; }
+
+    public required string Summary { get; init; }
+
+    public required AiEditImpactLevel ImpactLevel { get; init; }
+
+    public required IReadOnlyDictionary<string, JsonElement> PropertyChanges { get; init; }
+}
+
+public sealed record AiEditPreviewDiff
+{
+    public required string PropertyName { get; init; }
+
+    public required string BeforeValue { get; init; }
+
+    public required string AfterValue { get; init; }
+}
+
+public sealed record AiEditPreview
+{
+    public required string MutationId { get; init; }
+
+    public required string TargetObjectId { get; init; }
+
+    public required string Summary { get; init; }
+
+    public required IReadOnlyList<AiEditPreviewDiff> Differences { get; init; }
+}
+
+public enum AiMutationApplyStatus
+{
+    Applied = 0,
+    PreviewRequired = 1,
+    TargetNotFound = 2,
+    NoChanges = 3,
+}
+
+public sealed record AiMutationApplyResult
+{
+    public required AiMutationApplyStatus Status { get; init; }
+
+    public required bool ChangedState { get; init; }
+
+    public AiEditPreview? Preview { get; init; }
+}
+
+public sealed record EditTimelineEntry
+{
+    public required string MutationId { get; init; }
+
+    public required string TargetObjectId { get; init; }
+
+    public required string Summary { get; init; }
+
+    public required DateTimeOffset AppliedAtUtc { get; init; }
+}
