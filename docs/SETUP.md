@@ -12,58 +12,67 @@ This setup is intentionally simple and local-first for Milestone 1.
 - Rendering direction: Vulkan-first.
 
 ## Prerequisites
-- Python 3.10+ installed and available as `python3` (Ubuntu) or `python` (Windows).
+### Ubuntu
+- `g++` with C++17 support.
 - Git.
 
-> Note: C++ and C# placeholders are included as module skeletons, but bootstrap only requires Python for now.
+### Windows
+- PowerShell 7+ (`pwsh`) recommended.
+- MinGW-w64 `g++` with C++17 support available in PATH.
+- Git.
+
+> Python is reserved for AI orchestration/tooling flows and is **not** a hard dependency for core runtime bootstrapping in this milestone.
 
 ## Bootstrap Command
 
-### Ubuntu
+### Ubuntu/Linux
 ```bash
 git clone <repo-url>
 cd ForgeEngine
-python3 scripts/bootstrap.py
+./scripts/bootstrap.sh
 ```
 
 ### Windows (PowerShell)
 ```powershell
 git clone <repo-url>
 cd ForgeEngine
-python scripts/bootstrap.py
+pwsh -f scripts/bootstrap.ps1
 ```
 
 ## What Bootstrap Does
-1. Prints environment details.
-2. Verifies required repository folders exist.
-3. Starts the minimal app entrypoint (`app/main.py`) unless `--skip-run` is passed.
+1. Verifies required repository folders exist.
+2. Compiles the minimal runtime app entrypoint from `runtime/cpp/main.cpp`.
+3. Starts the minimal app binary.
 
 ## Startup Verification Notes
 
 ### Ubuntu verification
 Expected successful output includes:
-- `GameForge V1 local bootstrap`
+- `GameForge V1 bootstrap (Ubuntu/Linux)`
 - `OK - app`
 - `OK - editor/csharp`
 - `OK - runtime/cpp`
 - `OK - ai-orchestration/python`
+- `GameForge V1 minimal app (C++ runtime)`
 - `App started successfully.`
 - `Bootstrap completed successfully.`
 
 ### Windows verification
-Expected successful output includes the same status lines as Ubuntu.
-Use either:
-- `python scripts/bootstrap.py`
-- `./scripts/bootstrap.ps1`
+Expected successful output includes:
+- `GameForge V1 bootstrap (Windows)`
+- The same `OK - ...` structure checks as Ubuntu.
+- `GameForge V1 minimal app (C++ runtime)`
+- `App started successfully.`
+- `Bootstrap completed successfully.`
 
 ## Manual Minimal App Run
 
-Ubuntu:
+### Ubuntu/Linux
 ```bash
-python3 app/main.py
+./build/runtime/gameforge_runtime
 ```
 
-Windows (PowerShell):
+### Windows (PowerShell)
 ```powershell
-python app/main.py
+.\build\runtime\gameforge_runtime.exe
 ```
