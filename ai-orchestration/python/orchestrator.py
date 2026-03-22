@@ -148,6 +148,44 @@ class ProjectStyleSelectionState:
     helper_mode: str
 
 
+@dataclass(frozen=True)
+class BotPlaytestProbe:
+    probe_id: str
+    probe_type: str
+    target: str
+    expected: object
+    required: bool = True
+
+
+@dataclass(frozen=True)
+class BotPlaytestScenario:
+    schema: str
+    scenario_id: str
+    title: str
+    max_runtime_seconds: int
+    probes: list[BotPlaytestProbe]
+
+
+@dataclass(frozen=True)
+class BotPlaytestProbeResult:
+    probe_id: str
+    status: str
+    details: str
+    required: bool
+
+
+@dataclass(frozen=True)
+class BotPlaytestResult:
+    scenario_id: str
+    prototype_root: str
+    status: str
+    human_review_required: bool
+    summary: str
+    completed_at_utc: str
+    probe_results: list[BotPlaytestProbeResult]
+    inconclusive_reasons: list[str]
+
+
 ALLOWED_LICENSES = {
     "cc0-1.0",
     "public-domain",
@@ -1316,6 +1354,143 @@ def _launch_generated_prototype(prototype_root: Path) -> int:
     return run_proc.returncode
 
 
+def _read_bot_playtest_scenario(scenario_path: Path) -> BotPlaytestScenario:
+    payload = json.loads(scenario_path.read_text(encoding="utf-8"))
+    probes_raw = payload.get("probes", [])
+    if not isinstance(probes_raw, list) or not probes_raw:
+        raise ValueError("Bot playtest scenario requires a non-empty probes list.")
+    probes = [
+        BotPlaytestProbe(
+            probe_id=str(item.get("probe_id", "")).strip(),
+            probe_type=str(item.get("probe_type", "")).strip().lower(),
+            target=str(item.get("target", "")).strip(),
+            expected=item.get("expected"),
+            required=bool(item.get("required", True)),
+        )
+        for item in probes_raw
+        if isinstance(item, dict)
+    ]
+    if any(not probe.probe_id or not probe.probe_type or not probe.target for probe in probes):
+        raise ValueError("Every bot playtest probe must define probe_id, probe_type, and target.")
+    if not probes:
+        raise ValueError("Bot playtest scenario does not contain valid probes.")
+
+    return BotPlaytestScenario(
+        schema=str(payload.get("schema", "")).strip(),
+        scenario_id=str(payload.get("scenario_id", "")).strip(),
+        title=str(payload.get("title", "")).strip(),
+        max_runtime_seconds=int(payload.get("max_runtime_seconds", 60)),
+        probes=probes,
+    )
+
+
+def _resolve_json_path(payload: object, dot_path: str) -> object:
+    current = payload
+    for key in dot_path.split("."):
+        if not key:
+            continue
+        if isinstance(current, dict) and key in current:
+            current = current[key]
+            continue
+        raise KeyError(f"JSON path segment not found: {key}")
+    return current
+
+
+def _run_bot_probe(prototype_root: Path, probe: BotPlaytestProbe) -> BotPlaytestProbeResult:
+    target_path = prototype_root / probe.target
+    if probe.probe_type == "file_exists":
+        if not isinstance(probe.expected, bool):
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=f"file_exists probe expected must be boolean, got {type(probe.expected).__name__}",
+                required=probe.required,
+            )
+        exists = target_path.exists()
+        status = "passed" if exists == probe.expected else "failed"
+        details = f"Expected file_exists={probe.expected}, observed={exists} at {probe.target}"
+        return BotPlaytestProbeResult(probe_id=probe.probe_id, status=status, details=details, required=probe.required)
+
+    if probe.probe_type == "json_field_equals":
+        if ":" not in probe.target:
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=f"Invalid json_field_equals target '{probe.target}', expected file:path.to.field",
+                required=probe.required,
+            )
+        file_part, json_path = probe.target.split(":", 1)
+        json_file = prototype_root / file_part
+        if not json_file.exists():
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="failed",
+                details=f"JSON file not found: {file_part}",
+                required=probe.required,
+            )
+        try:
+            payload = json.loads(json_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=f"Malformed JSON in {file_part}: {exc.msg}",
+                required=probe.required,
+            )
+        try:
+            actual_value = _resolve_json_path(payload, json_path)
+        except KeyError as exc:
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=str(exc),
+                required=probe.required,
+            )
+        status = "passed" if actual_value == probe.expected else "failed"
+        details = f"Expected {json_path}={probe.expected!r}, observed={actual_value!r}"
+        return BotPlaytestProbeResult(probe_id=probe.probe_id, status=status, details=details, required=probe.required)
+
+    return BotPlaytestProbeResult(
+        probe_id=probe.probe_id,
+        status="inconclusive",
+        details=f"Unsupported probe_type '{probe.probe_type}'",
+        required=probe.required,
+    )
+
+
+def run_bot_playtest_scenario(prototype_root: Path, scenario_path: Path) -> BotPlaytestResult:
+    scenario = _read_bot_playtest_scenario(scenario_path)
+    probe_results = [_run_bot_probe(prototype_root, probe) for probe in scenario.probes]
+    inconclusive_reasons = [
+        f"{result.probe_id}: {result.details}"
+        for result in probe_results
+        if result.required and result.status == "inconclusive"
+    ]
+    required_failures = [result for result in probe_results if result.required and result.status == "failed"]
+    required_inconclusive = [result for result in probe_results if result.required and result.status == "inconclusive"]
+
+    if required_inconclusive:
+        status = "inconclusive"
+        summary = "Bot playtest needs human review before baseline validation can be trusted."
+    elif required_failures:
+        status = "failed"
+        summary = "Bot playtest found baseline gameplay validation failures."
+    else:
+        status = "passed"
+        summary = "Bot playtest baseline checks passed for generated prototype."
+
+    return BotPlaytestResult(
+        scenario_id=scenario.scenario_id,
+        prototype_root=str(prototype_root),
+        status=status,
+        human_review_required=bool(required_inconclusive),
+        summary=summary,
+        completed_at_utc=datetime.now(timezone.utc).isoformat(),
+        probe_results=probe_results,
+        inconclusive_reasons=inconclusive_reasons,
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GameForge V1 AI orchestration skeleton")
     parser.add_argument("--suggest-uncertain", dest="uncertain_input", help="User reply to evaluate for uncertainty")
@@ -1337,6 +1512,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--style-create-manifest", help="Path to JSON payload for creating a user style preset")
     parser.add_argument("--style-select-preset", help="Preset id to set as active project style")
     parser.add_argument("--style-match-samples", help="Path to JSON sample asset list for match-project-style action")
+    parser.add_argument("--bot-playtest-scenario", help="Path to bot playtest scenario JSON")
+    parser.add_argument("--prototype-root", help="Generated prototype root to validate with bot playtests")
     return parser.parse_args()
 
 
@@ -1416,6 +1593,13 @@ def main() -> int:
         transformed = match_project_style(Path(args.project_root), [dict(item) for item in payload])
         print(json.dumps({"transformed_assets": transformed}, indent=2))
         return 0
+
+    if args.bot_playtest_scenario:
+        if not args.prototype_root:
+            raise ValueError("--prototype-root is required with --bot-playtest-scenario")
+        result = run_bot_playtest_scenario(Path(args.prototype_root), Path(args.bot_playtest_scenario))
+        print(json.dumps(asdict(result), indent=2))
+        return 0 if result.status != "failed" else 1
 
     print("GameForge V1 AI orchestration skeleton (Python)")
     print("Local-first orchestration placeholder")

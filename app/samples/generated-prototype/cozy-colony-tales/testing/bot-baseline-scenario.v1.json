@@ -1,0 +1,29 @@
+{
+  "schema": "gameforge.bot_playtest_scenario.v1",
+  "scenario_id": "cozy-colony-baseline",
+  "title": "Cozy Colony Baseline Bot Validation",
+  "max_runtime_seconds": 45,
+  "probes": [
+    {
+      "probe_id": "manifest-single-player-scope",
+      "probe_type": "json_field_equals",
+      "target": "prototype-manifest.json:scope",
+      "expected": "single-player baseline",
+      "required": true
+    },
+    {
+      "probe_id": "manifest-rendering-direction",
+      "probe_type": "json_field_equals",
+      "target": "prototype-manifest.json:rendering",
+      "expected": "vulkan-first",
+      "required": true
+    },
+    {
+      "probe_id": "rpg-system-present",
+      "probe_type": "file_exists",
+      "target": "systems/rpg/quest_dialogue_framework.v1.json",
+      "expected": true,
+      "required": true
+    }
+  ]
+}
