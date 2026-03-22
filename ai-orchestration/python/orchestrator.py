@@ -32,6 +32,8 @@ THINK_FOR_ME_CUES = {
     "surprise me",
 }
 
+MANUAL_FALLBACK_FAILURE_THRESHOLD = 5
+
 
 @dataclass(frozen=True)
 class SuggestionOption:
@@ -209,6 +211,57 @@ class ActionablePlaytestReport:
     critical_dead_end_blockers: list[str]
     sections: list[PlaytestReportSection]
     source_probe_results: list[BotPlaytestProbeResult]
+
+
+@dataclass(frozen=True)
+class OperationFailureFallbackState:
+    operation_id: str
+    consecutive_failures: int
+    fallback_offered: bool
+    guided_manual_mode_available: bool
+    retry_with_ai_available: bool
+    retry_action: str
+    manual_mode_action: str | None
+
+
+class OperationFailureTracker:
+    """Tracks sequential failures per operation id for guided manual fallback."""
+
+    def __init__(self, fallback_failure_threshold: int = MANUAL_FALLBACK_FAILURE_THRESHOLD) -> None:
+        if fallback_failure_threshold <= 0:
+            raise ValueError("fallback_failure_threshold must be >= 1")
+        self._fallback_failure_threshold = fallback_failure_threshold
+        self._failure_streak_by_operation: dict[str, int] = {}
+
+    def record_result(self, operation_id: str, *, success: bool) -> OperationFailureFallbackState:
+        normalized_operation_id = operation_id.strip()
+        if not normalized_operation_id:
+            raise ValueError("operation_id is required")
+
+        if success:
+            self._failure_streak_by_operation[normalized_operation_id] = 0
+            return OperationFailureFallbackState(
+                operation_id=normalized_operation_id,
+                consecutive_failures=0,
+                fallback_offered=False,
+                guided_manual_mode_available=False,
+                retry_with_ai_available=True,
+                retry_action="try_ai_again",
+                manual_mode_action=None,
+            )
+
+        next_streak = self._failure_streak_by_operation.get(normalized_operation_id, 0) + 1
+        self._failure_streak_by_operation[normalized_operation_id] = next_streak
+        fallback_offered = next_streak >= self._fallback_failure_threshold
+        return OperationFailureFallbackState(
+            operation_id=normalized_operation_id,
+            consecutive_failures=next_streak,
+            fallback_offered=fallback_offered,
+            guided_manual_mode_available=fallback_offered,
+            retry_with_ai_available=True,
+            retry_action="try_ai_again",
+            manual_mode_action="guided_manual_mode" if fallback_offered else None,
+        )
 
 
 ALLOWED_LICENSES = {
