@@ -9,7 +9,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -285,6 +285,10 @@ class PipelineExecutionResult:
     benchmark: dict[str, object]
     stage_results: list[PipelineStageResult]
     dead_end_blockers: list[str]
+    runtime_launch_status: str
+    runtime_launch_pid: int | None
+    runtime_launch_manifest_path: str | None
+    runtime_launch_executable_path: str | None
     commercial_policy_checks: dict[str, object]
     csharp_shell_example: str
     completed_at_utc: str
@@ -1425,6 +1429,7 @@ def _execute_generation_pipeline(
     *,
     hook_command: str | None = None,
     playtest_scenario_path: Path | None = None,
+    launch_runtime: bool = True,
 ) -> PipelineExecutionResult:
     brief = json.loads(brief_path.read_text(encoding="utf-8"))
     pipeline_dir = output_root / "pipeline"
@@ -1434,6 +1439,10 @@ def _execute_generation_pipeline(
     stage_results: list[PipelineStageResult] = []
     dead_end_blockers: list[str] = []
     prototype_root: Path | None = None
+    runtime_launch_status = "skipped"
+    runtime_launch_pid: int | None = None
+    runtime_launch_manifest_path: str | None = None
+    runtime_launch_executable_path: str | None = None
 
     def execute_stage(
         stage: StageDefinition,
@@ -1597,9 +1606,42 @@ def _execute_generation_pipeline(
 
     commercial_policy = _evaluate_commercial_policy(brief)
     pipeline_status = "failed" if any(item.status == PipelineStageStatus.FAILED.value for item in stage_results) else "passed"
+    if pipeline_status == "passed" and launch_runtime and prototype_root is not None:
+        export_manifest_path = prototype_root / "pipeline" / "07_export_manifest.v1.json"
+        try:
+            launch_result = _build_and_launch_generated_runtime(
+                prototype_root=prototype_root,
+                manifest_path=export_manifest_path,
+            )
+        except Exception as exc:  # noqa: BLE001 - pipeline should fail gracefully with structured output
+            launch_result = {
+                "status": "failed",
+                "pid": None,
+                "manifest_path": str(export_manifest_path),
+                "executable_path": None,
+                "error": f"runtime_launch_unhandled_error: {exc}",
+            }
+        runtime_launch_status = launch_result["status"]
+        runtime_launch_pid = launch_result["pid"]
+        runtime_launch_manifest_path = launch_result["manifest_path"]
+        runtime_launch_executable_path = launch_result["executable_path"]
+        if runtime_launch_status != "launched":
+            launch_error = str(launch_result.get("error", "unknown runtime launch error"))
+            print(f"[Orchestrator][ERROR] Runtime launch failed: {launch_error}")
+            if stage_results:
+                latest_result = stage_results[-1]
+                updated_metadata = dict(latest_result.metadata)
+                updated_metadata["runtime_launch_error"] = launch_error
+                stage_results[-1] = replace(latest_result, metadata=updated_metadata)
+            pipeline_status = "failed"
+    elif launch_runtime and prototype_root is None:
+        runtime_launch_status = "failed"
+    elif launch_runtime:
+        runtime_launch_status = "skipped"
+
     csharp_shell_example = (
         "python ai-orchestration/python/orchestrator.py "
-        f"--run-generation-pipeline --generate-prototype {brief_path} --output {output_root}"
+        f"--run-generation-pipeline --generate-prototype {brief_path} --output {output_root} --launch-runtime"
     )
     return PipelineExecutionResult(
         schema="gameforge.pipeline.execution.v1",
@@ -1611,6 +1653,10 @@ def _execute_generation_pipeline(
         benchmark=benchmark_result,
         stage_results=stage_results,
         dead_end_blockers=dead_end_blockers,
+        runtime_launch_status=runtime_launch_status,
+        runtime_launch_pid=runtime_launch_pid,
+        runtime_launch_manifest_path=runtime_launch_manifest_path,
+        runtime_launch_executable_path=runtime_launch_executable_path,
         commercial_policy_checks=commercial_policy,
         csharp_shell_example=csharp_shell_example,
         completed_at_utc=_utc_now_iso(),
@@ -1994,6 +2040,144 @@ def _launch_generated_prototype(prototype_root: Path) -> int:
     if run_proc.returncode != 0:
         print(run_proc.stderr, end="")
     return run_proc.returncode
+
+
+def _resolve_generated_runner_path(generated_build_root: Path) -> Path:
+    if os.name == "nt":
+        candidates = [
+            generated_build_root / "Debug" / "generated_gameplay_runner.exe",
+            generated_build_root / "Release" / "generated_gameplay_runner.exe",
+            generated_build_root / "generated_gameplay_runner.exe",
+        ]
+    else:
+        candidates = [generated_build_root / "generated_gameplay_runner"]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        f"Generated gameplay executable missing. Looked for: {', '.join(str(item) for item in candidates)}"
+    )
+
+
+def _build_and_launch_generated_runtime(
+    *,
+    prototype_root: Path,
+    manifest_path: Path,
+) -> dict[str, object]:
+    generated_root = prototype_root / "generated"
+    generated_build_root = generated_root / "build"
+
+    if not generated_root.exists():
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"Generated root missing: {generated_root}",
+        }
+
+    if not manifest_path.exists():
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"Manifest path missing: {manifest_path}",
+        }
+
+    try:
+        configure_proc = subprocess.run(
+            ["cmake", "-S", str(generated_root), "-B", str(generated_build_root)],
+            cwd=prototype_root,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"cmake_configure_execution_failed: {exc}",
+        }
+    if configure_proc.returncode != 0:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": "cmake_configure_failed",
+            "stdout": configure_proc.stdout,
+            "stderr": configure_proc.stderr,
+        }
+
+    try:
+        build_proc = subprocess.run(
+            ["cmake", "--build", str(generated_build_root)],
+            cwd=prototype_root,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"cmake_build_execution_failed: {exc}",
+        }
+    if build_proc.returncode != 0:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": "cmake_build_failed",
+            "stdout": build_proc.stdout,
+            "stderr": build_proc.stderr,
+        }
+
+    try:
+        executable_path = _resolve_generated_runner_path(generated_build_root)
+    except FileNotFoundError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": str(exc),
+        }
+
+    launch_command = [str(executable_path), "--manifest", str(manifest_path)]
+    popen_kwargs: dict[str, object] = {
+        "cwd": str(prototype_root),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    try:
+        process = subprocess.Popen(launch_command, **popen_kwargs)  # noqa: S603
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": str(executable_path),
+            "error": f"runtime_launch_execution_failed: {exc}",
+        }
+
+    print(f"[Orchestrator][INFO] Runtime launch succeeded: pid={process.pid}, manifest={manifest_path}")
+    return {
+        "status": "launched",
+        "pid": process.pid,
+        "manifest_path": str(manifest_path),
+        "executable_path": str(executable_path),
+    }
 
 
 def _read_bot_playtest_scenario(scenario_path: Path) -> BotPlaytestScenario:
@@ -2397,6 +2581,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", default="build/generated-prototypes", help="Output directory for generated prototypes")
     parser.add_argument("--launch", action="store_true", help="Compile and launch generated prototype runtime")
+    parser.add_argument(
+        "--launch-runtime",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Build and launch generated/runtime executable after --run-generation-pipeline (default: enabled).",
+    )
     parser.add_argument("--import-asset-manifest", help="Path to JSON list of asset import requests")
     parser.add_argument(
         "--export-attribution-bundle",
@@ -2439,6 +2629,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
+    launch_runtime = args.launch_runtime if args.launch_runtime is not None else bool(args.run_generation_pipeline)
 
 
     if args.benchmark:
@@ -2496,6 +2687,7 @@ def main() -> int:
             output_root=Path(args.output),
             hook_command=args.pipeline_hook_cmd,
             playtest_scenario_path=Path(args.bot_playtest_scenario) if args.bot_playtest_scenario else None,
+            launch_runtime=launch_runtime,
         )
         print(json.dumps(asdict(pipeline_result), indent=2))
         return 0 if pipeline_result.status == "passed" else 1
