@@ -30,8 +30,11 @@ class TestPrototypeGeneration(unittest.TestCase):
         expected = [
             SAMPLE_PROJECT / "prototype-manifest.json",
             SAMPLE_PROJECT / "scene" / "scene_scaffold.json",
+            SAMPLE_PROJECT / "scene" / "rts_sim_scenario_map.json",
             SAMPLE_PROJECT / "scripts" / "player_controller.json",
+            SAMPLE_PROJECT / "systems" / "rts_sim" / "template_module.json",
             SAMPLE_PROJECT / "ui" / "hud_layout.json",
+            SAMPLE_PROJECT / "config" / "rts_sim_balance.v1.json",
             SAMPLE_PROJECT / "save" / "savegame_hook.json",
             SAMPLE_PROJECT / "runtime" / "main.cpp",
             SAMPLE_PROJECT / "launch_prototype.sh",
@@ -65,6 +68,18 @@ class TestPrototypeGeneration(unittest.TestCase):
 
             scene_payload = json.loads((project_root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"))
             self.assertEqual(scene_payload["scene_id"], "baseline_scene")
+
+            rts_template = json.loads(
+                (project_root / "systems" / "rts_sim" / "template_module.json").read_text(encoding="utf-8")
+            )
+            self.assertTrue(rts_template["single_player_only"])
+            self.assertIn("units_agents", rts_template["systems"])
+
+            scenario = json.loads((project_root / "scene" / "rts_sim_scenario_map.json").read_text(encoding="utf-8"))
+            self.assertEqual(scenario["map_id"], "green-valley-outpost")
+
+            balance = json.loads((project_root / "config" / "rts_sim_balance.v1.json").read_text(encoding="utf-8"))
+            self.assertEqual(balance["difficulty"], "medium")
 
     def test_orchestrator_escapes_brief_strings_in_generated_cpp(self):
         tricky_brief = {

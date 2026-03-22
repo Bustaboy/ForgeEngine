@@ -45,9 +45,13 @@ def main() -> int:
         required_messages = [
             "Generated prototype at:",
             "Scene scaffold loaded.",
+            "RTS/sim template module loaded.",
+            "RTS/sim scenario map loaded.",
+            "RTS/sim balance config loaded.",
             "Player controller loaded.",
             "Basic UI loaded.",
             "Save/load hook loaded.",
+            "Core loop check: units -> resources -> placement -> progression is intact.",
             "Prototype launch success.",
         ]
 
