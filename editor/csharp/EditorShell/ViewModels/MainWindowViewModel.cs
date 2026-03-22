@@ -13,6 +13,7 @@ using GameForge.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using Avalonia.Threading;
+using Avalonia.Media;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
@@ -76,6 +77,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isTimelineLoopEnabled = true;
     private bool _isTimelineApplyingPose;
     private string _timelineStateLabel = "Idle";
+    private const string TimelineModePosition = "Position";
+    private const string TimelineModeScale = "Scale";
+    private const string TimelineModeColor = "Color";
+    private string _timelineMode = TimelineModePosition;
+    private CancellationTokenSource? _timelinePlaybackCts;
     private bool _isExportChecklistVisible;
     private bool _isExporting;
     private string _exportStatus = "Export checklist idle.";
@@ -114,6 +120,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AddTimelineKeyframeCommand = new AsyncRelayCommand(AddTimelineKeyframeAsync);
         ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
         StopTimelinePlaybackCommand = new AsyncRelayCommand(StopTimelinePlaybackAsync);
+        SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
         {
@@ -152,6 +159,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand ToggleTimelinePlaybackCommand { get; }
 
     public ICommand StopTimelinePlaybackCommand { get; }
+
+    public ICommand SetTimelineModeCommand { get; }
 
     public string ChatPrompt
     {
@@ -294,7 +303,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string TimelinePlayPauseIcon => IsTimelinePlaying ? "⏸" : "▶";
 
+    public string TimelinePlayPauseGlyph => TimelinePlayPauseIcon;
+
     public string TimelineCurrentTimeLabel => $"{TimelineCurrentTime:0.00}s / {TimelineDuration:0.00}s";
+
+    public double TimelineDurationSeconds => TimelineDuration;
+
+    public bool IsTimelineLooping
+    {
+        get => IsTimelineLoopEnabled;
+        set => IsTimelineLoopEnabled = value;
+    }
+
+    public string TimelineMode
+    {
+        get => _timelineMode;
+        private set => SetField(ref _timelineMode, value);
+    }
 
     public string TimelineStateLabel
     {
@@ -975,10 +1000,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void ResetExportChecklistItems()
     {
         _exportChecklistItems.Clear();
-        _exportChecklistItems.Add(new ExportChecklistItem("validate-scene", "🧪", "Validate scene", "Pending", isComplete: false, isFailed: false, isRunning: false));
-        _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", isComplete: false, isFailed: false, isRunning: false));
-        _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", isComplete: false, isFailed: false, isRunning: false));
-        _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", isComplete: false, isFailed: false, isRunning: false));
+        _exportChecklistItems.Add(new ExportChecklistItem("validate-scene", "🧪", "Validate scene", "Pending", false, false, false));
+        _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", false, false, false));
+        _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", false, false, false));
+        _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", false, false, false));
         ExportOutputPath = "Not packaged yet.";
         OnPropertyChanged(nameof(ExportChecklistCompletedCount));
         OnPropertyChanged(nameof(ExportChecklistTotalCount));
@@ -2624,7 +2649,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     }
                 }
 
-                TimelineCurrentTime = next;
+                TimelineCurrentTime = (float)next;
                 await Task.Delay(33, token);
             }
         }
@@ -3462,11 +3487,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public sealed class TimelineMarker
     {
-        public required float Time { get; init; }
+        public float Time { get; init; }
 
-        public required string Label { get; init; }
+        public string Label { get; init; } = string.Empty;
 
-        public required int TrackCount { get; init; }
+        public int TrackCount { get; init; }
 
         public double TimeSeconds { get; init; }
 
