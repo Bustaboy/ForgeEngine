@@ -79,6 +79,21 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "--playtest-report-view")
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: --playtest-report-view <report-json-path> [--export-markdown <output>] [--export-json <output>]");
+                return 6;
+            }
+
+            var reportPath = args[1];
+            var markdownExport = GetOptionValue(args, "--export-markdown");
+            var jsonExport = GetOptionValue(args, "--export-json");
+            RunPlaytestReportViewer(reportPath, markdownExport, jsonExport);
+            return 0;
+        }
+
         var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
         var fullRuntimePath = Path.GetFullPath(runtimePath);
 
@@ -246,4 +261,34 @@ internal static class Program
         Console.WriteLine("Editor shell smoke passed.");
     }
 
+    private static void RunPlaytestReportViewer(string reportPath, string? markdownExportPath, string? jsonExportPath)
+    {
+        var report = PlaytestReportViewer.Load(reportPath);
+        Console.WriteLine(PlaytestReportViewer.RenderConsole(report));
+
+        if (!string.IsNullOrWhiteSpace(markdownExportPath))
+        {
+            PlaytestReportViewer.ExportMarkdown(report, markdownExportPath);
+            Console.WriteLine($"Markdown export written: {Path.GetFullPath(markdownExportPath)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(jsonExportPath))
+        {
+            PlaytestReportViewer.ExportJson(report, jsonExportPath);
+            Console.WriteLine($"JSON export written: {Path.GetFullPath(jsonExportPath)}");
+        }
+    }
+
+    private static string? GetOptionValue(IReadOnlyList<string> args, string option)
+    {
+        for (var i = 0; i < args.Count - 1; i++)
+        {
+            if (string.Equals(args[i], option, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
 }

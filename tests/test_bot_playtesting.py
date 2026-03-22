@@ -71,9 +71,16 @@ class TestBotPlaytesting(unittest.TestCase):
         )
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         payload = json.loads(proc.stdout)
-        self.assertEqual("cozy-colony-baseline", payload["scenario_id"])
-        self.assertEqual("passed", payload["status"])
-        self.assertIn("probe_results", payload)
+        self.assertEqual("cozy-colony-baseline", payload["bot_playtest_result"]["scenario_id"])
+        self.assertEqual("passed", payload["bot_playtest_result"]["status"])
+        self.assertIn("probe_results", payload["bot_playtest_result"])
+        self.assertEqual("gameforge.playtest_report.v1", payload["actionable_report"]["schema"])
+        section_ids = [section["section_id"] for section in payload["actionable_report"]["sections"]]
+        self.assertEqual(["progression", "economy", "dead-end", "pacing", "performance"], section_ids)
+        report_json = Path(payload["report_paths"]["json"])
+        report_markdown = Path(payload["report_paths"]["markdown"])
+        self.assertTrue(report_json.exists())
+        self.assertTrue(report_markdown.exists())
 
     def test_file_exists_requires_boolean_expected_value(self):
         with tempfile.TemporaryDirectory() as temp_dir:

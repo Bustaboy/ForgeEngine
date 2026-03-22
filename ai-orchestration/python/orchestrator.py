@@ -186,6 +186,28 @@ class BotPlaytestResult:
     inconclusive_reasons: list[str]
 
 
+@dataclass(frozen=True)
+class PlaytestReportSection:
+    section_id: str
+    title: str
+    status: str
+    findings: list[str]
+    recommendations: list[str]
+
+
+@dataclass(frozen=True)
+class ActionablePlaytestReport:
+    schema: str
+    report_id: str
+    scenario_id: str
+    prototype_root: str
+    generated_at_utc: str
+    overall_status: str
+    summary: str
+    sections: list[PlaytestReportSection]
+    source_probe_results: list[BotPlaytestProbeResult]
+
+
 ALLOWED_LICENSES = {
     "cc0-1.0",
     "public-domain",
@@ -1491,6 +1513,126 @@ def run_bot_playtest_scenario(prototype_root: Path, scenario_path: Path) -> BotP
     )
 
 
+def _derive_section_status(issue_count: int, inconclusive_count: int) -> str:
+    if inconclusive_count > 0:
+        return "needs-human-review"
+    if issue_count > 0:
+        return "action-needed"
+    return "healthy"
+
+
+def _build_report_section(section_id: str, title: str, section_probes: list[BotPlaytestProbeResult]) -> PlaytestReportSection:
+    failed = [probe for probe in section_probes if probe.status == "failed" and probe.required]
+    inconclusive = [probe for probe in section_probes if probe.status == "inconclusive" and probe.required]
+
+    findings = [f"{probe.probe_id}: {probe.details}" for probe in failed + inconclusive]
+    if not findings:
+        findings = ["No required issues detected in this section during bot playtesting."]
+
+    recommendations = []
+    if inconclusive:
+        recommendations.append("Schedule focused human playtest coverage to validate inconclusive probes.")
+    if failed:
+        recommendations.append("Prioritize fixes for failed probes before advancing to the next milestone gate.")
+    if not recommendations:
+        recommendations.append("Keep monitoring this section in subsequent regression runs.")
+
+    return PlaytestReportSection(
+        section_id=section_id,
+        title=title,
+        status=_derive_section_status(len(failed), len(inconclusive)),
+        findings=findings,
+        recommendations=recommendations,
+    )
+
+
+def generate_actionable_playtest_report(result: BotPlaytestResult) -> ActionablePlaytestReport:
+    sections_map = {
+        "progression": ["progression", "level", "xp", "tech", "unlock"],
+        "economy": ["economy", "resource", "currency", "gold", "income"],
+        "dead-end": ["dead_end", "dead-end", "quest", "branch", "dialogue", "blocked"],
+        "pacing": ["pacing", "flow", "tempo", "loop", "downtime"],
+        "performance": ["performance", "fps", "frame", "memory", "cpu", "runtime"],
+    }
+
+    normalized_probes = []
+    for probe in result.probe_results:
+        search_haystack = f"{probe.probe_id} {probe.details}".lower()
+        normalized_probes.append((probe, search_haystack))
+
+    built_sections: list[PlaytestReportSection] = []
+    used_probe_ids: set[str] = set()
+    for section_id, keywords in sections_map.items():
+        matched = [probe for probe, haystack in normalized_probes if any(keyword in haystack for keyword in keywords)]
+        for probe in matched:
+            used_probe_ids.add(probe.probe_id)
+        built_sections.append(_build_report_section(section_id, section_id.replace("-", " ").title(), matched))
+
+    uncategorized = [probe for probe in result.probe_results if probe.probe_id not in used_probe_ids]
+    if uncategorized:
+        built_sections[0] = _build_report_section(
+            "progression",
+            "Progression",
+            [*uncategorized, *[probe for probe in result.probe_results if probe.probe_id in used_probe_ids and "progression" in probe.probe_id.lower()]],
+        )
+
+    return ActionablePlaytestReport(
+        schema="gameforge.playtest_report.v1",
+        report_id=f"{result.scenario_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        scenario_id=result.scenario_id,
+        prototype_root=result.prototype_root,
+        generated_at_utc=datetime.now(timezone.utc).isoformat(),
+        overall_status=result.status,
+        summary=result.summary,
+        sections=built_sections,
+        source_probe_results=result.probe_results,
+    )
+
+
+def _write_playtest_report_markdown(report: ActionablePlaytestReport, destination: Path) -> None:
+    lines = [
+        "# GameForge V1 Playtest Report",
+        "",
+        f"- Report ID: `{report.report_id}`",
+        f"- Scenario: `{report.scenario_id}`",
+        f"- Generated (UTC): `{report.generated_at_utc}`",
+        f"- Overall status: **{report.overall_status}**",
+        "",
+        f"## Summary",
+        report.summary,
+    ]
+
+    for section in report.sections:
+        lines.extend(
+            [
+                "",
+                f"## {section.title}",
+                f"- Status: **{section.status}**",
+                "- Findings:",
+            ]
+        )
+        lines.extend([f"  - {finding}" for finding in section.findings])
+        lines.append("- Recommendations:")
+        lines.extend([f"  - {recommendation}" for recommendation in section.recommendations])
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def run_bot_playtest_with_report(prototype_root: Path, scenario_path: Path, output_root: Path | None = None) -> tuple[BotPlaytestResult, ActionablePlaytestReport, Path, Path]:
+    result = run_bot_playtest_scenario(prototype_root, scenario_path)
+    report = generate_actionable_playtest_report(result)
+    run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    report_dir = (output_root or prototype_root / "testing" / "reports") / result.scenario_id / run_stamp
+    json_path = report_dir / "playtest-report.v1.json"
+    markdown_path = report_dir / "playtest-report.v1.md"
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(asdict(report), indent=2), encoding="utf-8")
+    _write_playtest_report_markdown(report, markdown_path)
+    return result, report, json_path, markdown_path
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GameForge V1 AI orchestration skeleton")
     parser.add_argument("--suggest-uncertain", dest="uncertain_input", help="User reply to evaluate for uncertainty")
@@ -1514,6 +1656,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--style-match-samples", help="Path to JSON sample asset list for match-project-style action")
     parser.add_argument("--bot-playtest-scenario", help="Path to bot playtest scenario JSON")
     parser.add_argument("--prototype-root", help="Generated prototype root to validate with bot playtests")
+    parser.add_argument("--bot-playtest-report-output", help="Optional output directory for persisted playtest reports")
     return parser.parse_args()
 
 
@@ -1597,8 +1740,25 @@ def main() -> int:
     if args.bot_playtest_scenario:
         if not args.prototype_root:
             raise ValueError("--prototype-root is required with --bot-playtest-scenario")
-        result = run_bot_playtest_scenario(Path(args.prototype_root), Path(args.bot_playtest_scenario))
-        print(json.dumps(asdict(result), indent=2))
+        output_root = Path(args.bot_playtest_report_output) if args.bot_playtest_report_output else None
+        result, report, report_json_path, report_markdown_path = run_bot_playtest_with_report(
+            Path(args.prototype_root),
+            Path(args.bot_playtest_scenario),
+            output_root=output_root,
+        )
+        print(
+            json.dumps(
+                {
+                    "bot_playtest_result": asdict(result),
+                    "actionable_report": asdict(report),
+                    "report_paths": {
+                        "json": str(report_json_path),
+                        "markdown": str(report_markdown_path),
+                    },
+                },
+                indent=2,
+            )
+        )
         return 0 if result.status != "failed" else 1
 
     print("GameForge V1 AI orchestration skeleton (Python)")
