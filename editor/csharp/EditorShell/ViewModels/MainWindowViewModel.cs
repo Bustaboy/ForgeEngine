@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using GameForge.Editor.EditorShell.Services;
+using System.Collections.Specialized;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
@@ -36,16 +37,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedEntityType = "n/a";
     private float _selectedEntityX;
     private float _selectedEntityY;
+    private readonly Stack<SceneHistoryEntry> _undoStack = new();
+    private readonly Stack<SceneHistoryEntry> _redoStack = new();
+    private DragSession? _activeDragSession;
 
     public MainWindowViewModel()
     {
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
-        NudgeLeftCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(-0.1f, 0f));
-        NudgeRightCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0.1f, 0f));
-        NudgeUpCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, 0.1f));
-        NudgeDownCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, -0.1f));
+        DeleteSelectedEntityCommand = new AsyncRelayCommand(DeleteSelectedEntityAsync);
+        UndoCommand = new AsyncRelayCommand(UndoAsync);
+        RedoCommand = new AsyncRelayCommand(RedoAsync);
+        ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -58,13 +62,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public ICommand AddPropEntityCommand { get; }
 
-    public ICommand NudgeLeftCommand { get; }
+    public ICommand DeleteSelectedEntityCommand { get; }
 
-    public ICommand NudgeRightCommand { get; }
+    public ICommand UndoCommand { get; }
 
-    public ICommand NudgeUpCommand { get; }
-
-    public ICommand NudgeDownCommand { get; }
+    public ICommand RedoCommand { get; }
 
     public string ChatPrompt
     {
@@ -136,6 +138,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public bool CanGenerate => !IsBusy && !string.IsNullOrWhiteSpace(ChatPrompt);
+
+    public bool CanUndo => _undoStack.Count > 0;
+
+    public bool CanRedo => _redoStack.Count > 0;
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
@@ -240,6 +246,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
         ViewportEntities.Clear();
+        _undoStack.Clear();
+        _redoStack.Clear();
+        _activeDragSession = null;
+        NotifyHistoryChanged();
         SelectedViewportEntity = null;
         SelectedEntitySummary = "No entity selected.";
         MonacoEditorContent = "// New prototype ready.\n// Generate content to load editable C++ runtime code.";
@@ -445,6 +455,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         LoadViewportEntitiesFromScene(PrototypeRoot);
+        _undoStack.Clear();
+        _redoStack.Clear();
+        _activeDragSession = null;
+        NotifyHistoryChanged();
 
         var loadedCode = TryLoadGeneratedRuntimeCpp(PrototypeRoot);
         if (!string.IsNullOrWhiteSpace(loadedCode))
@@ -663,17 +677,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
-        if (!File.Exists(scenePath))
+        var scenePath = GetScenePath();
+        if (scenePath is null)
         {
-            StatusMessage = $"Scene scaffold not found: {scenePath}";
+            StatusMessage = $"Scene scaffold not found for prototype: {PrototypeRoot}";
             ShowToast("scene_scaffold.json missing.");
             return;
         }
 
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            using var document = JsonDocument.Parse(beforeContent);
             var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(
                 document.RootElement.GetRawText(),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new Dictionary<string, object?>();
@@ -699,15 +714,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             payload["entities"] = entities;
             var updatedScene = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(scenePath, updatedScene, cancellationToken);
-
-            StatusMessage = $"Added {entityKind} entity. Recompiling and relaunching runtime...";
-            ShowToast($"{entityKind.ToUpperInvariant()} entity added.");
-
-            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
-            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
-            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
-            LoadViewportEntitiesFromScene(PrototypeRoot);
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, updatedScene, $"Entity added: {entityKind}_{nextIndex:00}", cancellationToken);
         }
         catch (Exception ex)
         {
@@ -716,32 +723,81 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task NudgeSelectedEntityAsync(float deltaX, float deltaY, CancellationToken cancellationToken = default)
+    public bool BeginDragForEntity(string entityId)
     {
-        if (SelectedViewportEntity is null)
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null)
         {
-            ShowToast("Select an entity first.");
+            return false;
+        }
+
+        SelectedViewportEntity = entity;
+        _activeDragSession = new DragSession(entity.Id, entity.X, entity.Y);
+        return true;
+    }
+
+    public bool PreviewDragPosition(string entityId, float nextX, float nextY)
+    {
+        if (_activeDragSession is null || !string.Equals(_activeDragSession.EntityId, entityId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null)
+        {
+            return false;
+        }
+
+        entity.SetPosition(nextX, nextY);
+        if (SelectedViewportEntity?.Id == entity.Id)
+        {
+            UpdateSelectedEntityInspector();
+        }
+
+        return true;
+    }
+
+    public async Task CommitDragAsync(CancellationToken cancellationToken = default)
+    {
+        if (_activeDragSession is null)
+        {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        var dragSession = _activeDragSession;
+        _activeDragSession = null;
+
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, dragSession.EntityId, StringComparison.Ordinal));
+        if (entity is null)
+        {
+            return;
+        }
+
+        var deltaX = entity.X - dragSession.StartX;
+        var deltaY = entity.Y - dragSession.StartY;
+        if (Math.Abs(deltaX) < 0.0001f && Math.Abs(deltaY) < 0.0001f)
+        {
+            return;
+        }
+
+        await MoveEntityAsync(entity, deltaX, deltaY, "Entity moved", cancellationToken);
+    }
+
+    private async Task MoveEntityAsync(ViewportEntity entity, float deltaX, float deltaY, string operationLabel, CancellationToken cancellationToken = default)
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null)
         {
             StatusMessage = "Generate a prototype before moving entities.";
             ShowToast("Generate prototype first.");
             return;
         }
 
-        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
-        if (!File.Exists(scenePath))
-        {
-            StatusMessage = "scene_scaffold.json not found.";
-            ShowToast("Cannot move entity without scene scaffold.");
-            return;
-        }
-
         try
         {
-            var root = JsonNode.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken))?.AsObject();
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
             if (root is null)
             {
                 StatusMessage = "Scene scaffold parse failed.";
@@ -749,22 +805,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
-            var moved = TryMoveEntityInScene(root, SelectedViewportEntity, deltaX, deltaY);
-            if (!moved)
+            if (!TryMoveEntityInScene(root, entity, deltaX, deltaY))
             {
                 ShowToast("Selected entity not found in scene.");
                 return;
             }
 
-            await File.WriteAllTextAsync(scenePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
-            StatusMessage = $"Moved {SelectedViewportEntity.DisplayName}. Relaunching runtime...";
-            ShowToast("Entity moved. Relaunching runtime...");
-
-            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
-            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
-            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
-            LoadViewportEntitiesFromScene(PrototypeRoot);
-            SelectedViewportEntity = ViewportEntities.FirstOrDefault(entity => entity.Id == SelectedViewportEntity.Id);
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"{operationLabel}: {entity.DisplayName}", cancellationToken);
         }
         catch (Exception ex)
         {
@@ -788,6 +836,135 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedEntityX = SelectedViewportEntity.X;
         SelectedEntityY = SelectedViewportEntity.Y;
         SelectedEntitySummary = $"{SelectedViewportEntity.DisplayName} ({SelectedViewportEntity.Type})";
+    }
+
+    private async Task DeleteSelectedEntityAsync(CancellationToken cancellationToken = default)
+    {
+        if (SelectedViewportEntity is null)
+        {
+            ShowToast("Select an entity first.");
+            return;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before deleting entities.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        try
+        {
+            var target = SelectedViewportEntity;
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                StatusMessage = "Scene scaffold parse failed.";
+                ShowToast("Scene parse failed.");
+                return;
+            }
+
+            if (!TryDeleteEntityInScene(root, target))
+            {
+                ShowToast("Selected entity not found in scene.");
+                return;
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Entity deleted: {target.DisplayName}", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Delete entity failed: {ex.Message}";
+            ShowToast("Entity delete failed.");
+        }
+    }
+
+    private async Task UndoAsync(CancellationToken cancellationToken = default)
+    {
+        if (_undoStack.Count == 0)
+        {
+            ShowToast("Nothing to undo.");
+            return;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("No scene scaffold available.");
+            return;
+        }
+
+        var history = _undoStack.Pop();
+        var currentContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+        _redoStack.Push(new SceneHistoryEntry(currentContent, history.Description));
+        NotifyHistoryChanged();
+        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Undo: {history.Description}", cancellationToken);
+    }
+
+    private async Task RedoAsync(CancellationToken cancellationToken = default)
+    {
+        if (_redoStack.Count == 0)
+        {
+            ShowToast("Nothing to redo.");
+            return;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("No scene scaffold available.");
+            return;
+        }
+
+        var history = _redoStack.Pop();
+        var currentContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+        _undoStack.Push(new SceneHistoryEntry(currentContent, history.Description));
+        NotifyHistoryChanged();
+        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Redo: {history.Description}", cancellationToken);
+    }
+
+    private string? GetScenePath()
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            return null;
+        }
+
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        return File.Exists(scenePath) ? scenePath : null;
+    }
+
+    private async Task WriteSceneAndRelaunchAsync(string scenePath, string beforeContent, string afterContent, string operationDescription, CancellationToken cancellationToken)
+    {
+        if (string.Equals(beforeContent, afterContent, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _undoStack.Push(new SceneHistoryEntry(beforeContent, operationDescription));
+        _redoStack.Clear();
+        NotifyHistoryChanged();
+        await ApplySceneContentAndRelaunchAsync(scenePath, afterContent, operationDescription, cancellationToken);
+    }
+
+    private async Task ApplySceneContentAndRelaunchAsync(string scenePath, string content, string operationDescription, CancellationToken cancellationToken)
+    {
+        await File.WriteAllTextAsync(scenePath, content, cancellationToken);
+        StatusMessage = $"{operationDescription}. Recompiling and relaunching runtime...";
+        ShowToast(operationDescription);
+        await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+        await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+        RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+        LoadViewportEntitiesFromScene(PrototypeRoot);
+    }
+
+    private void NotifyHistoryChanged()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
     }
 
     private static float ReadCoordinate(JsonElement element, string propertyName)
@@ -868,6 +1045,88 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return false;
+    }
+
+    private static bool TryDeleteEntityInScene(JsonObject root, ViewportEntity selected)
+    {
+        if (selected.Type == "player")
+        {
+            return false;
+        }
+
+        if (root["entities"] is JsonArray entities)
+        {
+            for (var index = 0; index < entities.Count; index++)
+            {
+                if (entities[index] is not JsonObject entityObject)
+                {
+                    continue;
+                }
+
+                var id = entityObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                entities.RemoveAt(index);
+                return true;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            for (var index = 0; index < npcs.Count; index++)
+            {
+                if (npcs[index] is not JsonObject npcObject)
+                {
+                    continue;
+                }
+
+                var id = npcObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                npcs.RemoveAt(index);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OnViewportEntitiesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (var item in e.NewItems.OfType<ViewportEntity>())
+            {
+                item.PropertyChanged += OnViewportEntityPropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (var item in e.OldItems.OfType<ViewportEntity>())
+            {
+                item.PropertyChanged -= OnViewportEntityPropertyChanged;
+            }
+        }
+    }
+
+    private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ViewportEntity entity)
+        {
+            return;
+        }
+
+        if (SelectedViewportEntity?.Id == entity.Id && (e.PropertyName == nameof(ViewportEntity.X) || e.PropertyName == nameof(ViewportEntity.Y)))
+        {
+            UpdateSelectedEntityInspector();
+        }
     }
 
     private static float ReadNodeFloat(JsonNode? node)
@@ -1163,8 +1422,65 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    public sealed record ViewportEntity(string Id, string Type, float X, float Y)
+    private readonly record struct DragSession(string EntityId, float StartX, float StartY);
+
+    private readonly record struct SceneHistoryEntry(string Content, string Description);
+
+    public sealed class ViewportEntity : INotifyPropertyChanged
     {
+        private float _x;
+        private float _y;
+
+        public ViewportEntity(string id, string type, float x, float y)
+        {
+            Id = id;
+            Type = type;
+            _x = x;
+            _y = y;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string Id { get; }
+
+        public string Type { get; }
+
+        public float X
+        {
+            get => _x;
+            private set
+            {
+                if (Math.Abs(_x - value) < 0.0001f)
+                {
+                    return;
+                }
+
+                _x = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(X)));
+            }
+        }
+
+        public float Y
+        {
+            get => _y;
+            private set
+            {
+                if (Math.Abs(_y - value) < 0.0001f)
+                {
+                    return;
+                }
+
+                _y = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Y)));
+            }
+        }
+
+        public void SetPosition(float x, float y)
+        {
+            X = x;
+            Y = y;
+        }
+
         public string DisplayName => $"{Type}:{Id}";
     }
 
