@@ -1,0 +1,72 @@
+{
+  "schema": "gameforge.rts_sim.balance.v1",
+  "difficulty": "medium",
+  "economy": {
+    "starting_food": 120,
+    "starting_wood": 80,
+    "starting_stone": 40,
+    "worker_upkeep_per_minute": {
+      "food": 3
+    }
+  },
+  "buildings": {
+    "farm": {
+      "cost": {
+        "wood": 30
+      },
+      "build_seconds": 20,
+      "output_per_minute": {
+        "food": 35
+      }
+    },
+    "sawmill": {
+      "cost": {
+        "wood": 20,
+        "stone": 10
+      },
+      "build_seconds": 26,
+      "output_per_minute": {
+        "wood": 45
+      }
+    },
+    "quarry": {
+      "cost": {
+        "wood": 15,
+        "stone": 25
+      },
+      "build_seconds": 30,
+      "output_per_minute": {
+        "stone": 30
+      }
+    }
+  },
+  "progression": {
+    "efficient_tools": {
+      "cost": {
+        "wood": 60,
+        "stone": 30
+      },
+      "unlock_seconds": 35
+    },
+    "storage_crates": {
+      "cost": {
+        "wood": 40
+      },
+      "unlock_seconds": 25
+    },
+    "stone_foundation": {
+      "cost": {
+        "wood": 80,
+        "stone": 60
+      },
+      "unlock_seconds": 55
+    },
+    "crop_rotation": {
+      "cost": {
+        "food": 90,
+        "wood": 25
+      },
+      "unlock_seconds": 50
+    }
+  }
+}

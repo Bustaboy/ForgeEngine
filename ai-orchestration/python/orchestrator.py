@@ -372,10 +372,87 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
         "player_state": {"level": 1, "xp": 0},
     }
 
+    rts_sim_template = {
+        "schema": "gameforge.rts_sim.template.v1",
+        "module_id": "rts_sim_baseline",
+        "description": "Reusable local-first RTS/sim starter systems module.",
+        "single_player_only": True,
+        "systems": {
+            "units_agents": {
+                "worker": {"max_hp": 60, "gather_rate_per_minute": 24, "build_speed": 1.0},
+                "hauler": {"max_hp": 90, "carry_capacity": 20, "move_speed": 1.1},
+            },
+            "resource_loop": {
+                "resources": ["food", "wood", "stone"],
+                "starting_stockpile": {"food": 120, "wood": 80, "stone": 40},
+                "tick_seconds": 5,
+            },
+            "building_placement": {
+                "grid_size": 2,
+                "footprints": {
+                    "town_center": {"w": 4, "h": 4},
+                    "farm": {"w": 3, "h": 3},
+                    "sawmill": {"w": 3, "h": 3},
+                    "quarry": {"w": 3, "h": 3},
+                },
+                "collision_policy": "blocked-cells-reject",
+            },
+            "progression_tree": {
+                "tier_1": ["efficient_tools", "storage_crates"],
+                "tier_2": ["stone_foundation", "crop_rotation"],
+            },
+        },
+    }
+
+    rts_sim_map = {
+        "schema": "gameforge.rts_sim.scenario_map.v1",
+        "map_id": "green-valley-outpost",
+        "size": {"width": 64, "height": 64},
+        "spawn": {
+            "town_center": {"x": 12, "y": 12},
+            "workers": [{"x": 10, "y": 11}, {"x": 11, "y": 10}, {"x": 12, "y": 10}],
+        },
+        "resource_nodes": [
+            {"type": "wood", "x": 24, "y": 18, "amount": 500},
+            {"type": "wood", "x": 26, "y": 20, "amount": 450},
+            {"type": "stone", "x": 35, "y": 12, "amount": 320},
+            {"type": "food", "x": 16, "y": 28, "amount": 600},
+        ],
+        "victory_hint": "Stabilize food income, place 3 production buildings, and unlock tier_2 progression.",
+    }
+
+    rts_sim_balance = {
+        "schema": "gameforge.rts_sim.balance.v1",
+        "difficulty": "medium",
+        "economy": {
+            "starting_food": 120,
+            "starting_wood": 80,
+            "starting_stone": 40,
+            "worker_upkeep_per_minute": {"food": 3},
+        },
+        "buildings": {
+            "farm": {"cost": {"wood": 30}, "build_seconds": 20, "output_per_minute": {"food": 35}},
+            "sawmill": {"cost": {"wood": 20, "stone": 10}, "build_seconds": 26, "output_per_minute": {"wood": 45}},
+            "quarry": {"cost": {"wood": 15, "stone": 25}, "build_seconds": 30, "output_per_minute": {"stone": 30}},
+        },
+        "progression": {
+            "efficient_tools": {"cost": {"wood": 60, "stone": 30}, "unlock_seconds": 35},
+            "storage_crates": {"cost": {"wood": 40}, "unlock_seconds": 25},
+            "stone_foundation": {"cost": {"wood": 80, "stone": 60}, "unlock_seconds": 55},
+            "crop_rotation": {"cost": {"food": 90, "wood": 25}, "unlock_seconds": 50},
+        },
+    }
+
     _write_text(prototype_root / "prototype-manifest.json", json.dumps(manifest, indent=2))
     _write_text(prototype_root / "scene" / "scene_scaffold.json", json.dumps(scene, indent=2))
+    _write_text(prototype_root / "scene" / "rts_sim_scenario_map.json", json.dumps(rts_sim_map, indent=2))
     _write_text(prototype_root / "scripts" / "player_controller.json", json.dumps(player_controller, indent=2))
+    _write_text(
+        prototype_root / "systems" / "rts_sim" / "template_module.json",
+        json.dumps(rts_sim_template, indent=2),
+    )
     _write_text(prototype_root / "ui" / "hud_layout.json", json.dumps(ui_layout, indent=2))
+    _write_text(prototype_root / "config" / "rts_sim_balance.v1.json", json.dumps(rts_sim_balance, indent=2))
     _write_text(prototype_root / "save" / "savegame_hook.json", json.dumps(save_stub, indent=2))
 
     escaped_concept = _escape_cpp_string_literal(concept)
@@ -393,19 +470,26 @@ int main() {{
     std::cout << "Core loop seed: {escaped_core_loop}\\n";
 
     std::ifstream scene("scene/scene_scaffold.json");
+    std::ifstream rtsModule("systems/rts_sim/template_module.json");
+    std::ifstream rtsMap("scene/rts_sim_scenario_map.json");
+    std::ifstream rtsBalance("config/rts_sim_balance.v1.json");
     std::ifstream player("scripts/player_controller.json");
     std::ifstream ui("ui/hud_layout.json");
     std::ifstream save("save/savegame_hook.json");
 
-    if (!scene.good() || !player.good() || !ui.good() || !save.good()) {{
+    if (!scene.good() || !rtsModule.good() || !rtsMap.good() || !rtsBalance.good() || !player.good() || !ui.good() || !save.good()) {{
         std::cerr << "Missing generated scaffold files.\\n";
         return 2;
     }}
 
     std::cout << "Scene scaffold loaded.\\n";
+    std::cout << "RTS/sim template module loaded.\\n";
+    std::cout << "RTS/sim scenario map loaded.\\n";
+    std::cout << "RTS/sim balance config loaded.\\n";
     std::cout << "Player controller loaded.\\n";
     std::cout << "Basic UI loaded.\\n";
     std::cout << "Save/load hook loaded.\\n";
+    std::cout << "Core loop check: units -> resources -> placement -> progression is intact.\\n";
     std::cout << "Prototype launch success.\\n";
     return 0;
 }}
@@ -433,8 +517,11 @@ This project was generated from a saved interview brief.
 
 Included baseline scaffold:
 - Scene/world scaffold (`scene/scene_scaffold.json`)
+- RTS/sim scenario map (`scene/rts_sim_scenario_map.json`)
 - Player control stub (`scripts/player_controller.json`)
 - Basic UI config (`ui/hud_layout.json`)
+- RTS/sim reusable template module (`systems/rts_sim/template_module.json`)
+- RTS/sim balancing config (`config/rts_sim_balance.v1.json`)
 - Save/load hook (`save/savegame_hook.json`)
 
 One-click local launch commands:

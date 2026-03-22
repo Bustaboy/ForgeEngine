@@ -1,0 +1,65 @@
+{
+  "schema": "gameforge.rts_sim.template.v1",
+  "module_id": "rts_sim_baseline",
+  "description": "Reusable local-first RTS/sim starter systems module.",
+  "single_player_only": true,
+  "systems": {
+    "units_agents": {
+      "worker": {
+        "max_hp": 60,
+        "gather_rate_per_minute": 24,
+        "build_speed": 1.0
+      },
+      "hauler": {
+        "max_hp": 90,
+        "carry_capacity": 20,
+        "move_speed": 1.1
+      }
+    },
+    "resource_loop": {
+      "resources": [
+        "food",
+        "wood",
+        "stone"
+      ],
+      "starting_stockpile": {
+        "food": 120,
+        "wood": 80,
+        "stone": 40
+      },
+      "tick_seconds": 5
+    },
+    "building_placement": {
+      "grid_size": 2,
+      "footprints": {
+        "town_center": {
+          "w": 4,
+          "h": 4
+        },
+        "farm": {
+          "w": 3,
+          "h": 3
+        },
+        "sawmill": {
+          "w": 3,
+          "h": 3
+        },
+        "quarry": {
+          "w": 3,
+          "h": 3
+        }
+      },
+      "collision_policy": "blocked-cells-reject"
+    },
+    "progression_tree": {
+      "tier_1": [
+        "efficient_tools",
+        "storage_crates"
+      ],
+      "tier_2": [
+        "stone_foundation",
+        "crop_rotation"
+      ]
+    }
+  }
+}
