@@ -4,56 +4,176 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
         Title="GameForge Editor Shell"
-        Width="1280"
-        Height="820"
-        MinWidth="1024"
-        MinHeight="720"
+        Width="1460"
+        Height="920"
+        MinWidth="1180"
+        MinHeight="760"
+        Background="#080A0F"
         mc:Ignorable="d">
-  <Grid RowDefinitions="Auto,*" Margin="12">
-    <Border Grid.Row="0" Background="#1F2937" CornerRadius="8" Padding="12" Margin="0,0,0,10">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="New Prototype" Click="OnNewPrototypeClick" />
-        <Button Content="Generate from Brief" Click="OnGenerateFromBriefClick" />
-        <Button Content="Play Runtime" Click="OnPlayRuntimeClick" />
-      </StackPanel>
+  <Window.Resources>
+    <SolidColorBrush x:Key="PanelBrush" Color="#12161F" />
+    <SolidColorBrush x:Key="PanelBorderBrush" Color="#2B3446" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4AA3FF" />
+
+    <Style Selector="Button.ribbon-icon">
+      <Setter Property="Background" Value="#1A2232" />
+      <Setter Property="BorderBrush" Value="#334257" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#E5EDF7" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Width" Value="58" />
+      <Setter Property="Height" Value="58" />
+      <Setter Property="FontSize" Value="18" />
+    </Style>
+
+    <Style Selector="Button.generate-cta">
+      <Setter Property="Background" Value="#1D6EE8" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Padding" Value="14,10" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style Selector="ToggleSwitch.deep-toggle">
+      <Setter Property="OnContent" Value="On" />
+      <Setter Property="OffContent" Value="Off" />
+    </Style>
+  </Window.Resources>
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="14" RowSpacing="12">
+    <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="20">
+          <StackPanel Spacing="5">
+            <TextBlock Text="FILE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewPrototypeClick" ToolTip.Tip="New Prototype" />
+              <Button Classes="ribbon-icon" Content="📂" ToolTip.Tip="Open Project (placeholder)" />
+              <Button Classes="ribbon-icon" Content="💾" ToolTip.Tip="Save Snapshot (placeholder)" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="GENERATE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="ribbon-icon" Content="⚡" Click="OnGenerateFromBriefClick" ToolTip.Tip="Generate from Brief" />
+              <Button Classes="ribbon-icon" Content="🤖" Click="OnGenerateAndPlayClick" ToolTip.Tip="Generate &amp; Play" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="RUNTIME" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="ribbon-icon" Content="▶" Click="OnPlayRuntimeClick" ToolTip.Tip="Play Runtime" />
+              <Button Classes="ribbon-icon" Content="⏹" ToolTip.Tip="Stop Runtime (placeholder)" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="TOOLS" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="ribbon-icon" Content="🧩" ToolTip.Tip="Inspector Tools (placeholder)" />
+              <Button Classes="ribbon-icon" Content="📊" ToolTip.Tip="Debug Console" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Spacing="5">
+            <TextBlock Text="EXPORT" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="ribbon-icon" Content="📦" ToolTip.Tip="Export Build (placeholder)" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+          <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="12" />
+          <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="2*,3*,2*" RowDefinitions="3*,2*" ColumnSpacing="10" RowSpacing="10">
-      <Border Grid.Column="0" Grid.RowSpan="2" Background="#111827" CornerRadius="8" Padding="10">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Chat Co-Pilot" FontSize="18" FontWeight="Bold" />
-          <TextBlock Text="Describe your prototype. This no-code brief runs the pipeline and launches runtime." TextWrapping="Wrap" Foreground="#D1D5DB" />
-          <TextBox Text="{Binding ChatPrompt}" AcceptsReturn="True" Height="230" Watermark="Example: Cozy single-player village sim with light RPG quests." />
-          <Button Content="Generate &amp; Play" Click="OnGenerateAndPlayClick" HorizontalAlignment="Stretch" />
-          <TextBlock Text="Status" FontWeight="SemiBold" />
-          <TextBox Text="{Binding StatusMessage}" IsReadOnly="True" AcceptsReturn="True" Height="250" TextWrapping="Wrap" />
+    <Grid Grid.Row="1" ColumnDefinitions="70,*,360" RowDefinitions="*" ColumnSpacing="12">
+      <Border Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
+        <StackPanel Spacing="8" HorizontalAlignment="Center">
+          <Button Classes="ribbon-icon" Width="46" Height="46" Content="🖱" ToolTip.Tip="Select" />
+          <Button Classes="ribbon-icon" Width="46" Height="46" Content="✏" ToolTip.Tip="Paint" />
+          <Button Classes="ribbon-icon" Width="46" Height="46" Content="⬛" ToolTip.Tip="Terrain" />
+          <Button Classes="ribbon-icon" Width="46" Height="46" Content="💡" ToolTip.Tip="Lighting" />
+          <Button Classes="ribbon-icon" Width="46" Height="46" Content="🎥" ToolTip.Tip="Camera" />
         </StackPanel>
       </Border>
 
-      <Border Grid.Column="1" Grid.RowSpan="2" Background="#0B1220" CornerRadius="8" Padding="10">
-        <StackPanel>
-          <TextBlock Text="Scene Viewport (Stub)" FontSize="18" FontWeight="Bold" />
-          <Border Margin="0,10,0,0" BorderBrush="#334155" BorderThickness="1" CornerRadius="6" Height="580" Background="#020617">
-            <Grid>
-              <TextBlock Text="Vulkan-first viewport placeholder" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8" />
-            </Grid>
+      <Grid Grid.Column="1" RowDefinitions="*,220" RowSpacing="12">
+        <Border Grid.Row="0" Background="#0A0D13" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsViewportMode}">
+          <Grid>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+              <TextBlock Text="Scene Viewport" Foreground="#EEF4FF" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Text="Vulkan-first render surface placeholder" Foreground="#93A7C7" FontSize="14" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="0" Background="#090B11" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsCodeMode}">
+          <Grid RowDefinitions="Auto,*">
+            <TextBlock Text="Code Mode (Monaco-style placeholder)" Foreground="#EEF4FF" FontSize="16" FontWeight="SemiBold" />
+            <TextBox Grid.Row="1"
+                     Margin="0,10,0,0"
+                     FontFamily="Consolas, Menlo, Monospace"
+                     FontSize="14"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"
+                     Text="// Professional mode\n// Runtime bridge + gameplay scripts preview placeholder\n\nfunction update(deltaTime) {\n  // TODO: integrate editor script surface\n}"
+                     Background="#06080D"
+                     Foreground="#D8E8FF"
+                     BorderBrush="#30405A"
+                     BorderThickness="1" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="#101722" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+          <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+            <TextBlock Text="Chat Co-Pilot" FontSize="18" FontWeight="Bold" Foreground="#EEF4FF" />
+
+            <StackPanel Grid.Row="1" Spacing="8">
+              <TextBlock Text="Describe Your Game" Foreground="#C8D6EA" FontSize="13" FontWeight="SemiBold" />
+              <TextBox Text="{Binding ChatPrompt}" Height="96" AcceptsReturn="True" TextWrapping="Wrap" Watermark="A cozy single-player colony sim with light RPG progression..." />
+              <Button Classes="generate-cta" Content="{Binding GenerateButtonLabel}" Click="OnGenerateAndPlayClick" IsEnabled="{Binding CanGenerate}" />
+              <TextBlock Text="{Binding StatusMessage}" Foreground="#AFC2DF" TextWrapping="Wrap" FontSize="12" />
+            </StackPanel>
+
+            <Border Grid.Row="2" IsVisible="{Binding IsStatusToastVisible}" Background="#17304D" CornerRadius="8" Padding="10,8" HorizontalAlignment="Right">
+              <TextBlock Text="{Binding StatusToastMessage}" Foreground="#E8F3FF" FontSize="12" FontWeight="SemiBold" />
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Border Grid.Column="2" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
+          <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
+          <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+            <TextBlock Text="Advanced Inspector" Foreground="#D5E4F8" VerticalAlignment="Center" />
+            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsAdvancedInspectorEnabled}" />
+          </Grid>
+
+          <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <TextBlock Text="Debug Console" Foreground="#D5E4F8" VerticalAlignment="Center" />
+            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsDebugConsoleEnabled}" />
+          </Grid>
+
+          <Border Grid.Row="4" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
+            <TextBlock Text="Inspector controls and deep schema panels arrive in later milestones. This shell already supports no-code quick generation and pro mode toggles." TextWrapping="Wrap" Foreground="#AFC2DF" />
           </Border>
-        </StackPanel>
-      </Border>
-
-      <Border Grid.Column="2" Grid.Row="0" Background="#111827" CornerRadius="8" Padding="10">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Properties (Stub)" FontSize="18" FontWeight="Bold" />
-          <TextBlock Text="Inspector controls, sliders, and object settings will appear here in Milestone 4." TextWrapping="Wrap" Foreground="#D1D5DB" />
-        </StackPanel>
-      </Border>
-
-      <Border Grid.Column="2" Grid.Row="1" Background="#111827" CornerRadius="8" Padding="10">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Selection Context" FontSize="18" FontWeight="Bold" />
-          <TextBlock Text="No-code workflow focus: use chat and toolbar actions to iterate your single-player prototype." TextWrapping="Wrap" Foreground="#D1D5DB" />
-        </StackPanel>
+        </Grid>
       </Border>
     </Grid>
+
+    <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
+      <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
+    </Border>
   </Grid>
 </Window>

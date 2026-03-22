@@ -10,16 +10,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly OrchestratorClient _orchestratorClient = new();
 
     private string _chatPrompt = string.Empty;
-    private string _statusMessage = "Ready: local-first, single-player, no-code-first workflow.";
+    private string _statusMessage = "Ready: describe your game, then click Generate & Play.";
     private bool _isBusy;
     private string? _lastBriefPath;
+    private bool _isCodeMode;
+    private bool _isAdvancedInspectorEnabled;
+    private bool _isDebugConsoleEnabled;
+    private string _statusToastMessage = string.Empty;
+    private bool _isStatusToastVisible;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string ChatPrompt
     {
         get => _chatPrompt;
-        set => SetField(ref _chatPrompt, value);
+        set
+        {
+            SetField(ref _chatPrompt, value);
+            OnPropertyChanged(nameof(CanGenerate));
+        }
     }
 
     public string StatusMessage
@@ -31,14 +40,60 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool IsBusy
     {
         get => _isBusy;
-        private set => SetField(ref _isBusy, value);
+        private set
+        {
+            SetField(ref _isBusy, value);
+            OnPropertyChanged(nameof(CanGenerate));
+            OnPropertyChanged(nameof(GenerateButtonLabel));
+        }
     }
+
+    public bool IsCodeMode
+    {
+        get => _isCodeMode;
+        set
+        {
+            SetField(ref _isCodeMode, value);
+            OnPropertyChanged(nameof(IsViewportMode));
+        }
+    }
+
+    public bool IsViewportMode => !IsCodeMode;
+
+    public bool IsAdvancedInspectorEnabled
+    {
+        get => _isAdvancedInspectorEnabled;
+        set => SetField(ref _isAdvancedInspectorEnabled, value);
+    }
+
+    public bool IsDebugConsoleEnabled
+    {
+        get => _isDebugConsoleEnabled;
+        set => SetField(ref _isDebugConsoleEnabled, value);
+    }
+
+    public string StatusToastMessage
+    {
+        get => _statusToastMessage;
+        private set => SetField(ref _statusToastMessage, value);
+    }
+
+    public bool IsStatusToastVisible
+    {
+        get => _isStatusToastVisible;
+        private set => SetField(ref _isStatusToastVisible, value);
+    }
+
+    public bool CanGenerate => !IsBusy && !string.IsNullOrWhiteSpace(ChatPrompt);
+
+    public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
         _lastBriefPath = null;
-        StatusMessage = "New prototype started. Enter a brief in chat and click Generate & Play.";
+        StatusMessage = "New prototype started. Describe your game to continue.";
+        ShowToast("New prototype ready.");
         return Task.CompletedTask;
     }
 
@@ -46,7 +101,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(ChatPrompt))
         {
-            StatusMessage = "Enter a prototype brief first.";
+            StatusMessage = "Describe your game first to generate a prototype.";
+            ShowToast("Brief required before generation.");
             return;
         }
 
@@ -58,7 +114,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(_lastBriefPath))
         {
-            StatusMessage = "No generated brief yet. Run Generate from Brief first.";
+            StatusMessage = "No generated brief yet. Click Generate & Play first.";
+            ShowToast("Generate once before launching runtime.");
             return;
         }
 
@@ -68,6 +125,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public void SetStatusMessage(string value)
     {
         StatusMessage = value;
+        ShowToast(value);
     }
 
     private async Task RunPipelineForBriefAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken)
@@ -79,15 +137,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         IsBusy = true;
         StatusMessage = "Running generation pipeline...";
+        ShowToast("Generation started...");
 
         try
         {
             var response = await _orchestratorClient.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
             StatusMessage = BuildStatusMessage(response);
+            ShowToast(BuildToastMessage(response));
         }
         catch (Exception ex)
         {
             StatusMessage = $"Pipeline failed: {ex.Message}";
+            ShowToast("Generation failed. See status panel.");
         }
         finally
         {
@@ -138,6 +199,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return builder.ToString().Trim();
     }
 
+    private static string BuildToastMessage(PipelineRunResponse response)
+    {
+        if (response.Result?.RuntimeLaunchPid is int pid)
+        {
+            return $"Runtime launched successfully — PID {pid}";
+        }
+
+        if (response.Result is not null)
+        {
+            return $"Pipeline {response.Result.Status}; runtime: {response.Result.RuntimeLaunchStatus}";
+        }
+
+        return response.ExitCode == 0
+            ? "Pipeline completed."
+            : "Pipeline failed. Open status details.";
+    }
+
+    private void ShowToast(string message)
+    {
+        StatusToastMessage = message;
+        IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
+    }
+
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
@@ -146,6 +230,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         field = value;
+        OnPropertyChanged(propertyName);
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
