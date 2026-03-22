@@ -121,7 +121,21 @@ internal static class Program
             return 0;
         }
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        if (args.Length > 0 && args[0] == "--editor-ui")
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return 0;
+        }
+
+        var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
+        var fullRuntimePath = Path.GetFullPath(runtimePath);
+
+        Console.WriteLine($"Runtime binary path: {fullRuntimePath}");
+        Console.WriteLine(File.Exists(fullRuntimePath)
+            ? "Runtime build detected."
+            : "Runtime build missing (run bootstrap build stage).");
+
+        Console.WriteLine("Editor launcher started successfully.");
         return 0;
     }
 
