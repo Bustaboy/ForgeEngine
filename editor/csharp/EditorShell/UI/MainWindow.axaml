@@ -350,7 +350,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Grid Grid.Row="6" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+              <Grid Grid.Row="6" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                   <TextBlock Text="Progress:" Foreground="#9FC2E5" FontSize="11" />
                   <TextBlock Text="{Binding ExportChecklistCompletedCount}" Foreground="#9FC2E5" FontSize="11" />
@@ -377,6 +377,36 @@
                 <Button Grid.Row="2" Grid.Column="2" Content="⬇ Download ZIP" Click="OnOpenExportZipClick" IsEnabled="{Binding HasExportPackageOutput}" />
                 <Button Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Content="🛰 Publish to Steam (Dry-Run)" Click="OnPublishToSteamClick" ToolTip.Tip="Runs publish gate + local audit trail only. No upload yet." />
                 <TextBlock Grid.Row="4" Grid.ColumnSpan="3" Text="{Binding PublishDryRunStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="5" Text="Steam Release Notes" Foreground="#9FC2E5" FontSize="11" VerticalAlignment="Center" />
+                <TextBox Grid.Row="5"
+                         Grid.Column="1"
+                         Grid.ColumnSpan="2"
+                         Text="{Binding SteamReleaseNotes}"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         MinHeight="72"
+                         Watermark="Describe this release for Steam store copy and patch notes..." />
+                <Button Grid.Row="6"
+                        Grid.Column="1"
+                        Grid.ColumnSpan="2"
+                        Content="☁️ Upload to Steam (Stub)"
+                        Click="OnUploadToSteamStubClick"
+                        IsEnabled="{Binding CanRunSteamUploadStub}"
+                        ToolTip.Tip="Generates upload ZIP + audit trail and simulates upload progress. No real Steam API calls." />
+                <ProgressBar Grid.Row="7"
+                             Grid.ColumnSpan="3"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="{Binding SteamUploadProgressPercent}"
+                             Height="7"
+                             Background="#0B1524"
+                             Foreground="#6FA8FF" />
+                <TextBlock Grid.Row="8"
+                           Grid.ColumnSpan="3"
+                           Text="{Binding SteamUploadStatus}"
+                           Foreground="#8EA5C7"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
               </Grid>
             </Grid>
           </Border>
