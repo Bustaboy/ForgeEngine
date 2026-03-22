@@ -331,10 +331,31 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                <TextBlock Text="{Binding ExportOutputPath, StringFormat=Output: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Content="Run Export" Click="OnRunExportChecklistClick" />
-                <Button Grid.Column="2" Content="Open Output" Click="OnOpenExportOutputClick" IsEnabled="{Binding HasExportOutput}" />
+              <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <TextBlock Text="Progress:" Foreground="#9FC2E5" FontSize="11" />
+                  <TextBlock Text="{Binding ExportChecklistCompletedCount}" Foreground="#9FC2E5" FontSize="11" />
+                  <TextBlock Text="/" Foreground="#9FC2E5" FontSize="11" />
+                  <TextBlock Text="{Binding ExportChecklistTotalCount}" Foreground="#9FC2E5" FontSize="11" />
+                  <TextBlock Text="steps complete" Foreground="#9FC2E5" FontSize="11" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="⚙ Run Export" Click="OnRunExportChecklistClick" />
+                <Button Grid.Column="2" Content="📁 Open Folder" Click="OnOpenExportFolderClick" IsEnabled="{Binding HasExportFolderOutput}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="{Binding ExportFolderPath, StringFormat=Folder: {0}}"
+                           Foreground="#8EA5C7"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+
+                <TextBlock Grid.Row="2"
+                           Text="{Binding ExportPackagePath, StringFormat=ZIP: {0}}"
+                           Foreground="#8EA5C7"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+                <Button Grid.Row="2" Grid.Column="2" Content="⬇ Download ZIP" Click="OnOpenExportZipClick" IsEnabled="{Binding HasExportPackageOutput}" />
               </Grid>
             </Grid>
           </Border>
