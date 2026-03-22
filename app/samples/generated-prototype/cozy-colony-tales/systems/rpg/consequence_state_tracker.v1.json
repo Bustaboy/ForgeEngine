@@ -1,0 +1,64 @@
+{
+  "schema": "gameforge.rpg.consequence_tracker.v1",
+  "module_id": "rpg_choice_consequences",
+  "graph": {
+    "nodes": [
+      {
+        "node_id": "dialogue_mayor_intro",
+        "choices": [
+          {
+            "choice_id": "support_farmers",
+            "next_node_id": "dialogue_farmers_supported",
+            "effects": {
+              "npc_delta": {
+                "mayor_elara_trust": 1,
+                "farmer_lia_affinity": 2,
+                "merchant_roan_affinity": -1
+              },
+              "world_set": {
+                "grain_policy": "farmer-priority",
+                "market_prices": "stable"
+              }
+            }
+          },
+          {
+            "choice_id": "support_merchants",
+            "next_node_id": "dialogue_merchants_supported",
+            "effects": {
+              "npc_delta": {
+                "mayor_elara_trust": -1,
+                "farmer_lia_affinity": -2,
+                "merchant_roan_affinity": 2
+              },
+              "world_set": {
+                "grain_policy": "merchant-priority",
+                "market_prices": "volatile"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "node_id": "dialogue_farmers_supported",
+        "choices": []
+      },
+      {
+        "node_id": "dialogue_merchants_supported",
+        "choices": []
+      }
+    ]
+  },
+  "state": {
+    "current_node_id": "dialogue_mayor_intro",
+    "last_choice_id": "",
+    "npc_state": {
+      "mayor_elara_trust": 0,
+      "farmer_lia_affinity": 0,
+      "merchant_roan_affinity": 0
+    },
+    "world_state": {
+      "grain_policy": "undecided",
+      "market_prices": "uncertain"
+    }
+  }
+}
