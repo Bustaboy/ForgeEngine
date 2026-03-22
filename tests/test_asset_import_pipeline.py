@@ -178,6 +178,19 @@ class TestProjectStyleSystem(unittest.TestCase):
             presets = orchestrator.list_style_presets(project_root)
             self.assertTrue(any(item.preset_id == "frosted-storybook" and item.source == "user" for item in presets))
 
+    def test_create_user_style_preset_rejects_blank_display_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+
+            with self.assertRaisesRegex(ValueError, "cannot be blank"):
+                orchestrator.create_user_style_preset(
+                    project_root=project_root,
+                    display_name="   ",
+                    base_preset_id="cozy-stylized",
+                    overrides=None,
+                )
+
     def test_match_project_style_applies_consistent_transformations(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir) / "project"

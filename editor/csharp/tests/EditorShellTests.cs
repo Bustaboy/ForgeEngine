@@ -18,7 +18,7 @@ public sealed class EditorShellTests
         Assert.Contains("windows", snapshot.Platforms);
         Assert.Contains("ubuntu", snapshot.Platforms);
         Assert.NotEmpty(snapshot.SceneObjects);
-        Assert.Equal("cozy-stylized", snapshot.Style.ActivePresetId);
+        Assert.Equal("moonlit-minimal", snapshot.Style.ActivePresetId);
         Assert.Contains(snapshot.Style.Presets, preset => preset.PresetId == "cozy-stylized");
     }
 

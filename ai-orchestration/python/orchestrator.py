@@ -586,13 +586,17 @@ def create_user_style_preset(
     base_preset_id: str,
     overrides: dict[str, dict[str, object]] | None = None,
 ) -> StylePresetDefinition:
+    normalized_display_name = display_name.strip()
+    if not normalized_display_name:
+        raise ValueError("Preset display name cannot be blank.")
+
     presets = list_style_presets(project_root)
     index = _preset_index(presets)
     normalized_base = _normalize_preset_id(base_preset_id)
     if normalized_base not in index:
         raise ValueError(f"Base style preset not found: {base_preset_id}")
 
-    preset_id = _normalize_preset_id(display_name)
+    preset_id = _normalize_preset_id(normalized_display_name)
     if not preset_id:
         raise ValueError("Preset display name must produce a non-empty preset_id.")
     if preset_id in index:
@@ -602,7 +606,7 @@ def create_user_style_preset(
     merged_transformations = _merge_transformations(base.transformations, overrides or {})
     created = StylePresetDefinition(
         preset_id=preset_id,
-        display_name=display_name.strip(),
+        display_name=normalized_display_name,
         parent_preset_id=base.preset_id,
         transformations=merged_transformations,
         source="user",
