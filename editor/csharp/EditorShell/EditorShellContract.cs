@@ -64,6 +64,8 @@ public sealed record EditorProjectSnapshot
     public required IReadOnlyList<AssetCatalogEntry> Assets { get; init; }
 
     public ProjectStyleConfig Style { get; init; } = ProjectStyleConfig.CreateDefault();
+
+    public CommercialPolicyConfig CommercialPolicy { get; init; } = CommercialPolicyConfig.CreateDefault();
 }
 
 public sealed record AssetCatalogEntry

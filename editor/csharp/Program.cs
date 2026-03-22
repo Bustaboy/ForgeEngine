@@ -71,11 +71,8 @@ internal static class Program
 
         if (args.Length > 0 && args[0] == "--editor-shell-smoke")
         {
-            var projectRoot = args.Length > 1
-                ? args[1]
-                : Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
-
-            await RunEditorShellSmokeAsync(projectRoot);
+            var (projectRoot, declarationArg) = ParseEditorShellSmokeArgs(args);
+            await RunEditorShellSmokeAsync(projectRoot, declarationArg);
             return 0;
         }
 
@@ -251,7 +248,7 @@ internal static class Program
         Console.WriteLine($"prototype_seed={proposalPayload}");
     }
 
-    private static async Task RunEditorShellSmokeAsync(string projectRoot)
+    private static async Task RunEditorShellSmokeAsync(string projectRoot, string? declarationArg)
     {
         var snapshot = await EditorProjectLoader.LoadGeneratedProjectAsync(projectRoot);
         var workspace = new EditorWorkspace(snapshot);
@@ -279,6 +276,31 @@ internal static class Program
         Console.WriteLine($"Style preset active: {styleView.ActivePresetDisplayName} ({styleView.ActivePresetId})");
         Console.WriteLine($"Style helper mode: {styleView.HelperMode}");
         Console.WriteLine($"Style preset options: {string.Join(", ", styleView.AvailablePresets.Select(item => item.DisplayName))}");
+
+        if (!string.IsNullOrWhiteSpace(declarationArg))
+        {
+            if (!CommercialUsePolicy.TryParseDeclaration(declarationArg, out var declaration))
+            {
+                throw new ArgumentException("Invalid declaration. Use commercial or non-commercial.");
+            }
+
+            var changed = workspace.SetCommercialDeclaration(declaration, "settings-flow");
+            Console.WriteLine(changed
+                ? $"Commercial declaration updated: {workspace.CommercialPolicy.Declaration}"
+                : $"Commercial declaration unchanged: {workspace.CommercialPolicy.Declaration}");
+        }
+
+        var policyText = CommercialUsePolicy.BuildPolicyText();
+        Console.WriteLine("Settings policy: commercial use declaration");
+        Console.WriteLine($"- Current declaration: {workspace.CommercialPolicy.Declaration}");
+        Console.WriteLine($"- Criteria: {policyText.CriteriaSummary}");
+        Console.WriteLine($"- Revenue share: {policyText.RevenueShareSummary}");
+
+        foreach (var audit in workspace.CommercialDeclarationAudit)
+        {
+            Console.WriteLine($"- Declaration audit: {audit.PreviousDeclaration} -> {audit.NewDeclaration} at {audit.ChangedAtUtc:O} ({audit.Reason})");
+        }
+
         Console.WriteLine("Editor shell smoke passed.");
     }
 
@@ -316,6 +338,11 @@ internal static class Program
         var gate = SteamReadinessPolicy.EvaluatePublishGate(report, warningAcknowledged);
         Console.WriteLine(gate.Message);
 
+        var policyText = CommercialUsePolicy.BuildPolicyText();
+        Console.WriteLine("Publish policy: commercial criteria + revenue share");
+        Console.WriteLine($"- {policyText.CriteriaSummary}");
+        Console.WriteLine($"- {policyText.RevenueShareSummary}");
+
         if (!requestPublish)
         {
             Console.WriteLine("Publish dry-run complete. Re-run with --publish to execute publish gate flow.");
@@ -347,6 +374,33 @@ internal static class Program
             : "Upload skipped. Re-run with --confirm-upload to consent and continue.");
 
         return 0;
+    }
+
+
+    private static (string ProjectRoot, string? DeclarationArg) ParseEditorShellSmokeArgs(IReadOnlyList<string> args)
+    {
+        var defaultProjectRoot = Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
+        var declarationArg = GetOptionValue(args, "--set-commercial-declaration");
+
+        var positionalArgs = new List<string>();
+        for (var i = 1; i < args.Count; i++)
+        {
+            var current = args[i];
+            if (current.StartsWith("--", StringComparison.Ordinal))
+            {
+                if (string.Equals(current, "--set-commercial-declaration", StringComparison.OrdinalIgnoreCase))
+                {
+                    i++;
+                }
+
+                continue;
+            }
+
+            positionalArgs.Add(current);
+        }
+
+        var projectRoot = positionalArgs.Count > 0 ? positionalArgs[0] : defaultProjectRoot;
+        return (projectRoot, declarationArg);
     }
 
     private static string? GetOptionValue(IReadOnlyList<string> args, string option)

@@ -139,4 +139,14 @@ public sealed class SteamReadinessPolicyTests
         }
     }
 
+
+    [Fact]
+    public void CommercialPolicyText_ContainsCriteriaAndRevenueThreshold()
+    {
+        var policy = CommercialUsePolicy.BuildPolicyText();
+
+        Assert.Contains("monetized", policy.CriteriaSummary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("100,000", policy.RevenueShareSummary, StringComparison.OrdinalIgnoreCase);
+    }
+
 }

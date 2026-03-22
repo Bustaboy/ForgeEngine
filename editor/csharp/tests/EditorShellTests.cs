@@ -20,6 +20,7 @@ public sealed class EditorShellTests
         Assert.NotEmpty(snapshot.SceneObjects);
         Assert.Equal("moonlit-minimal", snapshot.Style.ActivePresetId);
         Assert.Contains(snapshot.Style.Presets, preset => preset.PresetId == "cozy-stylized");
+        Assert.Equal(CommercialUseDeclaration.NonCommercial, snapshot.CommercialPolicy.Declaration);
     }
 
     [Fact]
@@ -243,6 +244,23 @@ public sealed class EditorShellTests
         Assert.Equal("1.1", workspace.AiContext!.Properties["zoom"]);
         Assert.False(workspace.ConfirmPendingMajorMutation());
         Assert.Equal("follow_player", workspace.AiContext.Properties["mode"]);
+    }
+
+
+    [Fact]
+    public async Task CommercialDeclaration_CanBeUpdatedWithAuditEntry()
+    {
+        var workspace = await LoadWorkspaceAsync();
+
+        var changed = workspace.SetCommercialDeclaration(CommercialUseDeclaration.Commercial, "publish-settings-test");
+
+        Assert.True(changed);
+        Assert.Equal(CommercialUseDeclaration.Commercial, workspace.CommercialPolicy.Declaration);
+        Assert.NotNull(workspace.CommercialPolicy.LastUpdatedUtc);
+        Assert.Single(workspace.CommercialDeclarationAudit);
+        Assert.Equal("publish-settings-test", workspace.CommercialDeclarationAudit[0].Reason);
+        Assert.Equal(CommercialUseDeclaration.NonCommercial, workspace.CommercialDeclarationAudit[0].PreviousDeclaration);
+        Assert.Equal(CommercialUseDeclaration.Commercial, workspace.CommercialDeclarationAudit[0].NewDeclaration);
     }
 
     private static async Task<EditorWorkspace> LoadWorkspaceAsync()

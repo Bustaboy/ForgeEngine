@@ -8,14 +8,17 @@ public sealed class EditorWorkspace
     private readonly Stack<MutationSnapshot> _undoStack = new();
     private readonly Stack<MutationSnapshot> _redoStack = new();
     private readonly List<EditTimelineEntry> _timeline = new();
+    private readonly List<CommercialDeclarationAuditEntry> _commercialDeclarationAudit = new();
 
     private PendingMajorMutation? _pendingMajorMutation;
+    private CommercialPolicyConfig _commercialPolicy;
 
     public EditorWorkspace(EditorProjectSnapshot project)
     {
         Project = project;
         Layout = EditorLayout.CreateDefault();
         _objectIndex = project.SceneObjects.ToDictionary(item => item.ObjectId, StringComparer.OrdinalIgnoreCase);
+        _commercialPolicy = project.CommercialPolicy;
     }
 
     public EditorProjectSnapshot Project { get; }
@@ -35,6 +38,10 @@ public sealed class EditorWorkspace
     public IReadOnlyList<EditTimelineEntry> Timeline => _timeline;
 
     public AiEditPreview? PendingPreview => _pendingMajorMutation?.Preview;
+
+    public CommercialPolicyConfig CommercialPolicy => _commercialPolicy;
+
+    public IReadOnlyList<CommercialDeclarationAuditEntry> CommercialDeclarationAudit => _commercialDeclarationAudit;
 
     public AssetBrowserView QueryAssets(AssetBrowserFilter filter)
     {
@@ -104,6 +111,32 @@ public sealed class EditorWorkspace
             HelperMode = Project.Style.HelperMode,
             AvailablePresets = Project.Style.Presets,
         };
+    }
+
+
+    public bool SetCommercialDeclaration(CommercialUseDeclaration declaration, string reason)
+    {
+        if (_commercialPolicy.Declaration == declaration)
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _commercialDeclarationAudit.Add(new CommercialDeclarationAuditEntry
+        {
+            PreviousDeclaration = _commercialPolicy.Declaration,
+            NewDeclaration = declaration,
+            ChangedAtUtc = now,
+            Reason = string.IsNullOrWhiteSpace(reason) ? "updated-in-editor" : reason.Trim(),
+        });
+
+        _commercialPolicy = _commercialPolicy with
+        {
+            Declaration = declaration,
+            LastUpdatedUtc = now.ToString("O"),
+        };
+
+        return true;
     }
 
     public bool SelectObject(string objectId)
