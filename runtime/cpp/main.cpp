@@ -212,12 +212,17 @@ private:
     void MainLoop() {
         Log(LogLevel::kInfo, "Render loop started");
 
+        bool manifest_loaded = false;
+        if (!manifest_loaded) {
+            ProcessManifestLoad();
+            manifest_loaded = true;
+        }
+
         std::uint32_t frame_counter = 0;
         auto fps_window_start = std::chrono::steady_clock::now();
 
         while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
             glfwPollEvents();
-            ProcessManifestLoad();
             if (scene_loaded_from_manifest_) {
                 RenderLoadedScene();
             }
