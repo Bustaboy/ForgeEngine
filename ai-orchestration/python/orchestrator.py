@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from models import prepare_models_as_dict
+
 
 UNCERTAINTY_CUES = {
     "i don't know",
@@ -1992,11 +1994,33 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--bot-playtest-scenario", help="Path to bot playtest scenario JSON")
     parser.add_argument("--prototype-root", help="Generated prototype root to validate with bot playtests")
     parser.add_argument("--bot-playtest-report-output", help="Optional output directory for persisted playtest reports")
+    parser.add_argument(
+        "--prepare-models",
+        action="store_true",
+        help="Ensure local-first model files are present and print runtime assignment JSON",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
+
+    if args.prepare_models:
+        try:
+            result = prepare_models_as_dict(orchestrator_file=Path(__file__).resolve())
+            print(json.dumps(result, indent=2))
+            return 0
+        except Exception as exc:  # noqa: BLE001 - keep subprocess output structured
+            print(
+                json.dumps(
+                    {
+                        "error": "model_preparation_failed",
+                        "message": str(exc),
+                    },
+                    indent=2,
+                )
+            )
+            return 1
 
     if args.uncertain_input is not None:
         response = generate_uncertainty_options(args.uncertain_input, args.topic)
