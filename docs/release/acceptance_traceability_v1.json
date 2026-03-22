@@ -3,36 +3,302 @@
   "generated_at_utc": "2026-03-22T00:00:00Z",
   "milestone": "Milestone 8 hardening",
   "items": [
-    {"id":"AT-001","priority":"P0","status":"partial","automation":["tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_runtime_cpp_compiles_and_runs","tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_bootstrap_sh_default_mode_contract"],"manual_procedure":"Run clean-machine install/start flow on target OS and verify no crash on first launch.","next_action":"Expand to true fresh-install smoke in CI images for Windows+Ubuntu.","owner_suggestion":"Platform QA"},
-    {"id":"AT-002","priority":"P0","status":"missing","automation":[],"manual_procedure":"Create/save/reopen project and verify file/state integrity.","next_action":"Add tests/test_project_lifecycle.py for create/save/reopen integrity.","owner_suggestion":"Editor/Core"},
-    {"id":"AT-003","priority":"P0","status":"partial","automation":["tests/test_interview_contract.py::TestInterviewContract::test_editor_csharp_owns_interview_session_persistence_contract","editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAndLoad_RoundTripsSelectedOptionId"],"manual_procedure":"Resume long interview session after restart and verify continuity.","next_action":"Add long-session resume integration test with transcript fixtures.","owner_suggestion":"AI Orchestration"},
-    {"id":"AT-004","priority":"P1","status":"covered","automation":["tests/test_uncertainty_options.py::test_ambiguous_unknown_input_returns_exactly_three_options","editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAsync_RejectsDecisionWithoutExactlyThreeOptions"],"manual_procedure":null},
-    {"id":"AT-005","priority":"P1","status":"partial","automation":["tests/test_uncertainty_options.py::test_think_for_me_mode_returns_three_directional_concepts","editor/csharp/tests/InterviewUncertaintyTests.cs::ThinkForMeEnvelope_MapsConfirmationGateAndThreeProposals"],"manual_procedure":"Run 5 prompts in think-for-me mode and assess coherence + confirmation gate."},
-    {"id":"AT-006","priority":"P0","status":"covered","automation":["tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief","tests/test_prototype_generation.py::TestPrototypeGeneration::test_smoke_script_generation_and_launch"],"manual_procedure":null},
-    {"id":"AT-007","priority":"P0","status":"covered","automation":["tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_skips_locked_paths_without_confirmation","tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_overwrites_locked_paths_after_confirmation"],"manual_procedure":null},
-    {"id":"AT-008","priority":"P1","status":"missing","automation":[],"manual_procedure":"Trigger five sequential failures and verify guided manual mode offer.","next_action":"Add failure-counter integration test for fallback UX."},
-    {"id":"AT-009","priority":"P0","status":"covered","automation":["editor/csharp/tests/EditorShellTests.cs::UndoRedoTimeline_SupportsMultiStepRollbackAndReapply"],"manual_procedure":null},
-    {"id":"AT-010","priority":"P0","status":"missing","automation":[],"manual_procedure":"Execute full Windows smoke flow and capture checklist outcomes.","next_action":"Add Windows CI smoke pipeline for core flow.","owner_suggestion":"Release Engineering"},
-    {"id":"AT-011","priority":"P0","status":"missing","automation":[],"manual_procedure":"Execute full Ubuntu smoke flow and capture checklist outcomes.","next_action":"Add Ubuntu CI smoke pipeline for core flow.","owner_suggestion":"Release Engineering"},
-    {"id":"AT-012","priority":"P1","status":"partial","automation":["tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief","editor/csharp/tests/EditorShellTests.cs::GeneratedProject_LoadsIntoWorkspaceWithoutCrash"],"manual_procedure":"Verify Vulkan backend initializes at startup on target machine."},
-    {"id":"AT-013","priority":"P0","status":"covered","automation":["tests/test_asset_import_pipeline.py::test_imported_assets_are_auto_tagged_and_searchable","editor/csharp/tests/EditorShellTests.cs::AssetBrowserFilter_ReturnsTagAndCategoryMatches"],"manual_procedure":null},
-    {"id":"AT-014","priority":"P0","status":"covered","automation":["tests/test_asset_import_pipeline.py::test_blocked_or_unclear_license_returns_actionable_errors"],"manual_procedure":null},
-    {"id":"AT-015","priority":"P1","status":"missing","automation":[],"manual_procedure":"Export project with CC-BY assets and verify attribution bundle exists.","next_action":"Add attribution export tests with mixed-license fixtures."},
-    {"id":"AT-016","priority":"P0","status":"covered","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"],"manual_procedure":null},
-    {"id":"AT-017","priority":"P1","status":"covered","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_WarningsRequireAcknowledgement_AndAllowOverride"],"manual_procedure":null},
-    {"id":"AT-018","priority":"P1","status":"covered","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"],"manual_procedure":null},
-    {"id":"AT-019","priority":"P1","status":"covered","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"],"manual_procedure":null},
-    {"id":"AT-020","priority":"P0","status":"partial","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"],"manual_procedure":"Compute crash-free session rate from representative session runs.","next_action":"Add telemetry aggregation test with recorded sessions.","owner_suggestion":"Quality/Telemetry"},
-    {"id":"AT-021","priority":"P0","status":"partial","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"],"manual_procedure":"Measure FPS on validation scenes for target hardware.","next_action":"Add benchmark harness feeding measured FPS compliance into readiness report.","owner_suggestion":"Runtime/Perf"},
-    {"id":"AT-022","priority":"P0","status":"partial","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"],"manual_procedure":"Run stress scene and verify no sustained FPS below 30.","next_action":"Add sustained floor detector integration test.","owner_suggestion":"Runtime/Perf"},
-    {"id":"AT-023","priority":"P1","status":"missing","automation":[],"manual_procedure":"Capture frame trace and compute p95 frametime.","next_action":"Add frametime parser/threshold test."},
-    {"id":"AT-024","priority":"P1","status":"partial","automation":["editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"],"manual_procedure":"Measure first scene load on target hardware and compare vs 20s threshold."},
-    {"id":"AT-025","priority":"P0","status":"missing","automation":[],"manual_procedure":"Execute save/load regression loop and verify 100% pass.","next_action":"Add automated save/load loop test over sample prototype save hook.","owner_suggestion":"Runtime + QA Automation"},
-    {"id":"AT-026","priority":"P0","status":"partial","automation":["tests/test_bot_playtesting.py::test_bot_playtest_passes_on_generated_sample","tests/test_prototype_generation.py::test_consequence_choice_updates_npc_world_and_branch_state"],"manual_procedure":"Traverse quest branches and verify zero critical dead-end blockers.","next_action":"Add dead-end blocker scanner with CI fail condition.","owner_suggestion":"AI Testing"},
-    {"id":"AT-027","priority":"P2","status":"missing","automation":[],"manual_procedure":"Create project and confirm Git is disabled by default."},
-    {"id":"AT-028","priority":"P2","status":"missing","automation":[],"manual_procedure":"Enable Git and verify repository initialization success."},
-    {"id":"AT-029","priority":"P1","status":"missing","automation":[],"manual_procedure":"Run discoverability walkthrough of top-level app sections without docs."},
-    {"id":"AT-030","priority":"P1","status":"partial","automation":["editor/csharp/tests/EditorShellTests.cs::Selection_UpdatesInspectorAndAiContext"],"manual_procedure":"Verify simple controls are default-visible and advanced controls collapsed but accessible."},
-    {"id":"AT-031","priority":"P1","status":"missing","automation":[],"manual_procedure":"Perform plain-language UX copy review of core labels/dialogs."}
+    {
+      "id": "AT-001",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_runtime_cpp_compiles_and_runs",
+        "tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_bootstrap_sh_default_mode_contract"
+      ],
+      "manual_procedure": "Run clean-machine install/start flow on target OS and verify no crash on first launch.",
+      "next_action": "Expand to true fresh-install smoke in CI images for Windows+Ubuntu.",
+      "owner_suggestion": "Platform QA"
+    },
+    {
+      "id": "AT-002",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_project_lifecycle.py::test_at002_create_save_reopen_preserves_project_data"
+      ],
+      "manual_procedure": null,
+      "next_action": "Expand with full editor UI create-project integration coverage in CI once harness is available.",
+      "owner_suggestion": "Editor/Core"
+    },
+    {
+      "id": "AT-003",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "tests/test_interview_contract.py::TestInterviewContract::test_editor_csharp_owns_interview_session_persistence_contract",
+        "editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAndLoad_RoundTripsSelectedOptionId"
+      ],
+      "manual_procedure": "Resume long interview session after restart and verify continuity.",
+      "next_action": "Add long-session resume integration test with transcript fixtures.",
+      "owner_suggestion": "AI Orchestration"
+    },
+    {
+      "id": "AT-004",
+      "priority": "P1",
+      "status": "covered",
+      "automation": [
+        "tests/test_uncertainty_options.py::test_ambiguous_unknown_input_returns_exactly_three_options",
+        "editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAsync_RejectsDecisionWithoutExactlyThreeOptions"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-005",
+      "priority": "P1",
+      "status": "partial",
+      "automation": [
+        "tests/test_uncertainty_options.py::test_think_for_me_mode_returns_three_directional_concepts",
+        "editor/csharp/tests/InterviewUncertaintyTests.cs::ThinkForMeEnvelope_MapsConfirmationGateAndThreeProposals"
+      ],
+      "manual_procedure": "Run 5 prompts in think-for-me mode and assess coherence + confirmation gate."
+    },
+    {
+      "id": "AT-006",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief",
+        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_smoke_script_generation_and_launch"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-007",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_skips_locked_paths_without_confirmation",
+        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_overwrites_locked_paths_after_confirmation"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-008",
+      "priority": "P1",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Trigger five sequential failures and verify guided manual mode offer.",
+      "next_action": "Add failure-counter integration test for fallback UX."
+    },
+    {
+      "id": "AT-009",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "editor/csharp/tests/EditorShellTests.cs::UndoRedoTimeline_SupportsMultiStepRollbackAndReapply"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-010",
+      "priority": "P0",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Execute full Windows smoke flow and capture checklist outcomes.",
+      "next_action": "Add Windows CI smoke pipeline for core flow.",
+      "owner_suggestion": "Release Engineering"
+    },
+    {
+      "id": "AT-011",
+      "priority": "P0",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Execute full Ubuntu smoke flow and capture checklist outcomes.",
+      "next_action": "Add Ubuntu CI smoke pipeline for core flow.",
+      "owner_suggestion": "Release Engineering"
+    },
+    {
+      "id": "AT-012",
+      "priority": "P1",
+      "status": "partial",
+      "automation": [
+        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief",
+        "editor/csharp/tests/EditorShellTests.cs::GeneratedProject_LoadsIntoWorkspaceWithoutCrash"
+      ],
+      "manual_procedure": "Verify Vulkan backend initializes at startup on target machine."
+    },
+    {
+      "id": "AT-013",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_asset_import_pipeline.py::test_imported_assets_are_auto_tagged_and_searchable",
+        "editor/csharp/tests/EditorShellTests.cs::AssetBrowserFilter_ReturnsTagAndCategoryMatches"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-014",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_asset_import_pipeline.py::test_blocked_or_unclear_license_returns_actionable_errors"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-015",
+      "priority": "P1",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Export project with CC-BY assets and verify attribution bundle exists.",
+      "next_action": "Add attribution export tests with mixed-license fixtures."
+    },
+    {
+      "id": "AT-016",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-017",
+      "priority": "P1",
+      "status": "covered",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_WarningsRequireAcknowledgement_AndAllowOverride"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-018",
+      "priority": "P1",
+      "status": "covered",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-019",
+      "priority": "P1",
+      "status": "covered",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"
+      ],
+      "manual_procedure": null
+    },
+    {
+      "id": "AT-020",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
+      ],
+      "manual_procedure": "Compute crash-free session rate from representative session runs.",
+      "next_action": "Add telemetry aggregation test with recorded sessions.",
+      "owner_suggestion": "Quality/Telemetry"
+    },
+    {
+      "id": "AT-021",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
+      ],
+      "manual_procedure": "Measure FPS on validation scenes for target hardware.",
+      "next_action": "Add benchmark harness feeding measured FPS compliance into readiness report.",
+      "owner_suggestion": "Runtime/Perf"
+    },
+    {
+      "id": "AT-022",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
+      ],
+      "manual_procedure": "Run stress scene and verify no sustained FPS below 30.",
+      "next_action": "Add sustained floor detector integration test.",
+      "owner_suggestion": "Runtime/Perf"
+    },
+    {
+      "id": "AT-023",
+      "priority": "P1",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Capture frame trace and compute p95 frametime.",
+      "next_action": "Add frametime parser/threshold test."
+    },
+    {
+      "id": "AT-024",
+      "priority": "P1",
+      "status": "partial",
+      "automation": [
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
+      ],
+      "manual_procedure": "Measure first scene load on target hardware and compare vs 20s threshold."
+    },
+    {
+      "id": "AT-025",
+      "priority": "P0",
+      "status": "covered",
+      "automation": [
+        "tests/test_project_lifecycle.py::test_at025_save_load_regression_loop_detects_corruption"
+      ],
+      "manual_procedure": null,
+      "next_action": "Keep regression loop in default pytest suite and add additional save fixtures as gameplay modules expand.",
+      "owner_suggestion": "Runtime + QA Automation"
+    },
+    {
+      "id": "AT-026",
+      "priority": "P0",
+      "status": "partial",
+      "automation": [
+        "tests/test_bot_playtesting.py::test_bot_playtest_passes_on_generated_sample",
+        "tests/test_prototype_generation.py::test_consequence_choice_updates_npc_world_and_branch_state"
+      ],
+      "manual_procedure": "Traverse quest branches and verify zero critical dead-end blockers.",
+      "next_action": "Add dead-end blocker scanner with CI fail condition.",
+      "owner_suggestion": "AI Testing"
+    },
+    {
+      "id": "AT-027",
+      "priority": "P2",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Create project and confirm Git is disabled by default."
+    },
+    {
+      "id": "AT-028",
+      "priority": "P2",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Enable Git and verify repository initialization success."
+    },
+    {
+      "id": "AT-029",
+      "priority": "P1",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Run discoverability walkthrough of top-level app sections without docs."
+    },
+    {
+      "id": "AT-030",
+      "priority": "P1",
+      "status": "partial",
+      "automation": [
+        "editor/csharp/tests/EditorShellTests.cs::Selection_UpdatesInspectorAndAiContext"
+      ],
+      "manual_procedure": "Verify simple controls are default-visible and advanced controls collapsed but accessible."
+    },
+    {
+      "id": "AT-031",
+      "priority": "P1",
+      "status": "missing",
+      "automation": [],
+      "manual_procedure": "Perform plain-language UX copy review of core labels/dialogs."
+    }
+  ],
+  "fixture_notes": [
+    "AT-002/AT-025 automation uses app/samples/generated-prototype/cozy-colony-tales copied into isolated tmp dirs.",
+    "Tests mutate save/savegame_hook.json only and assert hash stability for untouched project JSON artifacts."
   ]
 }
