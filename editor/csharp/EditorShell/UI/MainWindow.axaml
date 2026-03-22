@@ -199,7 +199,7 @@
       </Grid>
 
       <Border Grid.Column="2" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
           <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
           <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
 
@@ -233,8 +233,46 @@
             </Grid>
           </Border>
 
+
           <Border Grid.Row="5" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
+            <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="8">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBlock Text="🗂 Asset Browser" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
+                <Button Grid.Column="1" Content="Import Asset" Click="OnImportAssetClick" ToolTip.Tip="Import PNG or OBJ into the local asset browser" />
+              </Grid>
+              <TextBlock Grid.Row="1" Text="Drag asset chips directly onto the viewport to place new props." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+              <ScrollViewer Grid.Row="2" MaxHeight="156">
+                <ItemsControl ItemsSource="{Binding ImportedAssets}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Margin="0,0,0,6" Padding="8" CornerRadius="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" Tag="{Binding Id}" PointerPressed="OnAssetChipPointerPressed">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                          <Border Width="16" Height="16" Background="{Binding ColorHex}" CornerRadius="3" VerticalAlignment="Center" />
+                          <StackPanel Grid.Column="1" Spacing="1">
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Kind}" Foreground="#8EA5C7" FontSize="11" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="2" Text="⇢" Foreground="#9FC2E5" VerticalAlignment="Center" FontSize="16" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <Border Grid.Row="3" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Selected Asset Preview" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SelectedImportedAssetName}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SelectedImportedAssetKind, StringFormat=Kind: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                  <Image Height="72" Stretch="Uniform" Source="{Binding SelectedImportedAssetPreviewPath}" />
+                </StackPanel>
+              </Border>
+              <TextBlock Grid.Row="4" Text="V1 supports PNG textures + OBJ models only." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+
+          <Border Grid.Row="6" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🎛 Scene Properties" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
               <TextBox Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" />
@@ -250,8 +288,17 @@
                 <TextBlock Grid.Column="2" Text="Color" VerticalAlignment="Center" Foreground="#AFC2DF" />
                 <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor}" IsEnabled="{Binding HasSelection}" />
               </Grid>
-              <Button Grid.Row="5" Content="✨ Apply Selection → Runtime" Command="{Binding ApplySelectionPropertiesCommand}" IsEnabled="{Binding HasSelection}" />
-              <TextBlock Grid.Row="6" Text="Live viewport updates instantly. Apply commits to scene_scaffold.json + runtime relaunch." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+              <Border Grid.Row="5" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Selection Asset Preview" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SelectedEntityAssetName}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SelectedEntityAssetKind, StringFormat=Kind: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                  <Image Height="64" Stretch="Uniform" Source="{Binding SelectedEntityAssetPreviewPath}" />
+                  <Border Height="12" Background="{Binding SelectedEntityColorEditor}" CornerRadius="3" />
+                </StackPanel>
+              </Border>
+              <Button Grid.Row="6" Content="✨ Apply Selection → Runtime" Command="{Binding ApplySelectionPropertiesCommand}" IsEnabled="{Binding HasSelection}" />
+              <TextBlock Grid.Row="7" Text="Live viewport updates instantly. Apply commits to scene_scaffold.json + runtime relaunch." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
             </Grid>
           </Border>
         </Grid>

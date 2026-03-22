@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Windows.Input;
 using GameForge.Editor.EditorShell.Services;
 using System.Collections.Specialized;
+using System.Text.RegularExpressions;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
@@ -51,6 +52,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
     private readonly Stack<SceneHistoryEntry> _redoStack = new();
     private DragSession? _activeDragSession;
+    private string _selectedEntityAssetName = "No asset linked.";
+    private string _selectedEntityAssetPreviewPath = string.Empty;
+    private string _selectedEntityAssetKind = "n/a";
+    private ImportedAsset? _selectedImportedAsset;
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -81,6 +86,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
+
+    public ObservableCollection<ImportedAsset> ImportedAssets { get; } = new();
 
     public ICommand AddPlayerEntityCommand { get; }
 
@@ -387,6 +394,46 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private set => SetField(ref _runtimeSelectedEntityPreview, value);
     }
 
+    public ImportedAsset? SelectedImportedAsset
+    {
+        get => _selectedImportedAsset;
+        set
+        {
+            if (!SetField(ref _selectedImportedAsset, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SelectedImportedAssetName));
+            OnPropertyChanged(nameof(SelectedImportedAssetPreviewPath));
+            OnPropertyChanged(nameof(SelectedImportedAssetKind));
+        }
+    }
+
+    public string SelectedImportedAssetName => SelectedImportedAsset?.DisplayName ?? "Nothing selected";
+
+    public string SelectedImportedAssetPreviewPath => SelectedImportedAsset?.PreviewPath ?? string.Empty;
+
+    public string SelectedImportedAssetKind => SelectedImportedAsset?.Kind ?? "n/a";
+
+    public string SelectedEntityAssetName
+    {
+        get => _selectedEntityAssetName;
+        private set => SetField(ref _selectedEntityAssetName, value);
+    }
+
+    public string SelectedEntityAssetPreviewPath
+    {
+        get => _selectedEntityAssetPreviewPath;
+        private set => SetField(ref _selectedEntityAssetPreviewPath, value);
+    }
+
+    public string SelectedEntityAssetKind
+    {
+        get => _selectedEntityAssetKind;
+        private set => SetField(ref _selectedEntityAssetKind, value);
+    }
+
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
@@ -399,6 +446,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
         ViewportEntities.Clear();
+        ImportedAssets.Clear();
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
         _redoStack.Clear();
@@ -762,6 +810,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void LoadViewportEntitiesFromScene(string prototypeRoot)
     {
         ViewportEntities.Clear();
+        ImportedAssets.Clear();
         _selectedViewportEntities.Clear();
         SelectedViewportEntity = null;
 
@@ -780,6 +829,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
             var root = document.RootElement;
+            LoadImportedAssets(root);
 
             if (root.TryGetProperty("player_spawn", out var playerSpawn))
             {
@@ -806,7 +856,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         x,
                         y,
                         scale <= 0f ? 1f : scale,
-                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType(type ?? "entity")));
+                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType(type ?? "entity"),
+                        entity.TryGetProperty("asset_id", out var assetId) ? assetId.GetString() : null,
+                        entity.TryGetProperty("asset_path", out var assetPath) ? assetPath.GetString() : null,
+                        entity.TryGetProperty("asset_kind", out var assetKind) ? assetKind.GetString() : null));
                 }
             }
 
@@ -981,6 +1034,140 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ReplaceSelection(Array.Empty<ViewportEntity>());
     }
 
+    public async Task<bool> ImportAssetAsync(string sourcePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            ShowToast("Selected asset file does not exist.");
+            return false;
+        }
+
+        if (!TryGetSupportedAssetKind(sourcePath, out var assetKind))
+        {
+            StatusMessage = "Only PNG textures and OBJ models are supported in V1.";
+            ShowToast("Unsupported file format.");
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before importing assets.";
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        var normalizedPath = Path.GetFullPath(sourcePath);
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            var importedAssets = root["imported_assets"] as JsonArray ?? new JsonArray();
+            root["imported_assets"] = importedAssets;
+            var existing = importedAssets
+                .OfType<JsonObject>()
+                .FirstOrDefault(node => string.Equals(node["path"]?.GetValue<string>(), normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is null)
+            {
+                var nextId = BuildNextImportedAssetId(importedAssets);
+                importedAssets.Add(new JsonObject
+                {
+                    ["id"] = nextId,
+                    ["name"] = Path.GetFileNameWithoutExtension(normalizedPath),
+                    ["kind"] = assetKind,
+                    ["path"] = normalizedPath,
+                    ["color"] = assetKind == ImportedAssetKind.Texture ? "#7FD1FF" : "#F2C56E",
+                });
+            }
+
+            await File.WriteAllTextAsync(scenePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+            StatusMessage = $"Imported asset: {Path.GetFileName(normalizedPath)}";
+            ShowToast("Asset imported.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Asset import failed: {ex.Message}";
+            ShowToast("Asset import failed.");
+            return false;
+        }
+    }
+
+    public async Task<bool> PlaceImportedAssetInSceneAsync(string assetId, float x, float y, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before placing imported assets.";
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            var importedAssetNode = (root["imported_assets"] as JsonArray)?
+                .OfType<JsonObject>()
+                .FirstOrDefault(node => string.Equals(node["id"]?.GetValue<string>(), assetId, StringComparison.Ordinal));
+            if (importedAssetNode is null)
+            {
+                ShowToast("Imported asset not found.");
+                return false;
+            }
+
+            var entities = root["entities"] as JsonArray ?? new JsonArray();
+            root["entities"] = entities;
+            var entityId = BuildNextEntityIdFromAssets(entities, assetId);
+            var assetKind = importedAssetNode["kind"]?.GetValue<string>() ?? ImportedAssetKind.Texture;
+            var colorHex = SanitizeColorHex(importedAssetNode["color"]?.GetValue<string>() ?? string.Empty) ?? DefaultColorForType("prop");
+            entities.Add(new JsonObject
+            {
+                ["id"] = entityId,
+                ["type"] = "prop",
+                ["name"] = $"asset:{importedAssetNode["name"]?.GetValue<string>() ?? assetId}",
+                ["x"] = x,
+                ["y"] = y,
+                ["z"] = 0,
+                ["scale"] = 1,
+                ["color"] = colorHex,
+                ["asset_id"] = assetId,
+                ["asset_kind"] = assetKind,
+                ["asset_path"] = importedAssetNode["path"]?.GetValue<string>() ?? string.Empty,
+            });
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Placed imported asset: {importedAssetNode["name"]?.GetValue<string>() ?? assetId}", cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Asset placement failed: {ex.Message}";
+            ShowToast("Asset placement failed.");
+            return false;
+        }
+    }
+
     public bool PreviewDragPosition(string entityId, float nextX, float nextY)
     {
         if (_activeDragSession is null)
@@ -1099,6 +1286,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             SelectedEntityX = 0;
             SelectedEntityY = 0;
             RuntimeSelectedEntityPreview = "No active selection.";
+        SelectedEntityAssetName = "No asset linked.";
+        SelectedEntityAssetPreviewPath = string.Empty;
+        SelectedEntityAssetKind = "n/a";
             SetSelectionEditorDefaults();
             return;
         }
@@ -1112,7 +1302,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             : $"{_selectedViewportEntities.Count} entities selected";
 
         RuntimeSelectedEntityPreview = string.Join(Environment.NewLine, _selectedViewportEntities.Select(entity =>
-            $"• {entity.Name} ({entity.Type})  pos({entity.X:F2}, {entity.Y:F2})  scale {entity.Scale:F2}  color {entity.ColorHex}"));
+            $"• {entity.Name} ({entity.Type})  pos({entity.X:F2}, {entity.Y:F2})  scale {entity.Scale:F2}  color {entity.ColorHex}  asset {entity.AssetLabel}"));
+
+        var primaryAsset = _selectedViewportEntities[0];
+        SelectedEntityAssetName = primaryAsset.AssetLabel;
+        SelectedEntityAssetPreviewPath = primaryAsset.AssetPreviewPath ?? string.Empty;
+        SelectedEntityAssetKind = string.IsNullOrWhiteSpace(primaryAsset.AssetKind) ? "n/a" : primaryAsset.AssetKind!;
 
         RefreshSelectionEditorsFromSelection();
     }
@@ -1692,6 +1887,76 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _ => "#E4A14A",
     };
 
+    private static bool TryGetSupportedAssetKind(string sourcePath, out string kind)
+    {
+        var extension = Path.GetExtension(sourcePath).ToLowerInvariant();
+        kind = extension switch
+        {
+            ".png" => ImportedAssetKind.Texture,
+            ".obj" => ImportedAssetKind.Model,
+            _ => string.Empty,
+        };
+
+        return !string.IsNullOrWhiteSpace(kind);
+    }
+
+    private static string BuildNextImportedAssetId(JsonArray assets)
+    {
+        var next = assets.OfType<JsonObject>()
+            .Select(node => node["id"]?.GetValue<string>() ?? string.Empty)
+            .Select(id => Regex.Match(id, @"asset_(\d+)$"))
+            .Where(match => match.Success)
+            .Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        return $"asset_{next:00}";
+    }
+
+    private static string BuildNextEntityIdFromAssets(JsonArray entities, string assetId)
+    {
+        var sanitized = assetId.Replace("asset_", "import_", StringComparison.Ordinal);
+        var next = entities.OfType<JsonObject>()
+            .Select(node => node["id"]?.GetValue<string>() ?? string.Empty)
+            .Select(id => Regex.Match(id, $@"{Regex.Escape(sanitized)}_(\d+)$"))
+            .Where(match => match.Success)
+            .Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        return $"{sanitized}_{next:00}";
+    }
+
+    private void LoadImportedAssets(JsonElement root)
+    {
+        if (!root.TryGetProperty("imported_assets", out var importedAssets) || importedAssets.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var imported in importedAssets.EnumerateArray())
+        {
+            var id = imported.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+            var name = imported.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+            var path = imported.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
+            var kind = imported.TryGetProperty("kind", out var kindElement) ? kindElement.GetString() : ImportedAssetKind.Texture;
+            var color = imported.TryGetProperty("color", out var colorElement) ? colorElement.GetString() : null;
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            ImportedAssets.Add(new ImportedAsset(
+                id,
+                name ?? Path.GetFileNameWithoutExtension(path),
+                kind ?? ImportedAssetKind.Texture,
+                path,
+                SanitizeColorHex(color ?? string.Empty) ?? "#7FD1FF"));
+        }
+
+        SelectedImportedAsset = ImportedAssets.FirstOrDefault();
+    }
+
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
     {
         var candidatePid = _trackedRuntimePid ?? RuntimePid;
@@ -1816,8 +2081,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private float _scale;
         private string _colorHex;
         private bool _isSelected;
+        private readonly string? _assetId;
+        private readonly string? _assetPath;
+        private readonly string? _assetKind;
 
-        public ViewportEntity(string id, string type, string name, float x, float y, float scale, string colorHex)
+        public ViewportEntity(string id, string type, string name, float x, float y, float scale, string colorHex, string? assetId = null, string? assetPath = null, string? assetKind = null)
         {
             Id = id;
             Type = type;
@@ -1826,6 +2094,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _y = y;
             _scale = scale;
             _colorHex = colorHex;
+            _assetId = assetId;
+            _assetPath = assetPath;
+            _assetKind = assetKind;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -1951,6 +2222,52 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         public string DisplayName => Name;
+
+        public string? AssetId => _assetId;
+
+        public string? AssetPath => _assetPath;
+
+        public string? AssetKind => _assetKind;
+
+        public string AssetLabel => string.IsNullOrWhiteSpace(_assetPath)
+            ? "No asset linked."
+            : Path.GetFileName(_assetPath);
+
+        public string? AssetPreviewPath => string.Equals(_assetKind, ImportedAssetKind.Texture, StringComparison.OrdinalIgnoreCase)
+            ? _assetPath
+            : null;
+    }
+
+    public sealed class ImportedAsset
+    {
+        public ImportedAsset(string id, string displayName, string kind, string sourcePath, string colorHex)
+        {
+            Id = id;
+            DisplayName = displayName;
+            Kind = kind;
+            SourcePath = sourcePath;
+            ColorHex = colorHex;
+        }
+
+        public string Id { get; }
+
+        public string DisplayName { get; }
+
+        public string Kind { get; }
+
+        public string SourcePath { get; }
+
+        public string ColorHex { get; }
+
+        public string PreviewPath => string.Equals(Kind, ImportedAssetKind.Texture, StringComparison.OrdinalIgnoreCase)
+            ? SourcePath
+            : string.Empty;
+    }
+
+    private static class ImportedAssetKind
+    {
+        public const string Texture = "texture";
+        public const string Model = "model";
     }
 
     private sealed class AsyncRelayCommand(Func<Task> executeAsync) : ICommand
