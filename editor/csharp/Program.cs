@@ -1,3 +1,5 @@
+using Avalonia;
+using GameForge.Editor;
 using System.Text.Json;
 using GameForge.Editor.EditorShell;
 using GameForge.Editor.Interview;
@@ -119,16 +121,16 @@ internal static class Program
             return 0;
         }
 
-        var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
-        var fullRuntimePath = Path.GetFullPath(runtimePath);
-
-        Console.WriteLine($"Runtime binary path: {fullRuntimePath}");
-        Console.WriteLine(File.Exists(fullRuntimePath)
-            ? "Runtime build detected."
-            : "Runtime build missing (run bootstrap build stage).");
-
-        Console.WriteLine("Editor launcher started successfully.");
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
+    }
+
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        return AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .WithInterFont()
+            .LogToTrace();
     }
 
     private static async Task RunInterviewPersistenceSmokeAsync(string smokePath)

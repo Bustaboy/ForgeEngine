@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
+        Title="GameForge Editor Shell"
+        Width="1280"
+        Height="820"
+        MinWidth="1024"
+        MinHeight="720"
+        mc:Ignorable="d">
+  <Grid RowDefinitions="Auto,*" Margin="12">
+    <Border Grid.Row="0" Background="#1F2937" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="New Prototype" Click="OnNewPrototypeClick" />
+        <Button Content="Generate from Brief" Click="OnGenerateFromBriefClick" />
+        <Button Content="Play Runtime" Click="OnPlayRuntimeClick" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="2*,3*,2*" RowDefinitions="3*,2*" ColumnSpacing="10" RowSpacing="10">
+      <Border Grid.Column="0" Grid.RowSpan="2" Background="#111827" CornerRadius="8" Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Chat Co-Pilot" FontSize="18" FontWeight="Bold" />
+          <TextBlock Text="Describe your prototype. This no-code brief runs the pipeline and launches runtime." TextWrapping="Wrap" Foreground="#D1D5DB" />
+          <TextBox Text="{Binding ChatPrompt}" AcceptsReturn="True" Height="230" Watermark="Example: Cozy single-player village sim with light RPG quests." />
+          <Button Content="Generate &amp; Play" Click="OnGenerateAndPlayClick" HorizontalAlignment="Stretch" />
+          <TextBlock Text="Status" FontWeight="SemiBold" />
+          <TextBox Text="{Binding StatusMessage}" IsReadOnly="True" AcceptsReturn="True" Height="250" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="1" Grid.RowSpan="2" Background="#0B1220" CornerRadius="8" Padding="10">
+        <StackPanel>
+          <TextBlock Text="Scene Viewport (Stub)" FontSize="18" FontWeight="Bold" />
+          <Border Margin="0,10,0,0" BorderBrush="#334155" BorderThickness="1" CornerRadius="6" Height="580" Background="#020617">
+            <Grid>
+              <TextBlock Text="Vulkan-first viewport placeholder" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8" />
+            </Grid>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="2" Grid.Row="0" Background="#111827" CornerRadius="8" Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Properties (Stub)" FontSize="18" FontWeight="Bold" />
+          <TextBlock Text="Inspector controls, sliders, and object settings will appear here in Milestone 4." TextWrapping="Wrap" Foreground="#D1D5DB" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="2" Grid.Row="1" Background="#111827" CornerRadius="8" Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Selection Context" FontSize="18" FontWeight="Bold" />
+          <TextBlock Text="No-code workflow focus: use chat and toolbar actions to iterate your single-player prototype." TextWrapping="Wrap" Foreground="#D1D5DB" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>
