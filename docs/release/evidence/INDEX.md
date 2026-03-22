@@ -39,11 +39,14 @@ This index centralizes evidence artifacts used for V1 RC readiness review.
 - `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` — executable smoke procedures and pass/fail criteria.
 - `docs/release/evidence/windows_smoke_template.md` — Windows execution evidence template.
 - `docs/release/evidence/ubuntu_smoke_template.md` — Ubuntu execution evidence template.
+- `docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md` — required schema/field contract for generated smoke artifacts.
+- `scripts/run_smoke_and_capture_evidence.py` — deterministic smoke runner + evidence generator for Ubuntu/Windows contract mode.
 
-Expected per-run log artifact locations (when runs are executed):
+Generated run artifacts convention:
 
-- `docs/release/evidence/logs/windows/`
-- `docs/release/evidence/logs/ubuntu/`
+- `docs/release/evidence/runs/<timestamp>/smoke_evidence.json`
+- `docs/release/evidence/runs/<timestamp>/ubuntu_smoke_evidence.md` or `windows_smoke_evidence.md`
+- `docs/release/evidence/runs/<timestamp>/*.log`
 
 ---
 
