@@ -14,6 +14,8 @@ public static class EditorProjectLoader
         var manifestPath = Path.Combine(projectRoot, "prototype-manifest.json");
         var scenePath = Path.Combine(projectRoot, "scene", "scene_scaffold.json");
         var assetCatalogPath = Path.Combine(projectRoot, "assets", "catalog.v1.json");
+        var styleLibraryPath = Path.Combine(projectRoot, "config", "style-presets.v1.json");
+        var projectStylePath = Path.Combine(projectRoot, "config", "project-style.v1.json");
 
         if (!File.Exists(manifestPath))
         {
@@ -45,6 +47,7 @@ public static class EditorProjectLoader
 
         var sceneObjects = BuildSceneObjects(sceneRoot);
         var assets = await BuildAssetCatalogAsync(assetCatalogPath);
+        var style = await BuildProjectStyleConfigAsync(styleLibraryPath, projectStylePath);
 
         return new EditorProjectSnapshot
         {
@@ -54,6 +57,7 @@ public static class EditorProjectLoader
             Platforms = platforms,
             SceneObjects = sceneObjects,
             Assets = assets,
+            Style = style,
         };
     }
 
@@ -131,6 +135,60 @@ public static class EditorProjectLoader
         }
 
         return objects;
+    }
+
+    private static async Task<ProjectStyleConfig> BuildProjectStyleConfigAsync(string styleLibraryPath, string projectStylePath)
+    {
+        var defaultConfig = ProjectStyleConfig.CreateDefault();
+        var presets = defaultConfig.Presets.ToList();
+
+        if (File.Exists(styleLibraryPath))
+        {
+            await using var presetStream = File.OpenRead(styleLibraryPath);
+            using var presetDoc = await JsonDocument.ParseAsync(presetStream);
+            if (presetDoc.RootElement.TryGetProperty("custom_presets", out var customNode) && customNode.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var presetNode in customNode.EnumerateArray())
+                {
+                    var presetId = presetNode.TryGetProperty("preset_id", out var idNode) ? idNode.GetString() ?? string.Empty : string.Empty;
+                    var displayName = presetNode.TryGetProperty("display_name", out var nameNode) ? nameNode.GetString() ?? string.Empty : string.Empty;
+                    if (string.IsNullOrWhiteSpace(presetId) || string.IsNullOrWhiteSpace(displayName))
+                    {
+                        continue;
+                    }
+
+                    presets.Add(new StylePresetDefinition
+                    {
+                        PresetId = presetId,
+                        DisplayName = displayName,
+                        ParentPresetId = presetNode.TryGetProperty("parent_preset_id", out var parentNode) ? parentNode.GetString() : null,
+                        Source = "user",
+                    });
+                }
+            }
+        }
+
+        var activePresetId = defaultConfig.ActivePresetId;
+        var helperMode = defaultConfig.HelperMode;
+        if (File.Exists(projectStylePath))
+        {
+            await using var styleStateStream = File.OpenRead(projectStylePath);
+            using var styleDoc = await JsonDocument.ParseAsync(styleStateStream);
+            var root = styleDoc.RootElement;
+            activePresetId = root.TryGetProperty("active_preset_id", out var activeNode)
+                ? activeNode.GetString() ?? defaultConfig.ActivePresetId
+                : defaultConfig.ActivePresetId;
+            helperMode = root.TryGetProperty("helper_mode", out var helperNode)
+                ? helperNode.GetString() ?? defaultConfig.HelperMode
+                : defaultConfig.HelperMode;
+        }
+
+        return new ProjectStyleConfig
+        {
+            ActivePresetId = activePresetId,
+            HelperMode = helperMode,
+            Presets = presets,
+        };
     }
 
     private static Dictionary<string, JsonElement> ExtractProperties(JsonElement source)

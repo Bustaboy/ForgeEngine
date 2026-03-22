@@ -91,6 +91,21 @@ public sealed class EditorWorkspace
         };
     }
 
+    public StylePresetSelectionView GetStylePresetSelectionView()
+    {
+        var activePreset = Project.Style.Presets.FirstOrDefault(
+            preset => string.Equals(preset.PresetId, Project.Style.ActivePresetId, StringComparison.OrdinalIgnoreCase));
+        var fallback = Project.Style.Presets.FirstOrDefault();
+
+        return new StylePresetSelectionView
+        {
+            ActivePresetId = activePreset?.PresetId ?? Project.Style.ActivePresetId,
+            ActivePresetDisplayName = activePreset?.DisplayName ?? fallback?.DisplayName ?? Project.Style.ActivePresetId,
+            HelperMode = Project.Style.HelperMode,
+            AvailablePresets = Project.Style.Presets,
+        };
+    }
+
     public bool SelectObject(string objectId)
     {
         if (!_objectIndex.TryGetValue(objectId, out var sceneObject))

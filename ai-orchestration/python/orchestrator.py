@@ -133,6 +133,21 @@ class AssetImportPipelineResult:
     errors: list[AssetImportError]
 
 
+@dataclass(frozen=True)
+class StylePresetDefinition:
+    preset_id: str
+    display_name: str
+    parent_preset_id: str | None
+    transformations: dict[str, dict[str, object]]
+    source: str
+
+
+@dataclass(frozen=True)
+class ProjectStyleSelectionState:
+    active_preset_id: str
+    helper_mode: str
+
+
 ALLOWED_LICENSES = {
     "cc0-1.0",
     "public-domain",
@@ -163,6 +178,57 @@ ASSET_CATEGORY_BY_EXTENSION = {
     ".obj": "props",
     ".blend": "props",
 }
+
+STYLE_BUILTIN_PRESETS: list[StylePresetDefinition] = [
+    StylePresetDefinition(
+        preset_id="cozy-stylized",
+        display_name="Cozy Stylized",
+        parent_preset_id=None,
+        source="built-in",
+        transformations={
+            "textures": {"saturation": 1.15, "contrast": 0.95, "temperature_shift": 0.2},
+            "props": {"edge_softness": 0.6, "roughness_bias": 0.15},
+            "ui": {"corner_rounding": 0.8, "font_weight": "medium", "accent_intensity": 0.85},
+            "audio": {"warmth": 0.7, "dynamic_range": 0.65},
+        },
+    ),
+    StylePresetDefinition(
+        preset_id="semi-realistic",
+        display_name="Semi-Realistic",
+        parent_preset_id=None,
+        source="built-in",
+        transformations={
+            "textures": {"saturation": 1.0, "contrast": 1.1, "temperature_shift": 0.0},
+            "props": {"edge_softness": 0.35, "roughness_bias": 0.05},
+            "ui": {"corner_rounding": 0.35, "font_weight": "regular", "accent_intensity": 0.7},
+            "audio": {"warmth": 0.5, "dynamic_range": 0.9},
+        },
+    ),
+    StylePresetDefinition(
+        preset_id="low-poly-clean",
+        display_name="Low-Poly Clean",
+        parent_preset_id=None,
+        source="built-in",
+        transformations={
+            "textures": {"saturation": 0.95, "contrast": 1.05, "temperature_shift": -0.05},
+            "props": {"edge_softness": 0.1, "roughness_bias": 0.0, "simplify_geometry": 0.9},
+            "ui": {"corner_rounding": 0.4, "font_weight": "semi-bold", "accent_intensity": 0.75},
+            "audio": {"warmth": 0.45, "dynamic_range": 0.7},
+        },
+    ),
+    StylePresetDefinition(
+        preset_id="dark-fantasy-stylized",
+        display_name="Dark Fantasy Stylized",
+        parent_preset_id=None,
+        source="built-in",
+        transformations={
+            "textures": {"saturation": 0.8, "contrast": 1.2, "temperature_shift": -0.25},
+            "props": {"edge_softness": 0.25, "roughness_bias": 0.35},
+            "ui": {"corner_rounding": 0.2, "font_weight": "semi-bold", "accent_intensity": 0.95},
+            "audio": {"warmth": 0.3, "dynamic_range": 1.0},
+        },
+    ),
+]
 
 
 def _build_curated_options(topic: str) -> list[SuggestionOption]:
@@ -444,6 +510,189 @@ def _write_asset_catalog(catalog_path: Path, assets: list[dict[str, object]]) ->
         "assets": assets,
     }
     _write_text(catalog_path, json.dumps(payload, indent=2))
+
+
+def _preset_library_path(project_root: Path) -> Path:
+    return project_root / "config" / "style-presets.v1.json"
+
+
+def _project_style_state_path(project_root: Path) -> Path:
+    return project_root / "config" / "project-style.v1.json"
+
+
+def _preset_index(presets: list[StylePresetDefinition]) -> dict[str, StylePresetDefinition]:
+    return {preset.preset_id: preset for preset in presets}
+
+
+def _normalize_preset_id(value: str) -> str:
+    return _slugify(value)
+
+
+def _merge_transformations(
+    base: dict[str, dict[str, object]],
+    overrides: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    merged = {category: dict(settings) for category, settings in base.items()}
+    for category, settings in overrides.items():
+        existing = dict(merged.get(category, {}))
+        existing.update(settings)
+        merged[category] = existing
+    return merged
+
+
+def list_style_presets(project_root: Path) -> list[StylePresetDefinition]:
+    library_path = _preset_library_path(project_root)
+    presets = list(STYLE_BUILTIN_PRESETS)
+    if not library_path.exists():
+        return presets
+
+    payload = json.loads(library_path.read_text(encoding="utf-8"))
+    custom = payload.get("custom_presets", [])
+    if not isinstance(custom, list):
+        raise ValueError("Style preset library is invalid: expected custom_presets list.")
+
+    for item in custom:
+        if not isinstance(item, dict):
+            continue
+        preset_id = str(item.get("preset_id", "")).strip()
+        display_name = str(item.get("display_name", "")).strip()
+        if not preset_id or not display_name:
+            continue
+        transformations = item.get("transformations", {})
+        if not isinstance(transformations, dict):
+            transformations = {}
+        normalized_transformations: dict[str, dict[str, object]] = {}
+        for category, settings in transformations.items():
+            if not isinstance(settings, dict):
+                continue
+            normalized_transformations[str(category)] = dict(settings)
+
+        presets.append(
+            StylePresetDefinition(
+                preset_id=preset_id,
+                display_name=display_name,
+                parent_preset_id=str(item.get("parent_preset_id", "")).strip() or None,
+                transformations=normalized_transformations,
+                source="user",
+            )
+        )
+
+    return presets
+
+
+def create_user_style_preset(
+    project_root: Path,
+    display_name: str,
+    base_preset_id: str,
+    overrides: dict[str, dict[str, object]] | None = None,
+) -> StylePresetDefinition:
+    presets = list_style_presets(project_root)
+    index = _preset_index(presets)
+    normalized_base = _normalize_preset_id(base_preset_id)
+    if normalized_base not in index:
+        raise ValueError(f"Base style preset not found: {base_preset_id}")
+
+    preset_id = _normalize_preset_id(display_name)
+    if not preset_id:
+        raise ValueError("Preset display name must produce a non-empty preset_id.")
+    if preset_id in index:
+        raise ValueError(f"Preset already exists: {preset_id}")
+
+    base = index[normalized_base]
+    merged_transformations = _merge_transformations(base.transformations, overrides or {})
+    created = StylePresetDefinition(
+        preset_id=preset_id,
+        display_name=display_name.strip(),
+        parent_preset_id=base.preset_id,
+        transformations=merged_transformations,
+        source="user",
+    )
+
+    library_path = _preset_library_path(project_root)
+    existing_custom: list[dict[str, object]] = []
+    if library_path.exists():
+        payload = json.loads(library_path.read_text(encoding="utf-8"))
+        existing_custom = list(payload.get("custom_presets", []))
+
+    existing_custom.append(
+        {
+            "preset_id": created.preset_id,
+            "display_name": created.display_name,
+            "parent_preset_id": created.parent_preset_id,
+            "transformations": created.transformations,
+            "source": created.source,
+        }
+    )
+
+    payload = {
+        "schema": "gameforge.style_preset_library.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "custom_presets": existing_custom,
+    }
+    _write_text(library_path, json.dumps(payload, indent=2))
+    return created
+
+
+def select_project_style_preset(project_root: Path, preset_id: str) -> ProjectStyleSelectionState:
+    presets = list_style_presets(project_root)
+    normalized_id = _normalize_preset_id(preset_id)
+    if normalized_id not in _preset_index(presets):
+        raise ValueError(f"Style preset not found: {preset_id}")
+
+    state = ProjectStyleSelectionState(active_preset_id=normalized_id, helper_mode="match-project-style")
+    _write_text(
+        _project_style_state_path(project_root),
+        json.dumps(
+            {
+                "schema": "gameforge.project_style.v1",
+                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "active_preset_id": state.active_preset_id,
+                "helper_mode": state.helper_mode,
+            },
+            indent=2,
+        ),
+    )
+    return state
+
+
+def _load_project_style_state(project_root: Path) -> ProjectStyleSelectionState:
+    path = _project_style_state_path(project_root)
+    if not path.exists():
+        return ProjectStyleSelectionState(active_preset_id="cozy-stylized", helper_mode="match-project-style")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return ProjectStyleSelectionState(
+        active_preset_id=_normalize_preset_id(str(payload.get("active_preset_id", "cozy-stylized"))),
+        helper_mode=str(payload.get("helper_mode", "match-project-style")),
+    )
+
+
+def match_project_style(
+    project_root: Path,
+    sample_assets: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    presets = list_style_presets(project_root)
+    preset_index = _preset_index(presets)
+    state = _load_project_style_state(project_root)
+    active = preset_index.get(state.active_preset_id, preset_index["cozy-stylized"])
+
+    transformed: list[dict[str, object]] = []
+    for asset in sample_assets:
+        category = str(asset.get("category", "uncategorized")).strip().lower()
+        base_metadata = dict(asset.get("metadata", {})) if isinstance(asset.get("metadata"), dict) else {}
+        style_settings = dict(active.transformations.get(category, active.transformations.get("textures", {})))
+        transformed.append(
+            {
+                **asset,
+                "style_preset_id": active.preset_id,
+                "style_helper_action": "match-project-style",
+                "metadata": {
+                    **base_metadata,
+                    "style_transform": style_settings,
+                },
+            }
+        )
+
+    return transformed
 
 
 def _parse_asset_id_suffix(value: object) -> int | None:
@@ -1080,6 +1329,10 @@ def _parse_args() -> argparse.Namespace:
         default="",
         help="Comma-separated tag filters that must all be present in an asset.",
     )
+    parser.add_argument("--style-list-presets", action="store_true", help="List built-in and user-defined style presets")
+    parser.add_argument("--style-create-manifest", help="Path to JSON payload for creating a user style preset")
+    parser.add_argument("--style-select-preset", help="Preset id to set as active project style")
+    parser.add_argument("--style-match-samples", help="Path to JSON sample asset list for match-project-style action")
     return parser.parse_args()
 
 
@@ -1121,6 +1374,43 @@ def main() -> int:
             required_tags=tags,
         )
         print(json.dumps({"results": results}, indent=2))
+        return 0
+
+    if args.style_list_presets:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --style-list-presets")
+        presets = list_style_presets(Path(args.project_root))
+        print(json.dumps({"presets": [asdict(item) for item in presets]}, indent=2))
+        return 0
+
+    if args.style_create_manifest:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --style-create-manifest")
+        payload = json.loads(Path(args.style_create_manifest).read_text(encoding="utf-8"))
+        preset = create_user_style_preset(
+            Path(args.project_root),
+            display_name=str(payload.get("display_name", "")).strip(),
+            base_preset_id=str(payload.get("base_preset_id", "cozy-stylized")).strip(),
+            overrides=payload.get("overrides", {}),
+        )
+        print(json.dumps({"created_preset": asdict(preset)}, indent=2))
+        return 0
+
+    if args.style_select_preset:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --style-select-preset")
+        state = select_project_style_preset(Path(args.project_root), args.style_select_preset)
+        print(json.dumps({"style_state": asdict(state)}, indent=2))
+        return 0
+
+    if args.style_match_samples:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --style-match-samples")
+        payload = json.loads(Path(args.style_match_samples).read_text(encoding="utf-8"))
+        if not isinstance(payload, list):
+            raise ValueError("--style-match-samples payload must be a JSON list")
+        transformed = match_project_style(Path(args.project_root), [dict(item) for item in payload])
+        print(json.dumps({"transformed_assets": transformed}, indent=2))
         return 0
 
     print("GameForge V1 AI orchestration skeleton (Python)")

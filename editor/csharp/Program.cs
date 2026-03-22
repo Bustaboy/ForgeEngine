@@ -239,6 +239,10 @@ internal static class Program
         Console.WriteLine($"Selected object: {workspace.SelectedObject?.DisplayName}");
         Console.WriteLine($"Inspector simple keys: {string.Join(", ", workspace.Inspector!.SimpleSection.Keys)}");
         Console.WriteLine($"AI context target: {workspace.AiContext!.ObjectLabel} ({workspace.AiContext.ObjectType})");
+        var styleView = workspace.GetStylePresetSelectionView();
+        Console.WriteLine($"Style preset active: {styleView.ActivePresetDisplayName} ({styleView.ActivePresetId})");
+        Console.WriteLine($"Style helper mode: {styleView.HelperMode}");
+        Console.WriteLine($"Style preset options: {string.Join(", ", styleView.AvailablePresets.Select(item => item.DisplayName))}");
         Console.WriteLine("Editor shell smoke passed.");
     }
 

@@ -155,5 +155,48 @@ class TestAssetImportPipeline(unittest.TestCase):
             self.assertTrue((project_root / "assets" / "library" / "asset-0004.png").exists())
 
 
+class TestProjectStyleSystem(unittest.TestCase):
+    def test_can_create_select_and_list_user_preset(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+
+            created = orchestrator.create_user_style_preset(
+                project_root=project_root,
+                display_name="Frosted Storybook",
+                base_preset_id="cozy-stylized",
+                overrides={"textures": {"saturation": 0.88}, "ui": {"accent_intensity": 0.6}},
+            )
+            self.assertEqual("frosted-storybook", created.preset_id)
+            self.assertEqual("cozy-stylized", created.parent_preset_id)
+            self.assertEqual(0.88, created.transformations["textures"]["saturation"])
+
+            state = orchestrator.select_project_style_preset(project_root, "frosted-storybook")
+            self.assertEqual("frosted-storybook", state.active_preset_id)
+            self.assertEqual("match-project-style", state.helper_mode)
+
+            presets = orchestrator.list_style_presets(project_root)
+            self.assertTrue(any(item.preset_id == "frosted-storybook" and item.source == "user" for item in presets))
+
+    def test_match_project_style_applies_consistent_transformations(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            orchestrator.select_project_style_preset(project_root, "cozy-stylized")
+
+            samples = [
+                {"asset_id": "asset-0001", "category": "textures", "metadata": {"source": "test"}},
+                {"asset_id": "asset-0002", "category": "ui", "metadata": {"source": "test"}},
+            ]
+            transformed = orchestrator.match_project_style(project_root, samples)
+
+            self.assertEqual(2, len(transformed))
+            self.assertEqual("cozy-stylized", transformed[0]["style_preset_id"])
+            self.assertEqual("match-project-style", transformed[0]["style_helper_action"])
+            self.assertIn("style_transform", transformed[0]["metadata"])
+            self.assertEqual(1.15, transformed[0]["metadata"]["style_transform"]["saturation"])
+            self.assertEqual("medium", transformed[1]["metadata"]["style_transform"]["font_weight"])
+
+
 if __name__ == "__main__":
     unittest.main()

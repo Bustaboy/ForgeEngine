@@ -1,0 +1,23 @@
+{
+  "schema": "gameforge.style_preset_library.v1",
+  "generated_at_utc": "2026-03-22T00:00:00Z",
+  "custom_presets": [
+    {
+      "preset_id": "moonlit-minimal",
+      "display_name": "Moonlit Minimal",
+      "parent_preset_id": "cozy-stylized",
+      "transformations": {
+        "textures": {
+          "saturation": 0.9,
+          "contrast": 1.1,
+          "temperature_shift": -0.1
+        },
+        "ui": {
+          "accent_intensity": 0.65,
+          "font_weight": "regular"
+        }
+      },
+      "source": "user"
+    }
+  ]
+}
