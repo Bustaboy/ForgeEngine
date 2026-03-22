@@ -23,6 +23,7 @@ This runbook uses only existing project commands:
 - `pwsh -f scripts/bootstrap.ps1 -RuntimeOnly`
 - `pwsh -f scripts/bootstrap.ps1`
 - `pytest -q`
+- `python3 ai-orchestration/python/orchestrator.py --benchmark --benchmark-no-prepare`
 
 ---
 
@@ -40,6 +41,7 @@ Recommended files per run:
 - bootstrap runtime-only log
 - full bootstrap log (if attempted)
 - pytest log
+- benchmark wizard log/json capture
 
 ---
 
@@ -80,9 +82,14 @@ fi
 pytest -q 2>&1 | tee docs/release/evidence/logs/ubuntu/pytest_q.log
 PYTEST_EXIT=$?
 
+python3 ai-orchestration/python/orchestrator.py --benchmark --benchmark-no-prepare \
+  2>&1 | tee docs/release/evidence/logs/ubuntu/benchmark_wizard.log
+BENCHMARK_EXIT=$?
+
 echo "bootstrap_runtime_only_exit=$BOOTSTRAP_RUNTIME_ONLY_EXIT"
 echo "bootstrap_full_exit=$BOOTSTRAP_FULL_EXIT"
 echo "pytest_exit=$PYTEST_EXIT"
+echo "benchmark_exit=$BENCHMARK_EXIT"
 ```
 
 ### 3.3 Expected output signatures
@@ -106,12 +113,14 @@ Pass AT-011 smoke when all are true:
 1. `bootstrap_runtime_only_exit=0`
 2. `bootstrap_full_exit=0` **or** documented skip because `dotnet` missing
 3. `pytest_exit=0`
-4. Evidence template is fully filled with log paths and verdict
+4. `benchmark_exit=0`
+5. Evidence template is fully filled with log paths and verdict
 
 Fail AT-011 smoke when any are true:
 - runtime-only bootstrap non-zero exit
 - full bootstrap fails when `dotnet` exists
 - pytest non-zero exit
+- benchmark command non-zero exit
 - required evidence missing/incomplete
 
 ### 3.5 Triage guidance
@@ -175,9 +184,13 @@ if ($DOTNET_PRESENT -eq 1) {
 pytest -q *>&1 | Tee-Object docs/release/evidence/logs/windows/pytest_q.log
 $PYTEST_EXIT = $LASTEXITCODE
 
+python ai-orchestration/python/orchestrator.py --benchmark --benchmark-no-prepare *>&1 | Tee-Object docs/release/evidence/logs/windows/benchmark_wizard.log
+$BENCHMARK_EXIT = $LASTEXITCODE
+
 "bootstrap_runtime_only_exit=$BOOTSTRAP_RUNTIME_ONLY_EXIT"
 "bootstrap_full_exit=$BOOTSTRAP_FULL_EXIT"
 "pytest_exit=$PYTEST_EXIT"
+"benchmark_exit=$BENCHMARK_EXIT"
 ```
 
 ### 4.3 Expected output signatures
@@ -201,12 +214,14 @@ Pass AT-010 smoke when all are true:
 1. `bootstrap_runtime_only_exit=0`
 2. `bootstrap_full_exit=0` **or** documented skip because `dotnet` missing
 3. `pytest_exit=0`
-4. Evidence template is fully filled with log paths and verdict
+4. `benchmark_exit=0`
+5. Evidence template is fully filled with log paths and verdict
 
 Fail AT-010 smoke when any are true:
 - runtime-only bootstrap non-zero exit
 - full bootstrap fails when `dotnet` exists
 - pytest non-zero exit
+- benchmark command non-zero exit
 - required evidence missing/incomplete
 
 ### 4.5 Triage guidance
