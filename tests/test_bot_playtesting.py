@@ -55,6 +55,7 @@ class TestBotPlaytesting(unittest.TestCase):
         self.assertEqual("passed", result.status)
         self.assertFalse(result.human_review_required)
         self.assertEqual([], result.inconclusive_reasons)
+        self.assertEqual([], result.critical_dead_end_blockers)
         self.assertTrue(all(item.status == "passed" for item in result.probe_results))
 
     def test_inconclusive_probe_triggers_human_review_flag(self):
@@ -106,6 +107,8 @@ class TestBotPlaytesting(unittest.TestCase):
         self.assertEqual("passed", payload["bot_playtest_result"]["status"])
         self.assertIn("probe_results", payload["bot_playtest_result"])
         self.assertEqual("gameforge.playtest_report.v1", payload["actionable_report"]["schema"])
+        self.assertEqual(0, payload["actionable_report"]["critical_dead_end_blockers_count"])
+        self.assertEqual([], payload["actionable_report"]["critical_dead_end_blockers"])
         section_ids = [section["section_id"] for section in payload["actionable_report"]["sections"]]
         self.assertEqual(["progression", "economy", "dead-end", "pacing", "performance"], section_ids)
         report_json = Path(payload["report_paths"]["json"])
@@ -171,6 +174,95 @@ class TestBotPlaytesting(unittest.TestCase):
             self.assertEqual("inconclusive", result.status)
             self.assertTrue(result.human_review_required)
             self.assertIn("Malformed JSON", result.inconclusive_reasons[0])
+
+    def test_dead_end_scanner_fails_when_non_completion_terminal_is_reachable(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prototype_root = Path(temp_dir) / "prototype"
+            graph_path = prototype_root / "systems" / "rpg" / "quest_dialogue_framework.v1.json"
+            graph_path.parent.mkdir(parents=True, exist_ok=True)
+            graph_path.write_text(
+                json.dumps(
+                    {
+                        "quests": [
+                            {
+                                "quest_id": "q_blocked",
+                                "start_node_id": "start",
+                                "completion_nodes": ["complete"],
+                            }
+                        ],
+                        "dialogue_nodes": [
+                            {"node_id": "start", "choices": [{"next_node_id": "dead_end"}]},
+                            {"node_id": "dead_end", "choices": []},
+                            {"node_id": "complete", "choices": []},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            scenario_path = Path(temp_dir) / "scenario.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "scenario_id": "dead-end-scan-fail",
+                        "title": "Dead-end scan fail",
+                        "max_runtime_seconds": 20,
+                        "probes": [
+                            {
+                                "probe_id": "smoke-file",
+                                "probe_type": "file_exists",
+                                "target": "systems/rpg/quest_dialogue_framework.v1.json",
+                                "expected": True,
+                                "required": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = orchestrator.run_bot_playtest_scenario(prototype_root, scenario_path)
+            self.assertEqual("failed", result.status)
+            self.assertGreater(len(result.critical_dead_end_blockers), 0)
+            self.assertTrue(any("non-completion dead-end" in blocker for blocker in result.critical_dead_end_blockers))
+            self.assertTrue(any(probe.probe_id == "critical-dead-end-blockers" for probe in result.probe_results))
+
+            report = orchestrator.generate_actionable_playtest_report(result)
+            self.assertEqual(len(result.critical_dead_end_blockers), report.critical_dead_end_blockers_count)
+            self.assertTrue(report.critical_dead_end_blockers)
+
+    def test_dead_end_scanner_handles_malformed_graph_as_blocker(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prototype_root = Path(temp_dir) / "prototype"
+            graph_path = prototype_root / "systems" / "rpg" / "quest_dialogue_framework.v1.json"
+            graph_path.parent.mkdir(parents=True, exist_ok=True)
+            graph_path.write_text("{invalid-json", encoding="utf-8")
+
+            scenario_path = Path(temp_dir) / "scenario.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "scenario_id": "dead-end-scan-malformed",
+                        "title": "Dead-end malformed graph",
+                        "max_runtime_seconds": 20,
+                        "probes": [
+                            {
+                                "probe_id": "smoke-file",
+                                "probe_type": "file_exists",
+                                "target": "systems/rpg/quest_dialogue_framework.v1.json",
+                                "expected": True,
+                                "required": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = orchestrator.run_bot_playtest_scenario(prototype_root, scenario_path)
+            self.assertEqual("failed", result.status)
+            self.assertTrue(any("malformed JSON" in blocker for blocker in result.critical_dead_end_blockers))
 
 
 if __name__ == "__main__":
