@@ -1,0 +1,9 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# ForgeEngine AI model artifacts (downloaded locally on first run)
+ai-orchestration/python/models/artifacts/
+
+# Local orchestrator env files
+ai-orchestration/python/.env
