@@ -2179,7 +2179,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private readonly record struct DragEntitySnapshot(string EntityId, float StartX, float StartY);
 
-    private readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
+    internal readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
 
     public sealed class HistoryTimelineEntry
     {
@@ -2197,7 +2197,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public string RevisionLabel => $"#{Revision:000}";
 
-        public static HistoryTimelineEntry FromSceneEntry(SceneHistoryEntry entry, bool isCurrent, bool isFuture, int index)
+        internal static HistoryTimelineEntry FromSceneEntry(SceneHistoryEntry entry, bool isCurrent, bool isFuture, int index)
             => new()
             {
                 Revision = entry.Revision,
