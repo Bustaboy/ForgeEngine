@@ -10,7 +10,7 @@ using System.Windows.Input;
 using GameForge.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
-using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
@@ -67,16 +67,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly Dictionary<string, EntityAnimationTrack> _animationTracks = new(StringComparer.Ordinal);
     private readonly ObservableCollection<TimelineMarker> _timelineMarkers = new();
     private readonly ReadOnlyObservableCollection<TimelineMarker> _readonlyTimelineMarkers;
-    private string _timelineMode = TimelineModePosition;
-    private double _timelineCurrentTime;
-    private double _timelineDurationSeconds = 10;
+    private readonly DispatcherTimer _timelinePlaybackTimer;
+    private float _timelineCurrentTime;
+    private float _timelineDuration = 8f;
     private bool _isTimelinePlaying;
-    private bool _isTimelineLooping = true;
-    private CancellationTokenSource? _timelinePlaybackCts;
-
-    private const string TimelineModePosition = "Position";
-    private const string TimelineModeScale = "Scale";
-    private const string TimelineModeColor = "Color";
+    private bool _isTimelineLoopEnabled = true;
+    private bool _isTimelineApplyingPose;
+    private string _timelineStateLabel = "Idle";
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -91,6 +88,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
         _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
         _readonlyTimelineMarkers = new ReadOnlyObservableCollection<TimelineMarker>(_timelineMarkers);
+        _timelinePlaybackTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(33),
+        };
+        _timelinePlaybackTimer.Tick += (_, _) => AdvanceTimeline(1f / 30f);
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
@@ -99,10 +101,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         UndoCommand = new AsyncRelayCommand(() => UndoAsync());
         RedoCommand = new AsyncRelayCommand(() => RedoAsync());
         JumpToHistoryCommand = new AsyncRelayCommand<object?>(JumpToHistoryAsync);
-        ToggleTimelinePlaybackCommand = new AsyncRelayCommand(() => ToggleTimelinePlaybackAsync());
-        StopTimelinePlaybackCommand = new AsyncRelayCommand(() => StopTimelinePlaybackAsync(resetTime: true));
-        AddTimelineKeyframeCommand = new AsyncRelayCommand(() => AddSelectedEntitiesKeyframeAsync());
-        SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
+        AddTimelineKeyframeCommand = new AsyncRelayCommand(AddTimelineKeyframeAsync);
+        ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
+        StopTimelinePlaybackCommand = new AsyncRelayCommand(StopTimelinePlaybackAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
         {
@@ -136,13 +137,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public ICommand JumpToHistoryCommand { get; }
 
+    public ICommand AddTimelineKeyframeCommand { get; }
+
     public ICommand ToggleTimelinePlaybackCommand { get; }
 
     public ICommand StopTimelinePlaybackCommand { get; }
-
-    public ICommand AddTimelineKeyframeCommand { get; }
-
-    public ICommand SetTimelineModeCommand { get; }
 
     public string ChatPrompt
     {
@@ -237,66 +236,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
+    public bool HasTimelineKeyframes => _animationTracks.Values.Any(track => track.Keyframes.Count > 0);
+
     public ReadOnlyObservableCollection<TimelineMarker> TimelineMarkers => _readonlyTimelineMarkers;
 
-    public string TimelineMode
-    {
-        get => _timelineMode;
-        private set
-        {
-            if (!SetField(ref _timelineMode, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(IsTimelineModePosition));
-            OnPropertyChanged(nameof(IsTimelineModeScale));
-            OnPropertyChanged(nameof(IsTimelineModeColor));
-            RebuildTimelineMarkers();
-        }
-    }
-
-    public bool IsTimelineModePosition => string.Equals(TimelineMode, TimelineModePosition, StringComparison.Ordinal);
-
-    public bool IsTimelineModeScale => string.Equals(TimelineMode, TimelineModeScale, StringComparison.Ordinal);
-
-    public bool IsTimelineModeColor => string.Equals(TimelineMode, TimelineModeColor, StringComparison.Ordinal);
-
-    public double TimelineCurrentTime
+    public float TimelineCurrentTime
     {
         get => _timelineCurrentTime;
+        set => SetTimelineCurrentTime(value, fromPlayback: false);
+    }
+
+    public float TimelineDuration
+    {
+        get => _timelineDuration;
         set
         {
-            var clamped = Math.Clamp(value, 0, TimelineDurationSeconds);
-            if (!SetField(ref _timelineCurrentTime, clamped))
+            var clamped = Math.Clamp(value, 1f, 60f);
+            if (!SetField(ref _timelineDuration, clamped))
             {
                 return;
             }
 
             OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
-            ApplyTimelineToViewport(clamped);
-        }
-    }
-
-    public string TimelineCurrentTimeLabel => $"{TimelineCurrentTime:0.00}s";
-
-    public double TimelineDurationSeconds
-    {
-        get => _timelineDurationSeconds;
-        private set
-        {
-            var clamped = Math.Max(1, value);
-            if (!SetField(ref _timelineDurationSeconds, clamped))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(TimelineDurationLabel));
             RebuildTimelineMarkers();
         }
     }
-
-    public string TimelineDurationLabel => $"{TimelineDurationSeconds:0.0}s";
 
     public bool IsTimelinePlaying
     {
@@ -308,17 +272,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
-            OnPropertyChanged(nameof(TimelinePlayPauseGlyph));
+            OnPropertyChanged(nameof(TimelinePlayPauseIcon));
         }
     }
 
-    public bool IsTimelineLooping
+    public bool IsTimelineLoopEnabled
     {
-        get => _isTimelineLooping;
-        set => SetField(ref _isTimelineLooping, value);
+        get => _isTimelineLoopEnabled;
+        set => SetField(ref _isTimelineLoopEnabled, value);
     }
 
-    public string TimelinePlayPauseGlyph => IsTimelinePlaying ? "⏸" : "▶";
+    public string TimelinePlayPauseIcon => IsTimelinePlaying ? "⏸" : "▶";
+
+    public string TimelineCurrentTimeLabel => $"{TimelineCurrentTime:0.00}s / {TimelineDuration:0.00}s";
+
+    public string TimelineStateLabel
+    {
+        get => _timelineStateLabel;
+        private set => SetField(ref _timelineStateLabel, value);
+    }
 
     public string PipelineProgress
     {
@@ -591,7 +563,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ImportedAssets.Clear();
         _animationTracks.Clear();
         _timelineMarkers.Clear();
-        TimelineCurrentTime = 0;
+        PauseTimelinePlayback();
+        _timelineCurrentTime = 0f;
+        OnPropertyChanged(nameof(TimelineCurrentTime));
+        OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
+        TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
         _redoStack.Clear();
@@ -655,6 +631,73 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ShowToast("Code saved. Recompiling runtime...");
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+    }
+
+    private Task AddTimelineKeyframeAsync()
+    {
+        if (_selectedViewportEntities.Count == 0)
+        {
+            ShowToast("Select an entity before adding keyframes.");
+            return Task.CompletedTask;
+        }
+
+        var added = 0;
+        foreach (var entity in _selectedViewportEntities)
+        {
+            if (!_animationTracks.TryGetValue(entity.Id, out var track))
+            {
+                track = new EntityAnimationTrack();
+                _animationTracks[entity.Id] = track;
+            }
+
+            track.Upsert(new EntityKeyframe(
+                TimelineCurrentTime,
+                entity.X,
+                entity.Y,
+                entity.Scale,
+                entity.ColorHex));
+            added++;
+        }
+
+        RebuildTimelineMarkers();
+        TimelineStateLabel = $"Keyframed {added} selected entity(s) at {TimelineCurrentTime:0.00}s.";
+        StatusMessage = TimelineStateLabel;
+        ShowToast("Timeline keyframe added.");
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleTimelinePlaybackAsync()
+    {
+        if (IsTimelinePlaying)
+        {
+            PauseTimelinePlayback();
+            TimelineStateLabel = $"Paused at {TimelineCurrentTime:0.00}s.";
+            return Task.CompletedTask;
+        }
+
+        if (!HasTimelineKeyframes)
+        {
+            TimelineStateLabel = "No keyframes yet. Add at least one keyframe.";
+            ShowToast(TimelineStateLabel);
+            return Task.CompletedTask;
+        }
+
+        IsTimelinePlaying = true;
+        _timelinePlaybackTimer.Start();
+        TimelineStateLabel = IsTimelineLoopEnabled
+            ? "Timeline playing (loop enabled)."
+            : "Timeline playing (one-shot).";
+        ShowToast("Timeline playback started.");
+        return Task.CompletedTask;
+    }
+
+    private Task StopTimelinePlaybackAsync()
+    {
+        PauseTimelinePlayback();
+        SetTimelineCurrentTime(0f, fromPlayback: false);
+        TimelineStateLabel = "Timeline stopped.";
+        ShowToast("Timeline stopped.");
+        return Task.CompletedTask;
     }
 
     private async Task RecompileAndRelaunchRuntimeAsync(CancellationToken cancellationToken)
@@ -900,6 +943,112 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return $"{stage} failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
     }
 
+    public void AdvanceTimeline(float deltaSeconds)
+    {
+        if (!IsTimelinePlaying || deltaSeconds <= 0f)
+        {
+            return;
+        }
+
+        var next = TimelineCurrentTime + deltaSeconds;
+        if (next > TimelineDuration)
+        {
+            if (IsTimelineLoopEnabled)
+            {
+                next %= TimelineDuration;
+            }
+            else
+            {
+                next = TimelineDuration;
+                PauseTimelinePlayback();
+            }
+        }
+
+        SetTimelineCurrentTime(next, fromPlayback: true);
+    }
+
+    private void SetTimelineCurrentTime(float value, bool fromPlayback)
+    {
+        var clamped = Math.Clamp(value, 0f, TimelineDuration);
+        if (!SetField(ref _timelineCurrentTime, clamped, nameof(TimelineCurrentTime)))
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
+        ApplyAnimationPose(clamped);
+        if (fromPlayback)
+        {
+            TimelineStateLabel = $"Previewing animation at {clamped:0.00}s.";
+        }
+    }
+
+    private void PauseTimelinePlayback()
+    {
+        _timelinePlaybackTimer.Stop();
+        IsTimelinePlaying = false;
+    }
+
+    private void ApplyAnimationPose(float timelineTime)
+    {
+        if (_isTimelineApplyingPose)
+        {
+            return;
+        }
+
+        _isTimelineApplyingPose = true;
+        try
+        {
+            foreach (var entity in ViewportEntities)
+            {
+                if (!_animationTracks.TryGetValue(entity.Id, out var track))
+                {
+                    continue;
+                }
+
+                var pose = track.Sample(timelineTime);
+                if (pose is null)
+                {
+                    continue;
+                }
+
+                entity.SetPosition(pose.Value.X, pose.Value.Y);
+                entity.SetScale(pose.Value.Scale);
+                entity.SetColorHex(pose.Value.ColorHex);
+            }
+
+            RefreshInspectorDerivedState();
+        }
+        finally
+        {
+            _isTimelineApplyingPose = false;
+        }
+    }
+
+    private void RebuildTimelineMarkers()
+    {
+        _timelineMarkers.Clear();
+        var orderedFrames = _animationTracks.Values
+            .SelectMany(track => track.Keyframes)
+            .GroupBy(frame => frame.Time)
+            .OrderBy(group => group.Key)
+            .ToList();
+
+        foreach (var group in orderedFrames)
+        {
+            var time = Math.Clamp(group.Key, 0f, TimelineDuration);
+            _timelineMarkers.Add(new TimelineMarker
+            {
+                Time = time,
+                Label = $"◉ {time:0.00}s",
+                TrackCount = group.Count(),
+            });
+        }
+
+        OnPropertyChanged(nameof(HasTimelineKeyframes));
+        OnPropertyChanged(nameof(TimelineMarkers));
+    }
+
     private static string BuildGeneratedEntityList(string prototypeRoot)
     {
         if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
@@ -967,8 +1116,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ViewportEntities.Clear();
         ImportedAssets.Clear();
         _animationTracks.Clear();
-        TimelineCurrentTime = 0;
-        RebuildTimelineMarkers();
+        _timelineMarkers.Clear();
+        PauseTimelinePlayback();
+        _timelineCurrentTime = 0f;
+        OnPropertyChanged(nameof(TimelineCurrentTime));
+        OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
+        TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         SelectedViewportEntity = null;
 
@@ -1845,6 +1998,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var deletedAny = false;
             foreach (var target in targets)
             {
+                _animationTracks.Remove(target.Id);
                 deletedAny = TryDeleteEntityInScene(root, target) || deletedAny;
             }
 
@@ -1855,6 +2009,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
 
             var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            RebuildTimelineMarkers();
             var label = targets.Count == 1
                 ? $"Entity deleted: {targets[0].DisplayName}"
                 : $"Entities deleted: {targets.Count}";
@@ -2930,6 +3085,97 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly record struct DragEntitySnapshot(string EntityId, float StartX, float StartY);
 
     internal readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
+
+    private sealed class EntityAnimationTrack
+    {
+        public List<EntityKeyframe> Keyframes { get; } = new();
+
+        public void Upsert(EntityKeyframe keyframe)
+        {
+            var existingIndex = Keyframes.FindIndex(frame => Math.Abs(frame.Time - keyframe.Time) < 0.0001f);
+            if (existingIndex >= 0)
+            {
+                Keyframes[existingIndex] = keyframe;
+            }
+            else
+            {
+                Keyframes.Add(keyframe);
+            }
+
+            Keyframes.Sort((left, right) => left.Time.CompareTo(right.Time));
+        }
+
+        public EntityKeyframe? Sample(float timelineTime)
+        {
+            if (Keyframes.Count == 0)
+            {
+                return null;
+            }
+
+            if (timelineTime <= Keyframes[0].Time)
+            {
+                return Keyframes[0];
+            }
+
+            if (timelineTime >= Keyframes[^1].Time)
+            {
+                return Keyframes[^1];
+            }
+
+            for (var index = 0; index < Keyframes.Count - 1; index++)
+            {
+                var current = Keyframes[index];
+                var next = Keyframes[index + 1];
+                if (timelineTime < current.Time || timelineTime > next.Time)
+                {
+                    continue;
+                }
+
+                var span = Math.Max(0.0001f, next.Time - current.Time);
+                var t = Math.Clamp((timelineTime - current.Time) / span, 0f, 1f);
+                return new EntityKeyframe(
+                    timelineTime,
+                    Lerp(current.X, next.X, t),
+                    Lerp(current.Y, next.Y, t),
+                    Lerp(current.Scale, next.Scale, t),
+                    LerpColor(current.ColorHex, next.ColorHex, t));
+            }
+
+            return Keyframes[^1];
+        }
+
+        private static float Lerp(float a, float b, float t) => a + ((b - a) * t);
+
+        private static string LerpColor(string fromHex, string toHex, float t)
+        {
+            var from = ParseColorComponents(fromHex);
+            var to = ParseColorComponents(toHex);
+            var red = (byte)Math.Clamp((int)Math.Round(Lerp(from.Red, to.Red, t)), 0, 255);
+            var green = (byte)Math.Clamp((int)Math.Round(Lerp(from.Green, to.Green, t)), 0, 255);
+            var blue = (byte)Math.Clamp((int)Math.Round(Lerp(from.Blue, to.Blue, t)), 0, 255);
+            return $"#{red:X2}{green:X2}{blue:X2}";
+        }
+
+        private static (float Red, float Green, float Blue) ParseColorComponents(string hex)
+        {
+            var sanitized = SanitizeColorHex(hex) ?? "#4AA3FF";
+            return (
+                Convert.ToInt32(sanitized.Substring(1, 2), 16),
+                Convert.ToInt32(sanitized.Substring(3, 2), 16),
+                Convert.ToInt32(sanitized.Substring(5, 2), 16));
+        }
+    }
+
+    private readonly record struct EntityKeyframe(float Time, float X, float Y, float Scale, string ColorHex);
+
+    public sealed class TimelineMarker
+    {
+        public required float Time { get; init; }
+
+        public required string Label { get; init; }
+
+        public required int TrackCount { get; init; }
+    }
 
     public sealed class HistoryTimelineEntry
     {
