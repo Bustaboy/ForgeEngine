@@ -1,8 +1,11 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Windows.Input;
 using GameForge.Editor.EditorShell.Services;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -28,8 +31,40 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _runtimePreviewSummary = "Generate & Play to populate runtime preview.";
     private string _runtimeEntityList = "No generated entities yet.";
     private int? _trackedRuntimePid;
+    private ViewportEntity? _selectedViewportEntity;
+    private string _selectedEntitySummary = "No entity selected.";
+    private string _selectedEntityType = "n/a";
+    private float _selectedEntityX;
+    private float _selectedEntityY;
+
+    public MainWindowViewModel()
+    {
+        AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
+        AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
+        AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
+        NudgeLeftCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(-0.1f, 0f));
+        NudgeRightCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0.1f, 0f));
+        NudgeUpCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, 0.1f));
+        NudgeDownCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, -0.1f));
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
+
+    public ICommand AddPlayerEntityCommand { get; }
+
+    public ICommand AddNpcEntityCommand { get; }
+
+    public ICommand AddPropEntityCommand { get; }
+
+    public ICommand NudgeLeftCommand { get; }
+
+    public ICommand NudgeRightCommand { get; }
+
+    public ICommand NudgeUpCommand { get; }
+
+    public ICommand NudgeDownCommand { get; }
 
     public string ChatPrompt
     {
@@ -155,6 +190,44 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private set => SetField(ref _runtimeEntityList, value);
     }
 
+    public ViewportEntity? SelectedViewportEntity
+    {
+        get => _selectedViewportEntity;
+        set
+        {
+            if (!SetField(ref _selectedViewportEntity, value))
+            {
+                return;
+            }
+
+            UpdateSelectedEntityInspector();
+        }
+    }
+
+    public string SelectedEntitySummary
+    {
+        get => _selectedEntitySummary;
+        private set => SetField(ref _selectedEntitySummary, value);
+    }
+
+    public string SelectedEntityType
+    {
+        get => _selectedEntityType;
+        private set => SetField(ref _selectedEntityType, value);
+    }
+
+    public float SelectedEntityX
+    {
+        get => _selectedEntityX;
+        private set => SetField(ref _selectedEntityX, value);
+    }
+
+    public float SelectedEntityY
+    {
+        get => _selectedEntityY;
+        private set => SetField(ref _selectedEntityY, value);
+    }
+
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
@@ -166,6 +239,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PrototypeRoot = "(none)";
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
+        ViewportEntities.Clear();
+        SelectedViewportEntity = null;
+        SelectedEntitySummary = "No entity selected.";
         MonacoEditorContent = "// New prototype ready.\n// Generate content to load editable C++ runtime code.";
         StatusMessage = "New prototype started. Describe your game to continue.";
         ShowToast("New prototype ready.");
@@ -368,6 +444,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             : $"Runtime status: {RuntimeLaunchStatus}";
 
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+        LoadViewportEntitiesFromScene(PrototypeRoot);
 
         var loadedCode = TryLoadGeneratedRuntimeCpp(PrototypeRoot);
         if (!string.IsNullOrWhiteSpace(loadedCode))
@@ -512,6 +589,313 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             return $"Failed to parse entity preview: {ex.Message}";
         }
+    }
+
+    private void LoadViewportEntitiesFromScene(string prototypeRoot)
+    {
+        ViewportEntities.Clear();
+        SelectedViewportEntity = null;
+
+        if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
+        {
+            return;
+        }
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var root = document.RootElement;
+
+            if (root.TryGetProperty("player_spawn", out var playerSpawn))
+            {
+                var playerX = ReadCoordinate(playerSpawn, "x");
+                var playerY = ReadCoordinate(playerSpawn, "y");
+                ViewportEntities.Add(new ViewportEntity("player_spawn", "player", playerX, playerY));
+            }
+
+            if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entity in entities.EnumerateArray())
+                {
+                    var id = entity.TryGetProperty("id", out var idElement) ? idElement.GetString() : "entity";
+                    var type = entity.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "entity";
+                    var x = ReadCoordinate(entity, "x");
+                    var y = ReadCoordinate(entity, "y");
+                    ViewportEntities.Add(new ViewportEntity(id ?? "entity", type ?? "entity", x, y));
+                }
+            }
+
+            if (root.TryGetProperty("npcs", out var npcs) && npcs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var npc in npcs.EnumerateArray())
+                {
+                    var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : "npc";
+                    var x = ReadCoordinate(npc, "spawn_x");
+                    var y = ReadCoordinate(npc, "spawn_y");
+                    ViewportEntities.Add(new ViewportEntity(id ?? "npc", "npc", x, y));
+                }
+            }
+
+            if (ViewportEntities.Count > 0)
+            {
+                SelectedViewportEntity = ViewportEntities[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Viewport entity load failed: {ex.Message}";
+            ShowToast("Viewport entity load failed.");
+        }
+    }
+
+    private async Task AddEntityAndRelaunchAsync(string entityKind, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "Generate a prototype before adding entities.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            StatusMessage = $"Scene scaffold not found: {scenePath}";
+            ShowToast("scene_scaffold.json missing.");
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(
+                document.RootElement.GetRawText(),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new Dictionary<string, object?>();
+
+            var entities = new List<Dictionary<string, object?>>();
+            if (document.RootElement.TryGetProperty("entities", out var existingEntities) && existingEntities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var existingEntity in existingEntities.EnumerateArray())
+                {
+                    entities.Add(JsonSerializer.Deserialize<Dictionary<string, object?>>(existingEntity.GetRawText()) ?? new Dictionary<string, object?>());
+                }
+            }
+
+            var nextIndex = entities.Count + 1;
+            entities.Add(new Dictionary<string, object?>
+            {
+                ["id"] = $"{entityKind}_{nextIndex:00}",
+                ["type"] = entityKind,
+                ["x"] = 0,
+                ["y"] = 0,
+                ["z"] = 0,
+            });
+
+            payload["entities"] = entities;
+            var updatedScene = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(scenePath, updatedScene, cancellationToken);
+
+            StatusMessage = $"Added {entityKind} entity. Recompiling and relaunching runtime...";
+            ShowToast($"{entityKind.ToUpperInvariant()} entity added.");
+
+            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Add entity failed: {ex.Message}";
+            ShowToast("Add entity failed.");
+        }
+    }
+
+    private async Task NudgeSelectedEntityAsync(float deltaX, float deltaY, CancellationToken cancellationToken = default)
+    {
+        if (SelectedViewportEntity is null)
+        {
+            ShowToast("Select an entity first.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "Generate a prototype before moving entities.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            StatusMessage = "scene_scaffold.json not found.";
+            ShowToast("Cannot move entity without scene scaffold.");
+            return;
+        }
+
+        try
+        {
+            var root = JsonNode.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken))?.AsObject();
+            if (root is null)
+            {
+                StatusMessage = "Scene scaffold parse failed.";
+                ShowToast("Scene parse failed.");
+                return;
+            }
+
+            var moved = TryMoveEntityInScene(root, SelectedViewportEntity, deltaX, deltaY);
+            if (!moved)
+            {
+                ShowToast("Selected entity not found in scene.");
+                return;
+            }
+
+            await File.WriteAllTextAsync(scenePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+            StatusMessage = $"Moved {SelectedViewportEntity.DisplayName}. Relaunching runtime...";
+            ShowToast("Entity moved. Relaunching runtime...");
+
+            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+            SelectedViewportEntity = ViewportEntities.FirstOrDefault(entity => entity.Id == SelectedViewportEntity.Id);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Move entity failed: {ex.Message}";
+            ShowToast("Entity move failed.");
+        }
+    }
+
+    private void UpdateSelectedEntityInspector()
+    {
+        if (SelectedViewportEntity is null)
+        {
+            SelectedEntitySummary = "No entity selected.";
+            SelectedEntityType = "n/a";
+            SelectedEntityX = 0;
+            SelectedEntityY = 0;
+            return;
+        }
+
+        SelectedEntityType = SelectedViewportEntity.Type;
+        SelectedEntityX = SelectedViewportEntity.X;
+        SelectedEntityY = SelectedViewportEntity.Y;
+        SelectedEntitySummary = $"{SelectedViewportEntity.DisplayName} ({SelectedViewportEntity.Type})";
+    }
+
+    private static float ReadCoordinate(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+        {
+            return 0f;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number => value.TryGetSingle(out var number) ? number : 0f,
+            _ => 0f,
+        };
+    }
+
+    private static bool TryMoveEntityInScene(JsonObject root, ViewportEntity selected, float deltaX, float deltaY)
+    {
+        if (selected.Type == "player")
+        {
+            var playerSpawn = root["player_spawn"] as JsonObject;
+            if (playerSpawn is null)
+            {
+                return false;
+            }
+
+            var currentX = ReadNodeFloat(playerSpawn["x"]);
+            var currentY = ReadNodeFloat(playerSpawn["y"]);
+            playerSpawn["x"] = currentX + deltaX;
+            playerSpawn["y"] = currentY + deltaY;
+            return true;
+        }
+
+        if (root["entities"] is JsonArray entities)
+        {
+            foreach (var node in entities)
+            {
+                if (node is not JsonObject entityObject)
+                {
+                    continue;
+                }
+
+                var id = entityObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var currentX = ReadNodeFloat(entityObject["x"]);
+                var currentY = ReadNodeFloat(entityObject["y"]);
+                entityObject["x"] = currentX + deltaX;
+                entityObject["y"] = currentY + deltaY;
+                return true;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            foreach (var node in npcs)
+            {
+                if (node is not JsonObject npcObject)
+                {
+                    continue;
+                }
+
+                var id = npcObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var currentX = ReadNodeFloat(npcObject["spawn_x"]);
+                var currentY = ReadNodeFloat(npcObject["spawn_y"]);
+                npcObject["spawn_x"] = currentX + deltaX;
+                npcObject["spawn_y"] = currentY + deltaY;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float ReadNodeFloat(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return 0f;
+        }
+
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<float>(out var floatValue))
+            {
+                return floatValue;
+            }
+
+            if (value.TryGetValue<double>(out var doubleValue))
+            {
+                return (float)doubleValue;
+            }
+
+            if (value.TryGetValue<int>(out var intValue))
+            {
+                return intValue;
+            }
+        }
+
+        return 0f;
     }
 
     private static async Task<ProcessResult> RunProcessAsync(
@@ -762,19 +1146,40 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public sealed record ViewportEntity(string Id, string Type, float X, float Y)
+    {
+        public string DisplayName => $"{Type}:{Id}";
+    }
+
+    private sealed class AsyncRelayCommand(Func<Task> executeAsync) : ICommand
+    {
+        private readonly Func<Task> _executeAsync = executeAsync;
+
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter) => true;
+
+        public async void Execute(object? parameter)
+        {
+            await _executeAsync();
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

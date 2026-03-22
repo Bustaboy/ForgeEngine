@@ -110,11 +110,59 @@
 
       <Grid Grid.Column="1" RowDefinitions="*,220" RowSpacing="12">
         <Border Grid.Row="0" Background="#0A0D13" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsViewportMode}">
-          <Grid>
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-              <TextBlock Text="Scene Viewport" Foreground="#EEF4FF" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" />
-              <TextBlock Text="Vulkan-first render surface placeholder" Foreground="#93A7C7" FontSize="14" HorizontalAlignment="Center" />
-            </StackPanel>
+          <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+              <TextBlock Text="Scene Viewport" Foreground="#EEF4FF" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Content="+ 👤 Player" Command="{Binding AddPlayerEntityCommand}" ToolTip.Tip="Add Player entity and relaunch runtime" />
+              <Button Grid.Column="2" Content="+ 🧍 NPC" Command="{Binding AddNpcEntityCommand}" ToolTip.Tip="Add NPC entity and relaunch runtime" />
+              <Button Grid.Column="3" Content="+ 📦 Prop" Command="{Binding AddPropEntityCommand}" HorizontalAlignment="Left" ToolTip.Tip="Add Prop entity and relaunch runtime" />
+              <Button Grid.Column="4" Content="⬅" Command="{Binding NudgeLeftCommand}" ToolTip.Tip="Drag placeholder: nudge selected entity left" />
+              <Button Grid.Column="5" Content="➡" Command="{Binding NudgeRightCommand}" ToolTip.Tip="Drag placeholder: nudge selected entity right" />
+              <Button Grid.Column="6" Content="⬆" Command="{Binding NudgeUpCommand}" ToolTip.Tip="Drag placeholder: nudge selected entity up" />
+              <Button Grid.Column="7" Content="⬇" Command="{Binding NudgeDownCommand}" ToolTip.Tip="Drag placeholder: nudge selected entity down" />
+            </Grid>
+
+            <TextBlock Grid.Row="1"
+                       Text="No-code scene editing: click an entity to select, then drag-placeholder nudge controls to reposition."
+                       Foreground="#93A7C7"
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+
+            <Border Grid.Row="2" Background="#06080D" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="10">
+              <Grid ColumnDefinitions="2*,*" ColumnSpacing="12">
+                <ListBox ItemsSource="{Binding ViewportEntities}"
+                         SelectedItem="{Binding SelectedViewportEntity}"
+                         Background="#0B1220"
+                         BorderBrush="#2B3446"
+                         BorderThickness="1">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Border Margin="0,0,0,6" Padding="8" Background="#101722" CornerRadius="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#E6F0FF" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding X, StringFormat=X: {0:F2}}" Foreground="#9FB3D3" FontSize="11" />
+                            <TextBlock Text="{Binding Y, StringFormat=Y: {0:F2}}" Foreground="#9FB3D3" FontSize="11" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="1" Text="🎯" Foreground="#62B1FF" VerticalAlignment="Center" FontSize="16" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Column="1" Background="#0B1524" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="8" Padding="10">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Selection Inspector" Foreground="#EEF4FF" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SelectedEntityType, StringFormat=Type: {0}}" Foreground="#AFC2DF" />
+                    <TextBlock Text="{Binding SelectedEntityX, StringFormat=X: {0:F2}}" Foreground="#AFC2DF" />
+                    <TextBlock Text="{Binding SelectedEntityY, StringFormat=Y: {0:F2}}" Foreground="#AFC2DF" />
+                    <TextBlock Text="Hint: Use arrow controls above as drag-and-drop placeholder movement." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
           </Grid>
         </Border>
 
