@@ -37,14 +37,15 @@
     {
       "id": "AT-003",
       "priority": "P0",
-      "status": "partial",
+      "status": "covered",
       "automation": [
         "tests/test_interview_contract.py::TestInterviewContract::test_editor_csharp_owns_interview_session_persistence_contract",
-        "editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAndLoad_RoundTripsSelectedOptionId"
+        "editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAndLoad_RoundTripsSelectedOptionId",
+        "editor/csharp/tests/InterviewLongSessionContinuityTests.cs::ResumeAfterRestart_PreservesLongSessionContinuity_AndNextQuestionDerivation"
       ],
-      "manual_procedure": "Resume long interview session after restart and verify continuity.",
-      "next_action": "Add long-session resume integration test with transcript fixtures.",
-      "evidence_strength": "partial-automated",
+      "manual_procedure": null,
+      "next_action": "Keep long-session fixture deterministic as interview contract evolves.",
+      "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "AI Orchestration",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
