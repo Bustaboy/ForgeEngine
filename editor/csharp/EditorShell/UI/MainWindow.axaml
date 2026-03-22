@@ -133,8 +133,7 @@
                                      HorizontalScrollBarVisibility="Auto"
                                      VerticalScrollBarVisibility="Auto"
                                      Background="#06080D"
-                                     Foreground="#D8E8FF"
-                                     Text="{Binding MonacoEditorContent, Mode=TwoWay}" />
+                                     Foreground="#D8E8FF" />
           </Grid>
         </Border>
 
