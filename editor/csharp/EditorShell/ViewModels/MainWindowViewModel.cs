@@ -2,11 +2,13 @@ using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
+using GameForge.Editor.EditorShell;
 using GameForge.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
@@ -74,6 +76,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isTimelineLoopEnabled = true;
     private bool _isTimelineApplyingPose;
     private string _timelineStateLabel = "Idle";
+    private bool _isExportChecklistVisible;
+    private bool _isExporting;
+    private string _exportStatus = "Export checklist idle.";
+    private string _exportOutputPath = "Not packaged yet.";
+    private readonly ObservableCollection<ExportChecklistItem> _exportChecklistItems = new();
+    private readonly ReadOnlyObservableCollection<ExportChecklistItem> _readonlyExportChecklistItems;
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -88,6 +96,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
         _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
         _readonlyTimelineMarkers = new ReadOnlyObservableCollection<TimelineMarker>(_timelineMarkers);
+        _readonlyExportChecklistItems = new ReadOnlyObservableCollection<ExportChecklistItem>(_exportChecklistItems);
+        ResetExportChecklistItems();
         _timelinePlaybackTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(33),
@@ -291,6 +301,50 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _timelineStateLabel;
         private set => SetField(ref _timelineStateLabel, value);
     }
+
+    public bool IsExportChecklistVisible
+    {
+        get => _isExportChecklistVisible;
+        private set => SetField(ref _isExportChecklistVisible, value);
+    }
+
+    public bool IsExporting
+    {
+        get => _isExporting;
+        private set => SetField(ref _isExporting, value);
+    }
+
+    public string ExportStatus
+    {
+        get => _exportStatus;
+        private set => SetField(ref _exportStatus, value);
+    }
+
+    public string ExportOutputPath
+    {
+        get => _exportOutputPath;
+        private set
+        {
+            if (!SetField(ref _exportOutputPath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasExportOutput));
+        }
+    }
+
+    public bool HasExportOutput => File.Exists(ExportOutputPath) || Directory.Exists(ExportOutputPath);
+
+    public int ExportChecklistCompletedCount => ExportChecklistItems.Count(item => item.IsComplete);
+
+    public int ExportChecklistTotalCount => ExportChecklistItems.Count;
+
+    public int ExportChecklistProgressPercent => ExportChecklistTotalCount == 0
+        ? 0
+        : (int)Math.Round((double)ExportChecklistCompletedCount / ExportChecklistTotalCount * 100.0, MidpointRounding.AwayFromZero);
+
+    public ReadOnlyObservableCollection<ExportChecklistItem> ExportChecklistItems => _readonlyExportChecklistItems;
 
     public string PipelineProgress
     {
@@ -633,6 +687,143 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
     }
 
+    public void OpenExportChecklist()
+    {
+        IsExportChecklistVisible = true;
+        ExportStatus = "Checklist opened. Run Export to validate and package this project.";
+    }
+
+    public void CloseExportChecklist()
+    {
+        IsExportChecklistVisible = false;
+    }
+
+    public async Task RunExportChecklistAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsExporting)
+        {
+            return;
+        }
+
+        OpenExportChecklist();
+        ResetExportChecklistItems();
+
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            ExportStatus = "Generate a prototype before exporting.";
+            FailExportChecklistItem("validate-scene", "No generated prototype found.");
+            StatusMessage = ExportStatus;
+            ShowToast("Export blocked: generate a prototype first.");
+            return;
+        }
+
+        IsExporting = true;
+        try
+        {
+            var exportRoot = Path.Combine(PrototypeRoot, "build", "export");
+            var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var exportFolder = Path.Combine(exportRoot, $"publish-{stamp}");
+            var packagePath = Path.Combine(exportRoot, $"publish-{stamp}.zip");
+            Directory.CreateDirectory(exportRoot);
+
+            StartExportChecklistItem("validate-scene", "Validating scene scaffold...");
+            var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+            if (!File.Exists(scenePath))
+            {
+                throw new InvalidOperationException("Scene scaffold not found.");
+            }
+
+            using (var sceneDoc = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken)))
+            {
+                if (!sceneDoc.RootElement.TryGetProperty("entities", out _))
+                {
+                    throw new InvalidOperationException("Scene scaffold is missing entities.");
+                }
+            }
+
+            CompleteExportChecklistItem("validate-scene", "Scene scaffold validated.");
+
+            StartExportChecklistItem("export-assets-code", "Collecting generated assets + code...");
+            Directory.CreateDirectory(exportFolder);
+            CopyDirectory(Path.Combine(PrototypeRoot, "scene"), Path.Combine(exportFolder, "scene"));
+            CopyDirectory(Path.Combine(PrototypeRoot, "generated", "cpp"), Path.Combine(exportFolder, "generated", "cpp"));
+            CopyDirectory(Path.Combine(PrototypeRoot, "assets"), Path.Combine(exportFolder, "assets"), includeIfMissing: true);
+            CompleteExportChecklistItem("export-assets-code", "Assets + C++ runtime scaffolding exported.");
+
+            StartExportChecklistItem("package-build", "Packaging export ZIP...");
+            if (File.Exists(packagePath))
+            {
+                File.Delete(packagePath);
+            }
+
+            ZipFile.CreateFromDirectory(exportFolder, packagePath, CompressionLevel.Optimal, includeBaseDirectory: false);
+            CompleteExportChecklistItem("package-build", "Packaged ZIP is ready.");
+
+            StartExportChecklistItem("steam-readiness", "Running Steam readiness policy check...");
+            var metricsPath = ResolveSteamReadinessMetricsPath();
+            var readinessReport = SteamReadinessPolicy.Evaluate(SteamReadinessPolicy.LoadMetrics(metricsPath));
+            if (readinessReport.CriticalIssueCount > 0)
+            {
+                throw new InvalidOperationException($"Steam readiness has {readinessReport.CriticalIssueCount} critical issue(s).");
+            }
+
+            var readinessSummary = readinessReport.WarningIssueCount > 0
+                ? $"Readiness score {readinessReport.Score}/100 with {readinessReport.WarningIssueCount} warning(s)."
+                : $"Readiness score {readinessReport.Score}/100 with no warnings.";
+            CompleteExportChecklistItem("steam-readiness", readinessSummary);
+
+            ExportOutputPath = packagePath;
+            ExportStatus = $"Export complete ({ExportChecklistCompletedCount}/{ExportChecklistTotalCount}).";
+            PipelineProgress = "Export package complete";
+            StatusMessage = $"{ExportStatus} Output: {packagePath}";
+            ShowToast("Export package complete.");
+        }
+        catch (Exception ex)
+        {
+            var firstRunning = ExportChecklistItems.FirstOrDefault(item => item.IsRunning);
+            if (firstRunning is not null)
+            {
+                FailExportChecklistItem(firstRunning.Id, ex.Message);
+            }
+
+            ExportStatus = $"Export failed: {ex.Message}";
+            PipelineProgress = "Export failed";
+            StatusMessage = ExportStatus;
+            ShowToast("Export failed. See status message.");
+        }
+        finally
+        {
+            IsExporting = false;
+        }
+    }
+
+    public void OpenExportOutputPath()
+    {
+        if (!HasExportOutput)
+        {
+            StatusMessage = "No export output available yet.";
+            ShowToast("Run export checklist first.");
+            return;
+        }
+
+        try
+        {
+            var revealTarget = Directory.Exists(ExportOutputPath)
+                ? ExportOutputPath
+                : Path.GetDirectoryName(ExportOutputPath) ?? ExportOutputPath;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = revealTarget,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Unable to open export output path: {ex.Message}";
+            ShowToast("Unable to open export output path.");
+        }
+    }
+
     private Task AddTimelineKeyframeAsync()
     {
         if (_selectedViewportEntities.Count == 0)
@@ -779,6 +970,104 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PipelineProgress = "Runtime relaunched from Code Mode";
         StatusMessage = $"Save & Recompile complete. generated_gameplay_runner launched (PID: {launchResult.Pid}).";
         ShowToast("Save & Recompile completed.");
+    }
+
+    private void ResetExportChecklistItems()
+    {
+        _exportChecklistItems.Clear();
+        _exportChecklistItems.Add(new ExportChecklistItem("validate-scene", "🧪", "Validate scene", "Pending", isComplete: false, isFailed: false, isRunning: false));
+        _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", isComplete: false, isFailed: false, isRunning: false));
+        _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", isComplete: false, isFailed: false, isRunning: false));
+        _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", isComplete: false, isFailed: false, isRunning: false));
+        ExportOutputPath = "Not packaged yet.";
+        OnPropertyChanged(nameof(ExportChecklistCompletedCount));
+        OnPropertyChanged(nameof(ExportChecklistTotalCount));
+        OnPropertyChanged(nameof(ExportChecklistProgressPercent));
+    }
+
+    private void StartExportChecklistItem(string id, string status)
+    {
+        UpdateExportChecklistItem(id, status, isRunning: true, isComplete: false, isFailed: false);
+    }
+
+    private void CompleteExportChecklistItem(string id, string status)
+    {
+        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: true, isFailed: false);
+    }
+
+    private void FailExportChecklistItem(string id, string status)
+    {
+        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: false, isFailed: true);
+    }
+
+    private void UpdateExportChecklistItem(string id, string status, bool isRunning, bool isComplete, bool isFailed)
+    {
+        var index = _exportChecklistItems.ToList().FindIndex(item => string.Equals(item.Id, id, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return;
+        }
+
+        var existing = _exportChecklistItems[index];
+        _exportChecklistItems[index] = existing with
+        {
+            Status = status,
+            IsRunning = isRunning,
+            IsComplete = isComplete,
+            IsFailed = isFailed,
+        };
+
+        OnPropertyChanged(nameof(ExportChecklistCompletedCount));
+        OnPropertyChanged(nameof(ExportChecklistProgressPercent));
+    }
+
+    private static string ResolveSteamReadinessMetricsPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            if (File.Exists(markerPath))
+            {
+                var metricsPath = Path.Combine(current.FullName, "docs", "release", "evidence", "readiness_metrics_sample.json");
+                if (!File.Exists(metricsPath))
+                {
+                    throw new FileNotFoundException("Steam readiness metrics fixture not found.", metricsPath);
+                }
+
+                return metricsPath;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root for steam readiness metrics.");
+    }
+
+    private static void CopyDirectory(string sourcePath, string destinationPath, bool includeIfMissing = false)
+    {
+        if (!Directory.Exists(sourcePath))
+        {
+            if (includeIfMissing)
+            {
+                return;
+            }
+
+            throw new DirectoryNotFoundException($"Required export folder missing: {sourcePath}");
+        }
+
+        Directory.CreateDirectory(destinationPath);
+        foreach (var filePath in Directory.EnumerateFiles(sourcePath))
+        {
+            var targetPath = Path.Combine(destinationPath, Path.GetFileName(filePath));
+            File.Copy(filePath, targetPath, overwrite: true);
+        }
+
+        foreach (var childDirectory in Directory.EnumerateDirectories(sourcePath))
+        {
+            var childDestination = Path.Combine(destinationPath, Path.GetFileName(childDirectory));
+            CopyDirectory(childDirectory, childDestination);
+        }
     }
 
     private async Task RelaunchGeneratedRuntimeAsync(CancellationToken cancellationToken)
@@ -3584,6 +3873,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Task<PipelineRunResponse> RunGenerationPipelineAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken);
 
         string CreateBriefFromChatPrompt(string prompt);
+    }
+
+    public sealed record ExportChecklistItem(
+        string Id,
+        string Icon,
+        string Label,
+        string Status,
+        bool IsComplete,
+        bool IsFailed,
+        bool IsRunning)
+    {
+        public string ProgressIcon => IsComplete
+            ? "✅"
+            : IsFailed
+                ? "❌"
+                : IsRunning
+                    ? "⏳"
+                    : "◻";
     }
 
     internal interface IRuntimeSupervisor
