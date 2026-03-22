@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+        x:Name="RootWindow"
         x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
         Title="GameForge Editor Shell"
         Width="1460"
@@ -43,13 +44,23 @@
       <Setter Property="OnContent" Value="On" />
       <Setter Property="OffContent" Value="Off" />
     </Style>
+
+    <Style Selector="Button.history-chip">
+      <Setter Property="Background" Value="#111929" />
+      <Setter Property="BorderBrush" Value="#2B3A52" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#D6E6FA" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
   </Window.KeyBindings>
 
-  <Grid RowDefinitions="Auto,*,Auto" Margin="14" RowSpacing="12">
+  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="14" RowSpacing="12">
     <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
         <StackPanel Orientation="Horizontal" Spacing="20">
@@ -305,7 +316,48 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
+    <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+          <TextBlock Text="🕘" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="History" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="{Binding HistoryTimeline.Count, StringFormat=Steps: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock Grid.Row="1"
+                   Text="Click any step to jump scene state. Current step is highlighted; future redo steps are dimmed."
+                   Foreground="#8EA5C7"
+                   FontSize="11"
+                   TextWrapping="Wrap" />
+        <ScrollViewer Grid.Row="2" MaxHeight="138" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding HistoryTimeline}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="history-chip"
+                        Command="{Binding #RootWindow.DataContext.JumpToHistoryCommand}"
+                        CommandParameter="{Binding Revision}">
+                  <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding RevisionLabel}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Spacing="2">
+                      <TextBlock Text="{Binding Description}" TextWrapping="NoWrap" />
+                      <TextBlock Text="{Binding IsCurrent, StringFormat=Current: {0}}" Foreground="#6FA8FF" FontSize="10" IsVisible="{Binding IsCurrent}" />
+                      <TextBlock Text="Future / Redo" Foreground="#7A8DAA" FontSize="10" IsVisible="{Binding IsFuture}" />
+                    </StackPanel>
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="3" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
         <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />

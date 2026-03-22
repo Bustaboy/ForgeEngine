@@ -51,6 +51,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isRefreshingSelectionEditors;
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
     private readonly Stack<SceneHistoryEntry> _redoStack = new();
+    private SceneHistoryEntry? _currentSceneHistoryEntry;
+    private int _nextHistoryRevision = 1;
+    private readonly ObservableCollection<HistoryTimelineEntry> _historyTimeline = new();
+    private readonly ReadOnlyObservableCollection<HistoryTimelineEntry> _readonlyHistoryTimeline;
     private DragSession? _activeDragSession;
     private string _selectedEntityAssetName = "No asset linked.";
     private string _selectedEntityAssetPreviewPath = string.Empty;
@@ -67,6 +71,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _orchestratorGateway = orchestratorGateway;
         _runtimeSupervisor = runtimeSupervisor;
         _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
+        _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
@@ -74,6 +79,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ApplySelectionPropertiesCommand = new AsyncRelayCommand(() => ApplySelectionPropertiesAsync());
         UndoCommand = new AsyncRelayCommand(() => UndoAsync());
         RedoCommand = new AsyncRelayCommand(() => RedoAsync());
+        JumpToHistoryCommand = new AsyncRelayCommand<object?>(JumpToHistoryAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
         {
@@ -102,6 +108,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand UndoCommand { get; }
 
     public ICommand RedoCommand { get; }
+
+    public ICommand JumpToHistoryCommand { get; }
 
     public string ChatPrompt
     {
@@ -177,6 +185,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool CanUndo => _undoStack.Count > 0;
 
     public bool CanRedo => _redoStack.Count > 0;
+
+    public ReadOnlyObservableCollection<HistoryTimelineEntry> HistoryTimeline => _readonlyHistoryTimeline;
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
@@ -450,6 +460,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
         _redoStack.Clear();
+        _currentSceneHistoryEntry = null;
+        _nextHistoryRevision = 1;
         _activeDragSession = null;
         NotifyHistoryChanged();
         SelectedViewportEntity = null;
@@ -659,6 +671,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         LoadViewportEntitiesFromScene(PrototypeRoot);
         _undoStack.Clear();
         _redoStack.Clear();
+        var scenePath = GetScenePath();
+        _currentSceneHistoryEntry = scenePath is not null && File.Exists(scenePath)
+            ? new SceneHistoryEntry(File.ReadAllText(scenePath), "Generated scene loaded", _nextHistoryRevision++)
+            : null;
         _activeDragSession = null;
         NotifyHistoryChanged();
 
@@ -1088,10 +1104,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 });
             }
 
-            await File.WriteAllTextAsync(scenePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
-            LoadViewportEntitiesFromScene(PrototypeRoot);
-            StatusMessage = $"Imported asset: {Path.GetFileName(normalizedPath)}";
-            ShowToast("Asset imported.");
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Imported asset: {Path.GetFileName(normalizedPath)}", cancellationToken);
             return true;
         }
         catch (Exception ex)
@@ -1520,7 +1534,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private async Task UndoAsync(CancellationToken cancellationToken = default)
     {
-        if (_undoStack.Count == 0)
+        if (_undoStack.Count == 0 || _currentSceneHistoryEntry is null)
         {
             ShowToast("Nothing to undo.");
             return;
@@ -1534,15 +1548,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         var history = _undoStack.Pop();
-        var currentContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
-        _redoStack.Push(new SceneHistoryEntry(currentContent, history.Description));
+        _redoStack.Push(_currentSceneHistoryEntry.Value);
+        _currentSceneHistoryEntry = history;
         NotifyHistoryChanged();
-        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Undo: {history.Description}", cancellationToken);
+        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Undo → {history.Description}", cancellationToken);
     }
 
     private async Task RedoAsync(CancellationToken cancellationToken = default)
     {
-        if (_redoStack.Count == 0)
+        if (_redoStack.Count == 0 || _currentSceneHistoryEntry is null)
         {
             ShowToast("Nothing to redo.");
             return;
@@ -1556,10 +1570,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         var history = _redoStack.Pop();
-        var currentContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
-        _undoStack.Push(new SceneHistoryEntry(currentContent, history.Description));
+        _undoStack.Push(_currentSceneHistoryEntry.Value);
+        _currentSceneHistoryEntry = history;
         NotifyHistoryChanged();
-        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Redo: {history.Description}", cancellationToken);
+        await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Redo → {history.Description}", cancellationToken);
     }
 
     private string? GetScenePath()
@@ -1580,8 +1594,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        _undoStack.Push(new SceneHistoryEntry(beforeContent, operationDescription));
+        _currentSceneHistoryEntry ??= new SceneHistoryEntry(beforeContent, "Scene loaded", _nextHistoryRevision++);
+        _undoStack.Push(_currentSceneHistoryEntry.Value);
         _redoStack.Clear();
+        _currentSceneHistoryEntry = new SceneHistoryEntry(afterContent, operationDescription, _nextHistoryRevision++);
         NotifyHistoryChanged();
         await ApplySceneContentAndRelaunchAsync(scenePath, afterContent, operationDescription, cancellationToken);
     }
@@ -1601,6 +1617,98 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
+        RebuildHistoryTimeline();
+    }
+
+    private async Task JumpToHistoryAsync(object? parameter)
+    {
+        if (parameter is null || _currentSceneHistoryEntry is null)
+        {
+            return;
+        }
+
+        var targetRevision = parameter switch
+        {
+            int intRevision => intRevision,
+            string revisionText when int.TryParse(revisionText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => 0,
+        };
+
+        if (targetRevision <= 0 || _currentSceneHistoryEntry.Value.Revision == targetRevision)
+        {
+            return;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("No scene scaffold available.");
+            return;
+        }
+
+        var undoChronological = _undoStack.Reverse().ToList();
+        var redoTopFirst = _redoStack.ToList();
+        var current = _currentSceneHistoryEntry.Value;
+
+        var targetPastIndex = undoChronological.FindIndex(entry => entry.Revision == targetRevision);
+        if (targetPastIndex >= 0)
+        {
+            var target = undoChronological[targetPastIndex];
+            var nextUndoChronological = undoChronological.Take(targetPastIndex).ToList();
+            var nextRedoTopFirst = undoChronological.Skip(targetPastIndex + 1).Concat(new[] { current }).Concat(redoTopFirst).ToList();
+            ReplaceHistoryStacks(nextUndoChronological, nextRedoTopFirst);
+            _currentSceneHistoryEntry = target;
+            NotifyHistoryChanged();
+            await ApplySceneContentAndRelaunchAsync(scenePath, target.Content, $"History jump → {target.Description}", CancellationToken.None);
+            return;
+        }
+
+        var targetFutureIndex = redoTopFirst.FindIndex(entry => entry.Revision == targetRevision);
+        if (targetFutureIndex >= 0)
+        {
+            var target = redoTopFirst[targetFutureIndex];
+            var nextUndoChronological = undoChronological.Concat(new[] { current }).Concat(redoTopFirst.Take(targetFutureIndex)).ToList();
+            var nextRedoTopFirst = redoTopFirst.Skip(targetFutureIndex + 1).ToList();
+            ReplaceHistoryStacks(nextUndoChronological, nextRedoTopFirst);
+            _currentSceneHistoryEntry = target;
+            NotifyHistoryChanged();
+            await ApplySceneContentAndRelaunchAsync(scenePath, target.Content, $"History jump → {target.Description}", CancellationToken.None);
+        }
+    }
+
+    private void ReplaceHistoryStacks(IReadOnlyList<SceneHistoryEntry> undoChronological, IReadOnlyList<SceneHistoryEntry> redoTopFirst)
+    {
+        _undoStack.Clear();
+        foreach (var entry in undoChronological)
+        {
+            _undoStack.Push(entry);
+        }
+
+        _redoStack.Clear();
+        for (var index = redoTopFirst.Count - 1; index >= 0; index--)
+        {
+            _redoStack.Push(redoTopFirst[index]);
+        }
+    }
+
+    private void RebuildHistoryTimeline()
+    {
+        _historyTimeline.Clear();
+        var index = 0;
+        foreach (var entry in _undoStack.Reverse())
+        {
+            _historyTimeline.Add(HistoryTimelineEntry.FromSceneEntry(entry, isCurrent: false, isFuture: false, index++));
+        }
+
+        if (_currentSceneHistoryEntry is SceneHistoryEntry current)
+        {
+            _historyTimeline.Add(HistoryTimelineEntry.FromSceneEntry(current, isCurrent: true, isFuture: false, index++));
+        }
+
+        foreach (var entry in _redoStack)
+        {
+            _historyTimeline.Add(HistoryTimelineEntry.FromSceneEntry(entry, isCurrent: false, isFuture: true, index++));
+        }
     }
 
     private static float ReadCoordinate(JsonElement element, string propertyName)
@@ -2071,7 +2179,76 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private readonly record struct DragEntitySnapshot(string EntityId, float StartX, float StartY);
 
-    private readonly record struct SceneHistoryEntry(string Content, string Description);
+    private readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
+
+    public sealed class HistoryTimelineEntry
+    {
+        public required int Revision { get; init; }
+
+        public required string Description { get; init; }
+
+        public required string Icon { get; init; }
+
+        public required bool IsCurrent { get; init; }
+
+        public required bool IsFuture { get; init; }
+
+        public required int Index { get; init; }
+
+        public string RevisionLabel => $"#{Revision:000}";
+
+        public static HistoryTimelineEntry FromSceneEntry(SceneHistoryEntry entry, bool isCurrent, bool isFuture, int index)
+            => new()
+            {
+                Revision = entry.Revision,
+                Description = entry.Description,
+                Icon = ResolveHistoryIcon(entry.Description),
+                IsCurrent = isCurrent,
+                IsFuture = isFuture,
+                Index = index,
+            };
+
+        private static string ResolveHistoryIcon(string description)
+        {
+            var text = description.ToLowerInvariant();
+            if (text.Contains("added", StringComparison.Ordinal) || text.Contains("placed", StringComparison.Ordinal))
+            {
+                return "➕";
+            }
+
+            if (text.Contains("moved", StringComparison.Ordinal))
+            {
+                return "🧭";
+            }
+
+            if (text.Contains("import", StringComparison.Ordinal))
+            {
+                return "📥";
+            }
+
+            if (text.Contains("deleted", StringComparison.Ordinal))
+            {
+                return "🗑";
+            }
+
+            if (text.Contains("undo", StringComparison.Ordinal))
+            {
+                return "↶";
+            }
+
+            if (text.Contains("redo", StringComparison.Ordinal))
+            {
+                return "↷";
+            }
+
+            if (text.Contains("loaded", StringComparison.Ordinal))
+            {
+                return "🎬";
+            }
+
+            return "•";
+        }
+    }
 
     public sealed class ViewportEntity : INotifyPropertyChanged
     {
@@ -2281,6 +2458,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public async void Execute(object? parameter)
         {
             await _executeAsync();
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private sealed class AsyncRelayCommand<T>(Func<T?, Task> executeAsync) : ICommand
+    {
+        private readonly Func<T?, Task> _executeAsync = executeAsync;
+
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter) => true;
+
+        public async void Execute(object? parameter)
+        {
+            var typedParameter = parameter is T value ? value : default;
+            await _executeAsync(typedParameter);
             CanExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
