@@ -86,6 +86,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isExporting;
     private string _exportStatus = "Export checklist idle.";
     private string _exportOutputPath = "Not packaged yet.";
+    private string _exportPackagePath = "Not packaged yet.";
+    private string _exportFolderPath = "Not exported yet.";
     private readonly ObservableCollection<ExportChecklistItem> _exportChecklistItems = new();
     private readonly ReadOnlyObservableCollection<ExportChecklistItem> _readonlyExportChecklistItems;
 
@@ -359,7 +361,39 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ExportPackagePath
+    {
+        get => _exportPackagePath;
+        private set
+        {
+            if (!SetField(ref _exportPackagePath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasExportPackageOutput));
+        }
+    }
+
+    public string ExportFolderPath
+    {
+        get => _exportFolderPath;
+        private set
+        {
+            if (!SetField(ref _exportFolderPath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasExportFolderOutput));
+        }
+    }
+
     public bool HasExportOutput => File.Exists(ExportOutputPath) || Directory.Exists(ExportOutputPath);
+
+    public bool HasExportPackageOutput => File.Exists(ExportPackagePath);
+
+    public bool HasExportFolderOutput => Directory.Exists(ExportFolderPath);
 
     public int ExportChecklistCompletedCount => ExportChecklistItems.Count(item => item.IsComplete);
 
@@ -797,10 +831,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 : $"Readiness score {readinessReport.Score}/100 with no warnings.";
             CompleteExportChecklistItem("steam-readiness", readinessSummary);
 
+            ExportPackagePath = packagePath;
+            ExportFolderPath = exportFolder;
             ExportOutputPath = packagePath;
             ExportStatus = $"Export complete ({ExportChecklistCompletedCount}/{ExportChecklistTotalCount}).";
             PipelineProgress = "Export package complete";
-            StatusMessage = $"{ExportStatus} Output: {packagePath}";
+            StatusMessage = $"{ExportStatus} ZIP: {packagePath}";
             ShowToast("Export package complete.");
         }
         catch (Exception ex)
@@ -824,18 +860,40 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void OpenExportOutputPath()
     {
-        if (!HasExportOutput)
+        OpenExportPackagePath();
+    }
+
+    public void OpenExportPackagePath()
+    {
+        if (!HasExportPackageOutput)
         {
-            StatusMessage = "No export output available yet.";
+            StatusMessage = "No export ZIP available yet.";
             ShowToast("Run export checklist first.");
             return;
         }
 
+        OpenPath(ExportPackagePath, "Unable to open export ZIP output.");
+    }
+
+    public void OpenExportFolderPath()
+    {
+        if (!HasExportFolderOutput)
+        {
+            StatusMessage = "No export folder available yet.";
+            ShowToast("Run export checklist first.");
+            return;
+        }
+
+        OpenPath(ExportFolderPath, "Unable to open export folder.");
+    }
+
+    private void OpenPath(string path, string failureToast)
+    {
         try
         {
-            var revealTarget = Directory.Exists(ExportOutputPath)
-                ? ExportOutputPath
-                : Path.GetDirectoryName(ExportOutputPath) ?? ExportOutputPath;
+            var revealTarget = Directory.Exists(path)
+                ? path
+                : Path.GetDirectoryName(path) ?? path;
             Process.Start(new ProcessStartInfo
             {
                 FileName = revealTarget,
@@ -844,8 +902,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Unable to open export output path: {ex.Message}";
-            ShowToast("Unable to open export output path.");
+            StatusMessage = $"{failureToast}: {ex.Message}";
+            ShowToast(failureToast);
         }
     }
 
@@ -1004,6 +1062,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", false, false, false));
         _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", false, false, false));
         _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", false, false, false));
+        ExportPackagePath = "Not packaged yet.";
+        ExportFolderPath = "Not exported yet.";
         ExportOutputPath = "Not packaged yet.";
         OnPropertyChanged(nameof(ExportChecklistCompletedCount));
         OnPropertyChanged(nameof(ExportChecklistTotalCount));

@@ -721,8 +721,13 @@ public partial class MainWindow : Window
         await _viewModel.RunExportChecklistAsync();
     }
 
-    private void OnOpenExportOutputClick(object? sender, RoutedEventArgs e)
+    private void OnOpenExportFolderClick(object? sender, RoutedEventArgs e)
     {
-        _viewModel.OpenExportOutputPath();
+        _viewModel.OpenExportFolderPath();
+    }
+
+    private void OnOpenExportZipClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenExportPackagePath();
     }
 }

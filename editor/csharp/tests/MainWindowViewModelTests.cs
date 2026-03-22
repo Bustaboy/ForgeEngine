@@ -263,6 +263,8 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal(4, viewModel.ExportChecklistCompletedCount);
         Assert.Equal(100, viewModel.ExportChecklistProgressPercent);
         Assert.True(File.Exists(viewModel.ExportOutputPath));
+        Assert.True(File.Exists(viewModel.ExportPackagePath));
+        Assert.True(Directory.Exists(viewModel.ExportFolderPath));
         Assert.Contains(".zip", viewModel.ExportOutputPath, StringComparison.OrdinalIgnoreCase);
     }
 
