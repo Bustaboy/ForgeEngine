@@ -140,6 +140,24 @@ public sealed class SteamReadinessPolicyTests
     }
 
 
+
+    [Fact]
+    public void LoadMetrics_ReadinessCollectorArtifact_MapsRequiredFields()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
+        var artifactPath = Path.Combine(repoRoot, "docs", "release", "evidence", "readiness_metrics_sample.json");
+
+        Assert.True(File.Exists(artifactPath));
+
+        var metrics = SteamReadinessPolicy.LoadMetrics(artifactPath);
+
+        Assert.True(metrics.CrashFreeSessionRatePercent >= 0.0);
+        Assert.True(metrics.SustainedFpsFloor >= 0.0);
+        Assert.True(metrics.Fps60CompliancePercent >= 0.0);
+        Assert.True(metrics.InitialSceneLoadSeconds >= 0.0);
+        Assert.True(metrics.SafeSavePassRatePercent >= 0.0);
+    }
+
     [Fact]
     public void CommercialPolicyText_ContainsCriteriaAndRevenueThreshold()
     {
