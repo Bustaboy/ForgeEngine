@@ -9,7 +9,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -1608,15 +1608,31 @@ def _execute_generation_pipeline(
     pipeline_status = "failed" if any(item.status == PipelineStageStatus.FAILED.value for item in stage_results) else "passed"
     if pipeline_status == "passed" and launch_runtime and prototype_root is not None:
         export_manifest_path = prototype_root / "pipeline" / "07_export_manifest.v1.json"
-        launch_result = _build_and_launch_generated_runtime(
-            prototype_root=prototype_root,
-            manifest_path=export_manifest_path,
-        )
+        try:
+            launch_result = _build_and_launch_generated_runtime(
+                prototype_root=prototype_root,
+                manifest_path=export_manifest_path,
+            )
+        except Exception as exc:  # noqa: BLE001 - pipeline should fail gracefully with structured output
+            launch_result = {
+                "status": "failed",
+                "pid": None,
+                "manifest_path": str(export_manifest_path),
+                "executable_path": None,
+                "error": f"runtime_launch_unhandled_error: {exc}",
+            }
         runtime_launch_status = launch_result["status"]
         runtime_launch_pid = launch_result["pid"]
         runtime_launch_manifest_path = launch_result["manifest_path"]
         runtime_launch_executable_path = launch_result["executable_path"]
         if runtime_launch_status != "launched":
+            launch_error = str(launch_result.get("error", "unknown runtime launch error"))
+            print(f"[Orchestrator][ERROR] Runtime launch failed: {launch_error}")
+            if stage_results:
+                latest_result = stage_results[-1]
+                updated_metadata = dict(latest_result.metadata)
+                updated_metadata["runtime_launch_error"] = launch_error
+                stage_results[-1] = replace(latest_result, metadata=updated_metadata)
             pipeline_status = "failed"
     elif launch_runtime and prototype_root is None:
         runtime_launch_status = "failed"
@@ -2070,12 +2086,21 @@ def _build_and_launch_generated_runtime(
             "error": f"Manifest path missing: {manifest_path}",
         }
 
-    configure_proc = subprocess.run(
-        ["cmake", "-S", str(generated_root), "-B", str(generated_build_root)],
-        cwd=prototype_root,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        configure_proc = subprocess.run(
+            ["cmake", "-S", str(generated_root), "-B", str(generated_build_root)],
+            cwd=prototype_root,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"cmake_configure_execution_failed: {exc}",
+        }
     if configure_proc.returncode != 0:
         return {
             "status": "failed",
@@ -2087,12 +2112,21 @@ def _build_and_launch_generated_runtime(
             "stderr": configure_proc.stderr,
         }
 
-    build_proc = subprocess.run(
-        ["cmake", "--build", str(generated_build_root)],
-        cwd=prototype_root,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        build_proc = subprocess.run(
+            ["cmake", "--build", str(generated_build_root)],
+            cwd=prototype_root,
+            text=True,
+            capture_output=True,
+        )
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": None,
+            "error": f"cmake_build_execution_failed: {exc}",
+        }
     if build_proc.returncode != 0:
         return {
             "status": "failed",
@@ -2126,7 +2160,18 @@ def _build_and_launch_generated_runtime(
     else:
         popen_kwargs["start_new_session"] = True
 
-    process = subprocess.Popen(launch_command, **popen_kwargs)  # noqa: S603
+    try:
+        process = subprocess.Popen(launch_command, **popen_kwargs)  # noqa: S603
+    except OSError as exc:
+        return {
+            "status": "failed",
+            "pid": None,
+            "manifest_path": str(manifest_path),
+            "executable_path": str(executable_path),
+            "error": f"runtime_launch_execution_failed: {exc}",
+        }
+
+    print(f"[Orchestrator][INFO] Runtime launch succeeded: pid={process.pid}, manifest={manifest_path}")
     return {
         "status": "launched",
         "pid": process.pid,
