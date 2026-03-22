@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <string>
 #include <thread>
 
 #include "gameplay_api.hpp"
@@ -37,7 +38,15 @@ void GF_InitGeneratedScene(GeneratedSceneState* state) {
     npc.active = 1;
 }
 
-int main() {
+int main(int argc, char** argv) {
+    std::string manifest_path;
+    for (int index = 1; index < argc; ++index) {
+        const std::string argument = argv[index];
+        if (argument == "--manifest" && index + 1 < argc) {
+            manifest_path = argv[++index];
+        }
+    }
+
     GeneratedSceneState state{};
     GF_InitGeneratedScene(&state);
 
@@ -45,6 +54,9 @@ int main() {
     constexpr float kDtSeconds = 1.0f / 60.0f;
 
     std::cout << "[GeneratedRuntime] gameplay runner started\n";
+    if (!manifest_path.empty()) {
+        std::cout << "[GeneratedRuntime] manifest: " << manifest_path << "\n";
+    }
     for (int tick = 0; tick < kTickCount; ++tick) {
         state.elapsed_time += kDtSeconds;
         GF_UpdatePlayerController(&state, kDtSeconds);

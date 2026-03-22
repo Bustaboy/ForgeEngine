@@ -453,7 +453,10 @@ private:
 
         if (!generated_runner_launched_) {
             generated_runner_launched_ = true;
-            const std::string launch_command = "\"" + generated_executable_path_.string() + "\"";
+            std::string launch_command = "\"" + generated_executable_path_.string() + "\"";
+            if (launch_options_.manifest_path.has_value()) {
+                launch_command += " --manifest \"" + launch_options_.manifest_path->string() + "\"";
+            }
             std::thread([launch_command]() {
                 std::system(launch_command.c_str());
             }).detach();
