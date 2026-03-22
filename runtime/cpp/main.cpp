@@ -3,6 +3,8 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -18,6 +20,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 namespace {
@@ -33,6 +36,50 @@ const std::vector<const char*> kRequiredDeviceExtensions = {
 };
 
 enum class LogLevel { kInfo, kWarn, kError };
+
+
+struct PositionComponent {
+    float x = 0.0F;
+    float y = 0.0F;
+};
+
+struct RenderComponent {
+    float r = 1.0F;
+    float g = 1.0F;
+    float b = 1.0F;
+    float size = 0.1F;
+};
+
+struct RuntimeEntity {
+    std::string id;
+    PositionComponent position;
+    RenderComponent render;
+    float velocity_x = 0.0F;
+    float velocity_y = 0.0F;
+    bool active = false;
+};
+
+constexpr int kGeneratedSceneEntityLimit = 32;
+constexpr int kGeneratedEntityIdCapacity = 64;
+
+struct GeneratedEntity {
+    char id[kGeneratedEntityIdCapacity]{};
+    float x = 0.0F;
+    float y = 0.0F;
+    float vx = 0.0F;
+    float vy = 0.0F;
+    float size = 0.1F;
+    float r = 1.0F;
+    float g = 1.0F;
+    float b = 1.0F;
+    int active = 0;
+};
+
+struct GeneratedSceneState {
+    std::array<GeneratedEntity, kGeneratedSceneEntityLimit> entities{};
+    int entity_count = 0;
+    float elapsed_time = 0.0F;
+};
 
 void Log(LogLevel level, const std::string& message) {
     const auto now = std::chrono::system_clock::now();
@@ -158,6 +205,13 @@ private:
     bool manifest_load_attempted_ = false;
     bool scene_loaded_from_manifest_ = false;
     bool render_loaded_scene_logged_ = false;
+    std::filesystem::path generated_cpp_root_;
+    std::filesystem::path generated_build_root_;
+    std::filesystem::path generated_executable_path_;
+    bool generated_runner_launched_ = false;
+    GeneratedSceneState generated_scene_state_{};
+    std::vector<RuntimeEntity> runtime_entities_;
+    std::chrono::steady_clock::time_point last_update_time_ = std::chrono::steady_clock::now();
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto* app = static_cast<RuntimeApp*>(glfwGetWindowUserPointer(window));
@@ -306,6 +360,40 @@ private:
 
         const Json assets = scene.value("assets", Json::array());
         Log(LogLevel::kInfo, "Asset reference count from scene: " + std::to_string(assets.size()));
+
+        generated_scene_state_ = GeneratedSceneState{};
+        generated_scene_state_.entity_count = 0;
+        generated_scene_state_.elapsed_time = 0.0F;
+
+        GeneratedEntity player{};
+        std::strncpy(player.id, "player_01", sizeof(player.id) - 1);
+        player.x = static_cast<float>(spawn.value("x", 0.0));
+        player.y = static_cast<float>(spawn.value("y", 0.0));
+        player.size = 0.10F;
+        player.r = 0.15F;
+        player.g = 0.85F;
+        player.b = 0.95F;
+        player.active = 1;
+        generated_scene_state_.entities[0] = player;
+        generated_scene_state_.entity_count = 1;
+
+        if (!npcs.empty()) {
+            const Json first_npc = npcs[0];
+            GeneratedEntity npc{};
+            std::strncpy(npc.id, first_npc.value("id", "npc_01").c_str(), sizeof(npc.id) - 1);
+            npc.x = static_cast<float>(first_npc.value("spawn_x", 0.35));
+            npc.y = static_cast<float>(first_npc.value("spawn_y", -0.15));
+            npc.size = 0.08F;
+            npc.r = 0.95F;
+            npc.g = 0.35F;
+            npc.b = 0.30F;
+            npc.active = 1;
+            generated_scene_state_.entities[1] = npc;
+            generated_scene_state_.entity_count = 2;
+        }
+
+        BuildAndLoadGeneratedGameplay(prototype_root);
+        SyncRuntimeEntitiesFromGeneratedState();
     }
 
     void SpawnEntityFromManifest(const std::string& entity_type, const std::string& entity_id, const Json& payload) {
@@ -323,6 +411,173 @@ private:
         render_loaded_scene_logged_ = true;
         Log(LogLevel::kInfo,
             "RenderLoadedScene() stub active; Vulkan clear + present loop running while manifest data is loaded.");
+    }
+
+    void BuildAndLoadGeneratedGameplay(const std::filesystem::path& prototype_root) {
+        generated_cpp_root_ = prototype_root / "generated" / "cpp";
+        generated_build_root_ = prototype_root / "generated" / "build";
+        if (!std::filesystem::exists(generated_cpp_root_ / "scene.cpp")) {
+            Log(LogLevel::kWarn, "Generated scene.cpp not found; continuing with manifest-only stubs.");
+            return;
+        }
+        if (!std::filesystem::exists(prototype_root / "generated" / "CMakeLists.txt")) {
+            Log(LogLevel::kWarn, "Generated CMakeLists.txt not found; skipping generated build.");
+            return;
+        }
+
+        const std::string configure_command =
+            "cmake -S \"" + (prototype_root / "generated").string() + "\" -B \"" + generated_build_root_.string() + "\"";
+        Log(LogLevel::kInfo, "Configuring generated gameplay build: " + configure_command);
+        if (std::system(configure_command.c_str()) != 0) {
+            throw std::runtime_error("Failed to configure generated gameplay build.");
+        }
+
+        const std::string build_command = "cmake --build \"" + generated_build_root_.string() + "\"";
+        Log(LogLevel::kInfo, "Building generated gameplay executable: " + build_command);
+        if (std::system(build_command.c_str()) != 0) {
+            throw std::runtime_error("Failed to build generated gameplay executable.");
+        }
+
+#ifdef _WIN32
+        generated_executable_path_ = generated_build_root_ / "Debug" / "generated_gameplay_runner.exe";
+        if (!std::filesystem::exists(generated_executable_path_)) {
+            generated_executable_path_ = generated_build_root_ / "Release" / "generated_gameplay_runner.exe";
+        }
+#else
+        generated_executable_path_ = generated_build_root_ / "generated_gameplay_runner";
+#endif
+
+        if (!std::filesystem::exists(generated_executable_path_)) {
+            throw std::runtime_error("Generated gameplay executable missing: " + generated_executable_path_.string());
+        }
+
+        if (!generated_runner_launched_) {
+            generated_runner_launched_ = true;
+            const std::string launch_command = "\"" + generated_executable_path_.string() + "\"";
+            std::thread([launch_command]() {
+                std::system(launch_command.c_str());
+            }).detach();
+            Log(LogLevel::kInfo, "Generated gameplay runner launched: " + generated_executable_path_.string());
+        }
+    }
+
+    void SyncRuntimeEntitiesFromGeneratedState() {
+        runtime_entities_.clear();
+        const int clamped_count = std::max(0, std::min(generated_scene_state_.entity_count, kGeneratedSceneEntityLimit));
+        runtime_entities_.reserve(static_cast<std::size_t>(clamped_count));
+        for (int index = 0; index < clamped_count; ++index) {
+            const GeneratedEntity& source = generated_scene_state_.entities[static_cast<std::size_t>(index)];
+            RuntimeEntity entity;
+            entity.id = source.id;
+            entity.position.x = source.x;
+            entity.position.y = source.y;
+            entity.velocity_x = source.vx;
+            entity.velocity_y = source.vy;
+            entity.render.size = source.size;
+            entity.render.r = source.r;
+            entity.render.g = source.g;
+            entity.render.b = source.b;
+            entity.active = source.active != 0;
+            runtime_entities_.push_back(entity);
+        }
+    }
+
+    void UpdateGeneratedSceneState() {
+        const auto now = std::chrono::steady_clock::now();
+        float dt_seconds = std::chrono::duration_cast<std::chrono::duration<float>>(now - last_update_time_).count();
+        last_update_time_ = now;
+        if (dt_seconds <= 0.0F || dt_seconds > 0.1F) {
+            dt_seconds = 1.0F / 60.0F;
+        }
+
+        generated_scene_state_.elapsed_time += dt_seconds;
+        if (generated_scene_state_.entity_count > 0) {
+            GeneratedEntity& player = generated_scene_state_.entities[0];
+            const float wave = std::sin(generated_scene_state_.elapsed_time * 1.6F);
+            player.vx = 0.42F;
+            player.vy = wave * 0.35F;
+            player.x += player.vx * dt_seconds;
+            player.y += player.vy * dt_seconds;
+            if (player.x > 0.82F) {
+                player.x = -0.82F;
+            }
+            player.g = 0.45F + 0.40F * (wave + 1.0F) * 0.5F;
+        }
+        if (generated_scene_state_.entity_count > 1) {
+            GeneratedEntity& npc = generated_scene_state_.entities[1];
+            const float angle = generated_scene_state_.elapsed_time * 0.85F;
+            npc.x = std::cos(angle) * 0.34F;
+            npc.y = std::sin(angle) * 0.34F;
+            npc.r = 0.60F + 0.35F * (std::sin(angle * 1.5F) + 1.0F) * 0.5F;
+            npc.b = 0.45F + 0.45F * (std::cos(angle * 1.2F) + 1.0F) * 0.5F;
+        }
+        SyncRuntimeEntitiesFromGeneratedState();
+    }
+
+    void RecordCommandBuffer(std::uint32_t image_index) {
+        if (vkResetCommandBuffer(command_buffers_[image_index], 0) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to reset command buffer.");
+        }
+
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        if (vkBeginCommandBuffer(command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to begin recording command buffer.");
+        }
+
+        VkRenderPassBeginInfo render_pass_begin_info{};
+        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_pass_begin_info.renderPass = render_pass_;
+        render_pass_begin_info.framebuffer = swap_chain_framebuffers_[image_index];
+        render_pass_begin_info.renderArea.offset = {0, 0};
+        render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+
+        const float pulse = 0.5F + 0.5F * std::sin(generated_scene_state_.elapsed_time * 0.6F);
+        VkClearValue clear_color = {{{0.05F + (0.08F * pulse), 0.06F, 0.10F + (0.10F * pulse), 1.0F}}};
+        render_pass_begin_info.clearValueCount = 1;
+        render_pass_begin_info.pClearValues = &clear_color;
+
+        vkCmdBeginRenderPass(command_buffers_[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+        for (const RuntimeEntity& entity : runtime_entities_) {
+            if (!entity.active) {
+                continue;
+            }
+
+            const float normalized_x = std::clamp(entity.position.x, -0.95F, 0.95F);
+            const float normalized_y = std::clamp(entity.position.y, -0.95F, 0.95F);
+            const std::uint32_t rect_width = static_cast<std::uint32_t>(
+                std::max(4.0F, entity.render.size * static_cast<float>(swap_chain_extent_.width)));
+            const std::uint32_t rect_height = static_cast<std::uint32_t>(
+                std::max(4.0F, entity.render.size * static_cast<float>(swap_chain_extent_.height)));
+
+            const int center_x = static_cast<int>(((normalized_x + 1.0F) * 0.5F) * static_cast<float>(swap_chain_extent_.width));
+            const int center_y = static_cast<int>(((1.0F - (normalized_y + 1.0F) * 0.5F)) * static_cast<float>(swap_chain_extent_.height));
+
+            const std::int32_t offset_x = static_cast<std::int32_t>(std::max(0, center_x - static_cast<int>(rect_width / 2U)));
+            const std::int32_t offset_y = static_cast<std::int32_t>(std::max(0, center_y - static_cast<int>(rect_height / 2U)));
+
+            VkClearAttachment attachment{};
+            attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            attachment.colorAttachment = 0;
+            attachment.clearValue.color.float32[0] = std::clamp(entity.render.r, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[1] = std::clamp(entity.render.g, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[2] = std::clamp(entity.render.b, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[3] = 1.0F;
+
+            VkClearRect clear_rect{};
+            clear_rect.baseArrayLayer = 0;
+            clear_rect.layerCount = 1;
+            clear_rect.rect.offset = {offset_x, offset_y};
+            clear_rect.rect.extent = {rect_width, rect_height};
+            vkCmdClearAttachments(command_buffers_[image_index], 1, &attachment, 1, &clear_rect);
+        }
+
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+
+        if (vkEndCommandBuffer(command_buffers_[image_index]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to finalize command buffer.");
+        }
     }
 
     void CleanupSwapChain() {
@@ -800,33 +1055,6 @@ private:
         if (vkAllocateCommandBuffers(device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate command buffers.");
         }
-
-        for (std::size_t i = 0; i < command_buffers_.size(); ++i) {
-            VkCommandBufferBeginInfo begin_info{};
-            begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-            if (vkBeginCommandBuffer(command_buffers_[i], &begin_info) != VK_SUCCESS) {
-                throw std::runtime_error("Failed to begin recording command buffer.");
-            }
-
-            VkRenderPassBeginInfo render_pass_begin_info{};
-            render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            render_pass_begin_info.renderPass = render_pass_;
-            render_pass_begin_info.framebuffer = swap_chain_framebuffers_[i];
-            render_pass_begin_info.renderArea.offset = {0, 0};
-            render_pass_begin_info.renderArea.extent = swap_chain_extent_;
-
-            VkClearValue clear_color = {{{0.05F, 0.07F, 0.10F, 1.0F}}};
-            render_pass_begin_info.clearValueCount = 1;
-            render_pass_begin_info.pClearValues = &clear_color;
-
-            vkCmdBeginRenderPass(command_buffers_[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdEndRenderPass(command_buffers_[i]);
-
-            if (vkEndCommandBuffer(command_buffers_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("Failed to record command buffer.");
-            }
-        }
     }
 
     void CreateSyncObjects() {
@@ -871,6 +1099,11 @@ private:
         }
 
         vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
+
+        if (scene_loaded_from_manifest_) {
+            UpdateGeneratedSceneState();
+        }
+        RecordCommandBuffer(image_index);
 
         VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_frame_]};
         VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
