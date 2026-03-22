@@ -79,6 +79,28 @@ internal static class Program
             return 0;
         }
 
+
+        if (args.Length > 0 && args[0] == "--steam-readiness")
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: --steam-readiness <metrics-json-path> [--publish] [--acknowledge-warnings] [--confirm-upload] [--audit-output <output>] [--upload-destination <path>]");
+                return 7;
+            }
+
+            var metricsPath = args[1];
+            var requestPublish = args.Any(arg => string.Equals(arg, "--publish", StringComparison.OrdinalIgnoreCase));
+            var acknowledgedWarnings = args.Any(arg => string.Equals(arg, "--acknowledge-warnings", StringComparison.OrdinalIgnoreCase));
+            var confirmUpload = args.Any(arg => string.Equals(arg, "--confirm-upload", StringComparison.OrdinalIgnoreCase));
+            var auditOutput = GetOptionValue(args, "--audit-output")
+                ?? Path.Combine("build", "publish", "steam-readiness-audit.json");
+            var uploadDestination = GetOptionValue(args, "--upload-destination")
+                ?? Path.Combine("build", "publish", "external", "steam-readiness-audit.json");
+
+            RunSteamReadinessFlow(metricsPath, requestPublish, acknowledgedWarnings, confirmUpload, auditOutput, uploadDestination);
+            return 0;
+        }
+
         if (args.Length > 0 && args[0] == "--playtest-report-view")
         {
             if (args.Length < 2)
@@ -277,6 +299,47 @@ internal static class Program
             PlaytestReportViewer.ExportJson(report, jsonExportPath);
             Console.WriteLine($"JSON export written: {Path.GetFullPath(jsonExportPath)}");
         }
+    }
+
+
+    private static void RunSteamReadinessFlow(
+        string metricsPath,
+        bool requestPublish,
+        bool warningAcknowledged,
+        bool uploadConfirmed,
+        string auditOutputPath,
+        string uploadDestination)
+    {
+        var metrics = SteamReadinessPolicy.LoadMetrics(metricsPath);
+        var report = SteamReadinessPolicy.Evaluate(metrics);
+        Console.WriteLine(SteamReadinessPolicy.RenderChecklistConsole(report));
+
+        var gate = SteamReadinessPolicy.EvaluatePublishGate(report, warningAcknowledged);
+        Console.WriteLine(gate.Message);
+
+        if (!requestPublish)
+        {
+            Console.WriteLine("Publish dry-run complete. Re-run with --publish to execute publish gate flow.");
+            return;
+        }
+
+        if (gate.Decision != PublishDecision.Ready)
+        {
+            Console.WriteLine("Publish action not executed.");
+            return;
+        }
+
+        var signingKey = SteamReadinessPolicy.EnsureLocalSigningKey();
+        var auditTrail = SteamReadinessPolicy.BuildAuditTrail(metrics, report, signingKey);
+        SteamReadinessPolicy.WriteAuditTrail(auditTrail, auditOutputPath);
+
+        Console.WriteLine($"Audit trail generated: {Path.GetFullPath(auditOutputPath)}");
+        Console.WriteLine("External submission requires explicit user consent.");
+
+        var uploaded = SteamReadinessPolicy.ConfirmAndUploadAudit(auditOutputPath, uploadDestination, uploadConfirmed);
+        Console.WriteLine(uploaded
+            ? $"Audit uploaded to external destination: {Path.GetFullPath(uploadDestination)}"
+            : "Upload skipped. Re-run with --confirm-upload to consent and continue.");
     }
 
     private static string? GetOptionValue(IReadOnlyList<string> args, string option)
