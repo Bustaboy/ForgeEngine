@@ -149,10 +149,11 @@
                   <StackPanel Spacing="6">
                     <TextBlock Text="Selection Inspector" Foreground="#EEF4FF" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SelectedEntitiesCount, StringFormat=Selected: {0}}" Foreground="#AFC2DF" />
                     <TextBlock Text="{Binding SelectedEntityType, StringFormat=Type: {0}}" Foreground="#AFC2DF" />
                     <TextBlock Text="{Binding SelectedEntityX, StringFormat=X: {0:F2}}" Foreground="#AFC2DF" />
                     <TextBlock Text="{Binding SelectedEntityY, StringFormat=Y: {0:F2}}" Foreground="#AFC2DF" />
-                    <TextBlock Text="Hint: Drag with left mouse button. Use toolbar or Ctrl+Z / Ctrl+Y for history." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="Hint: Ctrl+Click toggles selection. Drag empty canvas for marquee multi-select." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </Grid>
@@ -219,6 +220,7 @@
                 <StackPanel Spacing="4">
                   <TextBlock Text="🟢 Vulkan Runtime Live Feed" Foreground="#D6E9FF" FontWeight="SemiBold" />
                   <TextBlock Text="{Binding RuntimePreviewSummary}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding RuntimeSelectedEntityPreview}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
               <TextBlock Grid.Row="2" Text="Runtime Status" Foreground="#D5E4F8" FontWeight="SemiBold" />
@@ -232,7 +234,25 @@
           </Border>
 
           <Border Grid.Row="5" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
-            <TextBlock Text="Inspector controls and deep schema panels arrive in later milestones. This shell already supports no-code quick generation and pro mode toggles." TextWrapping="Wrap" Foreground="#AFC2DF" />
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
+              <TextBlock Text="🎛 Scene Properties" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
+              <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
+              <TextBox Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" />
+              <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
+                <TextBlock Text="X" VerticalAlignment="Center" Foreground="#AFC2DF" />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBlock Grid.Column="2" Text="Y" VerticalAlignment="Center" Foreground="#AFC2DF" />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityPositionYEditor}" IsEnabled="{Binding HasSelection}" />
+              </Grid>
+              <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
+                <TextBlock Text="Scale" VerticalAlignment="Center" Foreground="#AFC2DF" />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityScaleEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBlock Grid.Column="2" Text="Color" VerticalAlignment="Center" Foreground="#AFC2DF" />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor}" IsEnabled="{Binding HasSelection}" />
+              </Grid>
+              <Button Grid.Row="5" Content="✨ Apply Selection → Runtime" Command="{Binding ApplySelectionPropertiesCommand}" IsEnabled="{Binding HasSelection}" />
+              <TextBlock Grid.Row="6" Text="Live viewport updates instantly. Apply commits to scene_scaffold.json + runtime relaunch." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+            </Grid>
           </Border>
         </Grid>
       </Border>

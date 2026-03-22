@@ -142,6 +142,31 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplySelectionProperties_UpdatesMultipleEntities()
+    {
+        var prototypeRoot = CreatePrototypeRootWithTwoEntities();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        viewModel.SelectSingleEntity("prop_01");
+        viewModel.ToggleEntitySelection("prop_02");
+        viewModel.SelectedEntityScaleEditor = "1.8";
+        viewModel.SelectedEntityColorEditor = "#112233";
+
+        await InvokePrivateAsync(viewModel, "ApplySelectionPropertiesAsync");
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var entities = document.RootElement.GetProperty("entities");
+        Assert.All(entities.EnumerateArray(), entity =>
+        {
+            Assert.Equal(1.8f, entity.GetProperty("scale").GetSingle());
+            Assert.Equal("#112233", entity.GetProperty("color").GetString());
+        });
+    }
+
+    [Fact]
     public async Task Relaunch_CleansUpPreviousPidBeforeStartingNewRuntime()
     {
         var prototypeRoot = CreatePrototypeRoot();
@@ -263,6 +288,27 @@ public sealed class MainWindowViewModelTests : IDisposable
               }
               """;
 
+        File.WriteAllText(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"), scene);
+        File.WriteAllText(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+        return prototypeRoot;
+    }
+
+    private string CreatePrototypeRootWithTwoEntities()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+
+        const string scene = """
+                             {
+                               "player_spawn": { "x": 0, "y": 0 },
+                               "entities": [
+                                 { "id": "prop_01", "type": "prop", "x": 0, "y": 0, "z": 0 },
+                                 { "id": "prop_02", "type": "prop", "x": 3, "y": 1, "z": 0 }
+                               ]
+                             }
+                             """;
         File.WriteAllText(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"), scene);
         File.WriteAllText(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
         return prototypeRoot;

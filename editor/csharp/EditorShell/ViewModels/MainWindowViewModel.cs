@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -34,10 +35,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _runtimeEntityList = "No generated entities yet.";
     private int? _trackedRuntimePid;
     private ViewportEntity? _selectedViewportEntity;
+    private readonly ObservableCollection<ViewportEntity> _selectedViewportEntities = new();
+    private readonly ReadOnlyObservableCollection<ViewportEntity> _readonlySelectedViewportEntities;
     private string _selectedEntitySummary = "No entity selected.";
     private string _selectedEntityType = "n/a";
     private float _selectedEntityX;
     private float _selectedEntityY;
+    private string _selectedEntityNameEditor = string.Empty;
+    private string _selectedEntityPositionXEditor = "0";
+    private string _selectedEntityPositionYEditor = "0";
+    private string _selectedEntityScaleEditor = "1";
+    private string _selectedEntityColorEditor = "#4AA3FF";
+    private string _runtimeSelectedEntityPreview = "No active selection.";
+    private bool _isRefreshingSelectionEditors;
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
     private readonly Stack<SceneHistoryEntry> _redoStack = new();
     private DragSession? _activeDragSession;
@@ -51,13 +61,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         _orchestratorGateway = orchestratorGateway;
         _runtimeSupervisor = runtimeSupervisor;
+        _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
         DeleteSelectedEntityCommand = new AsyncRelayCommand(() => DeleteSelectedEntityAsync());
+        ApplySelectionPropertiesCommand = new AsyncRelayCommand(() => ApplySelectionPropertiesAsync());
         UndoCommand = new AsyncRelayCommand(() => UndoAsync());
         RedoCommand = new AsyncRelayCommand(() => RedoAsync());
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
+        _selectedViewportEntities.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(IsSingleSelection));
+            OnPropertyChanged(nameof(SelectedEntitiesCount));
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -71,6 +89,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand AddPropEntityCommand { get; }
 
     public ICommand DeleteSelectedEntityCommand { get; }
+
+    public ICommand ApplySelectionPropertiesCommand { get; }
 
     public ICommand UndoCommand { get; }
 
@@ -218,6 +238,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public ReadOnlyObservableCollection<ViewportEntity> SelectedViewportEntities => _readonlySelectedViewportEntities;
+
+    public bool HasSelection => _selectedViewportEntities.Count > 0;
+
+    public bool IsSingleSelection => _selectedViewportEntities.Count == 1;
+
+    public int SelectedEntitiesCount => _selectedViewportEntities.Count;
+
     public string SelectedEntitySummary
     {
         get => _selectedEntitySummary;
@@ -242,6 +270,123 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private set => SetField(ref _selectedEntityY, value);
     }
 
+    public string SelectedEntityNameEditor
+    {
+        get => _selectedEntityNameEditor;
+        set
+        {
+            if (!SetField(ref _selectedEntityNameEditor, value) || _isRefreshingSelectionEditors)
+            {
+                return;
+            }
+
+            foreach (var entity in _selectedViewportEntities)
+            {
+                entity.SetName(value);
+            }
+
+            RefreshInspectorDerivedState();
+        }
+    }
+
+    public string SelectedEntityPositionXEditor
+    {
+        get => _selectedEntityPositionXEditor;
+        set
+        {
+            if (!SetField(ref _selectedEntityPositionXEditor, value) || _isRefreshingSelectionEditors)
+            {
+                return;
+            }
+
+            if (TryParseFloat(value, out var parsed))
+            {
+                foreach (var entity in _selectedViewportEntities)
+                {
+                    entity.SetPosition(parsed, entity.Y);
+                }
+
+                RefreshInspectorDerivedState();
+            }
+        }
+    }
+
+    public string SelectedEntityPositionYEditor
+    {
+        get => _selectedEntityPositionYEditor;
+        set
+        {
+            if (!SetField(ref _selectedEntityPositionYEditor, value) || _isRefreshingSelectionEditors)
+            {
+                return;
+            }
+
+            if (TryParseFloat(value, out var parsed))
+            {
+                foreach (var entity in _selectedViewportEntities)
+                {
+                    entity.SetPosition(entity.X, parsed);
+                }
+
+                RefreshInspectorDerivedState();
+            }
+        }
+    }
+
+    public string SelectedEntityScaleEditor
+    {
+        get => _selectedEntityScaleEditor;
+        set
+        {
+            if (!SetField(ref _selectedEntityScaleEditor, value) || _isRefreshingSelectionEditors)
+            {
+                return;
+            }
+
+            if (TryParseFloat(value, out var parsed))
+            {
+                var clamped = Math.Max(0.1f, parsed);
+                foreach (var entity in _selectedViewportEntities)
+                {
+                    entity.SetScale(clamped);
+                }
+
+                RefreshInspectorDerivedState();
+            }
+        }
+    }
+
+    public string SelectedEntityColorEditor
+    {
+        get => _selectedEntityColorEditor;
+        set
+        {
+            if (!SetField(ref _selectedEntityColorEditor, value) || _isRefreshingSelectionEditors)
+            {
+                return;
+            }
+
+            var sanitized = SanitizeColorHex(value);
+            if (sanitized is null)
+            {
+                return;
+            }
+
+            foreach (var entity in _selectedViewportEntities)
+            {
+                entity.SetColorHex(sanitized);
+            }
+
+            RefreshInspectorDerivedState();
+        }
+    }
+
+    public string RuntimeSelectedEntityPreview
+    {
+        get => _runtimeSelectedEntityPreview;
+        private set => SetField(ref _runtimeSelectedEntityPreview, value);
+    }
+
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
@@ -254,6 +399,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
         ViewportEntities.Clear();
+        _selectedViewportEntities.Clear();
         _undoStack.Clear();
         _redoStack.Clear();
         _activeDragSession = null;
@@ -616,6 +762,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void LoadViewportEntitiesFromScene(string prototypeRoot)
     {
         ViewportEntities.Clear();
+        _selectedViewportEntities.Clear();
         SelectedViewportEntity = null;
 
         if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
@@ -638,7 +785,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 var playerX = ReadCoordinate(playerSpawn, "x");
                 var playerY = ReadCoordinate(playerSpawn, "y");
-                ViewportEntities.Add(new ViewportEntity("player_spawn", "player", playerX, playerY));
+                ViewportEntities.Add(new ViewportEntity("player_spawn", "player", "Player Spawn", playerX, playerY, 1f, "#4AA3FF"));
             }
 
             if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
@@ -649,7 +796,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     var type = entity.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "entity";
                     var x = ReadCoordinate(entity, "x");
                     var y = ReadCoordinate(entity, "y");
-                    ViewportEntities.Add(new ViewportEntity(id ?? "entity", type ?? "entity", x, y));
+                    var name = entity.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+                    var scale = ReadCoordinate(entity, "scale");
+                    var color = entity.TryGetProperty("color", out var colorElement) ? colorElement.GetString() : null;
+                    ViewportEntities.Add(new ViewportEntity(
+                        id ?? "entity",
+                        type ?? "entity",
+                        name ?? $"{type ?? "entity"}:{id ?? "entity"}",
+                        x,
+                        y,
+                        scale <= 0f ? 1f : scale,
+                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType(type ?? "entity")));
                 }
             }
 
@@ -660,13 +817,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : "npc";
                     var x = ReadCoordinate(npc, "spawn_x");
                     var y = ReadCoordinate(npc, "spawn_y");
-                    ViewportEntities.Add(new ViewportEntity(id ?? "npc", "npc", x, y));
+                    var name = npc.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+                    var scale = ReadCoordinate(npc, "scale");
+                    var color = npc.TryGetProperty("color", out var colorElement) ? colorElement.GetString() : null;
+                    ViewportEntities.Add(new ViewportEntity(
+                        id ?? "npc",
+                        "npc",
+                        name ?? $"npc:{id ?? "npc"}",
+                        x,
+                        y,
+                        scale <= 0f ? 1f : scale,
+                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType("npc")));
                 }
             }
 
             if (ViewportEntities.Count > 0)
             {
-                SelectedViewportEntity = ViewportEntities[0];
+                ReplaceSelection(new[] { ViewportEntities[0] });
             }
         }
         catch (Exception ex)
@@ -715,9 +882,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 ["id"] = $"{entityKind}_{nextIndex:00}",
                 ["type"] = entityKind,
+                ["name"] = $"{entityKind}_{nextIndex:00}",
                 ["x"] = 0,
                 ["y"] = 0,
                 ["z"] = 0,
+                ["scale"] = 1,
+                ["color"] = DefaultColorForType(entityKind),
             });
 
             payload["entities"] = entities;
@@ -739,9 +909,76 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return false;
         }
 
-        SelectedViewportEntity = entity;
-        _activeDragSession = new DragSession(entity.Id, entity.X, entity.Y);
+        if (!_selectedViewportEntities.Any(item => item.Id == entity.Id))
+        {
+            ReplaceSelection(new[] { entity });
+        }
+
+        SelectedViewportEntity = _selectedViewportEntities[0];
+        _activeDragSession = new DragSession(
+            entity.Id,
+            _selectedViewportEntities
+                .Select(item => new DragEntitySnapshot(item.Id, item.X, item.Y))
+                .ToList());
         return true;
+    }
+
+    public bool SelectSingleEntity(string entityId)
+    {
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null)
+        {
+            return false;
+        }
+
+        ReplaceSelection(new[] { entity });
+        return true;
+    }
+
+    public bool ToggleEntitySelection(string entityId)
+    {
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null)
+        {
+            return false;
+        }
+
+        if (_selectedViewportEntities.Any(item => item.Id == entity.Id))
+        {
+            RemoveSelection(entity);
+            return true;
+        }
+
+        AddSelection(entity);
+        return true;
+    }
+
+    public void SelectEntitiesByViewportRect(float minX, float minY, float maxX, float maxY, bool appendToSelection)
+    {
+        var hits = ViewportEntities
+            .Where(entity => entity.X >= minX && entity.X <= maxX && entity.Y >= minY && entity.Y <= maxY)
+            .ToList();
+
+        if (!appendToSelection)
+        {
+            ReplaceSelection(hits);
+            return;
+        }
+
+        foreach (var hit in hits)
+        {
+            if (_selectedViewportEntities.Any(entity => entity.Id == hit.Id))
+            {
+                continue;
+            }
+
+            AddSelection(hit);
+        }
+    }
+
+    public void ClearSelection()
+    {
+        ReplaceSelection(Array.Empty<ViewportEntity>());
     }
 
     public bool PreviewDragPosition(string entityId, float nextX, float nextY)
@@ -757,18 +994,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return false;
         }
 
-        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        var entity = _selectedViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
         if (entity is null)
         {
             return false;
         }
 
-        entity.SetPosition(nextX, nextY);
-        if (SelectedViewportEntity?.Id == entity.Id)
+        var anchor = activeDrag.Entities.FirstOrDefault(item => item.EntityId == entityId);
+        var deltaX = nextX - anchor.StartX;
+        var deltaY = nextY - anchor.StartY;
+
+        foreach (var dragged in _selectedViewportEntities)
         {
-            UpdateSelectedEntityInspector();
+            var origin = activeDrag.Entities.FirstOrDefault(item => item.EntityId == dragged.Id);
+            dragged.SetPosition(origin.StartX + deltaX, origin.StartY + deltaY);
         }
 
+        RefreshInspectorDerivedState();
         return true;
     }
 
@@ -782,23 +1024,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var dragSession = _activeDragSession.Value;
         _activeDragSession = null;
 
-        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, dragSession.EntityId, StringComparison.Ordinal));
+        var entity = _selectedViewportEntities.FirstOrDefault(item => string.Equals(item.Id, dragSession.EntityId, StringComparison.Ordinal));
         if (entity is null)
         {
             return;
         }
 
-        var deltaX = entity.X - dragSession.StartX;
-        var deltaY = entity.Y - dragSession.StartY;
+        var anchor = dragSession.Entities.FirstOrDefault(item => item.EntityId == dragSession.EntityId);
+        var deltaX = entity.X - anchor.StartX;
+        var deltaY = entity.Y - anchor.StartY;
         if (Math.Abs(deltaX) < 0.0001f && Math.Abs(deltaY) < 0.0001f)
         {
             return;
         }
 
-        await MoveEntityAsync(entity, deltaX, deltaY, "Entity moved", cancellationToken);
+        await MoveEntitiesAsync(_selectedViewportEntities.ToList(), deltaX, deltaY, "Entity moved", cancellationToken);
     }
 
-    private async Task MoveEntityAsync(ViewportEntity entity, float deltaX, float deltaY, string operationLabel, CancellationToken cancellationToken = default)
+    private async Task MoveEntitiesAsync(IReadOnlyList<ViewportEntity> entities, float deltaX, float deltaY, string operationLabel, CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
         if (scenePath is null)
@@ -819,14 +1062,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
-            if (!TryMoveEntityInScene(root, entity, deltaX, deltaY))
+            var movedAny = false;
+            foreach (var entity in entities)
+            {
+                movedAny = TryMoveEntityInScene(root, entity, deltaX, deltaY) || movedAny;
+            }
+
+            if (!movedAny)
             {
                 ShowToast("Selected entity not found in scene.");
                 return;
             }
 
             var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"{operationLabel}: {entity.DisplayName}", cancellationToken);
+            var operationTarget = entities.Count == 1 ? entities[0].DisplayName : $"{entities.Count} entities";
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"{operationLabel}: {operationTarget}", cancellationToken);
         }
         catch (Exception ex)
         {
@@ -837,24 +1087,148 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void UpdateSelectedEntityInspector()
     {
-        if (SelectedViewportEntity is null)
+        RefreshInspectorDerivedState();
+    }
+
+    private void RefreshInspectorDerivedState()
+    {
+        if (_selectedViewportEntities.Count == 0)
         {
             SelectedEntitySummary = "No entity selected.";
             SelectedEntityType = "n/a";
             SelectedEntityX = 0;
             SelectedEntityY = 0;
+            RuntimeSelectedEntityPreview = "No active selection.";
+            SetSelectionEditorDefaults();
             return;
         }
 
-        SelectedEntityType = SelectedViewportEntity.Type;
-        SelectedEntityX = SelectedViewportEntity.X;
-        SelectedEntityY = SelectedViewportEntity.Y;
-        SelectedEntitySummary = $"{SelectedViewportEntity.DisplayName} ({SelectedViewportEntity.Type})";
+        SelectedViewportEntity = _selectedViewportEntities[0];
+        SelectedEntityType = BuildSharedValue(_selectedViewportEntities.Select(entity => entity.Type), fallback: "Mixed");
+        SelectedEntityX = _selectedViewportEntities.Average(entity => entity.X);
+        SelectedEntityY = _selectedViewportEntities.Average(entity => entity.Y);
+        SelectedEntitySummary = _selectedViewportEntities.Count == 1
+            ? $"{_selectedViewportEntities[0].DisplayName} ({_selectedViewportEntities[0].Type})"
+            : $"{_selectedViewportEntities.Count} entities selected";
+
+        RuntimeSelectedEntityPreview = string.Join(Environment.NewLine, _selectedViewportEntities.Select(entity =>
+            $"• {entity.Name} ({entity.Type})  pos({entity.X:F2}, {entity.Y:F2})  scale {entity.Scale:F2}  color {entity.ColorHex}"));
+
+        RefreshSelectionEditorsFromSelection();
+    }
+
+    private void RefreshSelectionEditorsFromSelection()
+    {
+        _isRefreshingSelectionEditors = true;
+        try
+        {
+            _selectedEntityNameEditor = BuildSharedValue(_selectedViewportEntities.Select(entity => entity.Name), fallback: "(mixed)");
+            _selectedEntityPositionXEditor = BuildSharedNumericValue(_selectedViewportEntities.Select(entity => entity.X));
+            _selectedEntityPositionYEditor = BuildSharedNumericValue(_selectedViewportEntities.Select(entity => entity.Y));
+            _selectedEntityScaleEditor = BuildSharedNumericValue(_selectedViewportEntities.Select(entity => entity.Scale));
+            _selectedEntityColorEditor = BuildSharedValue(_selectedViewportEntities.Select(entity => entity.ColorHex), fallback: "(mixed)");
+            OnPropertyChanged(nameof(SelectedEntityNameEditor));
+            OnPropertyChanged(nameof(SelectedEntityPositionXEditor));
+            OnPropertyChanged(nameof(SelectedEntityPositionYEditor));
+            OnPropertyChanged(nameof(SelectedEntityScaleEditor));
+            OnPropertyChanged(nameof(SelectedEntityColorEditor));
+        }
+        finally
+        {
+            _isRefreshingSelectionEditors = false;
+        }
+    }
+
+    private void SetSelectionEditorDefaults()
+    {
+        _isRefreshingSelectionEditors = true;
+        try
+        {
+            _selectedEntityNameEditor = string.Empty;
+            _selectedEntityPositionXEditor = "0";
+            _selectedEntityPositionYEditor = "0";
+            _selectedEntityScaleEditor = "1";
+            _selectedEntityColorEditor = "#4AA3FF";
+            OnPropertyChanged(nameof(SelectedEntityNameEditor));
+            OnPropertyChanged(nameof(SelectedEntityPositionXEditor));
+            OnPropertyChanged(nameof(SelectedEntityPositionYEditor));
+            OnPropertyChanged(nameof(SelectedEntityScaleEditor));
+            OnPropertyChanged(nameof(SelectedEntityColorEditor));
+        }
+        finally
+        {
+            _isRefreshingSelectionEditors = false;
+        }
+    }
+
+    private static string BuildSharedNumericValue(IEnumerable<float> values)
+    {
+        var list = values.ToList();
+        if (list.Count == 0)
+        {
+            return "0";
+        }
+
+        var first = list[0];
+        return list.All(value => Math.Abs(value - first) < 0.0001f)
+            ? first.ToString("0.##", CultureInfo.InvariantCulture)
+            : "(mixed)";
+    }
+
+    private static string BuildSharedValue(IEnumerable<string> values, string fallback)
+    {
+        var list = values.Where(value => !string.IsNullOrWhiteSpace(value)).ToList();
+        if (list.Count == 0)
+        {
+            return fallback;
+        }
+
+        var first = list[0];
+        return list.All(value => string.Equals(value, first, StringComparison.Ordinal)) ? first : fallback;
+    }
+
+    private void ReplaceSelection(IEnumerable<ViewportEntity> entities)
+    {
+        foreach (var selected in _selectedViewportEntities)
+        {
+            selected.IsSelected = false;
+        }
+
+        _selectedViewportEntities.Clear();
+        foreach (var entity in entities.DistinctBy(item => item.Id))
+        {
+            entity.IsSelected = true;
+            _selectedViewportEntities.Add(entity);
+        }
+
+        SelectedViewportEntity = _selectedViewportEntities.FirstOrDefault();
+        RefreshInspectorDerivedState();
+    }
+
+    private void AddSelection(ViewportEntity entity)
+    {
+        if (_selectedViewportEntities.Any(item => item.Id == entity.Id))
+        {
+            return;
+        }
+
+        entity.IsSelected = true;
+        _selectedViewportEntities.Add(entity);
+        SelectedViewportEntity = _selectedViewportEntities[0];
+        RefreshInspectorDerivedState();
+    }
+
+    private void RemoveSelection(ViewportEntity entity)
+    {
+        entity.IsSelected = false;
+        _selectedViewportEntities.Remove(entity);
+        SelectedViewportEntity = _selectedViewportEntities.FirstOrDefault();
+        RefreshInspectorDerivedState();
     }
 
     private async Task DeleteSelectedEntityAsync(CancellationToken cancellationToken = default)
     {
-        if (SelectedViewportEntity is null)
+        if (_selectedViewportEntities.Count == 0)
         {
             ShowToast("Select an entity first.");
             return;
@@ -870,7 +1244,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
-            var target = SelectedViewportEntity;
+            var targets = _selectedViewportEntities.ToList();
             var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
             var root = JsonNode.Parse(beforeContent)?.AsObject();
             if (root is null)
@@ -880,19 +1254,72 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return;
             }
 
-            if (!TryDeleteEntityInScene(root, target))
+            var deletedAny = false;
+            foreach (var target in targets)
+            {
+                deletedAny = TryDeleteEntityInScene(root, target) || deletedAny;
+            }
+
+            if (!deletedAny)
             {
                 ShowToast("Selected entity not found in scene.");
                 return;
             }
 
             var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Entity deleted: {target.DisplayName}", cancellationToken);
+            var label = targets.Count == 1
+                ? $"Entity deleted: {targets[0].DisplayName}"
+                : $"Entities deleted: {targets.Count}";
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Delete entity failed: {ex.Message}";
             ShowToast("Entity delete failed.");
+        }
+    }
+
+    private async Task ApplySelectionPropertiesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_selectedViewportEntities.Count == 0)
+        {
+            ShowToast("Select at least one entity before applying properties.");
+            return;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before editing scene properties.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return;
+            }
+
+            foreach (var entity in _selectedViewportEntities)
+            {
+                ApplyEntityPropertiesInScene(root, entity);
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            var label = _selectedViewportEntities.Count == 1
+                ? $"Applied properties: {_selectedViewportEntities[0].DisplayName}"
+                : $"Applied properties: {_selectedViewportEntities.Count} entities";
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Property apply failed: {ex.Message}";
+            ShowToast("Property apply failed.");
         }
     }
 
@@ -1111,6 +1538,56 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return false;
     }
 
+    private static void ApplyEntityPropertiesInScene(JsonObject root, ViewportEntity entity)
+    {
+        if (entity.Type == "player")
+        {
+            if (root["player_spawn"] is JsonObject playerSpawn)
+            {
+                playerSpawn["x"] = entity.X;
+                playerSpawn["y"] = entity.Y;
+            }
+
+            return;
+        }
+
+        if (root["entities"] is JsonArray entities)
+        {
+            foreach (var node in entities.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), entity.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                node["x"] = entity.X;
+                node["y"] = entity.Y;
+                node["name"] = entity.Name;
+                node["scale"] = entity.Scale;
+                node["color"] = entity.ColorHex;
+                return;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            foreach (var node in npcs.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), entity.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                node["spawn_x"] = entity.X;
+                node["spawn_y"] = entity.Y;
+                node["name"] = entity.Name;
+                node["scale"] = entity.Scale;
+                node["color"] = entity.ColorHex;
+                return;
+            }
+        }
+    }
+
     private void OnViewportEntitiesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.NewItems is not null)
@@ -1137,9 +1614,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (SelectedViewportEntity?.Id == entity.Id && (e.PropertyName == nameof(ViewportEntity.X) || e.PropertyName == nameof(ViewportEntity.Y)))
+        if (_selectedViewportEntities.Any(item => item.Id == entity.Id)
+            && (e.PropertyName == nameof(ViewportEntity.X)
+                || e.PropertyName == nameof(ViewportEntity.Y)
+                || e.PropertyName == nameof(ViewportEntity.Name)
+                || e.PropertyName == nameof(ViewportEntity.Scale)
+                || e.PropertyName == nameof(ViewportEntity.ColorHex)))
         {
-            UpdateSelectedEntityInspector();
+            RefreshInspectorDerivedState();
         }
     }
 
@@ -1170,6 +1652,45 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         return 0f;
     }
+
+    private static bool TryParseFloat(string value, out float parsed)
+        => float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed);
+
+    private static string? SanitizeColorHex(string candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return null;
+        }
+
+        var normalized = candidate.Trim();
+        if (!normalized.StartsWith('#'))
+        {
+            normalized = $"#{normalized}";
+        }
+
+        if (normalized.Length != 7)
+        {
+            return null;
+        }
+
+        for (var index = 1; index < normalized.Length; index++)
+        {
+            if (!Uri.IsHexDigit(normalized[index]))
+            {
+                return null;
+            }
+        }
+
+        return normalized.ToUpperInvariant();
+    }
+
+    private static string DefaultColorForType(string type) => type switch
+    {
+        "player" => "#4AA3FF",
+        "npc" => "#8BD17C",
+        _ => "#E4A14A",
+    };
 
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
     {
@@ -1281,21 +1802,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    private readonly record struct DragSession(string EntityId, float StartX, float StartY);
+    private readonly record struct DragSession(string EntityId, IReadOnlyList<DragEntitySnapshot> Entities);
+
+    private readonly record struct DragEntitySnapshot(string EntityId, float StartX, float StartY);
 
     private readonly record struct SceneHistoryEntry(string Content, string Description);
 
     public sealed class ViewportEntity : INotifyPropertyChanged
     {
+        private string _name;
         private float _x;
         private float _y;
+        private float _scale;
+        private string _colorHex;
+        private bool _isSelected;
 
-        public ViewportEntity(string id, string type, float x, float y)
+        public ViewportEntity(string id, string type, string name, float x, float y, float scale, string colorHex)
         {
             Id = id;
             Type = type;
+            _name = name;
             _x = x;
             _y = y;
+            _scale = scale;
+            _colorHex = colorHex;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -1303,6 +1833,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public string Id { get; }
 
         public string Type { get; }
+
+        public string Name
+        {
+            get => _name;
+            private set
+            {
+                if (string.Equals(_name, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _name = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+            }
+        }
 
         public float X
         {
@@ -1334,13 +1879,78 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
         }
 
+        public float Scale
+        {
+            get => _scale;
+            private set
+            {
+                if (Math.Abs(_scale - value) < 0.0001f)
+                {
+                    return;
+                }
+
+                _scale = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Scale)));
+            }
+        }
+
+        public string ColorHex
+        {
+            get => _colorHex;
+            private set
+            {
+                if (string.Equals(_colorHex, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _colorHex = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ColorHex)));
+            }
+        }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value)
+                {
+                    return;
+                }
+
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+
         public void SetPosition(float x, float y)
         {
             X = x;
             Y = y;
         }
 
-        public string DisplayName => $"{Type}:{Id}";
+        public void SetName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            Name = name.Trim();
+        }
+
+        public void SetScale(float scale)
+        {
+            Scale = Math.Max(0.1f, scale);
+        }
+
+        public void SetColorHex(string colorHex)
+        {
+            ColorHex = colorHex;
+        }
+
+        public string DisplayName => Name;
     }
 
     private sealed class AsyncRelayCommand(Func<Task> executeAsync) : ICommand
