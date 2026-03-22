@@ -19,6 +19,8 @@ target_link_libraries(forge_runtime
         glfw
 )
 
+target_compile_definitions(forge_runtime PRIVATE FORGE_ENABLE_VULKAN=1)
+
 if(MSVC)
     target_compile_options(forge_runtime PRIVATE /W4 /permissive-)
 else()
