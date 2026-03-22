@@ -645,7 +645,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             if (!_animationTracks.TryGetValue(entity.Id, out var track))
             {
-                track = new EntityAnimationTrack(entity.Id);
+                track = new EntityAnimationTrack();
                 _animationTracks[entity.Id] = track;
             }
 
@@ -670,6 +670,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (IsTimelinePlaying)
         {
             PauseTimelinePlayback();
+            TimelineStateLabel = $"Paused at {TimelineCurrentTime:0.00}s.";
             return Task.CompletedTask;
         }
 
@@ -1033,11 +1034,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         foreach (var group in orderedFrames)
         {
             var time = Math.Clamp(group.Key, 0f, TimelineDuration);
-            var ratio = TimelineDuration <= 0f ? 0f : time / TimelineDuration;
             _timelineMarkers.Add(new TimelineMarker
             {
                 Time = time,
-                PositionRatio = ratio,
                 Label = $"◉ {time:0.00}s",
                 TrackCount = group.Count(),
             });
@@ -2717,10 +2716,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     internal readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
 
-    private sealed class EntityAnimationTrack(string entityId)
+    private sealed class EntityAnimationTrack
     {
-        public string EntityId { get; } = entityId;
-
         public List<EntityKeyframe> Keyframes { get; } = new();
 
         public void Upsert(EntityKeyframe keyframe)
@@ -2804,8 +2801,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public sealed class TimelineMarker
     {
         public required float Time { get; init; }
-
-        public required float PositionRatio { get; init; }
 
         public required string Label { get; init; }
 
