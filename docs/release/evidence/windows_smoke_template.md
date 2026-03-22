@@ -5,6 +5,7 @@
 - Date (UTC):
 - Operator:
 - Branch/commit:
+- Generated artifact folder convention: `docs/release/evidence/runs/<timestamp>/` (see `docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md`)
 
 ## 1) Environment snapshot
 
