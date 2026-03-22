@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.16)
+
+project(GeneratedGameplayRunner LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_executable(generated_gameplay_runner
+    cpp/scene.cpp
+    cpp/player_controller.cpp
+    cpp/basic_npc.cpp
+)
+
+if(MSVC)
+    target_compile_options(generated_gameplay_runner PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(generated_gameplay_runner PRIVATE -Wall -Wextra -Wpedantic)
+endif()

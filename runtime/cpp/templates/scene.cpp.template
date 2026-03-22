@@ -1,6 +1,10 @@
+#include <chrono>
+#include <iostream>
+#include <thread>
+
 #include "gameplay_api.hpp"
 
-extern "C" void GF_InitGeneratedScene(GeneratedSceneState* state) {
+void GF_InitGeneratedScene(GeneratedSceneState* state) {
     if (state == nullptr) {
         return;
     }
@@ -31,4 +35,28 @@ extern "C" void GF_InitGeneratedScene(GeneratedSceneState* state) {
     npc.g = 0.35f;
     npc.b = 0.30f;
     npc.active = 1;
+}
+
+int main() {
+    GeneratedSceneState state{};
+    GF_InitGeneratedScene(&state);
+
+    constexpr int kTickCount = 600;
+    constexpr float kDtSeconds = 1.0f / 60.0f;
+
+    std::cout << "[GeneratedRuntime] gameplay runner started\n";
+    for (int tick = 0; tick < kTickCount; ++tick) {
+        state.elapsed_time += kDtSeconds;
+        GF_UpdatePlayerController(&state, kDtSeconds);
+        GF_UpdateBasicNpc(&state, kDtSeconds);
+
+        if (tick % 60 == 0 && state.entity_count > 0) {
+            const GeneratedEntity& player = state.entities[0];
+            std::cout << "[GeneratedRuntime] player position x=" << player.x << " y=" << player.y << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    }
+
+    std::cout << "[GeneratedRuntime] gameplay runner completed\n";
+    return 0;
 }

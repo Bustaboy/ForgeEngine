@@ -2,7 +2,7 @@
 
 #include "gameplay_api.hpp"
 
-extern "C" void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds) {
+void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds) {
     if (state == nullptr || state->entity_count < 2 || dt_seconds <= 0.0f) {
         return;
     }

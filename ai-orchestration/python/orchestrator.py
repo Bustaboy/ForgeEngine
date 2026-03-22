@@ -729,20 +729,25 @@ inline void gf_copy_id(char* destination, const char* source) {
     destination[index] = '\\0';
 }
 
-extern "C" void GF_InitGeneratedScene(GeneratedSceneState* state);
-extern "C" void GF_UpdatePlayerController(GeneratedSceneState* state, float dt_seconds);
-extern "C" void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds);
+void GF_InitGeneratedScene(GeneratedSceneState* state);
+void GF_UpdatePlayerController(GeneratedSceneState* state, float dt_seconds);
+void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds);
 """
     _write_text(generated_root / "gameplay_api.hpp", api_header)
 
     generated_files: list[str] = []
-    for template_name in ("scene.cpp.template", "player_controller.cpp.template", "basic_npc.cpp.template"):
+    for template_name in (
+        "scene.cpp.template",
+        "player_controller.cpp.template",
+        "basic_npc.cpp.template",
+        "CMakeLists.txt.template",
+    ):
         template_path = templates_root / template_name
         content = template_path.read_text(encoding="utf-8")
         for key, value in replacements.items():
             content = content.replace(key, value)
         output_name = template_name.replace(".template", "")
-        output_path = generated_root / output_name
+        output_path = prototype_root / "generated" / output_name if output_name == "CMakeLists.txt" else generated_root / output_name
         _write_text(output_path, content)
         generated_files.append(str(output_path))
 

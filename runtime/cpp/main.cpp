@@ -20,13 +20,8 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 
 namespace {
 
@@ -85,10 +80,6 @@ struct GeneratedSceneState {
     int entity_count = 0;
     float elapsed_time = 0.0F;
 };
-
-using InitGeneratedSceneFn = void (*)(GeneratedSceneState* state);
-using UpdatePlayerControllerFn = void (*)(GeneratedSceneState* state, float dt_seconds);
-using UpdateBasicNpcFn = void (*)(GeneratedSceneState* state, float dt_seconds);
 
 void Log(LogLevel level, const std::string& message) {
     const auto now = std::chrono::system_clock::now();
@@ -215,15 +206,9 @@ private:
     bool scene_loaded_from_manifest_ = false;
     bool render_loaded_scene_logged_ = false;
     std::filesystem::path generated_cpp_root_;
-    std::filesystem::path generated_library_path_;
-#ifdef _WIN32
-    HMODULE generated_library_handle_ = nullptr;
-#else
-    void* generated_library_handle_ = nullptr;
-#endif
-    InitGeneratedSceneFn generated_init_scene_ = nullptr;
-    UpdatePlayerControllerFn generated_update_player_ = nullptr;
-    UpdateBasicNpcFn generated_update_npc_ = nullptr;
+    std::filesystem::path generated_build_root_;
+    std::filesystem::path generated_executable_path_;
+    bool generated_runner_launched_ = false;
     GeneratedSceneState generated_scene_state_{};
     std::vector<RuntimeEntity> runtime_entities_;
     std::chrono::steady_clock::time_point last_update_time_ = std::chrono::steady_clock::now();
@@ -376,6 +361,37 @@ private:
         const Json assets = scene.value("assets", Json::array());
         Log(LogLevel::kInfo, "Asset reference count from scene: " + std::to_string(assets.size()));
 
+        generated_scene_state_ = GeneratedSceneState{};
+        generated_scene_state_.entity_count = 0;
+        generated_scene_state_.elapsed_time = 0.0F;
+
+        GeneratedEntity player{};
+        std::strncpy(player.id, "player_01", sizeof(player.id) - 1);
+        player.x = static_cast<float>(spawn.value("x", 0.0));
+        player.y = static_cast<float>(spawn.value("y", 0.0));
+        player.size = 0.10F;
+        player.r = 0.15F;
+        player.g = 0.85F;
+        player.b = 0.95F;
+        player.active = 1;
+        generated_scene_state_.entities[0] = player;
+        generated_scene_state_.entity_count = 1;
+
+        if (!npcs.empty()) {
+            const Json first_npc = npcs[0];
+            GeneratedEntity npc{};
+            std::strncpy(npc.id, first_npc.value("id", "npc_01").c_str(), sizeof(npc.id) - 1);
+            npc.x = static_cast<float>(first_npc.value("spawn_x", 0.35));
+            npc.y = static_cast<float>(first_npc.value("spawn_y", -0.15));
+            npc.size = 0.08F;
+            npc.r = 0.95F;
+            npc.g = 0.35F;
+            npc.b = 0.30F;
+            npc.active = 1;
+            generated_scene_state_.entities[1] = npc;
+            generated_scene_state_.entity_count = 2;
+        }
+
         BuildAndLoadGeneratedGameplay(prototype_root);
         SyncRuntimeEntitiesFromGeneratedState();
     }
@@ -399,61 +415,50 @@ private:
 
     void BuildAndLoadGeneratedGameplay(const std::filesystem::path& prototype_root) {
         generated_cpp_root_ = prototype_root / "generated" / "cpp";
+        generated_build_root_ = prototype_root / "generated" / "build";
         if (!std::filesystem::exists(generated_cpp_root_ / "scene.cpp")) {
             Log(LogLevel::kWarn, "Generated scene.cpp not found; continuing with manifest-only stubs.");
             return;
         }
+        if (!std::filesystem::exists(prototype_root / "generated" / "CMakeLists.txt")) {
+            Log(LogLevel::kWarn, "Generated CMakeLists.txt not found; skipping generated build.");
+            return;
+        }
 
-#ifdef _WIN32
-        generated_library_path_ = prototype_root / "generated" / "gameplay_generated.dll";
-        std::string compile_command =
-            "g++ -std=c++17 -shared \"" + (generated_cpp_root_ / "scene.cpp").string() + "\" \"" +
-            (generated_cpp_root_ / "player_controller.cpp").string() + "\" \"" +
-            (generated_cpp_root_ / "basic_npc.cpp").string() + "\" -o \"" + generated_library_path_.string() + "\"";
-#else
-        generated_library_path_ = prototype_root / "generated" / "libgameplay_generated.so";
-        std::string compile_command =
-            "g++ -std=c++17 -shared -fPIC \"" + (generated_cpp_root_ / "scene.cpp").string() + "\" \"" +
-            (generated_cpp_root_ / "player_controller.cpp").string() + "\" \"" +
-            (generated_cpp_root_ / "basic_npc.cpp").string() + "\" -o \"" + generated_library_path_.string() + "\"";
-#endif
+        const std::string configure_command =
+            "cmake -S \"" + (prototype_root / "generated").string() + "\" -B \"" + generated_build_root_.string() + "\"";
+        Log(LogLevel::kInfo, "Configuring generated gameplay build: " + configure_command);
+        if (std::system(configure_command.c_str()) != 0) {
+            throw std::runtime_error("Failed to configure generated gameplay build.");
+        }
 
-        Log(LogLevel::kInfo, "Compiling generated gameplay sources: " + compile_command);
-        const int compile_exit_code = std::system(compile_command.c_str());
-        if (compile_exit_code != 0) {
-            throw std::runtime_error("Failed to compile generated gameplay sources.");
+        const std::string build_command = "cmake --build \"" + generated_build_root_.string() + "\"";
+        Log(LogLevel::kInfo, "Building generated gameplay executable: " + build_command);
+        if (std::system(build_command.c_str()) != 0) {
+            throw std::runtime_error("Failed to build generated gameplay executable.");
         }
 
 #ifdef _WIN32
-        generated_library_handle_ = LoadLibraryA(generated_library_path_.string().c_str());
-        if (generated_library_handle_ == nullptr) {
-            throw std::runtime_error("Failed to load generated gameplay DLL: " + generated_library_path_.string());
+        generated_executable_path_ = generated_build_root_ / "Debug" / "generated_gameplay_runner.exe";
+        if (!std::filesystem::exists(generated_executable_path_)) {
+            generated_executable_path_ = generated_build_root_ / "Release" / "generated_gameplay_runner.exe";
         }
-        generated_init_scene_ = reinterpret_cast<InitGeneratedSceneFn>(
-            GetProcAddress(generated_library_handle_, "GF_InitGeneratedScene"));
-        generated_update_player_ = reinterpret_cast<UpdatePlayerControllerFn>(
-            GetProcAddress(generated_library_handle_, "GF_UpdatePlayerController"));
-        generated_update_npc_ = reinterpret_cast<UpdateBasicNpcFn>(
-            GetProcAddress(generated_library_handle_, "GF_UpdateBasicNpc"));
 #else
-        generated_library_handle_ = dlopen(generated_library_path_.string().c_str(), RTLD_NOW);
-        if (generated_library_handle_ == nullptr) {
-            throw std::runtime_error(
-                "Failed to load generated gameplay shared library: " + generated_library_path_.string() +
-                " (" + dlerror() + ")");
-        }
-        generated_init_scene_ = reinterpret_cast<InitGeneratedSceneFn>(dlsym(generated_library_handle_, "GF_InitGeneratedScene"));
-        generated_update_player_ = reinterpret_cast<UpdatePlayerControllerFn>(dlsym(generated_library_handle_, "GF_UpdatePlayerController"));
-        generated_update_npc_ = reinterpret_cast<UpdateBasicNpcFn>(dlsym(generated_library_handle_, "GF_UpdateBasicNpc"));
+        generated_executable_path_ = generated_build_root_ / "generated_gameplay_runner";
 #endif
 
-        if (generated_init_scene_ == nullptr || generated_update_player_ == nullptr || generated_update_npc_ == nullptr) {
-            throw std::runtime_error("Generated gameplay library is missing required exported functions.");
+        if (!std::filesystem::exists(generated_executable_path_)) {
+            throw std::runtime_error("Generated gameplay executable missing: " + generated_executable_path_.string());
         }
 
-        generated_init_scene_(&generated_scene_state_);
-        last_update_time_ = std::chrono::steady_clock::now();
-        Log(LogLevel::kInfo, "Generated gameplay library loaded successfully.");
+        if (!generated_runner_launched_) {
+            generated_runner_launched_ = true;
+            const std::string launch_command = "\"" + generated_executable_path_.string() + "\"";
+            std::thread([launch_command]() {
+                std::system(launch_command.c_str());
+            }).detach();
+            Log(LogLevel::kInfo, "Generated gameplay runner launched: " + generated_executable_path_.string());
+        }
     }
 
     void SyncRuntimeEntitiesFromGeneratedState() {
@@ -478,10 +483,6 @@ private:
     }
 
     void UpdateGeneratedSceneState() {
-        if (generated_update_player_ == nullptr || generated_update_npc_ == nullptr) {
-            return;
-        }
-
         const auto now = std::chrono::steady_clock::now();
         float dt_seconds = std::chrono::duration_cast<std::chrono::duration<float>>(now - last_update_time_).count();
         last_update_time_ = now;
@@ -490,8 +491,26 @@ private:
         }
 
         generated_scene_state_.elapsed_time += dt_seconds;
-        generated_update_player_(&generated_scene_state_, dt_seconds);
-        generated_update_npc_(&generated_scene_state_, dt_seconds);
+        if (generated_scene_state_.entity_count > 0) {
+            GeneratedEntity& player = generated_scene_state_.entities[0];
+            const float wave = std::sin(generated_scene_state_.elapsed_time * 1.6F);
+            player.vx = 0.42F;
+            player.vy = wave * 0.35F;
+            player.x += player.vx * dt_seconds;
+            player.y += player.vy * dt_seconds;
+            if (player.x > 0.82F) {
+                player.x = -0.82F;
+            }
+            player.g = 0.45F + 0.40F * (wave + 1.0F) * 0.5F;
+        }
+        if (generated_scene_state_.entity_count > 1) {
+            GeneratedEntity& npc = generated_scene_state_.entities[1];
+            const float angle = generated_scene_state_.elapsed_time * 0.85F;
+            npc.x = std::cos(angle) * 0.34F;
+            npc.y = std::sin(angle) * 0.34F;
+            npc.r = 0.60F + 0.35F * (std::sin(angle * 1.5F) + 1.0F) * 0.5F;
+            npc.b = 0.45F + 0.45F * (std::cos(angle * 1.2F) + 1.0F) * 0.5F;
+        }
         SyncRuntimeEntitiesFromGeneratedState();
     }
 
@@ -615,15 +634,6 @@ private:
 
         if (instance_ != VK_NULL_HANDLE) {
             vkDestroyInstance(instance_, nullptr);
-        }
-
-        if (generated_library_handle_ != nullptr) {
-#ifdef _WIN32
-            FreeLibrary(generated_library_handle_);
-#else
-            dlclose(generated_library_handle_);
-#endif
-            generated_library_handle_ = nullptr;
         }
 
         if (window_ != nullptr) {
