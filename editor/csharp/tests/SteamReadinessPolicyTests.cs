@@ -146,7 +146,7 @@ public sealed class SteamReadinessPolicyTests
         var policy = CommercialUsePolicy.BuildPolicyText();
 
         Assert.Contains("monetized", policy.CriteriaSummary, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("100,000", policy.RevenueShareSummary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("1,000", policy.RevenueShareSummary, StringComparison.OrdinalIgnoreCase);
     }
 
 }

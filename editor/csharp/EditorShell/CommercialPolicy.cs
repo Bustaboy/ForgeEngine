@@ -39,7 +39,7 @@ public sealed record CommercialDeclarationAuditEntry
 
 public static class CommercialUsePolicy
 {
-    public const decimal RevenueShareTriggerUsd = 100_000m;
+    public const decimal RevenueShareTriggerUsd = 1_000m;
 
     public static CommercialPolicyText BuildPolicyText() => new()
     {
