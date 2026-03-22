@@ -54,8 +54,8 @@ Install:
 Run once per machine:
 
 ```bash
-python3 ai-orchestration/python/orchestrator.py --prepare-models
-python3 ai-orchestration/python/orchestrator.py --benchmark
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --prepare-models
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --benchmark
 ```
 
 Expected: JSON output with model status and benchmark hardware summary.
@@ -131,19 +131,21 @@ What CI does:
 Run before requesting release approval:
 
 ```bash
-python3 ai-orchestration/python/orchestrator.py --prepare-models
-python3 ai-orchestration/python/orchestrator.py --benchmark
-python3 ai-orchestration/python/orchestrator.py \
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --prepare-models
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --benchmark
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py \
   --run-generation-pipeline \
   --generate-prototype app/samples/interview-brief.sample.json \
   --output build/generated-prototypes \
   --bot-playtest-scenario app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json
-python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root build/release-evidence
+PYTHONPATH=ai-orchestration/python python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root build/release-evidence
 ```
 
 On Windows host:
 ```powershell
+$env:PYTHONPATH="ai-orchestration/python"
 python ai-orchestration/python/orchestrator.py --prepare-models
+$env:PYTHONPATH="ai-orchestration/python"
 python ai-orchestration/python/orchestrator.py --benchmark
 python scripts/run_smoke_and_capture_evidence.py --os windows --output-root build/release-evidence
 ```

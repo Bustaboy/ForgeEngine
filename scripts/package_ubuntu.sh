@@ -15,6 +15,9 @@ DEB_ROOT="$PACKAGE_ROOT/deb"
 APPIMAGE_ROOT="$PACKAGE_ROOT/appimage"
 SAMPLE_BRIEF="$REPO_ROOT/app/samples/interview-brief.sample.json"
 PLAYTEST_SCENARIO="$REPO_ROOT/app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json"
+PYTHONPATH_ROOT="$REPO_ROOT/ai-orchestration/python"
+
+export PYTHONPATH="$PYTHONPATH_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 mkdir -p "$PUBLISH_DIR" "$RUNTIME_BIN_DIR" "$PACKAGE_ROOT"
 

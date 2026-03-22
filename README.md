@@ -22,8 +22,8 @@ pwsh -f scripts/bootstrap.ps1
 Run these once on a fresh machine:
 
 ```bash
-python3 ai-orchestration/python/orchestrator.py --prepare-models
-python3 ai-orchestration/python/orchestrator.py --benchmark
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --prepare-models
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py --benchmark
 ```
 
 This ensures local model artifacts are prepared and hardware recommendations are captured.
@@ -33,7 +33,7 @@ This ensures local model artifacts are prepared and hardware recommendations are
 Run end-to-end generation and bot validation using the sample brief:
 
 ```bash
-python3 ai-orchestration/python/orchestrator.py \
+PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.py \
   --run-generation-pipeline \
   --generate-prototype app/samples/interview-brief.sample.json \
   --output build/generated-prototypes \
@@ -43,8 +43,9 @@ python3 ai-orchestration/python/orchestrator.py \
 Then capture cross-platform smoke evidence:
 
 ```bash
-python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root build/release-evidence
+PYTHONPATH=ai-orchestration/python python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root build/release-evidence
 # or on Windows host:
+$env:PYTHONPATH="ai-orchestration/python"
 python ai-orchestration/python/orchestrator.py --benchmark
 python scripts/run_smoke_and_capture_evidence.py --os windows --output-root build/release-evidence
 ```

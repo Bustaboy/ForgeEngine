@@ -51,6 +51,21 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Set PYTHONPATH (non-Windows)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "PYTHONPATH=${GITHUB_WORKSPACE}/ai-orchestration/python:${PYTHONPATH}" >> "$GITHUB_ENV"
+
+      - name: Set PYTHONPATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
+            "PYTHONPATH=$env:GITHUB_WORKSPACE/ai-orchestration/python" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            "PYTHONPATH=$env:GITHUB_WORKSPACE/ai-orchestration/python;$env:PYTHONPATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
       - name: Install Ubuntu packaging deps
         if: runner.os == 'Linux'
         run: |

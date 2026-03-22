@@ -11,6 +11,9 @@ RUNTIME_BIN_DIR="$OUTPUT_ROOT/runtime"
 RUNTIME_BIN="$RUNTIME_BIN_DIR/forgeengine_runtime"
 APP_BUNDLE="$OUTPUT_ROOT/ForgeEngine.app"
 DMG_PATH="$OUTPUT_ROOT/ForgeEngine-${VERSION}-macos-arm64.dmg"
+PYTHONPATH_ROOT="$REPO_ROOT/ai-orchestration/python"
+
+export PYTHONPATH="$PYTHONPATH_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 mkdir -p "$PUBLISH_DIR" "$RUNTIME_BIN_DIR"
 

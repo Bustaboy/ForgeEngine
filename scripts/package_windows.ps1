@@ -16,6 +16,13 @@ $wxsPath = Join-Path $packageRoot "ForgeEngine.wxs"
 $msiPath = Join-Path $outputRoot "ForgeEngine-$Version-win-x64.msi"
 $sampleBrief = Join-Path $repoRoot "app/samples/interview-brief.sample.json"
 $playtestScenario = Join-Path $repoRoot "app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json"
+$pythonPathRoot = Join-Path $repoRoot "ai-orchestration/python"
+if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
+    $env:PYTHONPATH = $pythonPathRoot
+}
+else {
+    $env:PYTHONPATH = "$pythonPathRoot;$env:PYTHONPATH"
+}
 
 New-Item -ItemType Directory -Force -Path $publishDir, $runtimeDir, $packageRoot | Out-Null
 
