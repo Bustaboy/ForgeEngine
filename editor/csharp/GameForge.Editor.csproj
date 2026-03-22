@@ -11,8 +11,6 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.7" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.7" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.7" />
-    <PackageReference Include="Avalonia.WebView" Version="11.3.7" />
-    <PackageReference Include="Avalonia.WebView.Desktop" Version="11.3.7" />
   </ItemGroup>
 
   <ItemGroup>
