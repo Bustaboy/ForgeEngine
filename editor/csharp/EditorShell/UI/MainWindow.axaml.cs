@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
@@ -16,6 +17,7 @@ public partial class MainWindow : Window
 {
     private const double ViewportScale = 38.0;
     private const double MarkerSize = 34.0;
+    private const string AssetDragFormat = "application/x-gameforge-asset-id";
     private readonly MainWindowViewModel _viewModel = new();
     private bool _firstRunModalChecked;
     private bool _isSyncingEditorText;
@@ -71,6 +73,9 @@ public partial class MainWindow : Window
         _viewportCanvas.PointerPressed += OnViewportPointerPressed;
         _viewportCanvas.PointerReleased += OnViewportPointerReleased;
         _viewportCanvas.SizeChanged += (_, _) => RefreshViewportVisuals();
+        DragDrop.SetAllowDrop(_viewportCanvas, true);
+        _viewportCanvas.AddHandler(DragDrop.DragOverEvent, OnViewportDragOver);
+        _viewportCanvas.AddHandler(DragDrop.DropEvent, OnViewportDrop);
         _viewModel.ViewportEntities.CollectionChanged += OnViewportEntitiesChanged;
         RefreshViewportVisuals();
     }
@@ -165,6 +170,8 @@ public partial class MainWindow : Window
             _viewportCanvas.PointerMoved -= OnViewportPointerMoved;
             _viewportCanvas.PointerPressed -= OnViewportPointerPressed;
             _viewportCanvas.PointerReleased -= OnViewportPointerReleased;
+            _viewportCanvas.RemoveHandler(DragDrop.DragOverEvent, OnViewportDragOver);
+            _viewportCanvas.RemoveHandler(DragDrop.DropEvent, OnViewportDrop);
         }
     }
 
@@ -474,6 +481,102 @@ public partial class MainWindow : Window
         _marqueeVisual.IsVisible = false;
         _marqueeVisual.Width = 0;
         _marqueeVisual.Height = 0;
+    }
+
+
+    private void OnViewportDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data.Contains(AssetDragFormat) || e.Data.Contains(DataFormats.Text))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.None;
+    }
+
+    private async void OnViewportDrop(object? sender, DragEventArgs e)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var assetId = e.Data.Get(AssetDragFormat) as string;
+        if (string.IsNullOrWhiteSpace(assetId) && e.Data.Contains(DataFormats.Text))
+        {
+            assetId = e.Data.GetText();
+        }
+
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            return;
+        }
+
+        var world = ScreenToWorld(e.GetPosition(_viewportCanvas));
+        await _viewModel.PlaceImportedAssetInSceneAsync(assetId, world.X, world.Y);
+        RefreshViewportVisuals();
+    }
+
+    private (float X, float Y) ScreenToWorld(Point point)
+    {
+        if (_viewportCanvas is null)
+        {
+            return (0f, 0f);
+        }
+
+        var centerX = _viewportCanvas.Bounds.Width / 2.0;
+        var centerY = _viewportCanvas.Bounds.Height / 2.0;
+        var worldX = (float)((point.X - centerX) / ViewportScale);
+        var worldY = (float)((centerY - point.Y) / ViewportScale);
+        return (worldX, worldY);
+    }
+
+    private async void OnAssetChipPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control control || control.Tag is not string assetId || string.IsNullOrWhiteSpace(assetId))
+        {
+            return;
+        }
+
+        var selected = _viewModel.ImportedAssets.FirstOrDefault(asset => string.Equals(asset.Id, assetId, StringComparison.Ordinal));
+        _viewModel.SelectedImportedAsset = selected;
+
+        var data = new DataObject();
+        data.Set(AssetDragFormat, assetId);
+        data.Set(DataFormats.Text, assetId);
+        await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+    }
+
+    private async void OnImportAssetClick(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null)
+        {
+            _viewModel.SetStatusMessage("Storage provider unavailable for asset import.");
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import Asset (PNG/OBJ)",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("GameForge V1 Assets")
+                {
+                    Patterns = ["*.png", "*.obj"],
+                },
+            ],
+        });
+
+        var picked = files.FirstOrDefault();
+        if (picked is null)
+        {
+            return;
+        }
+
+        await _viewModel.ImportAssetAsync(picked.Path.LocalPath);
     }
 
     private async Task ShowBenchmarkModalAsync(BenchmarkResultEnvelope benchmark)

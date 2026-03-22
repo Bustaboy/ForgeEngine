@@ -204,6 +204,51 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal("Running", viewModel.RuntimeLaunchStatus);
     }
 
+    [Fact]
+    public async Task ImportAsset_PersistsAssetCatalogEntry()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        var texturePath = Path.Combine(_tempRoot, "tree.png");
+        await File.WriteAllBytesAsync(texturePath, [137, 80, 78, 71]);
+
+        var imported = await viewModel.ImportAssetAsync(texturePath);
+
+        Assert.True(imported);
+        Assert.Single(viewModel.ImportedAssets);
+        Assert.Equal("texture", viewModel.ImportedAssets[0].Kind);
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        Assert.True(document.RootElement.TryGetProperty("imported_assets", out var importedAssets));
+        Assert.Single(importedAssets.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task PlaceImportedAssetInScene_AddsEntityWithAssetMetadata()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        var texturePath = Path.Combine(_tempRoot, "ground.png");
+        await File.WriteAllBytesAsync(texturePath, [137, 80, 78, 71]);
+        await viewModel.ImportAssetAsync(texturePath);
+
+        var placed = await viewModel.PlaceImportedAssetInSceneAsync(viewModel.ImportedAssets[0].Id, 3.5f, -1.25f);
+
+        Assert.True(placed);
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var entity = document.RootElement.GetProperty("entities")[0];
+        Assert.Equal(viewModel.ImportedAssets[0].Id, entity.GetProperty("asset_id").GetString());
+        Assert.Equal(texturePath, entity.GetProperty("asset_path").GetString());
+        Assert.Equal(3.5f, entity.GetProperty("x").GetSingle());
+        Assert.Equal(-1.25f, entity.GetProperty("y").GetSingle());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
