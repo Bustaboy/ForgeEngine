@@ -246,7 +246,7 @@ public static class SteamReadinessPolicy
 
     public static void WriteAuditTrail(PublishAuditTrail auditTrail, string destinationPath)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath) ?? ".");
+        EnsureParentDirectory(destinationPath);
         var payload = JsonSerializer.Serialize(auditTrail, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(destinationPath, payload + Environment.NewLine, Encoding.UTF8);
     }
@@ -275,9 +275,16 @@ public static class SteamReadinessPolicy
             return false;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(externalDestinationPath) ?? ".");
+        EnsureParentDirectory(externalDestinationPath);
         File.Copy(localAuditPath, externalDestinationPath, overwrite: true);
         return true;
+    }
+
+
+    private static void EnsureParentDirectory(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        Directory.CreateDirectory(string.IsNullOrWhiteSpace(directory) ? "." : directory);
     }
 
     private static SteamReadinessChecklistItem BuildItem(

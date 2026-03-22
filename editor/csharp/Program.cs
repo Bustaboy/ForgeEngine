@@ -97,8 +97,7 @@ internal static class Program
             var uploadDestination = GetOptionValue(args, "--upload-destination")
                 ?? Path.Combine("build", "publish", "external", "steam-readiness-audit.json");
 
-            RunSteamReadinessFlow(metricsPath, requestPublish, acknowledgedWarnings, confirmUpload, auditOutput, uploadDestination);
-            return 0;
+            return RunSteamReadinessFlow(metricsPath, requestPublish, acknowledgedWarnings, confirmUpload, auditOutput, uploadDestination);
         }
 
         if (args.Length > 0 && args[0] == "--playtest-report-view")
@@ -302,7 +301,7 @@ internal static class Program
     }
 
 
-    private static void RunSteamReadinessFlow(
+    private static int RunSteamReadinessFlow(
         string metricsPath,
         bool requestPublish,
         bool warningAcknowledged,
@@ -320,13 +319,19 @@ internal static class Program
         if (!requestPublish)
         {
             Console.WriteLine("Publish dry-run complete. Re-run with --publish to execute publish gate flow.");
-            return;
+            return 0;
         }
 
-        if (gate.Decision != PublishDecision.Ready)
+        if (gate.Decision == PublishDecision.BlockedByCritical)
         {
             Console.WriteLine("Publish action not executed.");
-            return;
+            return 10;
+        }
+
+        if (gate.Decision == PublishDecision.RequiresWarningAcknowledgement)
+        {
+            Console.WriteLine("Publish action not executed.");
+            return 11;
         }
 
         var signingKey = SteamReadinessPolicy.EnsureLocalSigningKey();
@@ -340,6 +345,8 @@ internal static class Program
         Console.WriteLine(uploaded
             ? $"Audit uploaded to external destination: {Path.GetFullPath(uploadDestination)}"
             : "Upload skipped. Re-run with --confirm-upload to consent and continue.");
+
+        return 0;
     }
 
     private static string? GetOptionValue(IReadOnlyList<string> args, string option)

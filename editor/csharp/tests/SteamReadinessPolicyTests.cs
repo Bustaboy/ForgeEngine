@@ -103,4 +103,40 @@ public sealed class SteamReadinessPolicyTests
         var payload = JsonDocument.Parse(File.ReadAllText(localAuditPath)).RootElement;
         Assert.Equal("gameforge.steam_readiness_audit.v1", payload.GetProperty("Schema").GetString());
     }
+    [Fact]
+    public void AuditWriteAndUpload_SupportFilenameOnlyPaths()
+    {
+        var metrics = new SteamQualityMetrics
+        {
+            CrashFreeSessionRatePercent = 99.0,
+            SustainedFpsFloor = 40.0,
+            Fps60CompliancePercent = 96.0,
+            InitialSceneLoadSeconds = 9.0,
+            SafeSavePassRatePercent = 100.0,
+        };
+        var report = SteamReadinessPolicy.Evaluate(metrics);
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"gameforge-steam-ready-filename-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        var originalCwd = Environment.CurrentDirectory;
+
+        try
+        {
+            Environment.CurrentDirectory = tempRoot;
+            var key = SteamReadinessPolicy.EnsureLocalSigningKey(Path.Combine(tempRoot, "home"));
+            var audit = SteamReadinessPolicy.BuildAuditTrail(metrics, report, key);
+
+            SteamReadinessPolicy.WriteAuditTrail(audit, "steam-readiness-audit.json");
+            Assert.True(File.Exists(Path.Combine(tempRoot, "steam-readiness-audit.json")));
+
+            var uploaded = SteamReadinessPolicy.ConfirmAndUploadAudit("steam-readiness-audit.json", "steam-upload.json", userConfirmed: true);
+            Assert.True(uploaded);
+            Assert.True(File.Exists(Path.Combine(tempRoot, "steam-upload.json")));
+        }
+        finally
+        {
+            Environment.CurrentDirectory = originalCwd;
+        }
+    }
+
 }
