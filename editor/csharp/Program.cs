@@ -75,7 +75,8 @@ internal static class Program
                 ? args[1]
                 : Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
 
-            await RunEditorShellSmokeAsync(projectRoot);
+            var declarationArg = GetOptionValue(args, "--set-commercial-declaration");
+            await RunEditorShellSmokeAsync(projectRoot, declarationArg);
             return 0;
         }
 
@@ -251,7 +252,7 @@ internal static class Program
         Console.WriteLine($"prototype_seed={proposalPayload}");
     }
 
-    private static async Task RunEditorShellSmokeAsync(string projectRoot)
+    private static async Task RunEditorShellSmokeAsync(string projectRoot, string? declarationArg)
     {
         var snapshot = await EditorProjectLoader.LoadGeneratedProjectAsync(projectRoot);
         var workspace = new EditorWorkspace(snapshot);
@@ -279,6 +280,31 @@ internal static class Program
         Console.WriteLine($"Style preset active: {styleView.ActivePresetDisplayName} ({styleView.ActivePresetId})");
         Console.WriteLine($"Style helper mode: {styleView.HelperMode}");
         Console.WriteLine($"Style preset options: {string.Join(", ", styleView.AvailablePresets.Select(item => item.DisplayName))}");
+
+        if (!string.IsNullOrWhiteSpace(declarationArg))
+        {
+            if (!CommercialUsePolicy.TryParseDeclaration(declarationArg, out var declaration))
+            {
+                throw new ArgumentException("Invalid declaration. Use commercial or non-commercial.");
+            }
+
+            var changed = workspace.SetCommercialDeclaration(declaration, "settings-flow");
+            Console.WriteLine(changed
+                ? $"Commercial declaration updated: {workspace.CommercialPolicy.Declaration}"
+                : $"Commercial declaration unchanged: {workspace.CommercialPolicy.Declaration}");
+        }
+
+        var policyText = CommercialUsePolicy.BuildPolicyText();
+        Console.WriteLine("Settings policy: commercial use declaration");
+        Console.WriteLine($"- Current declaration: {workspace.CommercialPolicy.Declaration}");
+        Console.WriteLine($"- Criteria: {policyText.CriteriaSummary}");
+        Console.WriteLine($"- Revenue share: {policyText.RevenueShareSummary}");
+
+        foreach (var audit in workspace.CommercialDeclarationAudit)
+        {
+            Console.WriteLine($"- Declaration audit: {audit.PreviousDeclaration} -> {audit.NewDeclaration} at {audit.ChangedAtUtc:O} ({audit.Reason})");
+        }
+
         Console.WriteLine("Editor shell smoke passed.");
     }
 
@@ -315,6 +341,11 @@ internal static class Program
 
         var gate = SteamReadinessPolicy.EvaluatePublishGate(report, warningAcknowledged);
         Console.WriteLine(gate.Message);
+
+        var policyText = CommercialUsePolicy.BuildPolicyText();
+        Console.WriteLine("Publish policy: commercial criteria + revenue share");
+        Console.WriteLine($"- {policyText.CriteriaSummary}");
+        Console.WriteLine($"- {policyText.RevenueShareSummary}");
 
         if (!requestPublish)
         {

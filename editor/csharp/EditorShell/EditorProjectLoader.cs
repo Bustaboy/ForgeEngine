@@ -16,6 +16,7 @@ public static class EditorProjectLoader
         var assetCatalogPath = Path.Combine(projectRoot, "assets", "catalog.v1.json");
         var styleLibraryPath = Path.Combine(projectRoot, "config", "style-presets.v1.json");
         var projectStylePath = Path.Combine(projectRoot, "config", "project-style.v1.json");
+        var commercialPolicyPath = Path.Combine(projectRoot, "config", "commercial-policy.v1.json");
 
         if (!File.Exists(manifestPath))
         {
@@ -48,6 +49,7 @@ public static class EditorProjectLoader
         var sceneObjects = BuildSceneObjects(sceneRoot);
         var assets = await BuildAssetCatalogAsync(assetCatalogPath);
         var style = await BuildProjectStyleConfigAsync(styleLibraryPath, projectStylePath);
+        var commercialPolicy = await BuildCommercialPolicyConfigAsync(commercialPolicyPath);
 
         return new EditorProjectSnapshot
         {
@@ -58,6 +60,7 @@ public static class EditorProjectLoader
             SceneObjects = sceneObjects,
             Assets = assets,
             Style = style,
+            CommercialPolicy = commercialPolicy,
         };
     }
 
@@ -188,6 +191,38 @@ public static class EditorProjectLoader
             ActivePresetId = activePresetId,
             HelperMode = helperMode,
             Presets = presets,
+        };
+    }
+
+
+    private static async Task<CommercialPolicyConfig> BuildCommercialPolicyConfigAsync(string commercialPolicyPath)
+    {
+        var defaultConfig = CommercialPolicyConfig.CreateDefault();
+        if (!File.Exists(commercialPolicyPath))
+        {
+            return defaultConfig;
+        }
+
+        await using var stream = File.OpenRead(commercialPolicyPath);
+        using var document = await JsonDocument.ParseAsync(stream);
+        var root = document.RootElement;
+
+        var declarationText = root.TryGetProperty("declaration", out var declarationNode)
+            ? declarationNode.GetString() ?? string.Empty
+            : string.Empty;
+
+        var declaration = CommercialUsePolicy.TryParseDeclaration(declarationText, out var parsed)
+            ? parsed
+            : defaultConfig.Declaration;
+
+        var updatedAt = root.TryGetProperty("last_updated_utc", out var updatedNode)
+            ? updatedNode.GetString()
+            : null;
+
+        return new CommercialPolicyConfig
+        {
+            Declaration = declaration,
+            LastUpdatedUtc = updatedAt,
         };
     }
 
