@@ -71,11 +71,7 @@ internal static class Program
 
         if (args.Length > 0 && args[0] == "--editor-shell-smoke")
         {
-            var projectRoot = args.Length > 1
-                ? args[1]
-                : Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
-
-            var declarationArg = GetOptionValue(args, "--set-commercial-declaration");
+            var (projectRoot, declarationArg) = ParseEditorShellSmokeArgs(args);
             await RunEditorShellSmokeAsync(projectRoot, declarationArg);
             return 0;
         }
@@ -378,6 +374,33 @@ internal static class Program
             : "Upload skipped. Re-run with --confirm-upload to consent and continue.");
 
         return 0;
+    }
+
+
+    private static (string ProjectRoot, string? DeclarationArg) ParseEditorShellSmokeArgs(IReadOnlyList<string> args)
+    {
+        var defaultProjectRoot = Path.Combine("app", "samples", "generated-prototype", "cozy-colony-tales");
+        var declarationArg = GetOptionValue(args, "--set-commercial-declaration");
+
+        var positionalArgs = new List<string>();
+        for (var i = 1; i < args.Count; i++)
+        {
+            var current = args[i];
+            if (current.StartsWith("--", StringComparison.Ordinal))
+            {
+                if (string.Equals(current, "--set-commercial-declaration", StringComparison.OrdinalIgnoreCase))
+                {
+                    i++;
+                }
+
+                continue;
+            }
+
+            positionalArgs.Add(current);
+        }
+
+        var projectRoot = positionalArgs.Count > 0 ? positionalArgs[0] : defaultProjectRoot;
+        return (projectRoot, declarationArg);
     }
 
     private static string? GetOptionValue(IReadOnlyList<string> args, string option)
