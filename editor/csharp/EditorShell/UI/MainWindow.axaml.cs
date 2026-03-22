@@ -1,23 +1,35 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
 using System.ComponentModel;
+using System.Collections.Specialized;
 
 namespace GameForge.Editor.EditorShell.UI;
 
 public partial class MainWindow : Window
 {
+    private const double ViewportScale = 38.0;
+    private const double MarkerSize = 34.0;
     private readonly MainWindowViewModel _viewModel = new();
     private bool _firstRunModalChecked;
     private bool _isSyncingEditorText;
+    private Canvas? _viewportCanvas;
+    private MainWindowViewModel.ViewportEntity? _draggingEntity;
+    private Point _dragPointerStart;
+    private float _dragEntityStartX;
+    private float _dragEntityStartY;
 
     public MainWindow()
     {
         InitializeComponent();
         ConfigureCodeEditor();
+        ConfigureViewportSurface();
         DataContext = _viewModel;
         Opened += OnOpened;
         Closed += OnClosed;
@@ -42,6 +54,21 @@ public partial class MainWindow : Window
         editor.Text = _viewModel.MonacoEditorContent;
         editor.TextChanged += OnCodeEditorTextChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void ConfigureViewportSurface()
+    {
+        _viewportCanvas = this.FindControl<Canvas>("ViewportCanvas");
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        _viewportCanvas.PointerMoved += OnViewportPointerMoved;
+        _viewportCanvas.PointerReleased += OnViewportPointerReleased;
+        _viewportCanvas.SizeChanged += (_, _) => RefreshViewportVisuals();
+        _viewModel.ViewportEntities.CollectionChanged += OnViewportEntitiesChanged;
+        RefreshViewportVisuals();
     }
 
     private void OnCodeEditorTextChanged(object? sender, EventArgs e)
@@ -124,6 +151,136 @@ public partial class MainWindow : Window
         }
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.ViewportEntities.CollectionChanged -= OnViewportEntitiesChanged;
+        if (_viewportCanvas is not null)
+        {
+            _viewportCanvas.PointerMoved -= OnViewportPointerMoved;
+            _viewportCanvas.PointerReleased -= OnViewportPointerReleased;
+        }
+    }
+
+    private void OnViewportEntitiesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RefreshViewportVisuals();
+    }
+
+    private void RefreshViewportVisuals()
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        _viewportCanvas.Children.Clear();
+        foreach (var entity in _viewModel.ViewportEntities)
+        {
+            var marker = BuildEntityMarker(entity);
+            _viewportCanvas.Children.Add(marker);
+            UpdateEntityMarkerPosition(marker, entity);
+        }
+    }
+
+    private Border BuildEntityMarker(MainWindowViewModel.ViewportEntity entity)
+    {
+        var icon = entity.Type switch
+        {
+            "player" => "👤",
+            "npc" => "🧍",
+            _ => "📦",
+        };
+
+        var marker = new Border
+        {
+            Width = MarkerSize,
+            Height = MarkerSize,
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Color.Parse("#1A2C45")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#4AA3FF")),
+            BorderThickness = new Thickness(1.2),
+            Tag = entity.Id,
+            Child = new TextBlock
+            {
+                Text = icon,
+                FontSize = 15,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            }
+        };
+
+        ToolTip.SetTip(marker, $"{entity.DisplayName} ({entity.X:F2}, {entity.Y:F2})");
+        marker.PointerPressed += OnEntityPointerPressed;
+        return marker;
+    }
+
+    private void UpdateEntityMarkerPosition(Control marker, MainWindowViewModel.ViewportEntity entity)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var centerX = _viewportCanvas.Bounds.Width / 2.0;
+        var centerY = _viewportCanvas.Bounds.Height / 2.0;
+        var left = centerX + (entity.X * ViewportScale) - (MarkerSize / 2.0);
+        var top = centerY - (entity.Y * ViewportScale) - (MarkerSize / 2.0);
+        Canvas.SetLeft(marker, left);
+        Canvas.SetTop(marker, top);
+    }
+
+    private void OnEntityPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_viewportCanvas is null || sender is not Control marker || marker.Tag is not string entityId)
+        {
+            return;
+        }
+
+        if (!_viewModel.BeginDragForEntity(entityId))
+        {
+            return;
+        }
+
+        _draggingEntity = _viewModel.SelectedViewportEntity;
+        if (_draggingEntity is null)
+        {
+            return;
+        }
+
+        _dragPointerStart = e.GetPosition(_viewportCanvas);
+        _dragEntityStartX = _draggingEntity.X;
+        _dragEntityStartY = _draggingEntity.Y;
+        e.Pointer.Capture(_viewportCanvas);
+        e.Handled = true;
+    }
+
+    private void OnViewportPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_viewportCanvas is null || _draggingEntity is null || !e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(_viewportCanvas);
+        var deltaX = (float)((current.X - _dragPointerStart.X) / ViewportScale);
+        var deltaY = (float)((_dragPointerStart.Y - current.Y) / ViewportScale);
+        var nextX = _dragEntityStartX + deltaX;
+        var nextY = _dragEntityStartY + deltaY;
+        if (_viewModel.PreviewDragPosition(_draggingEntity.Id, nextX, nextY))
+        {
+            RefreshViewportVisuals();
+        }
+    }
+
+    private async void OnViewportPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_draggingEntity is null || _viewportCanvas is null)
+        {
+            return;
+        }
+
+        _draggingEntity = null;
+        e.Pointer.Capture(null);
+        await _viewModel.CommitDragAsync();
+        RefreshViewportVisuals();
     }
 
     private async Task ShowBenchmarkModalAsync(BenchmarkResultEnvelope benchmark)
