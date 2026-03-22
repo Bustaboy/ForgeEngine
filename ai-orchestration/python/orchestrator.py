@@ -7,10 +7,16 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+PYTHON_ROOT = Path(__file__).resolve().parent
+if str(PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(PYTHON_ROOT))
+
+from benchmark import run_benchmark_as_dict
 from models import prepare_models_as_dict
 
 
@@ -1999,11 +2005,42 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Ensure local-first model files are present and print runtime assignment JSON",
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run first-launch hardware benchmark and model recommendations",
+    )
+    parser.add_argument(
+        "--benchmark-no-prepare",
+        action="store_true",
+        help="Run benchmark but skip automatic --prepare-models on first launch",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
+
+
+    if args.benchmark:
+        try:
+            result = run_benchmark_as_dict(
+                orchestrator_file=Path(__file__).resolve(),
+                auto_prepare_models=not args.benchmark_no_prepare,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except Exception as exc:  # noqa: BLE001 - keep subprocess output structured
+            print(
+                json.dumps(
+                    {
+                        "error": "benchmark_failed",
+                        "message": str(exc),
+                    },
+                    indent=2,
+                )
+            )
+            return 1
 
     if args.prepare_models:
         try:

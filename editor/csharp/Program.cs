@@ -112,6 +112,13 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "--first-run-benchmark-example")
+        {
+            var benchmark = await FirstRunBenchmarkExample.RunAsync();
+            FirstRunBenchmarkExample.RenderConsoleFirstRunModal(benchmark);
+            return 0;
+        }
+
         var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
         var fullRuntimePath = Path.GetFullPath(runtimePath);
 
