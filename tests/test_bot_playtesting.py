@@ -19,6 +19,37 @@ spec.loader.exec_module(orchestrator)
 
 
 class TestBotPlaytesting(unittest.TestCase):
+    def test_uncategorized_probes_do_not_drop_progression_keyword_matches(self):
+        result = orchestrator.BotPlaytestResult(
+            scenario_id="classification-check",
+            prototype_root="prototype",
+            status="failed",
+            human_review_required=False,
+            summary="Synthetic report for categorization coverage",
+            completed_at_utc="2026-03-22T00:00:00+00:00",
+            probe_results=[
+                orchestrator.BotPlaytestProbeResult(
+                    probe_id="level-curve-too-steep",
+                    status="failed",
+                    details="XP gain stalls in midgame.",
+                    required=True,
+                ),
+                orchestrator.BotPlaytestProbeResult(
+                    probe_id="uncategorized-balance-check",
+                    status="passed",
+                    details="General smoke signal.",
+                    required=True,
+                ),
+            ],
+            inconclusive_reasons=[],
+        )
+
+        report = orchestrator.generate_actionable_playtest_report(result)
+        progression = next(section for section in report.sections if section.section_id == "progression")
+
+        self.assertEqual("action-needed", progression.status)
+        self.assertTrue(any("level-curve-too-steep" in finding for finding in progression.findings))
+
     def test_bot_playtest_passes_on_generated_sample(self):
         result = orchestrator.run_bot_playtest_scenario(SAMPLE_PROTOTYPE, SAMPLE_SCENARIO)
         self.assertEqual("passed", result.status)
@@ -71,9 +102,16 @@ class TestBotPlaytesting(unittest.TestCase):
         )
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         payload = json.loads(proc.stdout)
-        self.assertEqual("cozy-colony-baseline", payload["scenario_id"])
-        self.assertEqual("passed", payload["status"])
-        self.assertIn("probe_results", payload)
+        self.assertEqual("cozy-colony-baseline", payload["bot_playtest_result"]["scenario_id"])
+        self.assertEqual("passed", payload["bot_playtest_result"]["status"])
+        self.assertIn("probe_results", payload["bot_playtest_result"])
+        self.assertEqual("gameforge.playtest_report.v1", payload["actionable_report"]["schema"])
+        section_ids = [section["section_id"] for section in payload["actionable_report"]["sections"]]
+        self.assertEqual(["progression", "economy", "dead-end", "pacing", "performance"], section_ids)
+        report_json = Path(payload["report_paths"]["json"])
+        report_markdown = Path(payload["report_paths"]["markdown"])
+        self.assertTrue(report_json.exists())
+        self.assertTrue(report_markdown.exists())
 
     def test_file_exists_requires_boolean_expected_value(self):
         with tempfile.TemporaryDirectory() as temp_dir:

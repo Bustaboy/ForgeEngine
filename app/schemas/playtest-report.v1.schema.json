@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gameforge.playtest-report.v1.schema.json",
+  "title": "GameForge Playtest Report V1",
+  "type": "object",
+  "required": [
+    "schema",
+    "report_id",
+    "scenario_id",
+    "prototype_root",
+    "generated_at_utc",
+    "overall_status",
+    "summary",
+    "sections",
+    "source_probe_results"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gameforge.playtest_report.v1"
+    },
+    "report_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prototype_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "overall_status": {
+      "type": "string",
+      "enum": ["passed", "failed", "inconclusive"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["section_id", "title", "status", "findings", "recommendations"],
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "enum": ["progression", "economy", "dead-end", "pacing", "performance"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "action-needed", "needs-human-review"]
+          },
+          "findings": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "progression"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "economy"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "dead-end"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "pacing"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "performance"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "source_probe_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["probe_id", "status", "details", "required"],
+        "properties": {
+          "probe_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "inconclusive"]
+          },
+          "details": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
