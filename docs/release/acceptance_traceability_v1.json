@@ -221,11 +221,15 @@
     {
       "id": "AT-015",
       "priority": "P1",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Export project with CC-BY assets and verify attribution bundle exists.",
-      "next_action": "Add attribution export tests with mixed-license fixtures.",
-      "evidence_strength": "missing",
+      "status": "covered",
+      "automation": [
+        "tests/test_asset_import_pipeline.py::test_attribution_export_includes_only_cc_by_assets_for_mixed_licenses",
+        "tests/test_asset_import_pipeline.py::test_attribution_export_fails_when_required_metadata_is_missing",
+        "tests/test_asset_import_pipeline.py::test_attribution_export_returns_not_generated_when_no_required_assets_exist"
+      ],
+      "manual_procedure": null,
+      "next_action": "Keep attribution metadata requirements aligned with any future license-policy expansions.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "Content Pipeline",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
