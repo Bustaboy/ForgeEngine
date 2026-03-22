@@ -113,11 +113,16 @@
     {
       "id": "AT-008",
       "priority": "P1",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Trigger five sequential failures and verify guided manual mode offer.",
-      "next_action": "Add failure-counter integration test for fallback UX.",
-      "evidence_strength": "missing",
+      "status": "covered",
+      "automation": [
+        "tests/test_manual_failover.py::TestManualFailover::test_four_failures_do_not_offer_manual_fallback",
+        "tests/test_manual_failover.py::TestManualFailover::test_fifth_failure_offers_guided_manual_fallback_with_retry",
+        "tests/test_manual_failover.py::TestManualFailover::test_success_resets_failure_streak",
+        "tests/test_manual_failover.py::TestManualFailover::test_failure_streaks_are_scoped_to_operation_id"
+      ],
+      "manual_procedure": null,
+      "next_action": "Keep fallback payload contract stable for editor wiring.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "AI Orchestration",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
