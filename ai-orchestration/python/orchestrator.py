@@ -1399,8 +1399,15 @@ def _resolve_json_path(payload: object, dot_path: str) -> object:
 def _run_bot_probe(prototype_root: Path, probe: BotPlaytestProbe) -> BotPlaytestProbeResult:
     target_path = prototype_root / probe.target
     if probe.probe_type == "file_exists":
+        if not isinstance(probe.expected, bool):
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=f"file_exists probe expected must be boolean, got {type(probe.expected).__name__}",
+                required=probe.required,
+            )
         exists = target_path.exists()
-        status = "passed" if exists == bool(probe.expected) else "failed"
+        status = "passed" if exists == probe.expected else "failed"
         details = f"Expected file_exists={probe.expected}, observed={exists} at {probe.target}"
         return BotPlaytestProbeResult(probe_id=probe.probe_id, status=status, details=details, required=probe.required)
 
@@ -1421,7 +1428,15 @@ def _run_bot_probe(prototype_root: Path, probe: BotPlaytestProbe) -> BotPlaytest
                 details=f"JSON file not found: {file_part}",
                 required=probe.required,
             )
-        payload = json.loads(json_file.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(json_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            return BotPlaytestProbeResult(
+                probe_id=probe.probe_id,
+                status="inconclusive",
+                details=f"Malformed JSON in {file_part}: {exc.msg}",
+                required=probe.required,
+            )
         try:
             actual_value = _resolve_json_path(payload, json_path)
         except KeyError as exc:

@@ -75,6 +75,65 @@ class TestBotPlaytesting(unittest.TestCase):
         self.assertEqual("passed", payload["status"])
         self.assertIn("probe_results", payload)
 
+    def test_file_exists_requires_boolean_expected_value(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_path = Path(temp_dir) / "scenario.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "scenario_id": "file-exists-non-bool-expected",
+                        "title": "Non-boolean expected should be inconclusive",
+                        "max_runtime_seconds": 20,
+                        "probes": [
+                            {
+                                "probe_id": "bad-expected-type",
+                                "probe_type": "file_exists",
+                                "target": "does-not-exist.txt",
+                                "expected": "false",
+                                "required": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = orchestrator.run_bot_playtest_scenario(SAMPLE_PROTOTYPE, scenario_path)
+            self.assertEqual("inconclusive", result.status)
+            self.assertTrue(result.human_review_required)
+            self.assertIn("expected must be boolean", result.inconclusive_reasons[0])
+
+    def test_malformed_json_in_json_field_equals_is_inconclusive(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prototype_root = Path(temp_dir) / "prototype"
+            prototype_root.mkdir(parents=True, exist_ok=True)
+            (prototype_root / "broken.json").write_text("{invalid-json", encoding="utf-8")
+            scenario_path = Path(temp_dir) / "scenario.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "scenario_id": "malformed-json-escalation",
+                        "title": "Malformed JSON should escalate",
+                        "max_runtime_seconds": 20,
+                        "probes": [
+                            {
+                                "probe_id": "broken-json-check",
+                                "probe_type": "json_field_equals",
+                                "target": "broken.json:any.path",
+                                "expected": "value",
+                                "required": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = orchestrator.run_bot_playtest_scenario(prototype_root, scenario_path)
+            self.assertEqual("inconclusive", result.status)
+            self.assertTrue(result.human_review_required)
+            self.assertIn("Malformed JSON", result.inconclusive_reasons[0])
+
 
 if __name__ == "__main__":
     unittest.main()
