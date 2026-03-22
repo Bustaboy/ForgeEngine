@@ -4,17 +4,31 @@ from __future__ import annotations
 
 import json
 import os
-import sys
+import importlib.util
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-PYTHON_ROOT = Path(__file__).resolve().parents[1]
-if str(PYTHON_ROOT) not in sys.path:
-    sys.path.insert(0, str(PYTHON_ROOT))
+try:
+    from models.gpu import detect_primary_gpu
+    from models.manager import prepare_models_as_dict
+    from models.registry import DEFAULT_MODEL_SET
+except ModuleNotFoundError:
+    _MODELS_ROOT = Path(__file__).resolve().parents[1] / "models"
 
-from models.gpu import detect_primary_gpu
-from models.manager import prepare_models_as_dict
-from models.registry import DEFAULT_MODEL_SET
+    def _load_module(module_name: str, filename: str):
+        spec = importlib.util.spec_from_file_location(module_name, _MODELS_ROOT / filename)
+        module = importlib.util.module_from_spec(spec)
+        assert spec is not None and spec.loader is not None
+        spec.loader.exec_module(module)
+        return module
+
+    _gpu = _load_module("benchmark_models_gpu", "gpu.py")
+    _manager = _load_module("benchmark_models_manager", "manager.py")
+    _registry = _load_module("benchmark_models_registry", "registry.py")
+
+    detect_primary_gpu = _gpu.detect_primary_gpu
+    prepare_models_as_dict = _manager.prepare_models_as_dict
+    DEFAULT_MODEL_SET = _registry.DEFAULT_MODEL_SET
 
 
 @dataclass(frozen=True)
@@ -46,6 +60,10 @@ class BenchmarkResult:
 
 
 def _resolve_state_file(orchestrator_file: Path) -> Path:
+    return orchestrator_file.parent / "models" / ".first-run-state.json"
+
+
+def _resolve_legacy_state_file(orchestrator_file: Path) -> Path:
     return orchestrator_file.parent / "models" / ".benchmark-first-run.json"
 
 
@@ -78,7 +96,8 @@ def run_benchmark(orchestrator_file: Path | None = None, auto_prepare_models: bo
 
     anchor = orchestrator_file or Path(__file__).resolve().parents[1] / "orchestrator.py"
     state_file = _resolve_state_file(anchor)
-    is_first_run = not state_file.exists()
+    legacy_state_file = _resolve_legacy_state_file(anchor)
+    is_first_run = not state_file.exists() and not legacy_state_file.exists()
 
     gpu = detect_primary_gpu()
     vram_gb = gpu.total_vram_gb if gpu else 0
@@ -95,7 +114,8 @@ def run_benchmark(orchestrator_file: Path | None = None, auto_prepare_models: bo
         json.dumps(
             {
                 "benchmark_schema": "gameforge.benchmark.v1",
-                "completed": True,
+                "benchmark_completed": True,
+                "models_prepared": prepare_invoked,
                 "gpu_vram_gb": vram_gb,
                 "prepare_models_invoked": prepare_invoked,
             },
