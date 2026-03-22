@@ -328,8 +328,8 @@ public partial class MainWindow : Window
 
         if (_isMarqueeSelecting && _marqueeVisual is not null && e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
         {
-            var current = e.GetPosition(_viewportCanvas);
-            DrawMarquee(_marqueeStart, current);
+            var marqueeCurrent = e.GetPosition(_viewportCanvas);
+            DrawMarquee(_marqueeStart, marqueeCurrent);
             e.Handled = true;
             return;
         }
