@@ -6,11 +6,9 @@
     "crash_free_session_rate_percent": 100.0,
     "sustained_fps_floor": 57.0,
     "fps_60_compliance_percent": 70.0,
+    "frame_time_p95_ms": 17.3,
     "initial_scene_load_seconds": 12.0,
     "safe_save_pass_rate_percent": 100.0
-  },
-  "supplemental_metrics": {
-    "frame_time_p95_ms": 17.3
   },
   "gate_evaluation": {
     "decision": "requires_warning_ack",
@@ -42,6 +40,14 @@
         "passed": true
       },
       {
+        "acceptance_id": "AT-023",
+        "metric": "frame_time_p95_ms",
+        "severity": "warning",
+        "threshold": "< 33.0",
+        "observed": 17.3,
+        "passed": true
+      },
+      {
         "acceptance_id": "AT-024",
         "metric": "initial_scene_load_seconds",
         "severity": "critical",
@@ -56,21 +62,13 @@
         "threshold": ">= 100.0",
         "observed": 100.0,
         "passed": true
-      },
-      {
-        "acceptance_id": "AT-023",
-        "metric": "frame_time_p95_ms",
-        "severity": "warning",
-        "threshold": "< 33.0",
-        "observed": 17.3,
-        "passed": true,
-        "note": "Informational readiness signal; publish gate currently follows SteamReadinessPolicy fields."
       }
     ]
   },
   "crash_free_session_rate_percent": 100.0,
   "sustained_fps_floor": 57.0,
   "fps_60_compliance_percent": 70.0,
+  "frame_time_p95_ms": 17.3,
   "initial_scene_load_seconds": 12.0,
   "safe_save_pass_rate_percent": 100.0
 }

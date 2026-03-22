@@ -41,7 +41,7 @@ Source references used:
 | AT-017 | P1 | covered | `editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_WarningsRequireAcknowledgement_AndAllowOverride` | n/a | — |
 | AT-018 | P1 | covered | `editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent`; `AuditWriteAndUpload_SupportFilenameOnlyPaths` | n/a | — |
 | AT-019 | P1 | covered | `editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent`; `editor/csharp/tests/SteamReadinessPolicyTests.cs::CommercialPolicyText_ContainsCriteriaAndRevenueThreshold` | n/a | Commercial policy text evidence includes canonical $1,000 revenue-share trigger alignment with lock docs. |
-| AT-023 | P1 | partial | `scripts/collect_readiness_metrics.py` emits `supplemental_metrics.frame_time_p95_ms` and an AT-023 check in `gate_evaluation.checks` inside `docs/release/evidence/readiness_metrics_sample.json`. | Run collector with frame-time fixture from validation scene capture and verify p95 result against `<33ms`; archive fixture + output together as release evidence. | Wire AT-023 directly into Steam readiness publish-gate checklist once policy contract is expanded beyond current fields. |
+| AT-023 | P1 | covered | `scripts/collect_readiness_metrics.py` emits first-class `frame_time_p95_ms` readiness metric and AT-023 threshold check in `docs/release/evidence/readiness_metrics_sample.json`; enforcement path is wired in `editor/csharp/EditorShell/SteamReadiness.cs` and covered by `editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_FrameTimeP95Failure_IsWarningAndRequiresAcknowledgement`. | Run collector with frame-time fixture from validation scene capture and verify p95 result against `<33ms`; then run Steam readiness flow and confirm warning acknowledgement behavior when threshold fails. | Add target-hardware frame-time trace ingestion to replace synthetic/local fixture data (Owner: Runtime/Perf). |
 | AT-024 | P1 | covered | `scripts/collect_readiness_metrics.py` computes deterministic `initial_scene_load_seconds` and records AT-024 threshold evaluation in `docs/release/evidence/readiness_metrics_sample.json`; gate path remains covered in `editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish`. | Run collector with first-load timing fixture and verify `<20s` threshold outcome in `gate_evaluation.checks`. | Add automatic collection from runtime startup probe on target baseline hardware. |
 | AT-027 | P2 | missing | No tests found for Git default-off behavior. | Create project and inspect VCS state/settings to confirm Git disabled by default. | Add project creation default-settings test in editor shell suite. |
 | AT-028 | P2 | missing | No tests found for Git opt-in repository initialization. | Enable Git in project settings and verify `.git/` initialized + first status clean. | Add opt-in Git init integration test (may require env guard for Git availability). |
@@ -58,8 +58,8 @@ Source references used:
 - **Immediate hardening focus:** execute and archive AT-010/AT-011 smoke evidence each release candidate, then convert partial P0 perf/reliability checks from policy-only validation to measured integration inputs.
 
 ### P1
-- **Covered:** 5 (`AT-004`, `AT-017`, `AT-018`, `AT-019`, `AT-024`)
-- **Partial:** 4 (`AT-005`, `AT-012`, `AT-023`, `AT-030`)
+- **Covered:** 6 (`AT-004`, `AT-017`, `AT-018`, `AT-019`, `AT-023`, `AT-024`)
+- **Partial:** 3 (`AT-005`, `AT-012`, `AT-030`)
 - **Missing:** 4 (`AT-008`, `AT-015`, `AT-029`, `AT-031`)
 
 ### P2

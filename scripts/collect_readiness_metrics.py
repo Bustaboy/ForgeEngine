@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect deterministic local readiness metrics for AT-020..AT-024.
+"""Collect deterministic local readiness metrics for AT-020..AT-025.
 
 This script is intentionally local-first: it reads plain JSON fixture inputs,
 computes quality metrics, evaluates thresholds, and writes one evidence artifact.
@@ -18,6 +18,7 @@ THRESHOLDS: dict[str, dict[str, Any]] = {
     "crash_free_session_rate_percent": {"operator": ">=", "value": 97.0, "acceptance_id": "AT-020", "severity": "critical"},
     "fps_60_compliance_percent": {"operator": ">=", "value": 95.0, "acceptance_id": "AT-021", "severity": "warning"},
     "sustained_fps_floor": {"operator": ">=", "value": 30.0, "acceptance_id": "AT-022", "severity": "critical"},
+    "frame_time_p95_ms": {"operator": "<", "value": 33.0, "acceptance_id": "AT-023", "severity": "warning"},
     "initial_scene_load_seconds": {"operator": "<", "value": 20.0, "acceptance_id": "AT-024", "severity": "critical"},
     "safe_save_pass_rate_percent": {"operator": ">=", "value": 100.0, "acceptance_id": "AT-025", "severity": "critical"},
 }
@@ -114,19 +115,6 @@ def evaluate(metrics: dict[str, float]) -> dict[str, Any]:
             else:
                 warning_failures += 1
 
-    # AT-023 tracking is informational in this revision; the p95 metric is emitted for evidence.
-    checks.append(
-        {
-            "acceptance_id": "AT-023",
-            "metric": "frame_time_p95_ms",
-            "severity": "warning",
-            "threshold": "< 33.0",
-            "observed": metrics["frame_time_p95_ms"],
-            "passed": metrics["frame_time_p95_ms"] < 33.0,
-            "note": "Informational readiness signal; publish gate currently follows SteamReadinessPolicy fields.",
-        }
-    )
-
     decision = "ready"
     if critical_failures > 0:
         decision = "blocked_by_critical"
@@ -146,6 +134,7 @@ def build_artifact(metrics: dict[str, float], evaluation: dict[str, Any], input_
         "crash_free_session_rate_percent",
         "sustained_fps_floor",
         "fps_60_compliance_percent",
+        "frame_time_p95_ms",
         "initial_scene_load_seconds",
         "safe_save_pass_rate_percent",
     ]
@@ -154,7 +143,6 @@ def build_artifact(metrics: dict[str, float], evaluation: dict[str, Any], input_
         "collected_by": "scripts/collect_readiness_metrics.py",
         "input_source": str(input_path) if input_path else "embedded_default_fixture",
         "metrics": {k: metrics[k] for k in ordered_metric_keys},
-        "supplemental_metrics": {"frame_time_p95_ms": metrics["frame_time_p95_ms"]},
         "gate_evaluation": evaluation,
     }
     # Keep SteamReadinessPolicy compatibility by flattening required gate inputs at the JSON root.
