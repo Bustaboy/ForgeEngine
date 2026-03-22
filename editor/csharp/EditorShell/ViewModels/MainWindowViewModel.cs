@@ -90,6 +90,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _exportFolderPath = "Not exported yet.";
     private readonly ObservableCollection<ExportChecklistItem> _exportChecklistItems = new();
     private readonly ReadOnlyObservableCollection<ExportChecklistItem> _readonlyExportChecklistItems;
+    private SteamReadinessReport? _lastSteamReadinessReport;
+    private string _steamReadinessSummary = "Steam readiness not evaluated yet.";
+    private string _steamReadinessWarnings = "No readiness warnings.";
+    private string _publishDryRunStatus = "Publish dry-run not started.";
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -404,6 +408,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         : (int)Math.Round((double)ExportChecklistCompletedCount / ExportChecklistTotalCount * 100.0, MidpointRounding.AwayFromZero);
 
     public ReadOnlyObservableCollection<ExportChecklistItem> ExportChecklistItems => _readonlyExportChecklistItems;
+
+    public string SteamReadinessSummary
+    {
+        get => _steamReadinessSummary;
+        private set => SetField(ref _steamReadinessSummary, value);
+    }
+
+    public string SteamReadinessWarnings
+    {
+        get => _steamReadinessWarnings;
+        private set => SetField(ref _steamReadinessWarnings, value);
+    }
+
+    public bool HasSteamReadinessWarnings => _lastSteamReadinessReport?.WarningIssueCount > 0;
+
+    public string PublishDryRunStatus
+    {
+        get => _publishDryRunStatus;
+        private set => SetField(ref _publishDryRunStatus, value);
+    }
 
     public string PipelineProgress
     {
@@ -821,6 +845,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             StartExportChecklistItem("steam-readiness", "Running Steam readiness policy check...");
             var metricsPath = ResolveSteamReadinessMetricsPath();
             var readinessReport = SteamReadinessPolicy.Evaluate(SteamReadinessPolicy.LoadMetrics(metricsPath));
+            ApplySteamReadinessDetails(readinessReport);
             if (readinessReport.CriticalIssueCount > 0)
             {
                 throw new InvalidOperationException($"Steam readiness has {readinessReport.CriticalIssueCount} critical issue(s).");
@@ -829,7 +854,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var readinessSummary = readinessReport.WarningIssueCount > 0
                 ? $"Readiness score {readinessReport.Score}/100 with {readinessReport.WarningIssueCount} warning(s)."
                 : $"Readiness score {readinessReport.Score}/100 with no warnings.";
-            CompleteExportChecklistItem("steam-readiness", readinessSummary);
+            CompleteExportChecklistItem("steam-readiness", readinessSummary, hasWarning: readinessReport.WarningIssueCount > 0);
 
             ExportPackagePath = packagePath;
             ExportFolderPath = exportFolder;
@@ -861,6 +886,57 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public void OpenExportOutputPath()
     {
         OpenExportPackagePath();
+    }
+
+    public async Task RunPublishToSteamDryRunAsync(bool userConfirmed, CancellationToken cancellationToken = default)
+    {
+        OpenExportChecklist();
+
+        SteamReadinessReport readinessReport;
+        SteamQualityMetrics metrics;
+        try
+        {
+            var metricsPath = ResolveSteamReadinessMetricsPath();
+            metrics = SteamReadinessPolicy.LoadMetrics(metricsPath);
+            readinessReport = SteamReadinessPolicy.Evaluate(metrics);
+            ApplySteamReadinessDetails(readinessReport);
+        }
+        catch (Exception ex)
+        {
+            PublishDryRunStatus = $"Publish dry-run unavailable: {ex.Message}";
+            ExportStatus = PublishDryRunStatus;
+            StatusMessage = PublishDryRunStatus;
+            ShowToast("Steam publish dry-run unavailable.");
+            return;
+        }
+
+        var gate = SteamReadinessPolicy.EvaluatePublishGate(readinessReport, warningAcknowledged: userConfirmed);
+        PublishDryRunStatus = gate.Message;
+        ExportStatus = $"Publish dry-run: {gate.Message}";
+        StatusMessage = ExportStatus;
+
+        if (!userConfirmed)
+        {
+            ShowToast("Publish confirmation required to continue dry-run.");
+            return;
+        }
+
+        if (gate.Decision != PublishDecision.Ready)
+        {
+            ShowToast("Publish dry-run blocked by readiness policy.");
+            return;
+        }
+
+        var auditOutputPath = ResolvePublishAuditOutputPath();
+        var signingKey = SteamReadinessPolicy.EnsureLocalSigningKey();
+        var auditTrail = SteamReadinessPolicy.BuildAuditTrail(metrics, readinessReport, signingKey);
+        SteamReadinessPolicy.WriteAuditTrail(auditTrail, auditOutputPath);
+
+        PublishDryRunStatus = $"Publish dry-run complete. Audit generated: {auditOutputPath}";
+        ExportStatus = PublishDryRunStatus;
+        StatusMessage = PublishDryRunStatus;
+        ShowToast("Steam publish dry-run completed.");
+        await Task.CompletedTask;
     }
 
     public void OpenExportPackagePath()
@@ -1058,13 +1134,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void ResetExportChecklistItems()
     {
         _exportChecklistItems.Clear();
-        _exportChecklistItems.Add(new ExportChecklistItem("validate-scene", "🧪", "Validate scene", "Pending", false, false, false));
-        _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", false, false, false));
-        _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", false, false, false));
-        _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", false, false, false));
+        _exportChecklistItems.Add(new ExportChecklistItem("validate-scene", "🧪", "Validate scene", "Pending", false, false, false, false, "Validate generated scene scaffold and entity data."));
+        _exportChecklistItems.Add(new ExportChecklistItem("export-assets-code", "🗃", "Export assets/code", "Pending", false, false, false, false, "Copy scene, C++ runtime scaffolding, and assets into export folder."));
+        _exportChecklistItems.Add(new ExportChecklistItem("package-build", "📦", "Package build", "Pending", false, false, false, false, "Create release ZIP for local distribution."));
+        _exportChecklistItems.Add(new ExportChecklistItem("steam-readiness", "🚦", "Steam readiness check", "Pending", false, false, false, false, "Evaluate metrics, policy gate, and warnings for Steam readiness."));
         ExportPackagePath = "Not packaged yet.";
         ExportFolderPath = "Not exported yet.";
         ExportOutputPath = "Not packaged yet.";
+        PublishDryRunStatus = "Publish dry-run not started.";
+        SteamReadinessSummary = "Steam readiness not evaluated yet.";
+        SteamReadinessWarnings = "No readiness warnings.";
+        _lastSteamReadinessReport = null;
+        OnPropertyChanged(nameof(HasSteamReadinessWarnings));
         OnPropertyChanged(nameof(ExportChecklistCompletedCount));
         OnPropertyChanged(nameof(ExportChecklistTotalCount));
         OnPropertyChanged(nameof(ExportChecklistProgressPercent));
@@ -1075,17 +1156,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         UpdateExportChecklistItem(id, status, isRunning: true, isComplete: false, isFailed: false);
     }
 
-    private void CompleteExportChecklistItem(string id, string status)
+    private void CompleteExportChecklistItem(string id, string status, bool hasWarning = false)
     {
-        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: true, isFailed: false);
+        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: true, isFailed: false, hasWarning: hasWarning);
     }
 
     private void FailExportChecklistItem(string id, string status)
     {
-        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: false, isFailed: true);
+        UpdateExportChecklistItem(id, status, isRunning: false, isComplete: false, isFailed: true, hasWarning: false);
     }
 
-    private void UpdateExportChecklistItem(string id, string status, bool isRunning, bool isComplete, bool isFailed)
+    private void UpdateExportChecklistItem(string id, string status, bool isRunning, bool isComplete, bool isFailed, bool hasWarning = false)
     {
         var index = _exportChecklistItems.ToList().FindIndex(item => string.Equals(item.Id, id, StringComparison.Ordinal));
         if (index < 0)
@@ -1100,6 +1181,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             IsRunning = isRunning,
             IsComplete = isComplete,
             IsFailed = isFailed,
+            HasWarning = hasWarning,
         };
 
         OnPropertyChanged(nameof(ExportChecklistCompletedCount));
@@ -1127,6 +1209,37 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         throw new DirectoryNotFoundException("Unable to resolve repository root for steam readiness metrics.");
+    }
+
+    private static string ResolvePublishAuditOutputPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            if (File.Exists(markerPath))
+            {
+                return Path.Combine(current.FullName, "docs", "release", "evidence", $"steam-readiness-audit-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root for steam publish audit output.");
+    }
+
+    private void ApplySteamReadinessDetails(SteamReadinessReport readinessReport)
+    {
+        _lastSteamReadinessReport = readinessReport;
+        SteamReadinessSummary = $"Readiness score {readinessReport.Score}/100 • Critical {readinessReport.CriticalIssueCount} • Warnings {readinessReport.WarningIssueCount}";
+        var warningItems = readinessReport.Checklist
+            .Where(item => item.Severity == ReadinessSeverity.Warning && !item.Passed)
+            .Select(item => item.Label)
+            .ToList();
+        SteamReadinessWarnings = warningItems.Count == 0
+            ? "No readiness warnings."
+            : $"Warnings: {string.Join("; ", warningItems)}";
+        OnPropertyChanged(nameof(HasSteamReadinessWarnings));
     }
 
     private static void CopyDirectory(string sourcePath, string destinationPath, bool includeIfMissing = false)
@@ -3958,7 +4071,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         string Status,
         bool IsComplete,
         bool IsFailed,
-        bool IsRunning)
+        bool IsRunning,
+        bool HasWarning,
+        string Tooltip)
     {
         public string ProgressIcon => IsComplete
             ? "✅"
@@ -3967,6 +4082,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 : IsRunning
                     ? "⏳"
                     : "◻";
+
+        public string SeverityIcon => IsFailed
+            ? "⛔"
+            : HasWarning
+                ? "⚠️"
+                : IsComplete
+                    ? "✅"
+                    : "•";
     }
 
     internal interface IRuntimeSupervisor
