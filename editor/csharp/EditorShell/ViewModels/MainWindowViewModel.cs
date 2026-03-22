@@ -2644,7 +2644,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     }
                     else
                     {
-                        TimelineCurrentTime = TimelineDurationSeconds;
+                        TimelineCurrentTime = (float)TimelineDurationSeconds;
                         break;
                     }
                 }
