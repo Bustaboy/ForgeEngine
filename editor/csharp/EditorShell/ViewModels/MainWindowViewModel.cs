@@ -857,7 +857,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
-    private Task ToggleTimelinePlaybackAsync()
+    private Task ToggleLegacyTimelinePlaybackAsync()
     {
         if (IsTimelinePlaying)
         {
@@ -1138,7 +1138,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         LoadViewportEntitiesFromScene(PrototypeRoot);
-        RebuildTimelineMarkers();
+        RebuildLegacyTimelineMarkers();
         _undoStack.Clear();
         _redoStack.Clear();
         var scenePath = GetScenePath();
@@ -1314,7 +1314,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private void RebuildTimelineMarkers()
+    private void RebuildLegacyTimelineMarkers()
     {
         _timelineMarkers.Clear();
         var orderedFrames = _animationTracks.Values
@@ -3378,6 +3378,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private sealed class EntityAnimationTrack
     {
         public List<EntityKeyframe> Keyframes { get; } = new();
+        public List<PositionKeyframe> PositionFrames { get; } = new();
+        public List<ScalarKeyframe> ScaleFrames { get; } = new();
+        public List<ColorKeyframe> ColorFrames { get; } = new();
 
         public void Upsert(EntityKeyframe keyframe)
         {
@@ -3464,6 +3467,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public required string Label { get; init; }
 
         public required int TrackCount { get; init; }
+
+        public double TimeSeconds { get; init; }
+
+        public string TimeLabel { get; init; } = string.Empty;
+
+        public double OffsetPercent { get; init; }
+
+        public string Icon { get; init; } = "•";
     }
 
     public sealed class HistoryTimelineEntry
@@ -3757,15 +3768,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             : null;
     }
 
-    private sealed class EntityAnimationTrack
-    {
-        public List<PositionKeyframe> PositionFrames { get; } = new();
-
-        public List<ScalarKeyframe> ScaleFrames { get; } = new();
-
-        public List<ColorKeyframe> ColorFrames { get; } = new();
-    }
-
     private interface IBaseTimelineKeyframe
     {
         double TimeSeconds { get; set; }
@@ -3792,17 +3794,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public double TimeSeconds { get; set; }
 
         public string ColorHex { get; set; } = "#4AA3FF";
-    }
-
-    public sealed class TimelineMarker
-    {
-        public required double TimeSeconds { get; init; }
-
-        public required string TimeLabel { get; init; }
-
-        public required double OffsetPercent { get; init; }
-
-        public required string Icon { get; init; }
     }
 
     public sealed class ImportedAsset
