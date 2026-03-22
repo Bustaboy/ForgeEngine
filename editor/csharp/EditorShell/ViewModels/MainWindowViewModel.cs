@@ -27,6 +27,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _monacoEditorContent = "// Generate a prototype to load editable C++ runtime code.";
     private string _runtimePreviewSummary = "Generate & Play to populate runtime preview.";
     private string _runtimeEntityList = "No generated entities yet.";
+    private int? _trackedRuntimePid;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -159,6 +160,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ChatPrompt = string.Empty;
         _lastBriefPath = null;
         RuntimePid = null;
+        _trackedRuntimePid = null;
         RuntimeLaunchStatus = "Not launched";
         PipelineProgress = "Idle";
         PrototypeRoot = "(none)";
@@ -185,6 +187,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task PlayRuntimeAsync(CancellationToken cancellationToken = default)
     {
+        await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+
         if (!string.IsNullOrWhiteSpace(PrototypeRoot) && PrototypeRoot != "(none)")
         {
             await RelaunchGeneratedRuntimeAsync(cancellationToken);
@@ -213,6 +217,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await File.WriteAllTextAsync(codePath, MonacoEditorContent, cancellationToken);
         StatusMessage = $"Saved runtime code: {codePath}";
         ShowToast("Code saved. Recompiling runtime...");
+        await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
     }
 
@@ -288,6 +293,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         RuntimePid = launchResult.Pid;
+        _trackedRuntimePid = launchResult.Pid;
         RuntimeLaunchStatus = "Running";
         RuntimePreviewSummary = $"Live in Vulkan (PID: {launchResult.Pid})";
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
@@ -354,6 +360,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PipelineProgress = response.Result?.Status ?? (response.ExitCode == 0 ? "Completed" : "Failed");
         RuntimeLaunchStatus = response.Result?.RuntimeLaunchStatus ?? "Unknown";
         RuntimePid = response.Result?.RuntimeLaunchPid;
+        _trackedRuntimePid = RuntimePid;
         PrototypeRoot = response.Result?.PrototypeRoot ?? "(none)";
 
         RuntimePreviewSummary = RuntimePid is int pid
@@ -600,6 +607,94 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly record struct ProcessResult(int ExitCode, string Stdout, string Stderr);
 
     private readonly record struct LaunchResult(bool Success, int? Pid, string ErrorMessage);
+
+    private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
+    {
+        var candidatePid = _trackedRuntimePid ?? RuntimePid;
+        if (candidatePid is not int pid || pid <= 0)
+        {
+            return;
+        }
+
+        var stopResult = await TryStopRuntimeProcessAsync(pid, cancellationToken);
+        if (stopResult.Stopped)
+        {
+            RuntimeLaunchStatus = "Previous runtime stopped";
+            StatusMessage = $"Previous runtime stopped (PID: {pid}).";
+            ShowToast("Previous runtime stopped.");
+            RuntimePid = null;
+            _trackedRuntimePid = null;
+            RuntimePreviewSummary = "Runtime stopped. Relaunching generated runtime...";
+            return;
+        }
+
+        RuntimeLaunchStatus = "Previous runtime cleanup failed";
+        StatusMessage = $"Unable to stop previous runtime PID {pid}: {stopResult.ErrorMessage}";
+        ShowToast("Previous runtime cleanup failed; continuing with relaunch.");
+    }
+
+    private async Task<RuntimeStopResult> TryStopRuntimeProcessAsync(int pid, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var process = Process.GetProcessById(pid);
+                    if (process.HasExited)
+                    {
+                        return new RuntimeStopResult(true, string.Empty);
+                    }
+
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(cancellationToken);
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+                catch (ArgumentException)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+            }
+
+            var killResult = await RunProcessAsync("kill", $"-9 {pid}", workingDirectory: PrototypeRoot == "(none)" ? Environment.CurrentDirectory : PrototypeRoot, cancellationToken);
+            if (killResult.ExitCode == 0)
+            {
+                return new RuntimeStopResult(true, string.Empty);
+            }
+
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                if (process.HasExited)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync(cancellationToken);
+                return new RuntimeStopResult(true, string.Empty);
+            }
+            catch (ArgumentException)
+            {
+                return new RuntimeStopResult(true, string.Empty);
+            }
+            catch (Exception fallbackEx)
+            {
+                var fallbackMessage = string.IsNullOrWhiteSpace(killResult.Stderr)
+                    ? fallbackEx.Message
+                    : $"{killResult.Stderr.Trim()} | fallback: {fallbackEx.Message}";
+                return new RuntimeStopResult(false, fallbackMessage);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            return new RuntimeStopResult(false, ex.Message);
+        }
+    }
+
+    private readonly record struct RuntimeStopResult(bool Stopped, string ErrorMessage);
 
     private static string BuildStatusMessage(PipelineRunResponse response)
     {
