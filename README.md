@@ -49,3 +49,15 @@ Smoke test command:
 ```bash
 python3 scripts/smoke_prototype_launch.py
 ```
+
+## Milestone 7 Bot-First Playtesting Baseline
+
+Run automated baseline validation on a generated prototype before human testing:
+
+```bash
+python3 ai-orchestration/python/orchestrator.py \
+  --prototype-root app/samples/generated-prototype/cozy-colony-tales \
+  --bot-playtest-scenario app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json
+```
+
+If required checks are inconclusive, the result will set `human_review_required: true` for explicit human testing escalation.
