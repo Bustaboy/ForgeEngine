@@ -1,0 +1,38 @@
+{
+  "schema": "gameforge.rpg.inventory_leveling.v1",
+  "module_id": "rpg_baseline_progression",
+  "inventory": {
+    "capacity_slots": 20,
+    "starter_items": [
+      {
+        "item_id": "bread",
+        "quantity": 3
+      },
+      {
+        "item_id": "iron_dagger",
+        "quantity": 1
+      }
+    ],
+    "equipment_slots": [
+      "main_hand",
+      "off_hand",
+      "armor",
+      "trinket"
+    ]
+  },
+  "leveling": {
+    "starting_level": 1,
+    "starting_xp": 0,
+    "xp_curve": [
+      100,
+      250,
+      450,
+      700
+    ],
+    "stat_growth_per_level": {
+      "health": 8,
+      "stamina": 4,
+      "crafting": 2
+    }
+  }
+}

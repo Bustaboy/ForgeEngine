@@ -1,0 +1,48 @@
+{
+  "schema": "gameforge.rpg.quest_dialogue.v1",
+  "module_id": "rpg_baseline_quests",
+  "single_player_only": true,
+  "quests": [
+    {
+      "quest_id": "q_harvest_dilemma",
+      "title": "Harvest Dilemma",
+      "start_node_id": "dialogue_mayor_intro",
+      "objective": "Resolve the dispute over grain allocation.",
+      "completion_nodes": [
+        "dialogue_farmers_supported",
+        "dialogue_merchants_supported"
+      ]
+    }
+  ],
+  "dialogue_nodes": [
+    {
+      "node_id": "dialogue_mayor_intro",
+      "speaker": "Mayor Elara",
+      "text": "Winter stores are low. Should we support farmers or merchants first?",
+      "choices": [
+        {
+          "choice_id": "support_farmers",
+          "label": "Prioritize farmers this week.",
+          "next_node_id": "dialogue_farmers_supported"
+        },
+        {
+          "choice_id": "support_merchants",
+          "label": "Prioritize merchants for faster trade.",
+          "next_node_id": "dialogue_merchants_supported"
+        }
+      ]
+    },
+    {
+      "node_id": "dialogue_farmers_supported",
+      "speaker": "Farmer Lia",
+      "text": "Thank you. The village trust grows with each harvest.",
+      "choices": []
+    },
+    {
+      "node_id": "dialogue_merchants_supported",
+      "speaker": "Merchant Roan",
+      "text": "Trade routes are opening, but people may worry about rationing.",
+      "choices": []
+    }
+  ]
+}

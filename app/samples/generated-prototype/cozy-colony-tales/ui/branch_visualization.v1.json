@@ -1,0 +1,44 @@
+{
+  "schema": "gameforge.rpg.branch_view.v1",
+  "view_id": "quest_dialogue_branch_map",
+  "nodes": [
+    {
+      "node_id": "dialogue_mayor_intro",
+      "label": "Mayor Intro",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "node_id": "dialogue_farmers_supported",
+      "label": "Farmers Supported",
+      "position": {
+        "x": -280,
+        "y": 200
+      }
+    },
+    {
+      "node_id": "dialogue_merchants_supported",
+      "label": "Merchants Supported",
+      "position": {
+        "x": 280,
+        "y": 200
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_farmers",
+      "from": "dialogue_mayor_intro",
+      "to": "dialogue_farmers_supported",
+      "choice_id": "support_farmers"
+    },
+    {
+      "edge_id": "edge_merchants",
+      "from": "dialogue_mayor_intro",
+      "to": "dialogue_merchants_supported",
+      "choice_id": "support_merchants"
+    }
+  ]
+}

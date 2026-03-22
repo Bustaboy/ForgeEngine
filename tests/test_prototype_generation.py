@@ -34,8 +34,12 @@ class TestPrototypeGeneration(unittest.TestCase):
             SAMPLE_PROJECT / "scripts" / "player_controller.json",
             SAMPLE_PROJECT / "systems" / "rts_sim" / "template_module.json",
             SAMPLE_PROJECT / "ui" / "hud_layout.json",
+            SAMPLE_PROJECT / "ui" / "branch_visualization.v1.json",
             SAMPLE_PROJECT / "config" / "rts_sim_balance.v1.json",
             SAMPLE_PROJECT / "save" / "savegame_hook.json",
+            SAMPLE_PROJECT / "systems" / "rpg" / "quest_dialogue_framework.v1.json",
+            SAMPLE_PROJECT / "systems" / "rpg" / "inventory_leveling.v1.json",
+            SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json",
             SAMPLE_PROJECT / "runtime" / "main.cpp",
             SAMPLE_PROJECT / "launch_prototype.sh",
             SAMPLE_PROJECT / "launch_prototype.ps1",
@@ -80,6 +84,22 @@ class TestPrototypeGeneration(unittest.TestCase):
 
             balance = json.loads((project_root / "config" / "rts_sim_balance.v1.json").read_text(encoding="utf-8"))
             self.assertEqual(balance["difficulty"], "medium")
+
+            quest_dialogue = json.loads(
+                (project_root / "systems" / "rpg" / "quest_dialogue_framework.v1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(quest_dialogue["module_id"], "rpg_baseline_quests")
+            self.assertTrue(quest_dialogue["single_player_only"])
+
+            inventory_leveling = json.loads(
+                (project_root / "systems" / "rpg" / "inventory_leveling.v1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(inventory_leveling["leveling"]["starting_level"], 1)
+
+            tracker = json.loads(
+                (project_root / "systems" / "rpg" / "consequence_state_tracker.v1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(tracker["state"]["current_node_id"], "dialogue_mayor_intro")
 
     def test_orchestrator_escapes_brief_strings_in_generated_cpp(self):
         tricky_brief = {
@@ -242,6 +262,65 @@ class TestPrototypeGeneration(unittest.TestCase):
                     locked_paths=[],
                     confirm_destructive=False,
                 )
+
+    def test_consequence_choice_updates_npc_world_and_branch_state(self):
+        tracker_path = SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json"
+        branch_path = SAMPLE_PROJECT / "ui" / "branch_visualization.v1.json"
+        tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        branch = json.loads(branch_path.read_text(encoding="utf-8"))
+
+        result = orchestrator.apply_consequence_choice(tracker, "support_farmers")
+        self.assertTrue(result.applied)
+        self.assertEqual(result.previous_node_id, "dialogue_mayor_intro")
+        self.assertEqual(result.current_node_id, "dialogue_farmers_supported")
+        self.assertEqual(result.npc_state["farmer_lia_affinity"], 2)
+        self.assertEqual(result.world_state["grain_policy"], "farmer-priority")
+
+        resolved = orchestrator.derive_branch_view(branch, tracker)
+        statuses = {edge["edge_id"]: edge["live_status"] for edge in resolved["edges"]}
+        self.assertEqual(resolved["live_state"]["current_node_id"], "dialogue_farmers_supported")
+        self.assertEqual(statuses["edge_farmers"], "inactive")
+        self.assertEqual(statuses["edge_merchants"], "inactive")
+
+    def test_branch_view_shows_active_choices_before_decision(self):
+        tracker_path = SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json"
+        branch_path = SAMPLE_PROJECT / "ui" / "branch_visualization.v1.json"
+        tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        branch = json.loads(branch_path.read_text(encoding="utf-8"))
+
+        resolved = orchestrator.derive_branch_view(branch, tracker)
+        statuses = {edge["edge_id"]: edge["live_status"] for edge in resolved["edges"]}
+        self.assertEqual(resolved["live_state"]["current_node_id"], "dialogue_mayor_intro")
+        self.assertEqual(statuses["edge_farmers"], "active-choice")
+        self.assertEqual(statuses["edge_merchants"], "active-choice")
+
+    def test_branch_view_requires_matching_choice_id_for_active_edge(self):
+        tracker_path = SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json"
+        tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        branch = {
+            "schema": "gameforge.rpg.branch_view.v1",
+            "view_id": "choice-id-regression",
+            "nodes": [],
+            "edges": [
+                {
+                    "edge_id": "edge_valid",
+                    "from": "dialogue_mayor_intro",
+                    "to": "dialogue_farmers_supported",
+                    "choice_id": "support_farmers",
+                },
+                {
+                    "edge_id": "edge_stale_same_target",
+                    "from": "dialogue_mayor_intro",
+                    "to": "dialogue_farmers_supported",
+                    "choice_id": "support_farmers_old",
+                },
+            ],
+        }
+
+        resolved = orchestrator.derive_branch_view(branch, tracker)
+        statuses = {edge["edge_id"]: edge["live_status"] for edge in resolved["edges"]}
+        self.assertEqual(statuses["edge_valid"], "active-choice")
+        self.assertEqual(statuses["edge_stale_same_target"], "inactive")
 
 
 if __name__ == "__main__":

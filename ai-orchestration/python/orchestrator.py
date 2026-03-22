@@ -86,6 +86,16 @@ class RegenerationResult:
     skipped_locked_files: list[str]
 
 
+@dataclass(frozen=True)
+class ConsequenceTransitionResult:
+    applied: bool
+    previous_node_id: str
+    current_node_id: str
+    selected_choice_id: str
+    npc_state: dict[str, int]
+    world_state: dict[str, str]
+
+
 def _build_curated_options(topic: str) -> list[SuggestionOption]:
     normalized_topic = topic.strip().lower() or "game-direction"
 
@@ -321,6 +331,91 @@ def _escape_cpp_string_literal(value: object) -> str:
     return text
 
 
+def apply_consequence_choice(tracker: dict[str, object], choice_id: str) -> ConsequenceTransitionResult:
+    if "state" not in tracker or "graph" not in tracker:
+        raise ValueError("Tracker payload missing graph/state sections.")
+
+    state = tracker["state"]
+    graph = tracker["graph"]
+    current_node_id = state.get("current_node_id", "")
+    nodes = graph.get("nodes", [])
+    node = next((item for item in nodes if item.get("node_id") == current_node_id), None)
+    if not node:
+        raise ValueError(f"Current node not found in graph: {current_node_id}")
+
+    choice = next((item for item in node.get("choices", []) if item.get("choice_id") == choice_id), None)
+    if not choice:
+        return ConsequenceTransitionResult(
+            applied=False,
+            previous_node_id=current_node_id,
+            current_node_id=current_node_id,
+            selected_choice_id=choice_id,
+            npc_state=dict(state.get("npc_state", {})),
+            world_state=dict(state.get("world_state", {})),
+        )
+
+    npc_state = dict(state.get("npc_state", {}))
+    world_state = dict(state.get("world_state", {}))
+
+    npc_delta = choice.get("effects", {}).get("npc_delta", {})
+    for key, delta in npc_delta.items():
+        npc_state[key] = int(npc_state.get(key, 0)) + int(delta)
+
+    world_updates = choice.get("effects", {}).get("world_set", {})
+    for key, value in world_updates.items():
+        world_state[key] = str(value)
+
+    next_node_id = choice.get("next_node_id", current_node_id)
+    state["current_node_id"] = next_node_id
+    state["npc_state"] = npc_state
+    state["world_state"] = world_state
+    state["last_choice_id"] = choice_id
+
+    return ConsequenceTransitionResult(
+        applied=True,
+        previous_node_id=current_node_id,
+        current_node_id=next_node_id,
+        selected_choice_id=choice_id,
+        npc_state=npc_state,
+        world_state=world_state,
+    )
+
+
+def derive_branch_view(branch_view: dict[str, object], tracker: dict[str, object]) -> dict[str, object]:
+    current_node_id = tracker.get("state", {}).get("current_node_id", "")
+    available_transitions: set[tuple[str, str]] = set()
+    nodes = tracker.get("graph", {}).get("nodes", [])
+    for node in nodes:
+        if node.get("node_id") != current_node_id:
+            continue
+        for choice in node.get("choices", []):
+            choice_id = str(choice.get("choice_id", ""))
+            next_node_id = str(choice.get("next_node_id", ""))
+            if choice_id:
+                available_transitions.add((choice_id, next_node_id))
+
+    resolved_edges: list[dict[str, object]] = []
+    for edge in branch_view.get("edges", []):
+        edge_copy = dict(edge)
+        edge_choice_id = str(edge_copy.get("choice_id", ""))
+        edge_to = str(edge_copy.get("to", ""))
+        if edge_copy.get("from") == current_node_id:
+            edge_copy["live_status"] = (
+                "active-choice" if (edge_choice_id, edge_to) in available_transitions else "inactive"
+            )
+        else:
+            edge_copy["live_status"] = "inactive"
+        resolved_edges.append(edge_copy)
+
+    resolved_view = dict(branch_view)
+    resolved_view["live_state"] = {
+        "current_node_id": current_node_id,
+        "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    resolved_view["edges"] = resolved_edges
+    return resolved_view
+
+
 def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     brief = json.loads(brief_path.read_text(encoding="utf-8"))
     concept = brief.get("concept", "GameForge Prototype")
@@ -443,6 +538,123 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
         },
     }
 
+    rpg_quest_dialogue = {
+        "schema": "gameforge.rpg.quest_dialogue.v1",
+        "module_id": "rpg_baseline_quests",
+        "single_player_only": True,
+        "quests": [
+            {
+                "quest_id": "q_harvest_dilemma",
+                "title": "Harvest Dilemma",
+                "start_node_id": "dialogue_mayor_intro",
+                "objective": "Resolve the dispute over grain allocation.",
+                "completion_nodes": ["dialogue_farmers_supported", "dialogue_merchants_supported"],
+            }
+        ],
+        "dialogue_nodes": [
+            {
+                "node_id": "dialogue_mayor_intro",
+                "speaker": "Mayor Elara",
+                "text": "Winter stores are low. Should we support farmers or merchants first?",
+                "choices": [
+                    {
+                        "choice_id": "support_farmers",
+                        "label": "Prioritize farmers this week.",
+                        "next_node_id": "dialogue_farmers_supported",
+                    },
+                    {
+                        "choice_id": "support_merchants",
+                        "label": "Prioritize merchants for faster trade.",
+                        "next_node_id": "dialogue_merchants_supported",
+                    },
+                ],
+            },
+            {
+                "node_id": "dialogue_farmers_supported",
+                "speaker": "Farmer Lia",
+                "text": "Thank you. The village trust grows with each harvest.",
+                "choices": [],
+            },
+            {
+                "node_id": "dialogue_merchants_supported",
+                "speaker": "Merchant Roan",
+                "text": "Trade routes are opening, but people may worry about rationing.",
+                "choices": [],
+            },
+        ],
+    }
+
+    rpg_inventory_leveling = {
+        "schema": "gameforge.rpg.inventory_leveling.v1",
+        "module_id": "rpg_baseline_progression",
+        "inventory": {
+            "capacity_slots": 20,
+            "starter_items": [
+                {"item_id": "bread", "quantity": 3},
+                {"item_id": "iron_dagger", "quantity": 1},
+            ],
+            "equipment_slots": ["main_hand", "off_hand", "armor", "trinket"],
+        },
+        "leveling": {
+            "starting_level": 1,
+            "starting_xp": 0,
+            "xp_curve": [100, 250, 450, 700],
+            "stat_growth_per_level": {"health": 8, "stamina": 4, "crafting": 2},
+        },
+    }
+
+    consequence_tracker = {
+        "schema": "gameforge.rpg.consequence_tracker.v1",
+        "module_id": "rpg_choice_consequences",
+        "graph": {
+            "nodes": [
+                {
+                    "node_id": "dialogue_mayor_intro",
+                    "choices": [
+                        {
+                            "choice_id": "support_farmers",
+                            "next_node_id": "dialogue_farmers_supported",
+                            "effects": {
+                                "npc_delta": {"mayor_elara_trust": 1, "farmer_lia_affinity": 2, "merchant_roan_affinity": -1},
+                                "world_set": {"grain_policy": "farmer-priority", "market_prices": "stable"},
+                            },
+                        },
+                        {
+                            "choice_id": "support_merchants",
+                            "next_node_id": "dialogue_merchants_supported",
+                            "effects": {
+                                "npc_delta": {"mayor_elara_trust": -1, "farmer_lia_affinity": -2, "merchant_roan_affinity": 2},
+                                "world_set": {"grain_policy": "merchant-priority", "market_prices": "volatile"},
+                            },
+                        },
+                    ],
+                },
+                {"node_id": "dialogue_farmers_supported", "choices": []},
+                {"node_id": "dialogue_merchants_supported", "choices": []},
+            ]
+        },
+        "state": {
+            "current_node_id": "dialogue_mayor_intro",
+            "last_choice_id": "",
+            "npc_state": {"mayor_elara_trust": 0, "farmer_lia_affinity": 0, "merchant_roan_affinity": 0},
+            "world_state": {"grain_policy": "undecided", "market_prices": "uncertain"},
+        },
+    }
+
+    branch_view = {
+        "schema": "gameforge.rpg.branch_view.v1",
+        "view_id": "quest_dialogue_branch_map",
+        "nodes": [
+            {"node_id": "dialogue_mayor_intro", "label": "Mayor Intro", "position": {"x": 0, "y": 0}},
+            {"node_id": "dialogue_farmers_supported", "label": "Farmers Supported", "position": {"x": -280, "y": 200}},
+            {"node_id": "dialogue_merchants_supported", "label": "Merchants Supported", "position": {"x": 280, "y": 200}},
+        ],
+        "edges": [
+            {"edge_id": "edge_farmers", "from": "dialogue_mayor_intro", "to": "dialogue_farmers_supported", "choice_id": "support_farmers"},
+            {"edge_id": "edge_merchants", "from": "dialogue_mayor_intro", "to": "dialogue_merchants_supported", "choice_id": "support_merchants"},
+        ],
+    }
+
     _write_text(prototype_root / "prototype-manifest.json", json.dumps(manifest, indent=2))
     _write_text(prototype_root / "scene" / "scene_scaffold.json", json.dumps(scene, indent=2))
     _write_text(prototype_root / "scene" / "rts_sim_scenario_map.json", json.dumps(rts_sim_map, indent=2))
@@ -452,8 +664,18 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
         json.dumps(rts_sim_template, indent=2),
     )
     _write_text(prototype_root / "ui" / "hud_layout.json", json.dumps(ui_layout, indent=2))
+    _write_text(prototype_root / "ui" / "branch_visualization.v1.json", json.dumps(branch_view, indent=2))
     _write_text(prototype_root / "config" / "rts_sim_balance.v1.json", json.dumps(rts_sim_balance, indent=2))
     _write_text(prototype_root / "save" / "savegame_hook.json", json.dumps(save_stub, indent=2))
+    _write_text(prototype_root / "systems" / "rpg" / "quest_dialogue_framework.v1.json", json.dumps(rpg_quest_dialogue, indent=2))
+    _write_text(
+        prototype_root / "systems" / "rpg" / "inventory_leveling.v1.json",
+        json.dumps(rpg_inventory_leveling, indent=2),
+    )
+    _write_text(
+        prototype_root / "systems" / "rpg" / "consequence_state_tracker.v1.json",
+        json.dumps(consequence_tracker, indent=2),
+    )
 
     escaped_concept = _escape_cpp_string_literal(concept)
     escaped_core_loop = _escape_cpp_string_literal(mechanics.get("core_loop", ""))
@@ -475,9 +697,14 @@ int main() {{
     std::ifstream rtsBalance("config/rts_sim_balance.v1.json");
     std::ifstream player("scripts/player_controller.json");
     std::ifstream ui("ui/hud_layout.json");
+    std::ifstream branchView("ui/branch_visualization.v1.json");
     std::ifstream save("save/savegame_hook.json");
+    std::ifstream questDialogue("systems/rpg/quest_dialogue_framework.v1.json");
+    std::ifstream inventoryLeveling("systems/rpg/inventory_leveling.v1.json");
+    std::ifstream consequenceTracker("systems/rpg/consequence_state_tracker.v1.json");
 
-    if (!scene.good() || !rtsModule.good() || !rtsMap.good() || !rtsBalance.good() || !player.good() || !ui.good() || !save.good()) {{
+    if (!scene.good() || !rtsModule.good() || !rtsMap.good() || !rtsBalance.good() || !player.good() || !ui.good() ||
+        !branchView.good() || !save.good() || !questDialogue.good() || !inventoryLeveling.good() || !consequenceTracker.good()) {{
         std::cerr << "Missing generated scaffold files.\\n";
         return 2;
     }}
@@ -488,8 +715,13 @@ int main() {{
     std::cout << "RTS/sim balance config loaded.\\n";
     std::cout << "Player controller loaded.\\n";
     std::cout << "Basic UI loaded.\\n";
+    std::cout << "Branch visualization config loaded.\\n";
     std::cout << "Save/load hook loaded.\\n";
+    std::cout << "RPG quest/dialogue framework loaded.\\n";
+    std::cout << "RPG inventory + leveling module loaded.\\n";
+    std::cout << "RPG consequence state tracker loaded.\\n";
     std::cout << "Core loop check: units -> resources -> placement -> progression is intact.\\n";
+    std::cout << "Consequence check: player dialogue choices can change NPC/world state and branch transitions.\\n";
     std::cout << "Prototype launch success.\\n";
     return 0;
 }}
@@ -520,8 +752,12 @@ Included baseline scaffold:
 - RTS/sim scenario map (`scene/rts_sim_scenario_map.json`)
 - Player control stub (`scripts/player_controller.json`)
 - Basic UI config (`ui/hud_layout.json`)
+- Branch visualization config (`ui/branch_visualization.v1.json`)
 - RTS/sim reusable template module (`systems/rts_sim/template_module.json`)
 - RTS/sim balancing config (`config/rts_sim_balance.v1.json`)
+- RPG quest/dialogue module (`systems/rpg/quest_dialogue_framework.v1.json`)
+- RPG inventory + leveling module (`systems/rpg/inventory_leveling.v1.json`)
+- RPG consequence tracker (`systems/rpg/consequence_state_tracker.v1.json`)
 - Save/load hook (`save/savegame_hook.json`)
 
 One-click local launch commands:
