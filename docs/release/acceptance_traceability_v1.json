@@ -98,19 +98,25 @@
     {
       "id": "AT-010",
       "priority": "P0",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Execute full Windows smoke flow and capture checklist outcomes.",
-      "next_action": "Add Windows CI smoke pipeline for core flow.",
+      "status": "partial",
+      "automation": [
+        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#4-windows-smoke-procedure-at-010",
+        "docs/release/evidence/windows_smoke_template.md"
+      ],
+      "manual_procedure": "Execute Windows smoke commands from docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md and archive a completed windows evidence template with linked logs.",
+      "next_action": "Automate this exact runbook flow in Windows CI and publish evidence artifacts.",
       "owner_suggestion": "Release Engineering"
     },
     {
       "id": "AT-011",
       "priority": "P0",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Execute full Ubuntu smoke flow and capture checklist outcomes.",
-      "next_action": "Add Ubuntu CI smoke pipeline for core flow.",
+      "status": "partial",
+      "automation": [
+        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011",
+        "docs/release/evidence/ubuntu_smoke_template.md"
+      ],
+      "manual_procedure": "Execute Ubuntu smoke commands from docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md and archive a completed ubuntu evidence template with linked logs.",
+      "next_action": "Automate this exact runbook flow in Ubuntu CI and publish evidence artifacts.",
       "owner_suggestion": "Release Engineering"
     },
     {
