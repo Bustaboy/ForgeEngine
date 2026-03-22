@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
         x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
         Title="GameForge Editor Shell"
         Width="1460"
@@ -120,20 +121,20 @@
         <Border Grid.Row="0" Background="#090B11" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsCodeMode}">
           <Grid RowDefinitions="Auto,*">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <TextBlock Text="Code Mode — Monaco Surface (runtime C++ editable)" Foreground="#EEF4FF" FontSize="16" FontWeight="SemiBold" />
-              <Button Grid.Column="1" Classes="ribbon-icon" Width="42" Height="32" Content="💾" Click="OnSaveCodeClick" ToolTip.Tip="Save runtime C++ edits" />
+              <TextBlock Text="Code Mode — Runtime C++ Editor" Foreground="#EEF4FF" FontSize="16" FontWeight="SemiBold" />
+              <Button Grid.Column="1" Content="Save &amp; Recompile" Click="OnSaveCodeClick" ToolTip.Tip="Save generated C++ edits, recompile, and relaunch runtime" />
             </Grid>
-            <TextBox Grid.Row="1"
-                     Margin="0,10,0,0"
-                     FontFamily="Consolas, Menlo, Monospace"
-                     FontSize="14"
-                     AcceptsReturn="True"
-                     TextWrapping="NoWrap"
-                     Text="{Binding MonacoEditorContent}"
-                     Background="#06080D"
-                     Foreground="#D8E8FF"
-                     BorderBrush="#30405A"
-                     BorderThickness="1" />
+            <avaloniaEdit:TextEditor Grid.Row="1"
+                                     Name="CodeEditor"
+                                     Margin="0,10,0,0"
+                                     FontFamily="Consolas, Menlo, Monospace"
+                                     FontSize="14"
+                                     ShowLineNumbers="True"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Background="#06080D"
+                                     Foreground="#D8E8FF"
+                                     Text="{Binding MonacoEditorContent, Mode=TwoWay}" />
           </Grid>
         </Border>
 

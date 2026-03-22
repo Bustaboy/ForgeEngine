@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using AvaloniaEdit;
+using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
 
 namespace GameForge.Editor.EditorShell.UI;
@@ -13,6 +15,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ConfigureCodeEditor();
         DataContext = _viewModel;
         Opened += OnOpened;
     }
@@ -20,6 +23,19 @@ public partial class MainWindow : Window
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    private void ConfigureCodeEditor()
+    {
+        var editor = this.FindControl<TextEditor>("CodeEditor");
+        if (editor is null)
+        {
+            return;
+        }
+
+        editor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("C++");
+        editor.Options.ConvertTabsToSpaces = true;
+        editor.Options.IndentationSize = 4;
     }
 
     private async void OnOpened(object? sender, EventArgs e)
