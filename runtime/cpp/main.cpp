@@ -1,8 +1,11 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -15,8 +18,11 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace {
+
+using Json = nlohmann::json;
 
 constexpr std::uint32_t kWindowWidth = 1280;
 constexpr std::uint32_t kWindowHeight = 720;
@@ -52,6 +58,46 @@ void Log(LogLevel level, const std::string& message) {
     std::cout << "[Runtime][" << level_text << "][" << stream.str() << "] " << message << "\n";
 }
 
+struct RuntimeLaunchOptions {
+    std::optional<std::filesystem::path> manifest_path;
+};
+
+RuntimeLaunchOptions ParseRuntimeLaunchOptions(int argc, char* argv[]) {
+    RuntimeLaunchOptions options;
+
+    for (int index = 1; index < argc; ++index) {
+        const std::string argument = argv[index];
+        if (argument == "--manifest") {
+            if (index + 1 >= argc) {
+                throw std::runtime_error("Missing value for --manifest argument.");
+            }
+
+            options.manifest_path = std::filesystem::path(argv[++index]);
+            continue;
+        }
+
+        Log(LogLevel::kWarn, "Ignoring unknown argument: " + argument);
+    }
+
+    return options;
+}
+
+Json ReadJsonFile(const std::filesystem::path& file_path, const std::string& label) {
+    std::ifstream file_stream(file_path);
+    if (!file_stream.good()) {
+        throw std::runtime_error("Failed to open " + label + ": " + file_path.string());
+    }
+
+    try {
+        Json root;
+        file_stream >> root;
+        return root;
+    } catch (const std::exception& exception) {
+        throw std::runtime_error(
+            "Failed to parse " + label + " JSON (" + file_path.string() + "): " + exception.what());
+    }
+}
+
 struct QueueFamilyIndices {
     std::optional<std::uint32_t> graphics_family;
     std::optional<std::uint32_t> present_family;
@@ -69,6 +115,9 @@ struct SwapChainSupportDetails {
 
 class RuntimeApp {
 public:
+    explicit RuntimeApp(RuntimeLaunchOptions launch_options)
+        : launch_options_(std::move(launch_options)) {}
+
     void Run() {
         InitWindow();
         InitVulkan();
@@ -77,6 +126,8 @@ public:
     }
 
 private:
+    RuntimeLaunchOptions launch_options_;
+
     GLFWwindow* window_ = nullptr;
 
     VkInstance instance_ = VK_NULL_HANDLE;
@@ -104,6 +155,9 @@ private:
 
     std::size_t current_frame_ = 0;
     bool framebuffer_resized_ = false;
+    bool manifest_load_attempted_ = false;
+    bool scene_loaded_from_manifest_ = false;
+    bool render_loaded_scene_logged_ = false;
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto* app = static_cast<RuntimeApp*>(glfwGetWindowUserPointer(window));
@@ -163,6 +217,10 @@ private:
 
         while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
             glfwPollEvents();
+            ProcessManifestLoad();
+            if (scene_loaded_from_manifest_) {
+                RenderLoadedScene();
+            }
             DrawFrame();
 
             ++frame_counter;
@@ -179,6 +237,87 @@ private:
         }
 
         vkDeviceWaitIdle(device_);
+    }
+
+    void ProcessManifestLoad() {
+        if (manifest_load_attempted_ || !launch_options_.manifest_path.has_value()) {
+            return;
+        }
+
+        manifest_load_attempted_ = true;
+        const auto& manifest_path = launch_options_.manifest_path.value();
+        Log(LogLevel::kInfo, "Loading integration manifest: " + manifest_path.string());
+
+        LoadSceneFromManifest(manifest_path);
+        scene_loaded_from_manifest_ = true;
+        Log(LogLevel::kInfo, "Manifest load completed.");
+    }
+
+    void LoadSceneFromManifest(const std::filesystem::path& manifest_path) {
+        const Json integration_manifest = ReadJsonFile(manifest_path, "integration manifest");
+        const std::string schema = integration_manifest.value("schema", "");
+        const auto targets = integration_manifest.value("integration_targets", std::vector<std::string>{});
+        const std::string generated_at_utc = integration_manifest.value("generated_at_utc", "unknown");
+
+        Log(LogLevel::kInfo, "Integration schema: " + schema);
+        Log(LogLevel::kInfo, "Integration generated at: " + generated_at_utc);
+        Log(LogLevel::kInfo, "Integration target count: " + std::to_string(targets.size()));
+        for (const auto& target : targets) {
+            Log(LogLevel::kInfo, "Integration target: " + target);
+        }
+
+        const std::filesystem::path prototype_root = integration_manifest.value("prototype_root", "");
+        if (prototype_root.empty()) {
+            throw std::runtime_error("Integration manifest is missing prototype_root.");
+        }
+
+        Log(LogLevel::kInfo, "Prototype root: " + prototype_root.string());
+
+        const Json scene = ReadJsonFile(prototype_root / "scene" / "scene_scaffold.json", "scene scaffold");
+        const Json prototype_manifest = ReadJsonFile(prototype_root / "prototype-manifest.json", "prototype manifest");
+        const Json player_controller = ReadJsonFile(
+            prototype_root / "scripts" / "player_controller.json",
+            "player controller");
+
+        Log(LogLevel::kInfo, "Project name: " + prototype_manifest.value("project_name", "unknown"));
+        Log(LogLevel::kInfo, "Rendering mode: " + prototype_manifest.value("rendering", "unknown"));
+        Log(LogLevel::kInfo, "Scope: " + prototype_manifest.value("scope", "unknown"));
+
+        Log(LogLevel::kInfo, "Scene ID: " + scene.value("scene_id", "unknown"));
+        Log(LogLevel::kInfo, "Scene world notes: " + scene.value("world_notes", ""));
+
+        const Json spawn = scene.value("player_spawn", Json::object());
+        Log(LogLevel::kInfo,
+            "Player spawn: x=" + std::to_string(spawn.value("x", 0.0)) + ", y=" +
+                std::to_string(spawn.value("y", 0.0)) + ", z=" + std::to_string(spawn.value("z", 0.0)));
+        SpawnEntityFromManifest("player", "player_01", player_controller);
+
+        const Json npcs = scene.value("npcs", Json::array());
+        Log(LogLevel::kInfo, "NPC count from scene: " + std::to_string(npcs.size()));
+        for (std::size_t i = 0; i < npcs.size(); ++i) {
+            const auto& npc = npcs[i];
+            SpawnEntityFromManifest("npc", npc.value("id", "npc_" + std::to_string(i + 1U)), npc);
+        }
+
+        const Json assets = scene.value("assets", Json::array());
+        Log(LogLevel::kInfo, "Asset reference count from scene: " + std::to_string(assets.size()));
+    }
+
+    void SpawnEntityFromManifest(const std::string& entity_type, const std::string& entity_id, const Json& payload) {
+        const std::string schema = payload.value("schema", "unspecified");
+        Log(LogLevel::kInfo,
+            "SpawnEntityFromManifest() stub -> type=" + entity_type + ", id=" + entity_id +
+                ", schema=" + schema);
+    }
+
+    void RenderLoadedScene() {
+        if (render_loaded_scene_logged_) {
+            return;
+        }
+
+        render_loaded_scene_logged_ = true;
+        Log(LogLevel::kInfo,
+            "RenderLoadedScene() stub active; Vulkan clear + present loop running while manifest data is loaded.");
     }
 
     void CleanupSwapChain() {
@@ -771,10 +910,16 @@ private:
 
 }  // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
     try {
+        RuntimeLaunchOptions launch_options = ParseRuntimeLaunchOptions(argc, argv);
         Log(LogLevel::kInfo, "Starting ForgeEngine Vulkan runtime skeleton.");
-        RuntimeApp app;
+        if (launch_options.manifest_path.has_value()) {
+            Log(LogLevel::kInfo, "Manifest argument detected: " + launch_options.manifest_path->string());
+        } else {
+            Log(LogLevel::kInfo, "No manifest provided. Runtime will run without pipeline data.");
+        }
+        RuntimeApp app(std::move(launch_options));
         app.Run();
         return EXIT_SUCCESS;
     } catch (const std::exception& exception) {

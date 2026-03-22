@@ -1,0 +1,14 @@
+{
+  "schema": "gameforge.pipeline.integration.v1",
+  "prototype_root": "REPLACE_WITH_ABSOLUTE_OR_RELATIVE_PROTOTYPE_ROOT",
+  "integration_targets": [
+    "runtime",
+    "editor-shell",
+    "asset-catalog"
+  ],
+  "future_hooks": [
+    "csharp_editor_entrypoint",
+    "native_runtime_bridge"
+  ],
+  "generated_at_utc": "2026-01-01T00:00:00Z"
+}
