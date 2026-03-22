@@ -18,6 +18,8 @@ public sealed class EditorShellTests
         Assert.Contains("windows", snapshot.Platforms);
         Assert.Contains("ubuntu", snapshot.Platforms);
         Assert.NotEmpty(snapshot.SceneObjects);
+        Assert.Equal("moonlit-minimal", snapshot.Style.ActivePresetId);
+        Assert.Contains(snapshot.Style.Presets, preset => preset.PresetId == "cozy-stylized");
     }
 
     [Fact]
@@ -101,6 +103,22 @@ public sealed class EditorShellTests
 
         Assert.Single(filtered.Results);
         Assert.Equal("asset-0002", filtered.Results[0].AssetId);
+    }
+
+    [Fact]
+    public async Task StylePresetSelectionView_IncludesUserPresetAndActiveSelection()
+    {
+        var projectRoot = ResolveProjectRoot();
+        var samplePath = Path.Combine(projectRoot, "app", "samples", "generated-prototype", "cozy-colony-tales");
+        var snapshot = await EditorProjectLoader.LoadGeneratedProjectAsync(samplePath);
+        var workspace = new EditorWorkspace(snapshot);
+
+        var styleView = workspace.GetStylePresetSelectionView();
+
+        Assert.Equal("moonlit-minimal", styleView.ActivePresetId);
+        Assert.Equal("Moonlit Minimal", styleView.ActivePresetDisplayName);
+        Assert.Equal("match-project-style", styleView.HelperMode);
+        Assert.Contains(styleView.AvailablePresets, preset => preset.PresetId == "moonlit-minimal" && preset.Source == "user");
     }
 
     [Fact]

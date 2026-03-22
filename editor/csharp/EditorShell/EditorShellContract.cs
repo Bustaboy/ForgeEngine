@@ -62,6 +62,8 @@ public sealed record EditorProjectSnapshot
     public required IReadOnlyList<SceneObject> SceneObjects { get; init; }
 
     public required IReadOnlyList<AssetCatalogEntry> Assets { get; init; }
+
+    public ProjectStyleConfig Style { get; init; } = ProjectStyleConfig.CreateDefault();
 }
 
 public sealed record AssetCatalogEntry
@@ -97,6 +99,50 @@ public sealed record AssetBrowserView
     public required AssetBrowserFilter Filter { get; init; }
 
     public required IReadOnlyList<AssetCatalogEntry> Results { get; init; }
+}
+
+public sealed record StylePresetDefinition
+{
+    public required string PresetId { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public string? ParentPresetId { get; init; }
+
+    public required string Source { get; init; }
+}
+
+public sealed record ProjectStyleConfig
+{
+    public required string ActivePresetId { get; init; }
+
+    public required string HelperMode { get; init; }
+
+    public required IReadOnlyList<StylePresetDefinition> Presets { get; init; }
+
+    public static ProjectStyleConfig CreateDefault() => new()
+    {
+        ActivePresetId = "cozy-stylized",
+        HelperMode = "match-project-style",
+        Presets =
+        [
+            new StylePresetDefinition { PresetId = "cozy-stylized", DisplayName = "Cozy Stylized", Source = "built-in" },
+            new StylePresetDefinition { PresetId = "semi-realistic", DisplayName = "Semi-Realistic", Source = "built-in" },
+            new StylePresetDefinition { PresetId = "low-poly-clean", DisplayName = "Low-Poly Clean", Source = "built-in" },
+            new StylePresetDefinition { PresetId = "dark-fantasy-stylized", DisplayName = "Dark Fantasy Stylized", Source = "built-in" },
+        ],
+    };
+}
+
+public sealed record StylePresetSelectionView
+{
+    public required string ActivePresetId { get; init; }
+
+    public required string ActivePresetDisplayName { get; init; }
+
+    public required string HelperMode { get; init; }
+
+    public required IReadOnlyList<StylePresetDefinition> AvailablePresets { get; init; }
 }
 
 public enum AiEditImpactLevel
