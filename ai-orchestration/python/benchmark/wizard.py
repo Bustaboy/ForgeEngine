@@ -4,31 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import importlib.util
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-try:
-    from models.gpu import detect_primary_gpu
-    from models.manager import prepare_models_as_dict
-    from models.registry import DEFAULT_MODEL_SET
-except ModuleNotFoundError:
-    _MODELS_ROOT = Path(__file__).resolve().parents[1] / "models"
-
-    def _load_module(module_name: str, filename: str):
-        spec = importlib.util.spec_from_file_location(module_name, _MODELS_ROOT / filename)
-        module = importlib.util.module_from_spec(spec)
-        assert spec is not None and spec.loader is not None
-        spec.loader.exec_module(module)
-        return module
-
-    _gpu = _load_module("benchmark_models_gpu", "gpu.py")
-    _manager = _load_module("benchmark_models_manager", "manager.py")
-    _registry = _load_module("benchmark_models_registry", "registry.py")
-
-    detect_primary_gpu = _gpu.detect_primary_gpu
-    prepare_models_as_dict = _manager.prepare_models_as_dict
-    DEFAULT_MODEL_SET = _registry.DEFAULT_MODEL_SET
+from models.gpu import detect_primary_gpu
+from models.manager import prepare_models_as_dict
+from models.registry import DEFAULT_MODEL_SET
 
 
 @dataclass(frozen=True)
