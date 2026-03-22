@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 
 PYTHON_ROOT = Path(__file__).resolve().parent
@@ -18,6 +20,7 @@ if str(PYTHON_ROOT) not in sys.path:
 
 from benchmark import run_benchmark_as_dict
 from models import prepare_models_as_dict
+from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 
 
 UNCERTAINTY_CUES = {
@@ -249,6 +252,42 @@ class OperationFailureFallbackState:
     retry_with_ai_available: bool
     retry_action: str
     manual_mode_action: str | None
+
+
+class PipelineStageStatus(str, Enum):
+    PASSED = "passed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    NEEDS_HUMAN_REVIEW = "needs-human-review"
+
+
+@dataclass(frozen=True)
+class PipelineStageResult:
+    stage_id: str
+    stage_title: str
+    status: str
+    summary: str
+    started_at_utc: str
+    completed_at_utc: str
+    artifacts: list[str]
+    fallback_state: OperationFailureFallbackState
+    metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PipelineExecutionResult:
+    schema: str
+    pipeline_id: str
+    status: str
+    brief_path: str
+    output_root: str
+    prototype_root: str | None
+    benchmark: dict[str, object]
+    stage_results: list[PipelineStageResult]
+    dead_end_blockers: list[str]
+    commercial_policy_checks: dict[str, object]
+    csharp_shell_example: str
+    completed_at_utc: str
 
 
 class OperationFailureTracker:
@@ -1205,6 +1244,258 @@ def derive_branch_view(branch_view: dict[str, object], tracker: dict[str, object
     return resolved_view
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    _write_text(path, json.dumps(payload, indent=2))
+
+
+def _run_stage_hook(hook_command: str | None, stage: StageDefinition, status: PipelineStageStatus, output_root: Path) -> None:
+    if not hook_command:
+        return
+    env = os.environ.copy()
+    env["GAMEFORGE_PIPELINE_STAGE_ID"] = stage.stage_id
+    env["GAMEFORGE_PIPELINE_STAGE_TITLE"] = stage.title
+    env["GAMEFORGE_PIPELINE_STAGE_STATUS"] = status.value
+    env["GAMEFORGE_PIPELINE_OUTPUT_ROOT"] = str(output_root)
+    subprocess.run(hook_command, shell=True, check=False, env=env)
+
+
+def _default_bot_scenario(prototype_root: Path) -> Path:
+    scenario = {
+        "schema": "gameforge.bot_playtest.scenario.v1",
+        "scenario_id": "pipeline-default-smoke",
+        "title": "Pipeline default smoke validation",
+        "max_runtime_seconds": 60,
+        "probes": [
+            {"probe_id": "manifest-exists", "probe_type": "file_exists", "target": "prototype-manifest.json", "expected": True},
+            {
+                "probe_id": "rendering-direction",
+                "probe_type": "json_field_equals",
+                "target": "prototype-manifest.json:rendering",
+                "expected": "vulkan-first",
+            },
+            {
+                "probe_id": "single-player-only",
+                "probe_type": "json_field_equals",
+                "target": "prototype-manifest.json:scope",
+                "expected": "single-player baseline",
+            },
+        ],
+    }
+    path = prototype_root / "testing" / "pipeline-default-scenario.v1.json"
+    _write_json(path, scenario)
+    return path
+
+
+def _evaluate_commercial_policy(brief: dict[str, object]) -> dict[str, object]:
+    commercial = bool(brief.get("commercial", False))
+    monetization = str(brief.get("monetization", "")).strip().lower()
+    acknowledged = bool(brief.get("commercial_policy_acknowledged", False))
+    trigger_reason = "paid_or_mtx" if commercial or monetization in {"paid", "mtx"} else "none"
+    blocking_issues: list[str] = []
+    if trigger_reason != "none" and not acknowledged:
+        blocking_issues.append("Commercial policy acknowledgment is required before export.")
+    return {
+        "commercial_triggered": trigger_reason != "none",
+        "trigger_reason": trigger_reason,
+        "policy_acknowledged": acknowledged,
+        "revenue_share_policy": "5% after first $1,000 gross revenue per game",
+        "blocking_issues": blocking_issues,
+    }
+
+
+def _execute_generation_pipeline(
+    brief_path: Path,
+    output_root: Path,
+    *,
+    hook_command: str | None = None,
+    playtest_scenario_path: Path | None = None,
+) -> PipelineExecutionResult:
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    pipeline_dir = output_root / "pipeline"
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    benchmark_result = run_benchmark_as_dict(orchestrator_file=Path(__file__).resolve(), auto_prepare_models=True)
+    tracker = OperationFailureTracker()
+    stage_results: list[PipelineStageResult] = []
+    dead_end_blockers: list[str] = []
+    prototype_root: Path | None = None
+
+    def execute_stage(
+        stage: StageDefinition,
+        action: callable,
+    ) -> tuple[PipelineStageStatus, dict[str, object], list[str]]:
+        started_at = _utc_now_iso()
+        try:
+            metadata, artifacts = action()
+            fallback = tracker.record_result(stage.stage_id, success=True)
+            status = PipelineStageStatus.PASSED
+            summary = f"{stage.title} completed."
+        except Exception as exc:  # noqa: BLE001
+            metadata = {"error": str(exc)}
+            artifacts = []
+            fallback = tracker.record_result(stage.stage_id, success=False)
+            status = PipelineStageStatus.FAILED
+            summary = f"{stage.title} failed: {exc}"
+
+        completed_at = _utc_now_iso()
+        _run_stage_hook(hook_command, stage, status, output_root)
+        stage_results.append(
+            PipelineStageResult(
+                stage_id=stage.stage_id,
+                stage_title=stage.title,
+                status=status.value,
+                summary=summary,
+                started_at_utc=started_at,
+                completed_at_utc=completed_at,
+                artifacts=artifacts,
+                fallback_state=fallback,
+                metadata=metadata,
+            )
+        )
+        return status, metadata, artifacts
+
+    def stage_story_analysis() -> tuple[dict[str, object], list[str]]:
+        story = {
+            "schema": "gameforge.pipeline.story_analysis.v1",
+            "concept": str(brief.get("concept", "GameForge Prototype")).strip(),
+            "narrative_weight": brief.get("narrative", {}),
+            "constraints": {"single_player_only": True, "local_first": True},
+            "generated_at_utc": _utc_now_iso(),
+        }
+        artifact = pipeline_dir / "01_story_analysis.v1.json"
+        _write_json(artifact, story)
+        return story, [str(artifact)]
+
+    def stage_concept_doc() -> tuple[dict[str, object], list[str]]:
+        concept = str(brief.get("concept", "GameForge Prototype")).strip()
+        mechanics = brief.get("mechanics", {})
+        markdown = "\n".join(
+            [
+                f"# Concept Doc: {concept}",
+                "",
+                "## Core Loop",
+                f"- {mechanics.get('core_loop', 'Gather -> Build -> Progress')}",
+                "",
+                "## Platform and Runtime Defaults",
+                "- Single-player only",
+                "- Local-first workflow",
+                "- Vulkan-first rendering direction",
+            ]
+        )
+        artifact = pipeline_dir / "02_concept_doc.md"
+        _write_text(artifact, markdown + "\n")
+        return {"concept": concept}, [str(artifact)]
+
+    def stage_asset_planning() -> tuple[dict[str, object], list[str]]:
+        policy = _evaluate_commercial_policy(brief)
+        plan = {
+            "schema": "gameforge.pipeline.asset_planning.v1",
+            "allowed_licenses": sorted(ALLOWED_LICENSES),
+            "blocked_licenses": sorted(BLOCKED_LICENSES),
+            "commercial_policy": policy,
+            "generated_at_utc": _utc_now_iso(),
+        }
+        artifact = pipeline_dir / "03_asset_plan.v1.json"
+        _write_json(artifact, plan)
+        if policy["blocking_issues"]:
+            raise ValueError("; ".join(policy["blocking_issues"]))
+        return plan, [str(artifact)]
+
+    def stage_code_generation() -> tuple[dict[str, object], list[str]]:
+        nonlocal prototype_root
+        prototype_root = _generate_prototype(brief_path, output_root)
+        return {"prototype_root": str(prototype_root)}, [str(prototype_root)]
+
+    def stage_integration() -> tuple[dict[str, object], list[str]]:
+        if prototype_root is None:
+            raise ValueError("Prototype root missing from code generation stage.")
+        integration_manifest = {
+            "schema": "gameforge.pipeline.integration.v1",
+            "prototype_root": str(prototype_root),
+            "integration_targets": ["runtime", "editor-shell", "asset-catalog"],
+            "future_hooks": ["csharp_editor_entrypoint", "native_runtime_bridge"],
+            "generated_at_utc": _utc_now_iso(),
+        }
+        artifact = prototype_root / "pipeline" / "05_integration_manifest.v1.json"
+        _write_json(artifact, integration_manifest)
+        return integration_manifest, [str(artifact)]
+
+    def stage_bot_validation() -> tuple[dict[str, object], list[str]]:
+        nonlocal dead_end_blockers
+        if prototype_root is None:
+            raise ValueError("Prototype root missing from code generation stage.")
+        scenario_path = playtest_scenario_path or _default_bot_scenario(prototype_root)
+        result, report, report_json_path, report_markdown_path = run_bot_playtest_with_report(
+            prototype_root,
+            scenario_path,
+        )
+        dead_end_blockers = list(result.critical_dead_end_blockers)
+        metadata = {
+            "status": result.status,
+            "human_review_required": result.human_review_required,
+            "critical_dead_end_blockers_count": len(dead_end_blockers),
+        }
+        stage_status = PipelineStageStatus.NEEDS_HUMAN_REVIEW if result.human_review_required else (
+            PipelineStageStatus.FAILED if result.status == "failed" else PipelineStageStatus.PASSED
+        )
+        if stage_status != PipelineStageStatus.PASSED:
+            raise ValueError(report.summary)
+        return metadata, [str(scenario_path), str(report_json_path), str(report_markdown_path)]
+
+    def stage_export() -> tuple[dict[str, object], list[str]]:
+        if prototype_root is None:
+            raise ValueError("Prototype root missing from code generation stage.")
+        artifact = prototype_root / "pipeline" / "07_export_manifest.v1.json"
+        export_manifest = {
+            "schema": "gameforge.pipeline.export.v1",
+            "prototype_root": str(prototype_root),
+            "dead_end_blockers": dead_end_blockers,
+            "benchmark_state_path": benchmark_result.get("state_path"),
+            "generated_at_utc": _utc_now_iso(),
+        }
+        _write_json(artifact, export_manifest)
+        return export_manifest, [str(artifact)]
+
+    stage_actions = {
+        "story_analysis": stage_story_analysis,
+        "concept_doc": stage_concept_doc,
+        "asset_planning": stage_asset_planning,
+        "code_generation": stage_code_generation,
+        "integration": stage_integration,
+        "bot_validation": stage_bot_validation,
+        "export": stage_export,
+    }
+
+    for stage in PIPELINE_STAGE_ORDER:
+        status, _, _ = execute_stage(stage, stage_actions[stage.stage_id])
+        if status == PipelineStageStatus.FAILED:
+            break
+
+    commercial_policy = _evaluate_commercial_policy(brief)
+    pipeline_status = "failed" if any(item.status == PipelineStageStatus.FAILED.value for item in stage_results) else "passed"
+    csharp_shell_example = (
+        "python ai-orchestration/python/orchestrator.py "
+        f"--run-generation-pipeline --generate-prototype {brief_path} --output {output_root}"
+    )
+    return PipelineExecutionResult(
+        schema="gameforge.pipeline.execution.v1",
+        pipeline_id=f"pipeline-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        status=pipeline_status,
+        brief_path=str(brief_path),
+        output_root=str(output_root),
+        prototype_root=str(prototype_root) if prototype_root else None,
+        benchmark=benchmark_result,
+        stage_results=stage_results,
+        dead_end_blockers=dead_end_blockers,
+        commercial_policy_checks=commercial_policy,
+        csharp_shell_example=csharp_shell_example,
+        completed_at_utc=_utc_now_iso(),
+    )
+
+
 def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     brief = json.loads(brief_path.read_text(encoding="utf-8"))
     concept = brief.get("concept", "GameForge Prototype")
@@ -1977,6 +2268,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--think-for-me", dest="think_for_me_input", help="User reply to evaluate for think-for-me mode")
     parser.add_argument("--topic", default="game-direction", help="Interview topic for the option ids")
     parser.add_argument("--generate-prototype", dest="brief_path", help="Path to saved interview brief JSON")
+    parser.add_argument(
+        "--run-generation-pipeline",
+        action="store_true",
+        help="Run the 7-stage generation pipeline (Story→Concept→Asset→Code→Integration→Bot→Export)",
+    )
     parser.add_argument("--output", default="build/generated-prototypes", help="Output directory for generated prototypes")
     parser.add_argument("--launch", action="store_true", help="Compile and launch generated prototype runtime")
     parser.add_argument("--import-asset-manifest", help="Path to JSON list of asset import requests")
@@ -2000,6 +2296,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--bot-playtest-scenario", help="Path to bot playtest scenario JSON")
     parser.add_argument("--prototype-root", help="Generated prototype root to validate with bot playtests")
     parser.add_argument("--bot-playtest-report-output", help="Optional output directory for persisted playtest reports")
+    parser.add_argument("--pipeline-hook-cmd", help="Optional shell command invoked after each pipeline stage")
     parser.add_argument(
         "--prepare-models",
         action="store_true",
@@ -2068,6 +2365,18 @@ def main() -> int:
         response = generate_think_for_me_directions(args.think_for_me_input, args.topic)
         print(json.dumps(asdict(response), indent=2))
         return 0
+
+    if args.run_generation_pipeline:
+        if not args.brief_path:
+            raise ValueError("--generate-prototype <brief.json> is required with --run-generation-pipeline")
+        pipeline_result = _execute_generation_pipeline(
+            brief_path=Path(args.brief_path),
+            output_root=Path(args.output),
+            hook_command=args.pipeline_hook_cmd,
+            playtest_scenario_path=Path(args.bot_playtest_scenario) if args.bot_playtest_scenario else None,
+        )
+        print(json.dumps(asdict(pipeline_result), indent=2))
+        return 0 if pipeline_result.status == "passed" else 1
 
     if args.brief_path:
         prototype_root = _generate_prototype(Path(args.brief_path), Path(args.output))
