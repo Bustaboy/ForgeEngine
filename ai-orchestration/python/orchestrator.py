@@ -136,6 +136,25 @@ class AssetImportPipelineResult:
 
 
 @dataclass(frozen=True)
+class AttributionBundleEntry:
+    asset_id: str
+    display_name: str
+    source: str
+    license_id: str
+    attribution_text: str
+    attribution_url: str
+    path: str
+
+
+@dataclass(frozen=True)
+class AttributionBundleExportResult:
+    generated: bool
+    required_asset_count: int
+    json_path: str | None
+    markdown_path: str | None
+
+
+@dataclass(frozen=True)
 class StylePresetDefinition:
     preset_id: str
     display_name: str
@@ -274,6 +293,10 @@ ALLOWED_LICENSES = {
 BLOCKED_LICENSES = {
     "cc-by-sa",
     "cc-by-nc",
+}
+
+ATTRIBUTION_REQUIRED_LICENSES = {
+    "cc-by-4.0",
 }
 
 ASSET_CATEGORY_BY_EXTENSION = {
@@ -626,6 +649,126 @@ def _write_asset_catalog(catalog_path: Path, assets: list[dict[str, object]]) ->
         "assets": assets,
     }
     _write_text(catalog_path, json.dumps(payload, indent=2))
+
+
+def _require_nonempty_metadata_value(
+    metadata: dict[str, object],
+    keys: list[str],
+) -> str | None:
+    for key in keys:
+        raw = metadata.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+    return None
+
+
+def _build_attribution_entries(assets: list[dict[str, object]]) -> list[AttributionBundleEntry]:
+    entries: list[AttributionBundleEntry] = []
+    metadata_errors: list[str] = []
+
+    for asset in sorted(assets, key=lambda item: str(item.get("asset_id", ""))):
+        license_id = _normalize_license_id(str(asset.get("license_id", "")))
+        if license_id not in ATTRIBUTION_REQUIRED_LICENSES:
+            continue
+
+        asset_id = str(asset.get("asset_id", "")).strip()
+        display_name = str(asset.get("display_name", "")).strip() or asset_id
+        metadata = dict(asset.get("metadata", {})) if isinstance(asset.get("metadata"), dict) else {}
+        source = _require_nonempty_metadata_value(metadata, ["source", "source_url", "source_path"])
+        attribution_text = _require_nonempty_metadata_value(metadata, ["attribution_text"])
+        attribution_url = _require_nonempty_metadata_value(metadata, ["attribution_url"])
+        path = str(asset.get("relative_path", "")).strip()
+
+        missing_fields: list[str] = []
+        if not source:
+            missing_fields.append("metadata.source (or source_url/source_path)")
+        if not attribution_text:
+            missing_fields.append("metadata.attribution_text")
+        if not attribution_url:
+            missing_fields.append("metadata.attribution_url")
+        if not path:
+            missing_fields.append("relative_path")
+
+        if missing_fields:
+            metadata_errors.append(f"{asset_id or '<missing-asset-id>'}: {', '.join(missing_fields)}")
+            continue
+
+        entries.append(
+            AttributionBundleEntry(
+                asset_id=asset_id,
+                display_name=display_name,
+                source=source,
+                license_id=license_id,
+                attribution_text=attribution_text,
+                attribution_url=attribution_url,
+                path=path,
+            )
+        )
+
+    if metadata_errors:
+        details = "; ".join(metadata_errors)
+        raise ValueError(
+            "Attribution export requires complete metadata for attribution-required assets. "
+            f"Missing fields: {details}"
+        )
+
+    return entries
+
+
+def _write_attribution_markdown(entries: list[AttributionBundleEntry], destination: Path) -> None:
+    lines = [
+        "# Attribution",
+        "",
+        "This file lists assets that require attribution for distribution compliance.",
+    ]
+    for entry in entries:
+        lines.extend(
+            [
+                "",
+                f"## {entry.display_name} (`{entry.asset_id}`)",
+                f"- License: {entry.license_id}",
+                f"- Source: {entry.source}",
+                f"- Attribution: {entry.attribution_text}",
+                f"- Attribution URL: {entry.attribution_url}",
+                f"- Path: `{entry.path}`",
+            ]
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def export_attribution_bundle(
+    project_root: Path,
+    output_dir: Path | None = None,
+) -> AttributionBundleExportResult:
+    assets = _read_asset_catalog(project_root / "assets" / "catalog.v1.json")
+    entries = _build_attribution_entries(assets)
+    if not entries:
+        return AttributionBundleExportResult(
+            generated=False,
+            required_asset_count=0,
+            json_path=None,
+            markdown_path=None,
+        )
+
+    output_root = output_dir or (project_root / "compliance")
+    json_path = output_root / "attribution.bundle.v1.json"
+    markdown_path = output_root / "attribution.md"
+    payload = {
+        "schema": "gameforge.attribution_bundle.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "asset_count": len(entries),
+        "entries": [asdict(entry) for entry in entries],
+    }
+    output_root.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _write_attribution_markdown(entries, markdown_path)
+    return AttributionBundleExportResult(
+        generated=True,
+        required_asset_count=len(entries),
+        json_path=str(json_path),
+        markdown_path=str(markdown_path),
+    )
 
 
 def _preset_library_path(project_root: Path) -> Path:
@@ -1829,6 +1972,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default="build/generated-prototypes", help="Output directory for generated prototypes")
     parser.add_argument("--launch", action="store_true", help="Compile and launch generated prototype runtime")
     parser.add_argument("--import-asset-manifest", help="Path to JSON list of asset import requests")
+    parser.add_argument(
+        "--export-attribution-bundle",
+        action="store_true",
+        help="Generate attribution.bundle.v1.json and attribution.md when attribution-required assets exist",
+    )
     parser.add_argument("--project-root", help="Project root containing assets/catalog.v1.json")
     parser.add_argument("--asset-query", default="", help="Search query for asset catalog")
     parser.add_argument("--asset-category", default="", help="Category filter for asset search")
@@ -1873,6 +2021,13 @@ def main() -> int:
         manifest_payload = json.loads(Path(args.import_asset_manifest).read_text(encoding="utf-8"))
         requests = [AssetImportRequest(**item) for item in manifest_payload]
         result = import_assets(Path(args.project_root), requests)
+        print(json.dumps(asdict(result), indent=2))
+        return 0
+
+    if args.export_attribution_bundle:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --export-attribution-bundle")
+        result = export_attribution_bundle(Path(args.project_root))
         print(json.dumps(asdict(result), indent=2))
         return 0
 

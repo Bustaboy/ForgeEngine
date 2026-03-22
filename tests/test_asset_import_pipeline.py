@@ -154,6 +154,127 @@ class TestAssetImportPipeline(unittest.TestCase):
             self.assertEqual("asset-0004", result.imported_assets[0].asset_id)
             self.assertTrue((project_root / "assets" / "library" / "asset-0004.png").exists())
 
+    def test_attribution_export_includes_only_cc_by_assets_for_mixed_licenses(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            source_png = Path(temp_dir) / "hero.png"
+            source_wav = Path(temp_dir) / "theme.wav"
+            source_png.write_bytes(b"png")
+            source_wav.write_bytes(b"wav")
+
+            imported = orchestrator.import_assets(
+                project_root,
+                [
+                    orchestrator.AssetImportRequest(
+                        source_path=str(source_png),
+                        source_type="manual-upload",
+                        license_id="cc0-1.0",
+                        display_name="Hero Texture",
+                    ),
+                    orchestrator.AssetImportRequest(
+                        source_path=str(source_wav),
+                        source_type="manual-upload",
+                        license_id="cc-by-4.0",
+                        display_name="Theme Track",
+                    ),
+                ],
+            )
+
+            self.assertEqual([], imported.errors)
+            catalog_path = project_root / "assets" / "catalog.v1.json"
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+            for entry in catalog["assets"]:
+                if entry["license_id"] == "cc-by-4.0":
+                    entry["metadata"]["source"] = "Example Composer"
+                    entry["metadata"]["attribution_text"] = "Theme Track by Example Composer"
+                    entry["metadata"]["attribution_url"] = "https://example.com/theme-track"
+            catalog_path.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
+
+            exported = orchestrator.export_attribution_bundle(project_root)
+            self.assertTrue(exported.generated)
+            self.assertEqual(1, exported.required_asset_count)
+            self.assertTrue(Path(exported.json_path).exists())
+            self.assertTrue(Path(exported.markdown_path).exists())
+
+            bundle = json.loads(Path(exported.json_path).read_text(encoding="utf-8"))
+            self.assertEqual("gameforge.attribution_bundle.v1", bundle["schema"])
+            self.assertEqual(1, bundle["asset_count"])
+            self.assertEqual(1, len(bundle["entries"]))
+            self.assertEqual("cc-by-4.0", bundle["entries"][0]["license_id"])
+            self.assertEqual("Theme Track", bundle["entries"][0]["display_name"])
+            self.assertEqual("assets/library/asset-0002.wav", bundle["entries"][0]["path"])
+
+    def test_attribution_export_fails_when_required_metadata_is_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            catalog_path = project_root / "assets" / "catalog.v1.json"
+            catalog_path.parent.mkdir(parents=True, exist_ok=True)
+            catalog_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.asset_catalog.v1",
+                        "generated_at_utc": "2026-03-22T00:00:00Z",
+                        "assets": [
+                            {
+                                "asset_id": "asset-0001",
+                                "display_name": "Ambient Loop",
+                                "category": "audio",
+                                "tags": ["audio", "manual-upload"],
+                                "license_id": "cc-by-4.0",
+                                "source_type": "manual-upload",
+                                "relative_path": "assets/library/asset-0001.ogg",
+                                "imported_at_utc": "2026-03-22T00:00:00Z",
+                                "metadata": {"source": "Artist Name"},
+                            }
+                        ],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "metadata.attribution_text"):
+                orchestrator.export_attribution_bundle(project_root)
+
+    def test_attribution_export_returns_not_generated_when_no_required_assets_exist(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            catalog_path = project_root / "assets" / "catalog.v1.json"
+            catalog_path.parent.mkdir(parents=True, exist_ok=True)
+            catalog_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.asset_catalog.v1",
+                        "generated_at_utc": "2026-03-22T00:00:00Z",
+                        "assets": [
+                            {
+                                "asset_id": "asset-0001",
+                                "display_name": "Public Domain Texture",
+                                "category": "textures",
+                                "tags": ["textures", "manual-upload"],
+                                "license_id": "cc0-1.0",
+                                "source_type": "manual-upload",
+                                "relative_path": "assets/library/asset-0001.png",
+                                "imported_at_utc": "2026-03-22T00:00:00Z",
+                                "metadata": {"source": "Public Domain Library"},
+                            }
+                        ],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            exported = orchestrator.export_attribution_bundle(project_root)
+            self.assertFalse(exported.generated)
+            self.assertEqual(0, exported.required_asset_count)
+            self.assertIsNone(exported.json_path)
+            self.assertIsNone(exported.markdown_path)
+            self.assertFalse((project_root / "compliance" / "attribution.bundle.v1.json").exists())
+
 
 class TestProjectStyleSystem(unittest.TestCase):
     def test_can_create_select_and_list_user_preset(self):
