@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GameForge.Editor.EditorShell;
 
 namespace GameForge.Editor.Tests;
@@ -50,6 +51,138 @@ public sealed class EditorShellTests
             panel => Assert.Equal("Hierarchy", panel.DisplayName),
             panel => Assert.Equal("Inspector", panel.DisplayName),
             panel => Assert.Equal("Viewport", panel.DisplayName));
+    }
+
+    [Fact]
+    public async Task UndoRedoTimeline_SupportsMultiStepRollbackAndReapply()
+    {
+        var workspace = await LoadWorkspaceAsync();
+        Assert.True(workspace.SelectObject("main-camera"));
+
+        var first = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "minor-camera-zoom",
+            TargetObjectId = "main-camera",
+            Summary = "Adjust camera zoom for cozy framing",
+            ImpactLevel = AiEditImpactLevel.Minor,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["zoom"] = JsonSerializer.SerializeToElement(1.3),
+            },
+        });
+
+        var second = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "minor-camera-mode",
+            TargetObjectId = "main-camera",
+            Summary = "Set camera mode to strategic",
+            ImpactLevel = AiEditImpactLevel.Minor,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["mode"] = JsonSerializer.SerializeToElement("strategic"),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.Applied, first.Status);
+        Assert.Equal(AiMutationApplyStatus.Applied, second.Status);
+        Assert.Equal(2, workspace.Timeline.Count);
+        Assert.Equal("strategic", workspace.AiContext!.Properties["mode"]);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal("follow_player", workspace.AiContext.Properties["mode"]);
+
+        Assert.True(workspace.Undo());
+        Assert.False(workspace.AiContext.Properties.ContainsKey("zoom"));
+        Assert.False(workspace.Undo());
+
+        Assert.True(workspace.Redo());
+        Assert.Equal("1.3", workspace.AiContext.Properties["zoom"]);
+        Assert.True(workspace.Redo());
+        Assert.Equal("strategic", workspace.AiContext.Properties["mode"]);
+        Assert.False(workspace.Redo());
+    }
+
+    [Fact]
+    public async Task MajorMutation_RequiresPreviewAndSupportsRollback()
+    {
+        var workspace = await LoadWorkspaceAsync();
+        Assert.True(workspace.SelectObject("player-spawn"));
+        var originalMode = workspace.AiContext!.Properties["mode"];
+
+        var result = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "major-player-spawn-overhaul",
+            TargetObjectId = "player-spawn",
+            Summary = "Overhaul player spawn behavior",
+            ImpactLevel = AiEditImpactLevel.Major,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["mode"] = JsonSerializer.SerializeToElement("auto_navigation"),
+                ["safe_radius"] = JsonSerializer.SerializeToElement(8),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.PreviewRequired, result.Status);
+        Assert.NotNull(result.Preview);
+        Assert.NotNull(workspace.PendingPreview);
+        Assert.Equal(originalMode, workspace.AiContext.Properties["mode"]);
+
+        Assert.True(workspace.ConfirmPendingMajorMutation());
+        Assert.Null(workspace.PendingPreview);
+        Assert.Equal("auto_navigation", workspace.AiContext.Properties["mode"]);
+        Assert.Equal("8", workspace.AiContext.Properties["safe_radius"]);
+
+        Assert.True(workspace.Undo());
+        Assert.Equal(originalMode, workspace.AiContext.Properties["mode"]);
+        Assert.False(workspace.AiContext.Properties.ContainsKey("safe_radius"));
+    }
+
+    [Fact]
+    public async Task MajorMutationConfirmation_IsBlockedIfWorkspaceStateChanged()
+    {
+        var workspace = await LoadWorkspaceAsync();
+        Assert.True(workspace.SelectObject("main-camera"));
+
+        var majorResult = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "major-camera-overhaul",
+            TargetObjectId = "main-camera",
+            Summary = "Major camera overhaul",
+            ImpactLevel = AiEditImpactLevel.Major,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["mode"] = JsonSerializer.SerializeToElement("cinematic"),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.PreviewRequired, majorResult.Status);
+        Assert.NotNull(workspace.PendingPreview);
+
+        var minorResult = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "minor-camera-fov",
+            TargetObjectId = "main-camera",
+            Summary = "Adjust camera zoom for near framing",
+            ImpactLevel = AiEditImpactLevel.Minor,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["zoom"] = JsonSerializer.SerializeToElement(1.1),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.Applied, minorResult.Status);
+        Assert.Null(workspace.PendingPreview);
+        Assert.Equal("1.1", workspace.AiContext!.Properties["zoom"]);
+        Assert.False(workspace.ConfirmPendingMajorMutation());
+        Assert.Equal("follow_player", workspace.AiContext.Properties["mode"]);
+    }
+
+    private static async Task<EditorWorkspace> LoadWorkspaceAsync()
+    {
+        var projectRoot = ResolveProjectRoot();
+        var samplePath = Path.Combine(projectRoot, "app", "samples", "generated-prototype", "cozy-colony-tales");
+        var snapshot = await EditorProjectLoader.LoadGeneratedProjectAsync(samplePath);
+        return new EditorWorkspace(snapshot);
     }
 
     private static string ResolveProjectRoot()
