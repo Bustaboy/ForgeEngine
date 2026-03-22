@@ -140,6 +140,24 @@ public sealed class SteamReadinessPolicyTests
     }
 
 
+
+    [Fact]
+    public void LoadMetrics_ReadinessCollectorArtifact_MapsRequiredFields()
+    {
+        var repoRoot = ResolveProjectRoot();
+        var artifactPath = Path.Combine(repoRoot, "docs", "release", "evidence", "readiness_metrics_sample.json");
+
+        Assert.True(File.Exists(artifactPath));
+
+        var metrics = SteamReadinessPolicy.LoadMetrics(artifactPath);
+
+        Assert.True(metrics.CrashFreeSessionRatePercent >= 0.0);
+        Assert.True(metrics.SustainedFpsFloor >= 0.0);
+        Assert.True(metrics.Fps60CompliancePercent >= 0.0);
+        Assert.True(metrics.InitialSceneLoadSeconds >= 0.0);
+        Assert.True(metrics.SafeSavePassRatePercent >= 0.0);
+    }
+
     [Fact]
     public void CommercialPolicyText_ContainsCriteriaAndRevenueThreshold()
     {
@@ -149,4 +167,18 @@ public sealed class SteamReadinessPolicyTests
         Assert.Contains("1,000", policy.RevenueShareSummary, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string ResolveProjectRoot()
+    {
+        var current = AppContext.BaseDirectory;
+        for (var i = 0; i < 8; i++)
+        {
+            var candidate = Path.GetFullPath(Path.Combine(current, string.Join(Path.DirectorySeparatorChar, Enumerable.Repeat("..", i))));
+            if (File.Exists(Path.Combine(candidate, "GAMEFORGE_V1_BLUEPRINT.md")))
+            {
+                return candidate;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root from test base directory.");
+    }
 }
