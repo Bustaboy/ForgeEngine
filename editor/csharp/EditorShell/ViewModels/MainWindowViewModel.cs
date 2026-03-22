@@ -1,8 +1,11 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Windows.Input;
 using GameForge.Editor.EditorShell.Services;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -27,8 +30,41 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _monacoEditorContent = "// Generate a prototype to load editable C++ runtime code.";
     private string _runtimePreviewSummary = "Generate & Play to populate runtime preview.";
     private string _runtimeEntityList = "No generated entities yet.";
+    private int? _trackedRuntimePid;
+    private ViewportEntity? _selectedViewportEntity;
+    private string _selectedEntitySummary = "No entity selected.";
+    private string _selectedEntityType = "n/a";
+    private float _selectedEntityX;
+    private float _selectedEntityY;
+
+    public MainWindowViewModel()
+    {
+        AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
+        AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
+        AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
+        NudgeLeftCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(-0.1f, 0f));
+        NudgeRightCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0.1f, 0f));
+        NudgeUpCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, 0.1f));
+        NudgeDownCommand = new AsyncRelayCommand(() => NudgeSelectedEntityAsync(0f, -0.1f));
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
+
+    public ICommand AddPlayerEntityCommand { get; }
+
+    public ICommand AddNpcEntityCommand { get; }
+
+    public ICommand AddPropEntityCommand { get; }
+
+    public ICommand NudgeLeftCommand { get; }
+
+    public ICommand NudgeRightCommand { get; }
+
+    public ICommand NudgeUpCommand { get; }
+
+    public ICommand NudgeDownCommand { get; }
 
     public string ChatPrompt
     {
@@ -154,16 +190,58 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private set => SetField(ref _runtimeEntityList, value);
     }
 
+    public ViewportEntity? SelectedViewportEntity
+    {
+        get => _selectedViewportEntity;
+        set
+        {
+            if (!SetField(ref _selectedViewportEntity, value))
+            {
+                return;
+            }
+
+            UpdateSelectedEntityInspector();
+        }
+    }
+
+    public string SelectedEntitySummary
+    {
+        get => _selectedEntitySummary;
+        private set => SetField(ref _selectedEntitySummary, value);
+    }
+
+    public string SelectedEntityType
+    {
+        get => _selectedEntityType;
+        private set => SetField(ref _selectedEntityType, value);
+    }
+
+    public float SelectedEntityX
+    {
+        get => _selectedEntityX;
+        private set => SetField(ref _selectedEntityX, value);
+    }
+
+    public float SelectedEntityY
+    {
+        get => _selectedEntityY;
+        private set => SetField(ref _selectedEntityY, value);
+    }
+
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
         _lastBriefPath = null;
         RuntimePid = null;
+        _trackedRuntimePid = null;
         RuntimeLaunchStatus = "Not launched";
         PipelineProgress = "Idle";
         PrototypeRoot = "(none)";
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
+        ViewportEntities.Clear();
+        SelectedViewportEntity = null;
+        SelectedEntitySummary = "No entity selected.";
         MonacoEditorContent = "// New prototype ready.\n// Generate content to load editable C++ runtime code.";
         StatusMessage = "New prototype started. Describe your game to continue.";
         ShowToast("New prototype ready.");
@@ -185,6 +263,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task PlayRuntimeAsync(CancellationToken cancellationToken = default)
     {
+        await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(PrototypeRoot) && PrototypeRoot != "(none)")
+        {
+            await RelaunchGeneratedRuntimeAsync(cancellationToken);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_lastBriefPath))
         {
             StatusMessage = "No generated brief yet. Click Generate & Play first.";
@@ -207,6 +293,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await File.WriteAllTextAsync(codePath, MonacoEditorContent, cancellationToken);
         StatusMessage = $"Saved runtime code: {codePath}";
         ShowToast("Code saved. Recompiling runtime...");
+        await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
     }
 
@@ -219,73 +306,92 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var executableName = OperatingSystem.IsWindows() ? "prototype_runtime.exe" : "prototype_runtime";
-        var executablePath = Path.Combine(PrototypeRoot, "runtime", executableName);
-        var compileArguments = OperatingSystem.IsWindows()
-            ? "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime.exe"
-            : "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime";
-
-        var compileInfo = new ProcessStartInfo
+        var generatedRoot = Path.Combine(PrototypeRoot, "generated");
+        if (!Directory.Exists(generatedRoot))
         {
-            FileName = "g++",
-            Arguments = compileArguments,
-            WorkingDirectory = PrototypeRoot,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-        };
-
-        PipelineProgress = "Recompiling runtime";
-        RuntimeLaunchStatus = "Recompiling";
-
-        using var compileProcess = Process.Start(compileInfo);
-        if (compileProcess is null)
-        {
-            StatusMessage = "Unable to start g++ compile process.";
-            RuntimeLaunchStatus = "Compile failed";
-            PipelineProgress = "Compile failed";
-            ShowToast("Compile process did not start.");
+            RuntimeLaunchStatus = "Recompile blocked";
+            PipelineProgress = "Recompile blocked";
+            StatusMessage = $"Generated runtime folder missing: {generatedRoot}";
+            ShowToast("Generated runtime folder missing.");
             return;
         }
 
-        var compileStdoutTask = compileProcess.StandardOutput.ReadToEndAsync(cancellationToken);
-        var compileStderrTask = compileProcess.StandardError.ReadToEndAsync(cancellationToken);
-        await compileProcess.WaitForExitAsync(cancellationToken);
+        RuntimeLaunchStatus = "Recompiling generated runtime";
+        PipelineProgress = "Code Mode: CMake configure";
+        StatusMessage = "Save complete. Running CMake configure for generated runtime...";
+        ShowToast("CMake configure started...");
 
-        var compileStdout = await compileStdoutTask;
-        var compileStderr = await compileStderrTask;
-        if (compileProcess.ExitCode != 0)
+        var generatedBuildRoot = Path.Combine(generatedRoot, "build");
+        var configureResult = await RunProcessAsync(
+            "cmake",
+            $"-S \"{generatedRoot}\" -B \"{generatedBuildRoot}\"",
+            PrototypeRoot,
+            cancellationToken);
+        if (configureResult.ExitCode != 0)
         {
             RuntimeLaunchStatus = "Compile failed";
             PipelineProgress = "Compile failed";
-            StatusMessage = BuildCompileFailureMessage(compileStdout, compileStderr);
-            ShowToast("Compile failed. See status panel.");
+            StatusMessage = BuildCompileFailureMessage("CMake configure", configureResult.Stdout, configureResult.Stderr);
+            ShowToast("CMake configure failed. See status details.");
             return;
         }
 
-        var launchInfo = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            WorkingDirectory = PrototypeRoot,
-            UseShellExecute = false,
-        };
+        PipelineProgress = "Code Mode: CMake build";
+        RuntimeLaunchStatus = "Building generated runtime";
+        StatusMessage = "CMake configure passed. Building generated_gameplay_runner...";
+        ShowToast("CMake build started...");
 
-        var runtimeProcess = Process.Start(launchInfo);
-        if (runtimeProcess is null)
+        var buildResult = await RunProcessAsync(
+            "cmake",
+            $"--build \"{generatedBuildRoot}\"",
+            PrototypeRoot,
+            cancellationToken);
+        if (buildResult.ExitCode != 0)
+        {
+            RuntimeLaunchStatus = "Build failed";
+            PipelineProgress = "Build failed";
+            StatusMessage = BuildCompileFailureMessage("CMake build", buildResult.Stdout, buildResult.Stderr);
+            ShowToast("CMake build failed. See status details.");
+            return;
+        }
+
+        PipelineProgress = "Code Mode: launching generated runner";
+        StatusMessage = "Build passed. Relaunching generated runtime runner...";
+        ShowToast("Launching generated runner...");
+        var launchResult = LaunchGeneratedRunner(generatedBuildRoot);
+        if (!launchResult.Success)
         {
             RuntimeLaunchStatus = "Launch failed";
             PipelineProgress = "Launch failed";
-            StatusMessage = $"Compile succeeded, but failed to launch {executableName}.";
-            ShowToast("Runtime launch failed after compile.");
+            StatusMessage = launchResult.ErrorMessage;
+            ShowToast("Generated runtime launch failed.");
             return;
         }
 
-        RuntimePid = runtimeProcess.Id;
+        RuntimePid = launchResult.Pid;
+        _trackedRuntimePid = launchResult.Pid;
         RuntimeLaunchStatus = "Running";
-        RuntimePreviewSummary = $"Live in Vulkan (PID: {runtimeProcess.Id})";
+        RuntimePreviewSummary = $"Live in Vulkan (PID: {launchResult.Pid})";
+        RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         PipelineProgress = "Runtime relaunched from Code Mode";
-        StatusMessage = $"Recompiled and relaunched runtime (PID: {runtimeProcess.Id}).";
+        StatusMessage = $"Save & Recompile complete. generated_gameplay_runner launched (PID: {launchResult.Pid}).";
         ShowToast("Save & Recompile completed.");
+    }
+
+    private async Task RelaunchGeneratedRuntimeAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "No generated prototype available for relaunch.";
+            ShowToast("Generate once before runtime relaunch.");
+            return;
+        }
+
+        RuntimeLaunchStatus = "Relaunching";
+        PipelineProgress = "Runtime relaunch requested";
+        StatusMessage = "Relaunching generated runtime from latest build...";
+        ShowToast("Relaunch runtime requested...");
+        await RecompileAndRelaunchRuntimeAsync(cancellationToken);
     }
 
     public void SetStatusMessage(string value)
@@ -330,6 +436,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PipelineProgress = response.Result?.Status ?? (response.ExitCode == 0 ? "Completed" : "Failed");
         RuntimeLaunchStatus = response.Result?.RuntimeLaunchStatus ?? "Unknown";
         RuntimePid = response.Result?.RuntimeLaunchPid;
+        _trackedRuntimePid = RuntimePid;
         PrototypeRoot = response.Result?.PrototypeRoot ?? "(none)";
 
         RuntimePreviewSummary = RuntimePid is int pid
@@ -337,6 +444,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             : $"Runtime status: {RuntimeLaunchStatus}";
 
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+        LoadViewportEntitiesFromScene(PrototypeRoot);
 
         var loadedCode = TryLoadGeneratedRuntimeCpp(PrototypeRoot);
         if (!string.IsNullOrWhiteSpace(loadedCode))
@@ -354,6 +462,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var candidatePaths = new[]
         {
+            Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"),
+            Path.Combine(prototypeRoot, "generated", "cpp", "player_controller.cpp"),
+            Path.Combine(prototypeRoot, "generated", "cpp", "basic_npc.cpp"),
             Path.Combine(prototypeRoot, "runtime", "main.cpp"),
             Path.Combine(prototypeRoot, "runtime", "scene.cpp"),
             Path.Combine(prototypeRoot, "scene.cpp"),
@@ -397,6 +508,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var candidatePaths = new[]
         {
+            Path.Combine(PrototypeRoot, "generated", "cpp", "scene.cpp"),
+            Path.Combine(PrototypeRoot, "generated", "cpp", "player_controller.cpp"),
+            Path.Combine(PrototypeRoot, "generated", "cpp", "basic_npc.cpp"),
             Path.Combine(PrototypeRoot, "runtime", "main.cpp"),
             Path.Combine(PrototypeRoot, "runtime", "scene.cpp"),
             Path.Combine(PrototypeRoot, "scene.cpp"),
@@ -409,11 +523,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private static string BuildCompileFailureMessage(string compileStdout, string compileStderr)
+    private static string BuildCompileFailureMessage(string stage, string compileStdout, string compileStderr)
     {
         var stderr = string.IsNullOrWhiteSpace(compileStderr) ? "(none)" : compileStderr.Trim();
         var stdout = string.IsNullOrWhiteSpace(compileStdout) ? "(none)" : compileStdout.Trim();
-        return $"Compile failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
+        return $"{stage} failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
     }
 
     private static string BuildGeneratedEntityList(string prototypeRoot)
@@ -440,6 +554,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 lines.Add("• player");
             }
 
+            if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entity in entities.EnumerateArray())
+                {
+                    var id = entity.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var type = entity.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "entity";
+                    lines.Add($"• {type}:{id ?? "unknown"}");
+                }
+            }
+
             if (root.TryGetProperty("npcs", out var npcs) && npcs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var npc in npcs.EnumerateArray())
@@ -447,6 +571,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     lines.Add($"• npc:{id ?? "unknown"}");
                 }
+            }
+
+            if (root.TryGetProperty("camera", out _))
+            {
+                lines.Add("• camera");
             }
 
             if (lines.Count == 0)
@@ -461,6 +590,495 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return $"Failed to parse entity preview: {ex.Message}";
         }
     }
+
+    private void LoadViewportEntitiesFromScene(string prototypeRoot)
+    {
+        ViewportEntities.Clear();
+        SelectedViewportEntity = null;
+
+        if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
+        {
+            return;
+        }
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var root = document.RootElement;
+
+            if (root.TryGetProperty("player_spawn", out var playerSpawn))
+            {
+                var playerX = ReadCoordinate(playerSpawn, "x");
+                var playerY = ReadCoordinate(playerSpawn, "y");
+                ViewportEntities.Add(new ViewportEntity("player_spawn", "player", playerX, playerY));
+            }
+
+            if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entity in entities.EnumerateArray())
+                {
+                    var id = entity.TryGetProperty("id", out var idElement) ? idElement.GetString() : "entity";
+                    var type = entity.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "entity";
+                    var x = ReadCoordinate(entity, "x");
+                    var y = ReadCoordinate(entity, "y");
+                    ViewportEntities.Add(new ViewportEntity(id ?? "entity", type ?? "entity", x, y));
+                }
+            }
+
+            if (root.TryGetProperty("npcs", out var npcs) && npcs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var npc in npcs.EnumerateArray())
+                {
+                    var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : "npc";
+                    var x = ReadCoordinate(npc, "spawn_x");
+                    var y = ReadCoordinate(npc, "spawn_y");
+                    ViewportEntities.Add(new ViewportEntity(id ?? "npc", "npc", x, y));
+                }
+            }
+
+            if (ViewportEntities.Count > 0)
+            {
+                SelectedViewportEntity = ViewportEntities[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Viewport entity load failed: {ex.Message}";
+            ShowToast("Viewport entity load failed.");
+        }
+    }
+
+    private async Task AddEntityAndRelaunchAsync(string entityKind, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "Generate a prototype before adding entities.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            StatusMessage = $"Scene scaffold not found: {scenePath}";
+            ShowToast("scene_scaffold.json missing.");
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(
+                document.RootElement.GetRawText(),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new Dictionary<string, object?>();
+
+            var entities = new List<Dictionary<string, object?>>();
+            if (document.RootElement.TryGetProperty("entities", out var existingEntities) && existingEntities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var existingEntity in existingEntities.EnumerateArray())
+                {
+                    entities.Add(JsonSerializer.Deserialize<Dictionary<string, object?>>(existingEntity.GetRawText()) ?? new Dictionary<string, object?>());
+                }
+            }
+
+            var nextIndex = entities.Count + 1;
+            entities.Add(new Dictionary<string, object?>
+            {
+                ["id"] = $"{entityKind}_{nextIndex:00}",
+                ["type"] = entityKind,
+                ["x"] = 0,
+                ["y"] = 0,
+                ["z"] = 0,
+            });
+
+            payload["entities"] = entities;
+            var updatedScene = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(scenePath, updatedScene, cancellationToken);
+
+            StatusMessage = $"Added {entityKind} entity. Recompiling and relaunching runtime...";
+            ShowToast($"{entityKind.ToUpperInvariant()} entity added.");
+
+            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Add entity failed: {ex.Message}";
+            ShowToast("Add entity failed.");
+        }
+    }
+
+    private async Task NudgeSelectedEntityAsync(float deltaX, float deltaY, CancellationToken cancellationToken = default)
+    {
+        if (SelectedViewportEntity is null)
+        {
+            ShowToast("Select an entity first.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "Generate a prototype before moving entities.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            StatusMessage = "scene_scaffold.json not found.";
+            ShowToast("Cannot move entity without scene scaffold.");
+            return;
+        }
+
+        try
+        {
+            var root = JsonNode.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken))?.AsObject();
+            if (root is null)
+            {
+                StatusMessage = "Scene scaffold parse failed.";
+                ShowToast("Scene parse failed.");
+                return;
+            }
+
+            var moved = TryMoveEntityInScene(root, SelectedViewportEntity, deltaX, deltaY);
+            if (!moved)
+            {
+                ShowToast("Selected entity not found in scene.");
+                return;
+            }
+
+            await File.WriteAllTextAsync(scenePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+            StatusMessage = $"Moved {SelectedViewportEntity.DisplayName}. Relaunching runtime...";
+            ShowToast("Entity moved. Relaunching runtime...");
+
+            await StopPreviousRuntimeIfRunningAsync(cancellationToken);
+            await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+            SelectedViewportEntity = ViewportEntities.FirstOrDefault(entity => entity.Id == SelectedViewportEntity.Id);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Move entity failed: {ex.Message}";
+            ShowToast("Entity move failed.");
+        }
+    }
+
+    private void UpdateSelectedEntityInspector()
+    {
+        if (SelectedViewportEntity is null)
+        {
+            SelectedEntitySummary = "No entity selected.";
+            SelectedEntityType = "n/a";
+            SelectedEntityX = 0;
+            SelectedEntityY = 0;
+            return;
+        }
+
+        SelectedEntityType = SelectedViewportEntity.Type;
+        SelectedEntityX = SelectedViewportEntity.X;
+        SelectedEntityY = SelectedViewportEntity.Y;
+        SelectedEntitySummary = $"{SelectedViewportEntity.DisplayName} ({SelectedViewportEntity.Type})";
+    }
+
+    private static float ReadCoordinate(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+        {
+            return 0f;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number => value.TryGetSingle(out var number) ? number : 0f,
+            _ => 0f,
+        };
+    }
+
+    private static bool TryMoveEntityInScene(JsonObject root, ViewportEntity selected, float deltaX, float deltaY)
+    {
+        if (selected.Type == "player")
+        {
+            var playerSpawn = root["player_spawn"] as JsonObject;
+            if (playerSpawn is null)
+            {
+                return false;
+            }
+
+            var currentX = ReadNodeFloat(playerSpawn["x"]);
+            var currentY = ReadNodeFloat(playerSpawn["y"]);
+            playerSpawn["x"] = currentX + deltaX;
+            playerSpawn["y"] = currentY + deltaY;
+            return true;
+        }
+
+        if (root["entities"] is JsonArray entities)
+        {
+            foreach (var node in entities)
+            {
+                if (node is not JsonObject entityObject)
+                {
+                    continue;
+                }
+
+                var id = entityObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var currentX = ReadNodeFloat(entityObject["x"]);
+                var currentY = ReadNodeFloat(entityObject["y"]);
+                entityObject["x"] = currentX + deltaX;
+                entityObject["y"] = currentY + deltaY;
+                return true;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            foreach (var node in npcs)
+            {
+                if (node is not JsonObject npcObject)
+                {
+                    continue;
+                }
+
+                var id = npcObject["id"]?.GetValue<string>();
+                if (!string.Equals(id, selected.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var currentX = ReadNodeFloat(npcObject["spawn_x"]);
+                var currentY = ReadNodeFloat(npcObject["spawn_y"]);
+                npcObject["spawn_x"] = currentX + deltaX;
+                npcObject["spawn_y"] = currentY + deltaY;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float ReadNodeFloat(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return 0f;
+        }
+
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<float>(out var floatValue))
+            {
+                return floatValue;
+            }
+
+            if (value.TryGetValue<double>(out var doubleValue))
+            {
+                return (float)doubleValue;
+            }
+
+            if (value.TryGetValue<int>(out var intValue))
+            {
+                return intValue;
+            }
+        }
+
+        return 0f;
+    }
+
+    private static async Task<ProcessResult> RunProcessAsync(
+        string fileName,
+        string arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var processInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        using var process = Process.Start(processInfo);
+        if (process is null)
+        {
+            return new ProcessResult(-1, string.Empty, $"{fileName} process failed to start.");
+        }
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        return new ProcessResult(process.ExitCode, stdout, stderr);
+    }
+
+    private static LaunchResult LaunchGeneratedRunner(string generatedBuildRoot)
+    {
+        var executablePath = ResolveGeneratedRunnerPath(generatedBuildRoot);
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            return new LaunchResult(false, null, $"generated_gameplay_runner not found under {generatedBuildRoot}");
+        }
+
+        var launchInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            WorkingDirectory = Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+        };
+
+        var manifestPath = Path.Combine(Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot, "..", "pipeline", "07_export_manifest.v1.json");
+        var normalizedManifestPath = Path.GetFullPath(manifestPath);
+        if (File.Exists(normalizedManifestPath))
+        {
+            launchInfo.ArgumentList.Add("--manifest");
+            launchInfo.ArgumentList.Add(normalizedManifestPath);
+        }
+
+        try
+        {
+            var runtimeProcess = Process.Start(launchInfo);
+            if (runtimeProcess is null)
+            {
+                return new LaunchResult(false, null, "generated_gameplay_runner process returned null.");
+            }
+
+            return new LaunchResult(true, runtimeProcess.Id, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return new LaunchResult(false, null, $"Failed to launch generated_gameplay_runner: {ex.Message}");
+        }
+    }
+
+    private static string ResolveGeneratedRunnerPath(string generatedBuildRoot)
+    {
+        var candidates = OperatingSystem.IsWindows()
+            ? new[]
+            {
+                Path.Combine(generatedBuildRoot, "Debug", "generated_gameplay_runner.exe"),
+                Path.Combine(generatedBuildRoot, "Release", "generated_gameplay_runner.exe"),
+                Path.Combine(generatedBuildRoot, "generated_gameplay_runner.exe"),
+            }
+            : new[]
+            {
+                Path.Combine(generatedBuildRoot, "generated_gameplay_runner"),
+            };
+
+        return candidates.FirstOrDefault(File.Exists) ?? string.Empty;
+    }
+
+    private readonly record struct ProcessResult(int ExitCode, string Stdout, string Stderr);
+
+    private readonly record struct LaunchResult(bool Success, int? Pid, string ErrorMessage);
+
+    private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
+    {
+        var candidatePid = _trackedRuntimePid ?? RuntimePid;
+        if (candidatePid is not int pid || pid <= 0)
+        {
+            return;
+        }
+
+        var stopResult = await TryStopRuntimeProcessAsync(pid, cancellationToken);
+        if (stopResult.Stopped)
+        {
+            RuntimeLaunchStatus = "Previous runtime stopped";
+            StatusMessage = $"Previous runtime stopped (PID: {pid}).";
+            ShowToast("Previous runtime stopped.");
+            RuntimePid = null;
+            _trackedRuntimePid = null;
+            RuntimePreviewSummary = "Runtime stopped. Relaunching generated runtime...";
+            return;
+        }
+
+        RuntimeLaunchStatus = "Previous runtime cleanup failed";
+        StatusMessage = $"Unable to stop previous runtime PID {pid}: {stopResult.ErrorMessage}";
+        ShowToast("Previous runtime cleanup failed; continuing with relaunch.");
+    }
+
+    private async Task<RuntimeStopResult> TryStopRuntimeProcessAsync(int pid, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var process = Process.GetProcessById(pid);
+                    if (process.HasExited)
+                    {
+                        return new RuntimeStopResult(true, string.Empty);
+                    }
+
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(cancellationToken);
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+                catch (ArgumentException)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+            }
+
+            var killResult = await RunProcessAsync("kill", $"-9 {pid}", workingDirectory: PrototypeRoot == "(none)" ? Environment.CurrentDirectory : PrototypeRoot, cancellationToken);
+            if (killResult.ExitCode == 0)
+            {
+                return new RuntimeStopResult(true, string.Empty);
+            }
+
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                if (process.HasExited)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync(cancellationToken);
+                return new RuntimeStopResult(true, string.Empty);
+            }
+            catch (ArgumentException)
+            {
+                return new RuntimeStopResult(true, string.Empty);
+            }
+            catch (Exception fallbackEx)
+            {
+                var fallbackMessage = string.IsNullOrWhiteSpace(killResult.Stderr)
+                    ? fallbackEx.Message
+                    : $"{killResult.Stderr.Trim()} | fallback: {fallbackEx.Message}";
+                return new RuntimeStopResult(false, fallbackMessage);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            return new RuntimeStopResult(false, ex.Message);
+        }
+    }
+
+    private readonly record struct RuntimeStopResult(bool Stopped, string ErrorMessage);
 
     private static string BuildStatusMessage(PipelineRunResponse response)
     {
@@ -528,19 +1146,40 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    public sealed record ViewportEntity(string Id, string Type, float X, float Y)
+    {
+        public string DisplayName => $"{Type}:{Id}";
+    }
+
+    private sealed class AsyncRelayCommand(Func<Task> executeAsync) : ICommand
+    {
+        private readonly Func<Task> _executeAsync = executeAsync;
+
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter) => true;
+
+        public async void Execute(object? parameter)
+        {
+            await _executeAsync();
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 }
