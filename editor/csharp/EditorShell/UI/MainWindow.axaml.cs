@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private Point _dragPointerStart;
     private float _dragEntityStartX;
     private float _dragEntityStartY;
+    private bool _isMarqueeSelecting;
+    private Point _marqueeStart;
+    private Border? _marqueeVisual;
 
     public MainWindow()
     {
@@ -65,6 +68,7 @@ public partial class MainWindow : Window
         }
 
         _viewportCanvas.PointerMoved += OnViewportPointerMoved;
+        _viewportCanvas.PointerPressed += OnViewportPointerPressed;
         _viewportCanvas.PointerReleased += OnViewportPointerReleased;
         _viewportCanvas.SizeChanged += (_, _) => RefreshViewportVisuals();
         _viewModel.ViewportEntities.CollectionChanged += OnViewportEntitiesChanged;
@@ -152,14 +156,40 @@ public partial class MainWindow : Window
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.ViewportEntities.CollectionChanged -= OnViewportEntitiesChanged;
+        foreach (var entity in _viewModel.ViewportEntities)
+        {
+            entity.PropertyChanged -= OnViewportEntityPropertyChanged;
+        }
         if (_viewportCanvas is not null)
         {
             _viewportCanvas.PointerMoved -= OnViewportPointerMoved;
+            _viewportCanvas.PointerPressed -= OnViewportPointerPressed;
             _viewportCanvas.PointerReleased -= OnViewportPointerReleased;
         }
     }
 
     private void OnViewportEntitiesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+        {
+            foreach (var entity in e.NewItems.OfType<MainWindowViewModel.ViewportEntity>())
+            {
+                entity.PropertyChanged += OnViewportEntityPropertyChanged;
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (var entity in e.OldItems.OfType<MainWindowViewModel.ViewportEntity>())
+            {
+                entity.PropertyChanged -= OnViewportEntityPropertyChanged;
+            }
+        }
+
+        RefreshViewportVisuals();
+    }
+
+    private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         RefreshViewportVisuals();
     }
@@ -191,12 +221,12 @@ public partial class MainWindow : Window
 
         var marker = new Border
         {
-            Width = MarkerSize,
-            Height = MarkerSize,
+            Width = MarkerSize * Math.Max(0.7, entity.Scale),
+            Height = MarkerSize * Math.Max(0.7, entity.Scale),
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.Parse("#1A2C45")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#4AA3FF")),
-            BorderThickness = new Thickness(1.2),
+            Background = new SolidColorBrush(ParseColor(entity.ColorHex, "#1A2C45")),
+            BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#7FD1FF") : Color.Parse("#4AA3FF")),
+            BorderThickness = entity.IsSelected ? new Thickness(2.4) : new Thickness(1.2),
             Tag = entity.Id,
             Child = new TextBlock
             {
@@ -221,10 +251,37 @@ public partial class MainWindow : Window
 
         var centerX = _viewportCanvas.Bounds.Width / 2.0;
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
-        var left = centerX + (entity.X * ViewportScale) - (MarkerSize / 2.0);
-        var top = centerY - (entity.Y * ViewportScale) - (MarkerSize / 2.0);
+        var markerSize = MarkerSize * Math.Max(0.7, entity.Scale);
+        var left = centerX + (entity.X * ViewportScale) - (markerSize / 2.0);
+        var top = centerY - (entity.Y * ViewportScale) - (markerSize / 2.0);
         Canvas.SetLeft(marker, left);
         Canvas.SetTop(marker, top);
+    }
+
+    private void OnViewportPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        if (e.Source is Control source && source.Tag is string)
+        {
+            return;
+        }
+
+        var modifiers = e.KeyModifiers;
+        if (!modifiers.HasFlag(KeyModifiers.Control))
+        {
+            _viewModel.ClearSelection();
+            RefreshViewportVisuals();
+        }
+
+        _isMarqueeSelecting = true;
+        _marqueeStart = e.GetPosition(_viewportCanvas);
+        EnsureMarqueeVisual();
+        e.Pointer.Capture(_viewportCanvas);
+        e.Handled = true;
     }
 
     private void OnEntityPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -234,6 +291,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        var modifiers = e.KeyModifiers;
+        if (modifiers.HasFlag(KeyModifiers.Control))
+        {
+            _viewModel.ToggleEntitySelection(entityId);
+            RefreshViewportVisuals();
+            e.Handled = true;
+            return;
+        }
+
+        _viewModel.SelectSingleEntity(entityId);
         if (!_viewModel.BeginDragForEntity(entityId))
         {
             return;
@@ -254,7 +321,20 @@ public partial class MainWindow : Window
 
     private void OnViewportPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_viewportCanvas is null || _draggingEntity is null || !e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        if (_isMarqueeSelecting && _marqueeVisual is not null && e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
+        {
+            var current = e.GetPosition(_viewportCanvas);
+            DrawMarquee(_marqueeStart, current);
+            e.Handled = true;
+            return;
+        }
+
+        if (_draggingEntity is null || !e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
         {
             return;
         }
@@ -272,7 +352,23 @@ public partial class MainWindow : Window
 
     private async void OnViewportPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (_draggingEntity is null || _viewportCanvas is null)
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        if (_isMarqueeSelecting)
+        {
+            var current = e.GetPosition(_viewportCanvas);
+            CompleteMarqueeSelection(_marqueeStart, current, e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            _isMarqueeSelecting = false;
+            HideMarquee();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (_draggingEntity is null)
         {
             return;
         }
@@ -281,6 +377,103 @@ public partial class MainWindow : Window
         e.Pointer.Capture(null);
         await _viewModel.CommitDragAsync();
         RefreshViewportVisuals();
+    }
+
+    private static Color ParseColor(string? candidate, string fallback)
+    {
+        try
+        {
+            return Color.Parse(string.IsNullOrWhiteSpace(candidate) ? fallback : candidate);
+        }
+        catch
+        {
+            return Color.Parse(fallback);
+        }
+    }
+
+    private void EnsureMarqueeVisual()
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        _marqueeVisual ??= new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.Parse("#73B8FF")),
+            BorderThickness = new Thickness(1.5),
+            Background = new SolidColorBrush(Color.Parse("#334AA3FF")),
+            IsVisible = false,
+        };
+
+        if (!_viewportCanvas.Children.Contains(_marqueeVisual))
+        {
+            _viewportCanvas.Children.Add(_marqueeVisual);
+        }
+    }
+
+    private void DrawMarquee(Point start, Point current)
+    {
+        if (_viewportCanvas is null || _marqueeVisual is null)
+        {
+            return;
+        }
+
+        var left = Math.Min(start.X, current.X);
+        var top = Math.Min(start.Y, current.Y);
+        var width = Math.Abs(start.X - current.X);
+        var height = Math.Abs(start.Y - current.Y);
+
+        _marqueeVisual.IsVisible = true;
+        _marqueeVisual.Width = width;
+        _marqueeVisual.Height = height;
+        Canvas.SetLeft(_marqueeVisual, left);
+        Canvas.SetTop(_marqueeVisual, top);
+    }
+
+    private void CompleteMarqueeSelection(Point start, Point current, bool append)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var minScreenX = Math.Min(start.X, current.X);
+        var maxScreenX = Math.Max(start.X, current.X);
+        var minScreenY = Math.Min(start.Y, current.Y);
+        var maxScreenY = Math.Max(start.Y, current.Y);
+
+        if (Math.Abs(maxScreenX - minScreenX) < 2 && Math.Abs(maxScreenY - minScreenY) < 2)
+        {
+            if (!append)
+            {
+                _viewModel.ClearSelection();
+            }
+            RefreshViewportVisuals();
+            return;
+        }
+
+        var centerX = _viewportCanvas.Bounds.Width / 2.0;
+        var centerY = _viewportCanvas.Bounds.Height / 2.0;
+        var minWorldX = (float)((minScreenX - centerX) / ViewportScale);
+        var maxWorldX = (float)((maxScreenX - centerX) / ViewportScale);
+        var minWorldY = (float)((centerY - maxScreenY) / ViewportScale);
+        var maxWorldY = (float)((centerY - minScreenY) / ViewportScale);
+
+        _viewModel.SelectEntitiesByViewportRect(minWorldX, minWorldY, maxWorldX, maxWorldY, append);
+        RefreshViewportVisuals();
+    }
+
+    private void HideMarquee()
+    {
+        if (_marqueeVisual is null)
+        {
+            return;
+        }
+
+        _marqueeVisual.IsVisible = false;
+        _marqueeVisual.Width = 0;
+        _marqueeVisual.Height = 0;
     }
 
     private async Task ShowBenchmarkModalAsync(BenchmarkResultEnvelope benchmark)
