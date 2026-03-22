@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "session_id": "session-at003-long-001",
+  "created_at_utc": "2026-03-20T09:00:00Z",
+  "updated_at_utc": "2026-03-20T09:45:00Z",
+  "concept": "Co-op city-heist strategy RPG with systemic factions",
+  "genre_weights": {
+    "rts_sim": 0.68,
+    "rpg": 0.32
+  },
+  "mechanics": {
+    "core_loop": "Scout district, plan crew loadout, execute heist, launder gains into upgrades",
+    "progression_systems": [
+      "Crew specialization trees",
+      "Faction reputation ladders",
+      "District heat pressure"
+    ],
+    "failure_states": [
+      "Crew capture",
+      "Heat overflow lockdown",
+      "Bankroll collapse"
+    ],
+    "simulation_depth_notes": "District economies react to player raids and faction unrest over time."
+  },
+  "narrative": {
+    "premise": "A fractured megacity where rival factions exploit black-market infrastructure.",
+    "player_fantasy": "Mastermind who outsmarts stronger powers through planning and adaptation.",
+    "tone": "Grounded, tense, and occasionally darkly humorous.",
+    "world_notes": "Three dominant factions control transit, data, and biotech corridors.",
+    "quest_structure": [
+      "Faction contract arcs",
+      "Branching vendetta chains",
+      "Escalating citywide crisis finales"
+    ]
+  },
+  "style": {
+    "preset": "gritty-neon",
+    "art_direction": "Rainy high-contrast urban palette with readable silhouettes.",
+    "camera_direction": "Hybrid tactical isometric with contextual closeups.",
+    "ui_direction": "Dense tactical HUD with progressive disclosure for advanced tools.",
+    "audio_direction": "Industrial percussion mixed with low-fi synth tension beds."
+  },
+  "constraints": {
+    "target_platforms": [
+      "windows",
+      "ubuntu"
+    ],
+    "content_rating_target": "Teen",
+    "scope_constraints": [
+      "Single-player launch only",
+      "No user-generated economy",
+      "8-hour vertical slice by milestone gate"
+    ],
+    "technical_constraints": [
+      "Vulkan-first rendering path",
+      "Offline-first save pipeline"
+    ],
+    "accessibility_constraints": [
+      "Remappable controls",
+      "Scalable subtitle sizes",
+      "High-contrast UI mode"
+    ]
+  },
+  "uncertainty_decisions": [
+    {
+      "topic": "genre-focus",
+      "source_input": "I am not sure which focus is best",
+      "options": [
+        {
+          "option_id": "genre-systems-core",
+          "title": "Systems-first strategy",
+          "summary": "Prioritize simulation and tactical planning depth.",
+          "tradeoff": "Narrative arcs mature later in production."
+        },
+        {
+          "option_id": "genre-story-core",
+          "title": "Narrative-first RPG",
+          "summary": "Center character drama and branching dialogue.",
+          "tradeoff": "May reduce systemic sandbox flexibility."
+        },
+        {
+          "option_id": "genre-balanced-core",
+          "title": "Balanced hybrid",
+          "summary": "Blend strategic systems with authored story beats.",
+          "tradeoff": "Higher tuning complexity across pillars."
+        }
+      ],
+      "selected_option_id": "genre-balanced-core"
+    },
+    {
+      "topic": "concept",
+      "source_input": "think of something",
+      "options": [
+        {
+          "option_id": "concept-shadow-courier",
+          "title": "Shadow Courier",
+          "summary": "Smuggle volatile biotech between hostile districts.",
+          "tradeoff": "Requires careful stealth readability at speed."
+        },
+        {
+          "option_id": "concept-rail-saboteur",
+          "title": "Rail Saboteur",
+          "summary": "Hijack transit chokepoints to control faction logistics.",
+          "tradeoff": "Complex mission scripting and replay balancing."
+        },
+        {
+          "option_id": "concept-ledger-ghost",
+          "title": "Ledger Ghost",
+          "summary": "Manipulate data ledgers to bankrupt rival syndicates.",
+          "tradeoff": "Abstract systems need strong UX scaffolding."
+        }
+      ],
+      "selected_option_id": "concept-rail-saboteur"
+    },
+    {
+      "topic": "combat-style",
+      "source_input": "unsure",
+      "options": [
+        {
+          "option_id": "combat-pause-plan",
+          "title": "Pause-and-plan",
+          "summary": "Queue tactical actions with slow-time review windows.",
+          "tradeoff": "Can feel less immediate for action players."
+        },
+        {
+          "option_id": "combat-real-time-squad",
+          "title": "Real-time squad commands",
+          "summary": "Direct multiple operatives live with formation shortcuts.",
+          "tradeoff": "Higher onboarding burden for new players."
+        },
+        {
+          "option_id": "combat-turn-based",
+          "title": "Turn-based encounters",
+          "summary": "Discrete tactical turns with clear information pacing.",
+          "tradeoff": "Reduced momentum for chase-style missions."
+        }
+      ],
+      "selected_option_id": "combat-real-time-squad"
+    },
+    {
+      "topic": "onboarding",
+      "source_input": "I don't know how much tutorialization we need",
+      "options": [
+        {
+          "option_id": "onboarding-guided",
+          "title": "Guided campaign onboarding",
+          "summary": "Author explicit tutorials over first three missions.",
+          "tradeoff": "More up-front design and scripting cost."
+        },
+        {
+          "option_id": "onboarding-contextual",
+          "title": "Contextual coaching",
+          "summary": "Surface hints only when players stall or fail patterns.",
+          "tradeoff": "Needs robust telemetry and trigger tuning."
+        },
+        {
+          "option_id": "onboarding-sandbox",
+          "title": "Sandbox-first briefing",
+          "summary": "Let players experiment with optional objective prompts.",
+          "tradeoff": "Risk of early confusion for some audiences."
+        }
+      ],
+      "selected_option_id": "onboarding-contextual"
+    }
+  ]
+}
