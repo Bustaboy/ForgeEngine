@@ -383,19 +383,26 @@ def apply_consequence_choice(tracker: dict[str, object], choice_id: str) -> Cons
 
 def derive_branch_view(branch_view: dict[str, object], tracker: dict[str, object]) -> dict[str, object]:
     current_node_id = tracker.get("state", {}).get("current_node_id", "")
-    next_candidates = set()
+    available_transitions: set[tuple[str, str]] = set()
     nodes = tracker.get("graph", {}).get("nodes", [])
     for node in nodes:
         if node.get("node_id") != current_node_id:
             continue
         for choice in node.get("choices", []):
-            next_candidates.add(choice.get("next_node_id"))
+            choice_id = str(choice.get("choice_id", ""))
+            next_node_id = str(choice.get("next_node_id", ""))
+            if choice_id:
+                available_transitions.add((choice_id, next_node_id))
 
     resolved_edges: list[dict[str, object]] = []
     for edge in branch_view.get("edges", []):
         edge_copy = dict(edge)
+        edge_choice_id = str(edge_copy.get("choice_id", ""))
+        edge_to = str(edge_copy.get("to", ""))
         if edge_copy.get("from") == current_node_id:
-            edge_copy["live_status"] = "active-choice" if edge_copy.get("to") in next_candidates else "inactive"
+            edge_copy["live_status"] = (
+                "active-choice" if (edge_choice_id, edge_to) in available_transitions else "inactive"
+            )
         else:
             edge_copy["live_status"] = "inactive"
         resolved_edges.append(edge_copy)

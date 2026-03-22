@@ -294,6 +294,34 @@ class TestPrototypeGeneration(unittest.TestCase):
         self.assertEqual(statuses["edge_farmers"], "active-choice")
         self.assertEqual(statuses["edge_merchants"], "active-choice")
 
+    def test_branch_view_requires_matching_choice_id_for_active_edge(self):
+        tracker_path = SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json"
+        tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
+        branch = {
+            "schema": "gameforge.rpg.branch_view.v1",
+            "view_id": "choice-id-regression",
+            "nodes": [],
+            "edges": [
+                {
+                    "edge_id": "edge_valid",
+                    "from": "dialogue_mayor_intro",
+                    "to": "dialogue_farmers_supported",
+                    "choice_id": "support_farmers",
+                },
+                {
+                    "edge_id": "edge_stale_same_target",
+                    "from": "dialogue_mayor_intro",
+                    "to": "dialogue_farmers_supported",
+                    "choice_id": "support_farmers_old",
+                },
+            ],
+        }
+
+        resolved = orchestrator.derive_branch_view(branch, tracker)
+        statuses = {edge["edge_id"]: edge["live_status"] for edge in resolved["edges"]}
+        self.assertEqual(statuses["edge_valid"], "active-choice")
+        self.assertEqual(statuses["edge_stale_same_target"], "inactive")
+
 
 if __name__ == "__main__":
     unittest.main()
