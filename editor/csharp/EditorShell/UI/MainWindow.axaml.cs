@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private const double ViewportScale = 38.0;
     private const double MarkerSize = 34.0;
     private const string AssetDragFormat = "application/x-gameforge-asset-id";
+    private const string HierarchyDragFormat = "application/x-gameforge-hierarchy-entity";
     private readonly MainWindowViewModel _viewModel = new();
     private bool _firstRunModalChecked;
     private bool _isSyncingEditorText;
@@ -323,6 +324,64 @@ public partial class MainWindow : Window
         _dragEntityStartX = _draggingEntity.X;
         _dragEntityStartY = _draggingEntity.Y;
         e.Pointer.Capture(_viewportCanvas);
+        e.Handled = true;
+    }
+
+    private async void OnHierarchyNodePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Border border || border.Tag is not string entityId || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        if (!_viewModel.SelectSingleEntity(entityId))
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(border).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var payload = new DataObject();
+        payload.Set(HierarchyDragFormat, entityId);
+        await DragDrop.DoDragDrop(e, payload, DragDropEffects.Move);
+    }
+
+    private void OnHierarchyNodeDragOver(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.Contains(HierarchyDragFormat))
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private async void OnHierarchyNodeDrop(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.Contains(HierarchyDragFormat) || sender is not Border border)
+        {
+            return;
+        }
+
+        var sourceEntityId = e.Data.Get(HierarchyDragFormat) as string;
+        var targetEntityId = border.Tag as string;
+        if (string.IsNullOrWhiteSpace(sourceEntityId))
+        {
+            return;
+        }
+
+        if (string.Equals(sourceEntityId, targetEntityId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await _viewModel.ReparentEntityAsync(sourceEntityId, targetEntityId);
         e.Handled = true;
     }
 

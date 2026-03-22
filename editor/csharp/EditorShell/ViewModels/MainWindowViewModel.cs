@@ -55,6 +55,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private int _nextHistoryRevision = 1;
     private readonly ObservableCollection<HistoryTimelineEntry> _historyTimeline = new();
     private readonly ReadOnlyObservableCollection<HistoryTimelineEntry> _readonlyHistoryTimeline;
+    private readonly ObservableCollection<HierarchyNode> _hierarchyRoots = new();
+    private readonly ReadOnlyObservableCollection<HierarchyNode> _readonlyHierarchyRoots;
+    private HierarchyNode? _selectedHierarchyNode;
     private DragSession? _activeDragSession;
     private string _selectedEntityAssetName = "No asset linked.";
     private string _selectedEntityAssetPreviewPath = string.Empty;
@@ -72,6 +75,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _runtimeSupervisor = runtimeSupervisor;
         _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
+        _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
@@ -94,6 +98,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
 
     public ObservableCollection<ImportedAsset> ImportedAssets { get; } = new();
+
+    public ReadOnlyObservableCollection<HierarchyNode> HierarchyRoots => _readonlyHierarchyRoots;
 
     public ICommand AddPlayerEntityCommand { get; }
 
@@ -187,6 +193,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool CanRedo => _redoStack.Count > 0;
 
     public ReadOnlyObservableCollection<HistoryTimelineEntry> HistoryTimeline => _readonlyHistoryTimeline;
+
+    public HierarchyNode? SelectedHierarchyNode
+    {
+        get => _selectedHierarchyNode;
+        set
+        {
+            if (!SetField(ref _selectedHierarchyNode, value) || value is null || !value.IsEntityNode || value.EntityId is null)
+            {
+                return;
+            }
+
+            SelectSingleEntity(value.EntityId);
+        }
+    }
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
@@ -456,6 +476,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
         RuntimeEntityList = "No generated entities yet.";
         ViewportEntities.Clear();
+        _hierarchyRoots.Clear();
         ImportedAssets.Clear();
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
@@ -465,6 +486,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _activeDragSession = null;
         NotifyHistoryChanged();
         SelectedViewportEntity = null;
+        SelectedHierarchyNode = null;
         SelectedEntitySummary = "No entity selected.";
         MonacoEditorContent = "// New prototype ready.\n// Generate content to load editable C++ runtime code.";
         StatusMessage = "New prototype started. Describe your game to continue.";
@@ -873,6 +895,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         y,
                         scale <= 0f ? 1f : scale,
                         SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType(type ?? "entity"),
+                        entity.TryGetProperty("parent_id", out var parentId) ? parentId.GetString() : null,
                         entity.TryGetProperty("asset_id", out var assetId) ? assetId.GetString() : null,
                         entity.TryGetProperty("asset_path", out var assetPath) ? assetPath.GetString() : null,
                         entity.TryGetProperty("asset_kind", out var assetKind) ? assetKind.GetString() : null));
@@ -896,10 +919,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                         x,
                         y,
                         scale <= 0f ? 1f : scale,
-                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType("npc")));
+                        SanitizeColorHex(color ?? string.Empty) ?? DefaultColorForType("npc"),
+                        npc.TryGetProperty("parent_id", out var parentId) ? parentId.GetString() : null));
                 }
             }
 
+            RebuildHierarchyTree();
             if (ViewportEntities.Count > 0)
             {
                 ReplaceSelection(new[] { ViewportEntities[0] });
@@ -1286,9 +1311,237 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<bool> ReparentEntityAsync(string sourceEntityId, string? targetEntityId, CancellationToken cancellationToken = default)
+    {
+        var source = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, sourceEntityId, StringComparison.Ordinal));
+        if (source is null || source.Type == "player")
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetEntityId))
+        {
+            var target = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, targetEntityId, StringComparison.Ordinal));
+            if (target is null || target.Id == source.Id || target.Type == "player")
+            {
+                return false;
+            }
+
+            if (IsDescendantOf(target.Id, source.Id))
+            {
+                ShowToast("Reparent blocked: cyclic hierarchy.");
+                return false;
+            }
+        }
+
+        if (string.Equals(source.ParentId ?? string.Empty, targetEntityId ?? string.Empty, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            if (!TrySetEntityParentInScene(root, sourceEntityId, targetEntityId))
+            {
+                ShowToast("Hierarchy update failed.");
+                return false;
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            var label = string.IsNullOrWhiteSpace(targetEntityId)
+                ? $"Hierarchy updated: {source.DisplayName} moved to root"
+                : $"Hierarchy updated: {source.DisplayName} parent → {targetEntityId}";
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Hierarchy reparent failed: {ex.Message}";
+            ShowToast("Hierarchy reparent failed.");
+            return false;
+        }
+    }
+
     private void UpdateSelectedEntityInspector()
     {
         RefreshInspectorDerivedState();
+    }
+
+    private bool IsDescendantOf(string candidateId, string ancestorId)
+    {
+        var current = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, candidateId, StringComparison.Ordinal));
+        var guard = 0;
+        while (current is not null && !string.IsNullOrWhiteSpace(current.ParentId) && guard++ < 256)
+        {
+            if (string.Equals(current.ParentId, ancestorId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            current = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, current.ParentId, StringComparison.Ordinal));
+        }
+
+        return false;
+    }
+
+    private static bool TrySetEntityParentInScene(JsonObject root, string sourceEntityId, string? targetEntityId)
+    {
+        if (root["entities"] is JsonArray entities)
+        {
+            foreach (var node in entities.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), sourceEntityId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(targetEntityId))
+                {
+                    node.Remove("parent_id");
+                }
+                else
+                {
+                    node["parent_id"] = targetEntityId;
+                }
+
+                return true;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            foreach (var node in npcs.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), sourceEntityId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(targetEntityId))
+                {
+                    node.Remove("parent_id");
+                }
+                else
+                {
+                    node["parent_id"] = targetEntityId;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void RebuildHierarchyTree()
+    {
+        _hierarchyRoots.Clear();
+
+        var sceneRoot = new HierarchyNode("scene_root", "🧭 Scene", "🧭", null, false);
+        var npcGroup = new HierarchyNode("group_npcs", "🧍 NPCs", "🧍", null, false);
+        var propGroup = new HierarchyNode("group_props", "📦 Props", "📦", null, false);
+        var miscGroup = new HierarchyNode("group_misc", "🧩 Groups", "🧩", null, false);
+        sceneRoot.Children.Add(new HierarchyNode("player_root", "👤 Player", "👤", "player_spawn", true));
+        sceneRoot.Children.Add(npcGroup);
+        sceneRoot.Children.Add(propGroup);
+        sceneRoot.Children.Add(miscGroup);
+
+        var lookup = ViewportEntities.ToDictionary(entity => entity.Id, entity => entity, StringComparer.Ordinal);
+        foreach (var entity in ViewportEntities.Where(item => item.Type != "player"))
+        {
+            if (string.IsNullOrWhiteSpace(entity.ParentId))
+            {
+                var parentGroup = entity.Type switch
+                {
+                    "npc" => npcGroup,
+                    "prop" => propGroup,
+                    _ => miscGroup,
+                };
+                parentGroup.Children.Add(HierarchyNode.FromEntity(entity));
+            }
+        }
+
+        var attached = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var parent in ViewportEntities.Where(entity => entity.Type != "player"))
+        {
+            var parentNode = FindNodeByEntity(sceneRoot, parent.Id);
+            if (parentNode is null)
+            {
+                continue;
+            }
+
+            foreach (var child in ViewportEntities.Where(entity => string.Equals(entity.ParentId, parent.Id, StringComparison.Ordinal)))
+            {
+                parentNode.Children.Add(HierarchyNode.FromEntity(child));
+                attached.Add(child.Id);
+            }
+        }
+
+        foreach (var loose in ViewportEntities.Where(entity => entity.Type != "player" && !string.IsNullOrWhiteSpace(entity.ParentId) && !attached.Contains(entity.Id)))
+        {
+            if (!lookup.ContainsKey(loose.ParentId!))
+            {
+                propGroup.Children.Add(HierarchyNode.FromEntity(loose));
+            }
+        }
+
+        _hierarchyRoots.Add(sceneRoot);
+        SyncHierarchySelectionFromViewport();
+        OnPropertyChanged(nameof(HierarchyRoots));
+    }
+
+    private void SyncHierarchySelectionFromViewport()
+    {
+        var selected = _selectedViewportEntities.FirstOrDefault();
+        if (selected is null)
+        {
+            SelectedHierarchyNode = null;
+            return;
+        }
+
+        var hierarchyNode = _hierarchyRoots
+            .Select(root => FindNodeByEntity(root, selected.Id))
+            .FirstOrDefault(node => node is not null);
+
+        if (hierarchyNode is not null && !ReferenceEquals(_selectedHierarchyNode, hierarchyNode))
+        {
+            _selectedHierarchyNode = hierarchyNode;
+            OnPropertyChanged(nameof(SelectedHierarchyNode));
+        }
+    }
+
+    private static HierarchyNode? FindNodeByEntity(HierarchyNode node, string entityId)
+    {
+        if (node.IsEntityNode && string.Equals(node.EntityId, entityId, StringComparison.Ordinal))
+        {
+            return node;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var found = FindNodeByEntity(child, entityId);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void RefreshInspectorDerivedState()
@@ -1411,6 +1664,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         SelectedViewportEntity = _selectedViewportEntities.FirstOrDefault();
+        SyncHierarchySelectionFromViewport();
         RefreshInspectorDerivedState();
     }
 
@@ -1424,6 +1678,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         entity.IsSelected = true;
         _selectedViewportEntities.Add(entity);
         SelectedViewportEntity = _selectedViewportEntities[0];
+        SyncHierarchySelectionFromViewport();
         RefreshInspectorDerivedState();
     }
 
@@ -1432,6 +1687,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         entity.IsSelected = false;
         _selectedViewportEntities.Remove(entity);
         SelectedViewportEntity = _selectedViewportEntities.FirstOrDefault();
+        SyncHierarchySelectionFromViewport();
         RefreshInspectorDerivedState();
     }
 
@@ -1926,6 +2182,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             RefreshInspectorDerivedState();
         }
+
+        if (e.PropertyName == nameof(ViewportEntity.Name) || e.PropertyName == nameof(ViewportEntity.ParentId))
+        {
+            RebuildHierarchyTree();
+        }
     }
 
     private static float ReadNodeFloat(JsonNode? node)
@@ -2250,6 +2511,41 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public sealed class HierarchyNode
+    {
+        public HierarchyNode(string id, string label, string icon, string? entityId, bool isEntityNode)
+        {
+            Id = id;
+            Label = label;
+            Icon = icon;
+            EntityId = entityId;
+            IsEntityNode = isEntityNode;
+        }
+
+        public string Id { get; }
+
+        public string Label { get; }
+
+        public string Icon { get; }
+
+        public string? EntityId { get; }
+
+        public bool IsEntityNode { get; }
+
+        public ObservableCollection<HierarchyNode> Children { get; } = new();
+
+        public static HierarchyNode FromEntity(ViewportEntity entity)
+            => new(entity.Id, $"{ResolveIcon(entity.Type)} {entity.DisplayName}", ResolveIcon(entity.Type), entity.Id, true);
+
+        private static string ResolveIcon(string type) => type switch
+        {
+            "npc" => "🧍",
+            "prop" => "📦",
+            "player" => "👤",
+            _ => "🧩",
+        };
+    }
+
     public sealed class ViewportEntity : INotifyPropertyChanged
     {
         private string _name;
@@ -2258,11 +2554,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private float _scale;
         private string _colorHex;
         private bool _isSelected;
+        private string? _parentId;
         private readonly string? _assetId;
         private readonly string? _assetPath;
         private readonly string? _assetKind;
 
-        public ViewportEntity(string id, string type, string name, float x, float y, float scale, string colorHex, string? assetId = null, string? assetPath = null, string? assetKind = null)
+        public ViewportEntity(string id, string type, string name, float x, float y, float scale, string colorHex, string? parentId = null, string? assetId = null, string? assetPath = null, string? assetKind = null)
         {
             Id = id;
             Type = type;
@@ -2271,6 +2568,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _y = y;
             _scale = scale;
             _colorHex = colorHex;
+            _parentId = parentId;
             _assetId = assetId;
             _assetPath = assetPath;
             _assetKind = assetKind;
@@ -2372,6 +2670,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
         }
 
+        public string? ParentId
+        {
+            get => _parentId;
+            private set
+            {
+                if (string.Equals(_parentId, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _parentId = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParentId)));
+            }
+        }
+
         public void SetPosition(float x, float y)
         {
             X = x;
@@ -2396,6 +2709,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public void SetColorHex(string colorHex)
         {
             ColorHex = colorHex;
+        }
+
+        public void SetParentId(string? parentId)
+        {
+            ParentId = parentId;
         }
 
         public string DisplayName => Name;
