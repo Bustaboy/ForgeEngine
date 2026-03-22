@@ -55,13 +55,24 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
+
+    <Style Selector="Button.timeline-icon">
+      <Setter Property="Background" Value="#142033" />
+      <Setter Property="BorderBrush" Value="#2B3A52" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#E5EDF7" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="MinWidth" Value="44" />
+      <Setter Property="FontSize" Value="16" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
   </Window.KeyBindings>
 
-  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="14" RowSpacing="12">
+  <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
     <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
         <StackPanel Orientation="Horizontal" Spacing="20">
@@ -389,7 +400,56 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="3" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
+    <Border Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
+          <TextBlock Text="🎬" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseIcon}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play / Pause timeline preview" />
+          <Button Grid.Column="3" Classes="timeline-icon" Content="⏹" Command="{Binding StopTimelinePlaybackCommand}" ToolTip.Tip="Stop playback and reset to 0s" />
+          <TextBlock Grid.Column="4" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#9FC2E5" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Loop" Foreground="#C8D6EA" VerticalAlignment="Center" />
+            <ToggleSwitch IsChecked="{Binding IsTimelineLoopEnabled}" />
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+          <Button Classes="timeline-icon" Content="◆" Command="{Binding AddTimelineKeyframeCommand}" ToolTip.Tip="Add keyframe for selected entities (position, scale, color)" />
+          <Slider Grid.Column="1"
+                  Minimum="0"
+                  Maximum="{Binding TimelineDuration}"
+                  Value="{Binding TimelineCurrentTime}"
+                  TickFrequency="0.25"
+                  IsSnapToTickEnabled="False" />
+          <TextBlock Grid.Column="2" Text="{Binding TimelineStateLabel}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="3" Text="{Binding TimelineMarkers.Count, StringFormat=Keys: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" MaxHeight="42">
+          <ItemsControl ItemsSource="{Binding TimelineMarkers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0E1727" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="6" Padding="8,4">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="◆" Foreground="#6FA8FF" />
+                    <TextBlock Text="{Binding Label}" Foreground="#C8D6EA" FontSize="11" />
+                    <TextBlock Text="{Binding TrackCount, StringFormat=x{0}}" Foreground="#7A8DAA" FontSize="10" VerticalAlignment="Bottom" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="4" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
         <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />
