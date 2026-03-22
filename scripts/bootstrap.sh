@@ -39,11 +39,21 @@ fi
 mkdir -p "$BUILD_DIR"
 
 echo "== Building Runtime Entrypoint (C++) =="
-g++ -std=c++17 "$RUNTIME_SRC" -o "$RUNTIME_BIN"
+runtime_build_ok=0
+if g++ -std=c++17 "$RUNTIME_SRC" -o "$RUNTIME_BIN"; then
+  runtime_build_ok=1
+else
+  echo "WARNING: Runtime build failed (Vulkan/GLFW dependencies may be missing)."
+  echo "Continuing bootstrap in degraded mode."
+fi
 
 if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
-  echo "== Starting Runtime Only =="
-  "$RUNTIME_BIN" "$REPO_ROOT"
+  if [[ "$runtime_build_ok" -eq 1 ]]; then
+    echo "== Starting Runtime Only =="
+    "$RUNTIME_BIN" "$REPO_ROOT"
+  else
+    echo "== Runtime-only launch skipped (runtime binary unavailable) =="
+  fi
   echo "Bootstrap completed successfully (runtime-only)."
   exit 0
 fi

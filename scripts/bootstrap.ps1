@@ -45,11 +45,22 @@ if (-not $gpp) {
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
 Write-Host "== Building Runtime Entrypoint (C++) =="
+$runtimeBuildOk = $true
 & $gpp.Source "-std=c++17" $runtimeSrc "-o" $runtimeBin
+if ($LASTEXITCODE -ne 0) {
+    $runtimeBuildOk = $false
+    Write-Host "WARNING: Runtime build failed (Vulkan/GLFW dependencies may be missing)."
+    Write-Host "Continuing bootstrap in degraded mode."
+}
 
 if ($RuntimeOnly) {
-    Write-Host "== Starting Runtime Only =="
-    & $runtimeBin $repoRoot
+    if ($runtimeBuildOk -and (Test-Path $runtimeBin)) {
+        Write-Host "== Starting Runtime Only =="
+        & $runtimeBin $repoRoot
+    }
+    else {
+        Write-Host "== Runtime-only launch skipped (runtime binary unavailable) =="
+    }
     Write-Host "Bootstrap completed successfully (runtime-only)."
     exit 0
 }

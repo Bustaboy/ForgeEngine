@@ -76,9 +76,20 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Runtime build detected.", program_text)
 
         if shutil.which("dotnet"):
-            RUNTIME_BIN.parent.mkdir(parents=True, exist_ok=True)
-            compile_proc = run_cmd(["g++", "-std=c++17", str(RUNTIME_SRC), "-o", str(RUNTIME_BIN)])
-            self.assertEqual(compile_proc.returncode, 0, compile_proc.stderr)
+            build_dir = REPO_ROOT / "build" / "editor-runtime-test"
+            build_dir.mkdir(parents=True, exist_ok=True)
+
+            configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
+            if configure_proc.returncode != 0:
+                if "Could NOT find Vulkan" in configure_proc.stderr or "Could NOT find glfw3" in configure_proc.stderr:
+                    self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
+                self.fail(configure_proc.stdout + configure_proc.stderr)
+
+            build_proc = run_cmd(["cmake", "--build", str(build_dir)])
+            self.assertEqual(build_proc.returncode, 0, build_proc.stdout + build_proc.stderr)
+
+            runtime_bin = build_dir / "bin" / "forge_runtime"
+            self.assertTrue(runtime_bin.exists(), f"Runtime binary missing at {runtime_bin}")
 
             run_proc = run_cmd([
                 "dotnet",
@@ -86,7 +97,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
                 "--project",
                 str(REPO_ROOT / "editor" / "csharp" / "GameForge.Editor.csproj"),
                 "--",
-                str(RUNTIME_BIN),
+                str(runtime_bin),
             ])
             self.assertEqual(run_proc.returncode, 0, run_proc.stdout + run_proc.stderr)
             self.assertIn("Editor launcher started successfully.", run_proc.stdout)
