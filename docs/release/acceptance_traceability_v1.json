@@ -234,13 +234,16 @@
     {
       "id": "AT-023",
       "priority": "P1",
-      "status": "partial",
+      "status": "covered",
       "automation": [
         "scripts/collect_readiness_metrics.py",
-        "docs/release/evidence/readiness_metrics_sample.json"
+        "docs/release/evidence/readiness_metrics_sample.json",
+        "editor/csharp/EditorShell/SteamReadiness.cs",
+        "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_FrameTimeP95Failure_IsWarningAndRequiresAcknowledgement"
       ],
-      "manual_procedure": "Run collector with frame-time fixture from validation scene capture and verify frame_time_p95_ms <33.0ms in AT-023 check.",
-      "next_action": "Promote AT-023 from supplemental collector check into SteamReadinessPolicy checklist once policy contract is expanded."
+      "manual_procedure": "Run collector with frame-time fixture from validation scene capture, verify frame_time_p95_ms <33.0 threshold mapping, then run steam-readiness flow and confirm warning acknowledgement is required when AT-023 fails.",
+      "next_action": "Add target-hardware frame-time trace ingestion to replace synthetic/local fixture inputs.",
+      "owner_suggestion": "Runtime/Perf"
     },
     {
       "id": "AT-024",

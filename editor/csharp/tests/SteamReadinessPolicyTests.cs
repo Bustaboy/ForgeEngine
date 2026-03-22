@@ -15,6 +15,7 @@ public sealed class SteamReadinessPolicyTests
             Fps60CompliancePercent = 92.0,
             InitialSceneLoadSeconds = 21.0,
             SafeSavePassRatePercent = 99.0,
+            FrameTimeP95Ms = 29.0,
         });
 
         var gate = SteamReadinessPolicy.EvaluatePublishGate(report, warningAcknowledged: true);
@@ -35,6 +36,7 @@ public sealed class SteamReadinessPolicyTests
             Fps60CompliancePercent = 91.0,
             InitialSceneLoadSeconds = 11.0,
             SafeSavePassRatePercent = 100.0,
+            FrameTimeP95Ms = 28.0,
         });
 
         Assert.Equal(0, report.CriticalIssueCount);
@@ -57,6 +59,7 @@ public sealed class SteamReadinessPolicyTests
             Fps60CompliancePercent = 80.0,
             InitialSceneLoadSeconds = 13.0,
             SafeSavePassRatePercent = 100.0,
+            FrameTimeP95Ms = 31.0,
         });
 
         var output = SteamReadinessPolicy.RenderChecklistConsole(report);
@@ -76,6 +79,7 @@ public sealed class SteamReadinessPolicyTests
             Fps60CompliancePercent = 96.0,
             InitialSceneLoadSeconds = 9.0,
             SafeSavePassRatePercent = 100.0,
+            FrameTimeP95Ms = 28.0,
         };
         var report = SteamReadinessPolicy.Evaluate(metrics);
 
@@ -113,6 +117,7 @@ public sealed class SteamReadinessPolicyTests
             Fps60CompliancePercent = 96.0,
             InitialSceneLoadSeconds = 9.0,
             SafeSavePassRatePercent = 100.0,
+            FrameTimeP95Ms = 28.0,
         };
         var report = SteamReadinessPolicy.Evaluate(metrics);
 
@@ -154,8 +159,48 @@ public sealed class SteamReadinessPolicyTests
         Assert.True(metrics.CrashFreeSessionRatePercent >= 0.0);
         Assert.True(metrics.SustainedFpsFloor >= 0.0);
         Assert.True(metrics.Fps60CompliancePercent >= 0.0);
+        Assert.True(metrics.FrameTimeP95Ms >= 0.0);
         Assert.True(metrics.InitialSceneLoadSeconds >= 0.0);
         Assert.True(metrics.SafeSavePassRatePercent >= 0.0);
+    }
+
+    [Fact]
+    public void Evaluate_FrameTimeP95Failure_IsWarningAndRequiresAcknowledgement()
+    {
+        var report = SteamReadinessPolicy.Evaluate(new SteamQualityMetrics
+        {
+            CrashFreeSessionRatePercent = 99.0,
+            SustainedFpsFloor = 45.0,
+            Fps60CompliancePercent = 99.0,
+            FrameTimeP95Ms = 36.0,
+            InitialSceneLoadSeconds = 10.0,
+            SafeSavePassRatePercent = 100.0,
+        });
+
+        var frameTimeItem = Assert.Single(report.Checklist.Where(item => item.ItemId == "frame-time-p95"));
+        Assert.False(frameTimeItem.Passed);
+        Assert.Equal(ReadinessSeverity.Warning, frameTimeItem.Severity);
+
+        var blockedWithoutAck = SteamReadinessPolicy.EvaluatePublishGate(report, warningAcknowledged: false);
+        Assert.Equal(PublishDecision.RequiresWarningAcknowledgement, blockedWithoutAck.Decision);
+    }
+
+    [Fact]
+    public void Evaluate_FrameTimeP95Pass_DoesNotCreateWarnings()
+    {
+        var report = SteamReadinessPolicy.Evaluate(new SteamQualityMetrics
+        {
+            CrashFreeSessionRatePercent = 99.0,
+            SustainedFpsFloor = 45.0,
+            Fps60CompliancePercent = 99.0,
+            FrameTimeP95Ms = 20.0,
+            InitialSceneLoadSeconds = 10.0,
+            SafeSavePassRatePercent = 100.0,
+        });
+
+        var frameTimeItem = Assert.Single(report.Checklist.Where(item => item.ItemId == "frame-time-p95"));
+        Assert.True(frameTimeItem.Passed);
+        Assert.Equal(0, report.WarningIssueCount);
     }
 
     [Fact]

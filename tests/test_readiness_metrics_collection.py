@@ -24,11 +24,14 @@ def test_collector_output_schema_and_required_keys(tmp_path: Path) -> None:
     assert payload["collected_by"] == "scripts/collect_readiness_metrics.py"
     assert payload["input_source"] == "embedded_default_fixture"
     assert set(
-        k for k in payload if k.endswith("_percent") or k in {"sustained_fps_floor", "initial_scene_load_seconds"}
+        k
+        for k in payload
+        if k.endswith("_percent") or k in {"sustained_fps_floor", "initial_scene_load_seconds", "frame_time_p95_ms"}
     ) >= {
         "crash_free_session_rate_percent",
         "sustained_fps_floor",
         "fps_60_compliance_percent",
+        "frame_time_p95_ms",
         "initial_scene_load_seconds",
         "safe_save_pass_rate_percent",
     }
@@ -38,11 +41,11 @@ def test_collector_output_schema_and_required_keys(tmp_path: Path) -> None:
         "crash_free_session_rate_percent",
         "sustained_fps_floor",
         "fps_60_compliance_percent",
+        "frame_time_p95_ms",
         "initial_scene_load_seconds",
         "safe_save_pass_rate_percent",
     }
 
-    assert "frame_time_p95_ms" in payload["supplemental_metrics"]
     assert payload["gate_evaluation"]["decision"] in {"ready", "blocked_by_critical", "requires_warning_ack"}
 
 

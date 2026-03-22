@@ -21,6 +21,8 @@ public sealed record SteamQualityMetrics
     public required double InitialSceneLoadSeconds { get; init; }
 
     public required double SafeSavePassRatePercent { get; init; }
+
+    public required double FrameTimeP95Ms { get; init; }
 }
 
 public sealed record SteamReadinessChecklistItem
@@ -100,6 +102,7 @@ public static class SteamReadinessPolicy
             Fps60CompliancePercent = RequiredMetric(root, "fps_60_compliance_percent"),
             InitialSceneLoadSeconds = RequiredMetric(root, "initial_scene_load_seconds"),
             SafeSavePassRatePercent = RequiredMetric(root, "safe_save_pass_rate_percent"),
+            FrameTimeP95Ms = RequiredMetric(root, "frame_time_p95_ms"),
         };
     }
 
@@ -142,6 +145,13 @@ public static class SteamReadinessPolicy
                 metrics.Fps60CompliancePercent >= 95.0,
                 $"Observed 60 FPS coverage {metrics.Fps60CompliancePercent:F1}%.",
                 "Threshold: >= 95.0%"),
+            BuildItem(
+                "frame-time-p95",
+                "Frame-time p95 in core gameplay flows",
+                ReadinessSeverity.Warning,
+                metrics.FrameTimeP95Ms < 33.0,
+                $"Observed frame-time p95 {metrics.FrameTimeP95Ms:F2}ms.",
+                "Threshold: < 33.0ms"),
         };
 
         var criticalFailures = checklist.Count(item => item.Severity == ReadinessSeverity.Critical && !item.Passed);

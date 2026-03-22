@@ -1,7 +1,7 @@
 # Readiness Metrics Collection Spec (Milestone 8 hardening)
 
 ## Purpose
-`collect_readiness_metrics.py` provides deterministic local evidence for readiness gates tied to acceptance items **AT-020..AT-024**.
+`collect_readiness_metrics.py` provides deterministic local evidence for readiness gates tied to acceptance items **AT-020..AT-025**.
 
 ## Command
 ```bash
@@ -36,16 +36,16 @@ If `--input` is omitted, the script uses a deterministic embedded fixture.
   - `crash_free_session_rate_percent`
   - `sustained_fps_floor`
   - `fps_60_compliance_percent`
+  - `frame_time_p95_ms`
   - `initial_scene_load_seconds`
   - `safe_save_pass_rate_percent`
 - `metrics` (gate inputs aligned to `SteamQualityMetrics` naming):
   - `crash_free_session_rate_percent`
   - `sustained_fps_floor`
   - `fps_60_compliance_percent`
+  - `frame_time_p95_ms`
   - `initial_scene_load_seconds`
   - `safe_save_pass_rate_percent`
-- `supplemental_metrics`:
-  - `frame_time_p95_ms` (AT-023 evidence signal)
 - `gate_evaluation`:
   - `decision`: `ready | blocked_by_critical | requires_warning_ack`
   - `critical_failures`, `warning_failures`
@@ -59,7 +59,7 @@ This mapping is aligned with `GAMEFORGE_DECISIONS_LOCK.md` quality gates and exi
 | AT-020 | `crash_free_session_rate_percent` | `>= 97.0` | critical | Decisions lock crash-free target |
 | AT-021 | `fps_60_compliance_percent` | `>= 95.0` | warning | Existing Steam readiness warning threshold for 60 FPS coverage |
 | AT-022 | `sustained_fps_floor` | `>= 30.0` | critical | Decisions lock critical floor |
-| AT-023 | `frame_time_p95_ms` | `< 33.0` | warning (informational in collector) | Decisions lock frame-time target |
+| AT-023 | `frame_time_p95_ms` | `< 33.0` | warning | Decisions lock frame-time target + Steam readiness warning gate |
 | AT-024 | `initial_scene_load_seconds` | `< 20.0` | critical | Decisions lock initial load target |
 | AT-025 (supporting reliability gate) | `safe_save_pass_rate_percent` | `>= 100.0` | critical | Decisions lock save/load integrity |
 
