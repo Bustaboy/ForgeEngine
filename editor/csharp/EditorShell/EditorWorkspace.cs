@@ -241,7 +241,7 @@ public sealed class EditorWorkspace
         var changed = false;
         foreach (var update in updates)
         {
-            if (destination.TryGetValue(update.Key, out var previous) && JsonElement.DeepEquals(previous, update.Value))
+            if (destination.TryGetValue(update.Key, out var previous) && JsonElementsEqual(previous, update.Value))
             {
                 continue;
             }
@@ -251,6 +251,16 @@ public sealed class EditorWorkspace
         }
 
         return changed;
+    }
+
+    private static bool JsonElementsEqual(JsonElement left, JsonElement right)
+    {
+        if (left.ValueKind != right.ValueKind)
+        {
+            return false;
+        }
+
+        return string.Equals(left.GetRawText(), right.GetRawText(), StringComparison.Ordinal);
     }
 
     private static AiEditPreview BuildPreview(
