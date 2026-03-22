@@ -295,7 +295,7 @@
                   CornerRadius="8"
                   Padding="10"
                   IsVisible="{Binding IsExportChecklistVisible}">
-            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="8">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="8">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <TextBlock Text="🚀" FontSize="16" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="Export + Publish Checklist" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
@@ -313,11 +313,29 @@
                            Height="7"
                            Background="#0B1524"
                            Foreground="#4AA3FF" />
-              <ScrollViewer Grid.Row="3" MaxHeight="120">
+              <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <TextBlock Text="🚦" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding SteamReadinessSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                <Border Grid.Column="2" Background="#2D3E5C" CornerRadius="10" Padding="6,2" IsVisible="{Binding HasSteamReadinessWarnings}">
+                  <TextBlock Text="Warnings" Foreground="#FFD27D" FontSize="10" FontWeight="SemiBold" />
+                </Border>
+              </Grid>
+              <TextBlock Grid.Row="4"
+                         Text="{Binding SteamReadinessWarnings}"
+                         Foreground="#8EA5C7"
+                         FontSize="10"
+                         TextWrapping="Wrap" />
+              <ScrollViewer Grid.Row="5" MaxHeight="128">
                 <ItemsControl ItemsSource="{Binding ExportChecklistItems}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Border Margin="0,0,0,6" Padding="8" CornerRadius="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1">
+                      <Border Margin="0,0,0,6"
+                              Padding="8"
+                              CornerRadius="6"
+                              Background="#0B1524"
+                              BorderBrush="#264566"
+                              BorderThickness="1"
+                              ToolTip.Tip="{Binding Tooltip}">
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
                           <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center" />
                           <TextBlock Grid.Column="1" Text="{Binding ProgressIcon}" Foreground="#D6E9FF" VerticalAlignment="Center" />
@@ -325,13 +343,14 @@
                             <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding Status}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                           </StackPanel>
+                          <TextBlock Grid.Column="3" Text="{Binding SeverityIcon}" FontSize="13" VerticalAlignment="Center" />
                         </Grid>
                       </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+              <Grid Grid.Row="6" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                   <TextBlock Text="Progress:" Foreground="#9FC2E5" FontSize="11" />
                   <TextBlock Text="{Binding ExportChecklistCompletedCount}" Foreground="#9FC2E5" FontSize="11" />
@@ -356,6 +375,8 @@
                            TextWrapping="Wrap"
                            VerticalAlignment="Center" />
                 <Button Grid.Row="2" Grid.Column="2" Content="⬇ Download ZIP" Click="OnOpenExportZipClick" IsEnabled="{Binding HasExportPackageOutput}" />
+                <Button Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Content="🛰 Publish to Steam (Dry-Run)" Click="OnPublishToSteamClick" ToolTip.Tip="Runs publish gate + local audit trail only. No upload yet." />
+                <TextBlock Grid.Row="4" Grid.ColumnSpan="3" Text="{Binding PublishDryRunStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
               </Grid>
             </Grid>
           </Border>

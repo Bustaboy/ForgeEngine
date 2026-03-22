@@ -730,4 +730,94 @@ public partial class MainWindow : Window
     {
         _viewModel.OpenExportPackagePath();
     }
+
+    private async void OnPublishToSteamClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunPublishToSteamDryRunAsync(userConfirmed: false);
+        var confirmed = await ShowPublishDryRunConfirmationAsync();
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await _viewModel.RunPublishToSteamDryRunAsync(userConfirmed: true);
+    }
+
+    private async Task<bool> ShowPublishDryRunConfirmationAsync()
+    {
+        var decision = false;
+        var modal = new Window
+        {
+            Width = 520,
+            Height = 260,
+            Title = "Publish to Steam (Dry-Run)",
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new Border
+            {
+                Padding = new Thickness(18),
+                Background = new SolidColorBrush(Color.Parse("#0D1320")),
+                Child = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Confirm Steam publish dry-run?",
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                            FontSize = 16,
+                        },
+                        new TextBlock
+                        {
+                            Text = "This runs readiness gate + generates a local audit trail only. No Steam upload happens in V1.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children =
+                            {
+                                new Button
+                                {
+                                    Content = "Cancel",
+                                    MinWidth = 90,
+                                },
+                                new Button
+                                {
+                                    Content = "Run Dry-Run",
+                                    MinWidth = 110,
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        };
+
+        if (modal.Content is Border { Child: StackPanel panel }
+            && panel.Children[^1] is StackPanel actions
+            && actions.Children.Count == 2
+            && actions.Children[0] is Button cancel
+            && actions.Children[1] is Button confirm)
+        {
+            cancel.Click += (_, _) =>
+            {
+                decision = false;
+                modal.Close();
+            };
+            confirm.Click += (_, _) =>
+            {
+                decision = true;
+                modal.Close();
+            };
+        }
+
+        await modal.ShowDialog(this);
+        return decision;
+    }
 }
