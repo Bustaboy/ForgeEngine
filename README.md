@@ -17,6 +17,20 @@ ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation 
 pwsh -f scripts/bootstrap.ps1
 ```
 
+## Optional Runtime-Only Verification
+
+If .NET SDK is not available yet, you can still verify the C++ runtime build path:
+
+```bash
+./scripts/bootstrap.sh --runtime-only
+```
+
+For Windows PowerShell:
+
+```powershell
+pwsh -f scripts/bootstrap.ps1 -RuntimeOnly
+```
+
 ## First-Run AI Setup (Mandatory Before Real Generation)
 
 Run these once on a fresh machine:
