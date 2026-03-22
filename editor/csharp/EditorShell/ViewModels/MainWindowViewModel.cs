@@ -13,7 +13,8 @@ namespace GameForge.Editor.EditorShell.ViewModels;
 
 public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
-    private readonly OrchestratorClient _orchestratorClient = new();
+    private readonly IOrchestratorGateway _orchestratorGateway;
+    private readonly IRuntimeSupervisor _runtimeSupervisor;
 
     private string _chatPrompt = string.Empty;
     private string _statusMessage = "Ready: describe your game, then click Generate & Play.";
@@ -42,7 +43,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private DragSession? _activeDragSession;
 
     public MainWindowViewModel()
+        : this(new OrchestratorGateway(), new RuntimeSupervisor())
     {
+    }
+
+    internal MainWindowViewModel(IOrchestratorGateway orchestratorGateway, IRuntimeSupervisor runtimeSupervisor)
+    {
+        _orchestratorGateway = orchestratorGateway;
+        _runtimeSupervisor = runtimeSupervisor;
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
@@ -267,7 +275,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        _lastBriefPath = OrchestratorClient.CreateBriefFromChatPrompt(ChatPrompt);
+        _lastBriefPath = _orchestratorGateway.CreateBriefFromChatPrompt(ChatPrompt);
         await RunPipelineForBriefAsync(_lastBriefPath, launchRuntime, cancellationToken);
     }
 
@@ -332,7 +340,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ShowToast("CMake configure started...");
 
         var generatedBuildRoot = Path.Combine(generatedRoot, "build");
-        var configureResult = await RunProcessAsync(
+        var configureResult = await _runtimeSupervisor.RunProcessAsync(
             "cmake",
             $"-S \"{generatedRoot}\" -B \"{generatedBuildRoot}\"",
             PrototypeRoot,
@@ -351,7 +359,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StatusMessage = "CMake configure passed. Building generated_gameplay_runner...";
         ShowToast("CMake build started...");
 
-        var buildResult = await RunProcessAsync(
+        var buildResult = await _runtimeSupervisor.RunProcessAsync(
             "cmake",
             $"--build \"{generatedBuildRoot}\"",
             PrototypeRoot,
@@ -368,7 +376,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PipelineProgress = "Code Mode: launching generated runner";
         StatusMessage = "Build passed. Relaunching generated runtime runner...";
         ShowToast("Launching generated runner...");
-        var launchResult = LaunchGeneratedRunner(generatedBuildRoot);
+        var launchResult = _runtimeSupervisor.LaunchGeneratedRunner(generatedBuildRoot);
         if (!launchResult.Success)
         {
             RuntimeLaunchStatus = "Launch failed";
@@ -424,7 +432,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
-            var response = await _orchestratorClient.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
+            var response = await _orchestratorGateway.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
             StatusMessage = BuildStatusMessage(response);
             ShowToast(BuildToastMessage(response));
             ApplyRuntimePreview(response);
@@ -1163,100 +1171,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return 0f;
     }
 
-    private static async Task<ProcessResult> RunProcessAsync(
-        string fileName,
-        string arguments,
-        string workingDirectory,
-        CancellationToken cancellationToken)
-    {
-        var processInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-
-        using var process = Process.Start(processInfo);
-        if (process is null)
-        {
-            return new ProcessResult(-1, string.Empty, $"{fileName} process failed to start.");
-        }
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-
-        await process.WaitForExitAsync(cancellationToken);
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-        return new ProcessResult(process.ExitCode, stdout, stderr);
-    }
-
-    private static LaunchResult LaunchGeneratedRunner(string generatedBuildRoot)
-    {
-        var executablePath = ResolveGeneratedRunnerPath(generatedBuildRoot);
-        if (string.IsNullOrWhiteSpace(executablePath))
-        {
-            return new LaunchResult(false, null, $"generated_gameplay_runner not found under {generatedBuildRoot}");
-        }
-
-        var launchInfo = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            WorkingDirectory = Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot,
-            UseShellExecute = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
-        };
-
-        var manifestPath = Path.Combine(Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot, "..", "pipeline", "07_export_manifest.v1.json");
-        var normalizedManifestPath = Path.GetFullPath(manifestPath);
-        if (File.Exists(normalizedManifestPath))
-        {
-            launchInfo.ArgumentList.Add("--manifest");
-            launchInfo.ArgumentList.Add(normalizedManifestPath);
-        }
-
-        try
-        {
-            var runtimeProcess = Process.Start(launchInfo);
-            if (runtimeProcess is null)
-            {
-                return new LaunchResult(false, null, "generated_gameplay_runner process returned null.");
-            }
-
-            return new LaunchResult(true, runtimeProcess.Id, string.Empty);
-        }
-        catch (Exception ex)
-        {
-            return new LaunchResult(false, null, $"Failed to launch generated_gameplay_runner: {ex.Message}");
-        }
-    }
-
-    private static string ResolveGeneratedRunnerPath(string generatedBuildRoot)
-    {
-        var candidates = OperatingSystem.IsWindows()
-            ? new[]
-            {
-                Path.Combine(generatedBuildRoot, "Debug", "generated_gameplay_runner.exe"),
-                Path.Combine(generatedBuildRoot, "Release", "generated_gameplay_runner.exe"),
-                Path.Combine(generatedBuildRoot, "generated_gameplay_runner.exe"),
-            }
-            : new[]
-            {
-                Path.Combine(generatedBuildRoot, "generated_gameplay_runner"),
-            };
-
-        return candidates.FirstOrDefault(File.Exists) ?? string.Empty;
-    }
-
-    private readonly record struct ProcessResult(int ExitCode, string Stdout, string Stderr);
-
-    private readonly record struct LaunchResult(bool Success, int? Pid, string ErrorMessage);
-
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
     {
         var candidatePid = _trackedRuntimePid ?? RuntimePid;
@@ -1265,7 +1179,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var stopResult = await TryStopRuntimeProcessAsync(pid, cancellationToken);
+        var stopResult = await _runtimeSupervisor.TryStopRuntimeProcessAsync(pid, PrototypeRoot, cancellationToken);
         if (stopResult.Stopped)
         {
             RuntimeLaunchStatus = "Previous runtime stopped";
@@ -1282,68 +1196,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ShowToast("Previous runtime cleanup failed; continuing with relaunch.");
     }
 
-    private async Task<RuntimeStopResult> TryStopRuntimeProcessAsync(int pid, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                try
-                {
-                    var process = Process.GetProcessById(pid);
-                    if (process.HasExited)
-                    {
-                        return new RuntimeStopResult(true, string.Empty);
-                    }
-
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync(cancellationToken);
-                    return new RuntimeStopResult(true, string.Empty);
-                }
-                catch (ArgumentException)
-                {
-                    return new RuntimeStopResult(true, string.Empty);
-                }
-            }
-
-            var killResult = await RunProcessAsync("kill", $"-9 {pid}", workingDirectory: PrototypeRoot == "(none)" ? Environment.CurrentDirectory : PrototypeRoot, cancellationToken);
-            if (killResult.ExitCode == 0)
-            {
-                return new RuntimeStopResult(true, string.Empty);
-            }
-
-            try
-            {
-                var process = Process.GetProcessById(pid);
-                if (process.HasExited)
-                {
-                    return new RuntimeStopResult(true, string.Empty);
-                }
-
-                process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync(cancellationToken);
-                return new RuntimeStopResult(true, string.Empty);
-            }
-            catch (ArgumentException)
-            {
-                return new RuntimeStopResult(true, string.Empty);
-            }
-            catch (Exception fallbackEx)
-            {
-                var fallbackMessage = string.IsNullOrWhiteSpace(killResult.Stderr)
-                    ? fallbackEx.Message
-                    : $"{killResult.Stderr.Trim()} | fallback: {fallbackEx.Message}";
-                return new RuntimeStopResult(false, fallbackMessage);
-            }
-
-        }
-        catch (Exception ex)
-        {
-            return new RuntimeStopResult(false, ex.Message);
-        }
-    }
-
-    private readonly record struct RuntimeStopResult(bool Stopped, string ErrorMessage);
+    internal readonly record struct RuntimeStopResult(bool Stopped, string ErrorMessage);
 
     private static string BuildStatusMessage(PipelineRunResponse response)
     {
@@ -1502,6 +1355,192 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             await _executeAsync();
             CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    internal interface IOrchestratorGateway
+    {
+        Task<PipelineRunResponse> RunGenerationPipelineAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken);
+
+        string CreateBriefFromChatPrompt(string prompt);
+    }
+
+    internal interface IRuntimeSupervisor
+    {
+        Task<ProcessResult> RunProcessAsync(string fileName, string arguments, string workingDirectory, CancellationToken cancellationToken);
+
+        LaunchResult LaunchGeneratedRunner(string generatedBuildRoot);
+
+        Task<RuntimeStopResult> TryStopRuntimeProcessAsync(int pid, string prototypeRoot, CancellationToken cancellationToken);
+    }
+
+    internal readonly record struct ProcessResult(int ExitCode, string Stdout, string Stderr);
+
+    internal readonly record struct LaunchResult(bool Success, int? Pid, string ErrorMessage);
+
+    private sealed class OrchestratorGateway : IOrchestratorGateway
+    {
+        private readonly OrchestratorClient _client = new();
+
+        public Task<PipelineRunResponse> RunGenerationPipelineAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken)
+            => _client.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
+
+        public string CreateBriefFromChatPrompt(string prompt)
+            => OrchestratorClient.CreateBriefFromChatPrompt(prompt);
+    }
+
+    private sealed class RuntimeSupervisor : IRuntimeSupervisor
+    {
+        public async Task<ProcessResult> RunProcessAsync(
+            string fileName,
+            string arguments,
+            string workingDirectory,
+            CancellationToken cancellationToken)
+        {
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+
+            using var process = Process.Start(processInfo);
+            if (process is null)
+            {
+                return new ProcessResult(-1, string.Empty, $"{fileName} process failed to start.");
+            }
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+            await process.WaitForExitAsync(cancellationToken);
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            return new ProcessResult(process.ExitCode, stdout, stderr);
+        }
+
+        public LaunchResult LaunchGeneratedRunner(string generatedBuildRoot)
+        {
+            var executablePath = ResolveGeneratedRunnerPath(generatedBuildRoot);
+            if (string.IsNullOrWhiteSpace(executablePath))
+            {
+                return new LaunchResult(false, null, $"generated_gameplay_runner not found under {generatedBuildRoot}");
+            }
+
+            var launchInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                WorkingDirectory = Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+            };
+
+            var manifestPath = Path.Combine(Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot, "..", "pipeline", "07_export_manifest.v1.json");
+            var normalizedManifestPath = Path.GetFullPath(manifestPath);
+            if (File.Exists(normalizedManifestPath))
+            {
+                launchInfo.ArgumentList.Add("--manifest");
+                launchInfo.ArgumentList.Add(normalizedManifestPath);
+            }
+
+            try
+            {
+                var runtimeProcess = Process.Start(launchInfo);
+                if (runtimeProcess is null)
+                {
+                    return new LaunchResult(false, null, "generated_gameplay_runner process returned null.");
+                }
+
+                return new LaunchResult(true, runtimeProcess.Id, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                return new LaunchResult(false, null, $"Failed to launch generated_gameplay_runner: {ex.Message}");
+            }
+        }
+
+        public async Task<RuntimeStopResult> TryStopRuntimeProcessAsync(int pid, string prototypeRoot, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    try
+                    {
+                        var process = Process.GetProcessById(pid);
+                        if (process.HasExited)
+                        {
+                            return new RuntimeStopResult(true, string.Empty);
+                        }
+
+                        process.Kill(entireProcessTree: true);
+                        await process.WaitForExitAsync(cancellationToken);
+                        return new RuntimeStopResult(true, string.Empty);
+                    }
+                    catch (ArgumentException)
+                    {
+                        return new RuntimeStopResult(true, string.Empty);
+                    }
+                }
+
+                var workingDirectory = prototypeRoot == "(none)" ? Environment.CurrentDirectory : prototypeRoot;
+                var killResult = await RunProcessAsync("kill", $"-9 {pid}", workingDirectory, cancellationToken);
+                if (killResult.ExitCode == 0)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+
+                try
+                {
+                    var process = Process.GetProcessById(pid);
+                    if (process.HasExited)
+                    {
+                        return new RuntimeStopResult(true, string.Empty);
+                    }
+
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(cancellationToken);
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+                catch (ArgumentException)
+                {
+                    return new RuntimeStopResult(true, string.Empty);
+                }
+                catch (Exception fallbackEx)
+                {
+                    var fallbackMessage = string.IsNullOrWhiteSpace(killResult.Stderr)
+                        ? fallbackEx.Message
+                        : $"{killResult.Stderr.Trim()} | fallback: {fallbackEx.Message}";
+                    return new RuntimeStopResult(false, fallbackMessage);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                return new RuntimeStopResult(false, ex.Message);
+            }
+        }
+
+        private static string ResolveGeneratedRunnerPath(string generatedBuildRoot)
+        {
+            var candidates = OperatingSystem.IsWindows()
+                ? new[]
+                {
+                    Path.Combine(generatedBuildRoot, "Debug", "generated_gameplay_runner.exe"),
+                    Path.Combine(generatedBuildRoot, "Release", "generated_gameplay_runner.exe"),
+                    Path.Combine(generatedBuildRoot, "generated_gameplay_runner.exe"),
+                }
+                : new[]
+                {
+                    Path.Combine(generatedBuildRoot, "generated_gameplay_runner"),
+                };
+
+            return candidates.FirstOrDefault(File.Exists) ?? string.Empty;
         }
     }
 }
