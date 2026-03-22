@@ -23,8 +23,8 @@ Source references used:
 | AT-006 | P0 | covered | `tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief`; `tests/test_prototype_generation.py::TestPrototypeGeneration::test_smoke_script_generation_and_launch` | n/a | — |
 | AT-007 | P0 | covered | `tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_skips_locked_paths_without_confirmation`; `tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_overwrites_locked_paths_after_confirmation` | n/a | — |
 | AT-009 | P0 | covered | `editor/csharp/tests/EditorShellTests.cs::UndoRedoTimeline_SupportsMultiStepRollbackAndReapply` | n/a | — |
-| AT-010 | P0 | missing | No Windows-specific smoke automation found. | Run end-to-end flow on Windows: Home → Interview → Prototype → Editor → Testing → Publish readiness; record pass/fail checklist. | **Add CI Windows smoke job invoking bootstrap + prototype launch + readiness checks** (Owner: Release Engineering). |
-| AT-011 | P0 | missing | No Ubuntu-specific smoke automation found. | Run same end-to-end smoke checklist on Ubuntu target spec; store run artifact logs. | **Add CI Ubuntu smoke job mirroring Windows smoke path** (Owner: Release Engineering). |
+| AT-010 | P0 | partial | `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` (Windows procedure) + `docs/release/evidence/windows_smoke_template.md` provide executable manual smoke evidence path. | Execute Windows procedure in `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` and archive completed `docs/release/evidence/windows_smoke_template.md` with logs. | Add CI Windows smoke job that executes the same runbook commands and publishes artifacts (Owner: Release Engineering). |
+| AT-011 | P0 | partial | `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` (Ubuntu procedure) + `docs/release/evidence/ubuntu_smoke_template.md` provide executable manual smoke evidence path. | Execute Ubuntu procedure in `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` and archive completed `docs/release/evidence/ubuntu_smoke_template.md` with logs. | Add CI Ubuntu smoke job that executes the same runbook commands and publishes artifacts (Owner: Release Engineering). |
 | AT-013 | P0 | covered | `tests/test_asset_import_pipeline.py::test_imported_assets_are_auto_tagged_and_searchable`; `editor/csharp/tests/EditorShellTests.cs::AssetBrowserFilter_ReturnsTagAndCategoryMatches` | n/a | — |
 | AT-014 | P0 | covered | `tests/test_asset_import_pipeline.py::test_blocked_or_unclear_license_returns_actionable_errors` | n/a | — |
 | AT-016 | P0 | covered | `editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish` | n/a | — |
@@ -53,9 +53,9 @@ Source references used:
 
 ### P0
 - **Covered:** 8 (`AT-002`, `AT-006`, `AT-007`, `AT-009`, `AT-013`, `AT-014`, `AT-016`, `AT-025`)
-- **Partial:** 6 (`AT-001`, `AT-003`, `AT-020`, `AT-021`, `AT-022`, `AT-026`)
-- **Missing:** 2 (**`AT-010`, `AT-011`**)
-- **Immediate hardening focus:** close remaining cross-platform smoke gaps (`AT-010`, `AT-011`), then convert partial P0 perf/reliability checks from policy-only validation to measured integration inputs.
+- **Partial:** 8 (`AT-001`, `AT-003`, `AT-010`, `AT-011`, `AT-020`, `AT-021`, `AT-022`, `AT-026`)
+- **Missing:** 0
+- **Immediate hardening focus:** execute and archive AT-010/AT-011 smoke evidence each release candidate, then convert partial P0 perf/reliability checks from policy-only validation to measured integration inputs.
 
 ### P1
 - **Covered:** 4 (`AT-004`, `AT-017`, `AT-018`, `AT-019`)
