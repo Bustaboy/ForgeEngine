@@ -710,4 +710,19 @@ public partial class MainWindow : Window
     {
         await _viewModel.SaveCodeEditsAsync();
     }
+
+    private void OnOpenExportChecklistClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenExportChecklist();
+    }
+
+    private async void OnRunExportChecklistClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunExportChecklistAsync();
+    }
+
+    private void OnOpenExportOutputClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenExportOutputPath();
+    }
 }

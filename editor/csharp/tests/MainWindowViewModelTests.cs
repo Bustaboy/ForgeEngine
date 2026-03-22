@@ -249,6 +249,23 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal(-1.25f, entity.GetProperty("y").GetSingle());
     }
 
+    [Fact]
+    public async Task RunExportChecklist_CreatesZipAndCompletesChecklist()
+    {
+        var prototypeRoot = CreatePrototypeRoot(withEntity: true);
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        await viewModel.RunExportChecklistAsync();
+
+        Assert.Equal(4, viewModel.ExportChecklistTotalCount);
+        Assert.Equal(4, viewModel.ExportChecklistCompletedCount);
+        Assert.Equal(100, viewModel.ExportChecklistProgressPercent);
+        Assert.True(File.Exists(viewModel.ExportOutputPath));
+        Assert.Contains(".zip", viewModel.ExportOutputPath, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
