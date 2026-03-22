@@ -60,6 +60,8 @@ def _parse_md_table(md_text: str) -> dict[str, dict[str, str]]:
         at_id = row["AT ID"]
         if not re.fullmatch(r"AT-\d{3}", at_id):
             continue
+        if at_id in rows:
+            raise ValueError(f"Duplicate AT ID in markdown table: {at_id}")
         rows[at_id] = row
     return rows
 
@@ -124,7 +126,11 @@ def validate() -> list[str]:
         if not isinstance(verified, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", verified):
             errors.append(f"{at_id}: last_verified_at_utc must match YYYY-MM-DDTHH:MM:SSZ")
 
-    md_rows = _parse_md_table(MD_PATH.read_text(encoding="utf-8"))
+    try:
+        md_rows = _parse_md_table(MD_PATH.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        errors.append(str(exc))
+        return errors
     md_ids = set(md_rows)
     missing_in_md = sorted(expected_ids - md_ids)
     extra_in_md = sorted(md_ids - expected_ids)
