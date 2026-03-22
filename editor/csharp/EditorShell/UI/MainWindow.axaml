@@ -14,7 +14,9 @@
     <SolidColorBrush x:Key="PanelBrush" Color="#12161F" />
     <SolidColorBrush x:Key="PanelBorderBrush" Color="#2B3446" />
     <SolidColorBrush x:Key="AccentBrush" Color="#4AA3FF" />
+  </Window.Resources>
 
+  <Window.Styles>
     <Style Selector="Button.ribbon-icon">
       <Setter Property="Background" Value="#1A2232" />
       <Setter Property="BorderBrush" Value="#334257" />
@@ -40,7 +42,7 @@
       <Setter Property="OnContent" Value="On" />
       <Setter Property="OffContent" Value="Off" />
     </Style>
-  </Window.Resources>
+  </Window.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="14" RowSpacing="12">
     <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
