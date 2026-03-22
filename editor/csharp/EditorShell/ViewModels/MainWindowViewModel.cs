@@ -46,9 +46,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
         AddPropEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("prop"));
-        DeleteSelectedEntityCommand = new AsyncRelayCommand(DeleteSelectedEntityAsync);
-        UndoCommand = new AsyncRelayCommand(UndoAsync);
-        RedoCommand = new AsyncRelayCommand(RedoAsync);
+        DeleteSelectedEntityCommand = new AsyncRelayCommand(() => DeleteSelectedEntityAsync());
+        UndoCommand = new AsyncRelayCommand(() => UndoAsync());
+        RedoCommand = new AsyncRelayCommand(() => RedoAsync());
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
     }
 
@@ -738,7 +738,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public bool PreviewDragPosition(string entityId, float nextX, float nextY)
     {
-        if (_activeDragSession is null || !string.Equals(_activeDragSession.EntityId, entityId, StringComparison.Ordinal))
+        if (_activeDragSession is null)
+        {
+            return false;
+        }
+
+        var activeDrag = _activeDragSession.Value;
+        if (!string.Equals(activeDrag.EntityId, entityId, StringComparison.Ordinal))
         {
             return false;
         }
@@ -765,7 +771,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var dragSession = _activeDragSession;
+        var dragSession = _activeDragSession.Value;
         _activeDragSession = null;
 
         var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, dragSession.EntityId, StringComparison.Ordinal));
