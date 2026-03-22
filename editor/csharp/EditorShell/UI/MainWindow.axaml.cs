@@ -1,7 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using AvaloniaEdit;
+using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
+using System.ComponentModel;
 
 namespace GameForge.Editor.EditorShell.UI;
 
@@ -9,17 +12,82 @@ public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel = new();
     private bool _firstRunModalChecked;
+    private bool _isSyncingEditorText;
 
     public MainWindow()
     {
         InitializeComponent();
+        ConfigureCodeEditor();
         DataContext = _viewModel;
         Opened += OnOpened;
+        Closed += OnClosed;
     }
 
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    private void ConfigureCodeEditor()
+    {
+        var editor = this.FindControl<TextEditor>("CodeEditor");
+        if (editor is null)
+        {
+            return;
+        }
+
+        editor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("C++");
+        editor.Options.ConvertTabsToSpaces = true;
+        editor.Options.IndentationSize = 4;
+        editor.Text = _viewModel.MonacoEditorContent;
+        editor.TextChanged += OnCodeEditorTextChanged;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void OnCodeEditorTextChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingEditorText)
+        {
+            return;
+        }
+
+        var editor = this.FindControl<TextEditor>("CodeEditor");
+        if (editor is null)
+        {
+            return;
+        }
+
+        _viewModel.MonacoEditorContent = editor.Text ?? string.Empty;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainWindowViewModel.MonacoEditorContent))
+        {
+            return;
+        }
+
+        var editor = this.FindControl<TextEditor>("CodeEditor");
+        if (editor is null)
+        {
+            return;
+        }
+
+        var nextText = _viewModel.MonacoEditorContent ?? string.Empty;
+        if (string.Equals(editor.Text, nextText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _isSyncingEditorText = true;
+        try
+        {
+            editor.Text = nextText;
+        }
+        finally
+        {
+            _isSyncingEditorText = false;
+        }
     }
 
     private async void OnOpened(object? sender, EventArgs e)
@@ -45,6 +113,17 @@ public partial class MainWindow : Window
         {
             _viewModel.SetStatusMessage($"Benchmark warning: {ex.Message}");
         }
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        var editor = this.FindControl<TextEditor>("CodeEditor");
+        if (editor is not null)
+        {
+            editor.TextChanged -= OnCodeEditorTextChanged;
+        }
+
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
     }
 
     private async Task ShowBenchmarkModalAsync(BenchmarkResultEnvelope benchmark)

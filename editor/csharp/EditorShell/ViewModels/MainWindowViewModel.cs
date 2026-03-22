@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -61,8 +62,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _isCodeMode;
         set
         {
+            var enteringCodeMode = value && !_isCodeMode;
             SetField(ref _isCodeMode, value);
             OnPropertyChanged(nameof(IsViewportMode));
+
+            if (enteringCodeMode)
+            {
+                LoadGeneratedCodeForEditor();
+            }
         }
     }
 
@@ -190,24 +197,95 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task SaveCodeEditsAsync(CancellationToken cancellationToken = default)
     {
+        if (!TryResolveEditableCodePath(out var codePath, out var errorMessage))
+        {
+            StatusMessage = errorMessage;
+            ShowToast(errorMessage);
+            return;
+        }
+
+        await File.WriteAllTextAsync(codePath, MonacoEditorContent, cancellationToken);
+        StatusMessage = $"Saved runtime code: {codePath}";
+        ShowToast("Code saved. Recompiling runtime...");
+        await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+    }
+
+    private async Task RecompileAndRelaunchRuntimeAsync(CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
         {
-            StatusMessage = "No generated prototype to save code into.";
-            ShowToast("Generate once before saving code.");
+            StatusMessage = "No generated prototype to recompile.";
+            ShowToast("Generate once before recompiling runtime.");
             return;
         }
 
-        var runtimePath = Path.Combine(PrototypeRoot, "runtime", "main.cpp");
-        if (!File.Exists(runtimePath))
+        var executableName = OperatingSystem.IsWindows() ? "prototype_runtime.exe" : "prototype_runtime";
+        var executablePath = Path.Combine(PrototypeRoot, "runtime", executableName);
+        var compileArguments = OperatingSystem.IsWindows()
+            ? "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime.exe"
+            : "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime";
+
+        var compileInfo = new ProcessStartInfo
         {
-            StatusMessage = "Generated runtime C++ file not found.";
-            ShowToast("runtime/main.cpp missing in prototype.");
+            FileName = "g++",
+            Arguments = compileArguments,
+            WorkingDirectory = PrototypeRoot,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+        };
+
+        PipelineProgress = "Recompiling runtime";
+        RuntimeLaunchStatus = "Recompiling";
+
+        using var compileProcess = Process.Start(compileInfo);
+        if (compileProcess is null)
+        {
+            StatusMessage = "Unable to start g++ compile process.";
+            RuntimeLaunchStatus = "Compile failed";
+            PipelineProgress = "Compile failed";
+            ShowToast("Compile process did not start.");
             return;
         }
 
-        await File.WriteAllTextAsync(runtimePath, MonacoEditorContent, cancellationToken);
-        StatusMessage = $"Saved runtime code: {runtimePath}";
-        ShowToast("Runtime C++ saved from Code Mode.");
+        var compileStdoutTask = compileProcess.StandardOutput.ReadToEndAsync(cancellationToken);
+        var compileStderrTask = compileProcess.StandardError.ReadToEndAsync(cancellationToken);
+        await compileProcess.WaitForExitAsync(cancellationToken);
+
+        var compileStdout = await compileStdoutTask;
+        var compileStderr = await compileStderrTask;
+        if (compileProcess.ExitCode != 0)
+        {
+            RuntimeLaunchStatus = "Compile failed";
+            PipelineProgress = "Compile failed";
+            StatusMessage = BuildCompileFailureMessage(compileStdout, compileStderr);
+            ShowToast("Compile failed. See status panel.");
+            return;
+        }
+
+        var launchInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            WorkingDirectory = PrototypeRoot,
+            UseShellExecute = false,
+        };
+
+        var runtimeProcess = Process.Start(launchInfo);
+        if (runtimeProcess is null)
+        {
+            RuntimeLaunchStatus = "Launch failed";
+            PipelineProgress = "Launch failed";
+            StatusMessage = $"Compile succeeded, but failed to launch {executableName}.";
+            ShowToast("Runtime launch failed after compile.");
+            return;
+        }
+
+        RuntimePid = runtimeProcess.Id;
+        RuntimeLaunchStatus = "Running";
+        RuntimePreviewSummary = $"Live in Vulkan (PID: {runtimeProcess.Id})";
+        PipelineProgress = "Runtime relaunched from Code Mode";
+        StatusMessage = $"Recompiled and relaunched runtime (PID: {runtimeProcess.Id}).";
+        ShowToast("Save & Recompile completed.");
     }
 
     public void SetStatusMessage(string value)
@@ -274,10 +352,68 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return string.Empty;
         }
 
-        var runtimePath = Path.Combine(prototypeRoot, "runtime", "main.cpp");
-        return File.Exists(runtimePath)
-            ? File.ReadAllText(runtimePath)
-            : string.Empty;
+        var candidatePaths = new[]
+        {
+            Path.Combine(prototypeRoot, "runtime", "main.cpp"),
+            Path.Combine(prototypeRoot, "runtime", "scene.cpp"),
+            Path.Combine(prototypeRoot, "scene.cpp"),
+            Path.Combine(prototypeRoot, "scene", "scene.cpp"),
+        };
+
+        foreach (var path in candidatePaths)
+        {
+            if (File.Exists(path))
+            {
+                return File.ReadAllText(path);
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private void LoadGeneratedCodeForEditor()
+    {
+        var loadedCode = TryLoadGeneratedRuntimeCpp(PrototypeRoot);
+        if (!string.IsNullOrWhiteSpace(loadedCode))
+        {
+            MonacoEditorContent = loadedCode;
+            StatusMessage = "Code Mode loaded generated C++ source.";
+            ShowToast("Loaded generated C++ into editor.");
+            return;
+        }
+
+        StatusMessage = "Code Mode active. Generate a prototype to load runtime C++ files.";
+        ShowToast("No generated runtime C++ found yet.");
+    }
+
+    private bool TryResolveEditableCodePath(out string codePath, out string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            codePath = string.Empty;
+            errorMessage = "No generated prototype to save code into.";
+            return false;
+        }
+
+        var candidatePaths = new[]
+        {
+            Path.Combine(PrototypeRoot, "runtime", "main.cpp"),
+            Path.Combine(PrototypeRoot, "runtime", "scene.cpp"),
+            Path.Combine(PrototypeRoot, "scene.cpp"),
+            Path.Combine(PrototypeRoot, "scene", "scene.cpp"),
+        };
+
+        codePath = candidatePaths.FirstOrDefault(File.Exists) ?? candidatePaths[0];
+        Directory.CreateDirectory(Path.GetDirectoryName(codePath) ?? PrototypeRoot);
+        errorMessage = string.Empty;
+        return true;
+    }
+
+    private static string BuildCompileFailureMessage(string compileStdout, string compileStderr)
+    {
+        var stderr = string.IsNullOrWhiteSpace(compileStderr) ? "(none)" : compileStderr.Trim();
+        var stdout = string.IsNullOrWhiteSpace(compileStdout) ? "(none)" : compileStdout.Trim();
+        return $"Compile failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
     }
 
     private static string BuildGeneratedEntityList(string prototypeRoot)
