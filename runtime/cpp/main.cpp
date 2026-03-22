@@ -3,6 +3,8 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -20,6 +22,12 @@
 #include <stdexcept>
 #include <utility>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
 namespace {
 
 using Json = nlohmann::json;
@@ -33,6 +41,54 @@ const std::vector<const char*> kRequiredDeviceExtensions = {
 };
 
 enum class LogLevel { kInfo, kWarn, kError };
+
+
+struct PositionComponent {
+    float x = 0.0F;
+    float y = 0.0F;
+};
+
+struct RenderComponent {
+    float r = 1.0F;
+    float g = 1.0F;
+    float b = 1.0F;
+    float size = 0.1F;
+};
+
+struct RuntimeEntity {
+    std::string id;
+    PositionComponent position;
+    RenderComponent render;
+    float velocity_x = 0.0F;
+    float velocity_y = 0.0F;
+    bool active = false;
+};
+
+constexpr int kGeneratedSceneEntityLimit = 32;
+constexpr int kGeneratedEntityIdCapacity = 64;
+
+struct GeneratedEntity {
+    char id[kGeneratedEntityIdCapacity]{};
+    float x = 0.0F;
+    float y = 0.0F;
+    float vx = 0.0F;
+    float vy = 0.0F;
+    float size = 0.1F;
+    float r = 1.0F;
+    float g = 1.0F;
+    float b = 1.0F;
+    int active = 0;
+};
+
+struct GeneratedSceneState {
+    std::array<GeneratedEntity, kGeneratedSceneEntityLimit> entities{};
+    int entity_count = 0;
+    float elapsed_time = 0.0F;
+};
+
+using InitGeneratedSceneFn = void (*)(GeneratedSceneState* state);
+using UpdatePlayerControllerFn = void (*)(GeneratedSceneState* state, float dt_seconds);
+using UpdateBasicNpcFn = void (*)(GeneratedSceneState* state, float dt_seconds);
 
 void Log(LogLevel level, const std::string& message) {
     const auto now = std::chrono::system_clock::now();
@@ -158,6 +214,19 @@ private:
     bool manifest_load_attempted_ = false;
     bool scene_loaded_from_manifest_ = false;
     bool render_loaded_scene_logged_ = false;
+    std::filesystem::path generated_cpp_root_;
+    std::filesystem::path generated_library_path_;
+#ifdef _WIN32
+    HMODULE generated_library_handle_ = nullptr;
+#else
+    void* generated_library_handle_ = nullptr;
+#endif
+    InitGeneratedSceneFn generated_init_scene_ = nullptr;
+    UpdatePlayerControllerFn generated_update_player_ = nullptr;
+    UpdateBasicNpcFn generated_update_npc_ = nullptr;
+    GeneratedSceneState generated_scene_state_{};
+    std::vector<RuntimeEntity> runtime_entities_;
+    std::chrono::steady_clock::time_point last_update_time_ = std::chrono::steady_clock::now();
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto* app = static_cast<RuntimeApp*>(glfwGetWindowUserPointer(window));
@@ -306,6 +375,9 @@ private:
 
         const Json assets = scene.value("assets", Json::array());
         Log(LogLevel::kInfo, "Asset reference count from scene: " + std::to_string(assets.size()));
+
+        BuildAndLoadGeneratedGameplay(prototype_root);
+        SyncRuntimeEntitiesFromGeneratedState();
     }
 
     void SpawnEntityFromManifest(const std::string& entity_type, const std::string& entity_id, const Json& payload) {
@@ -323,6 +395,170 @@ private:
         render_loaded_scene_logged_ = true;
         Log(LogLevel::kInfo,
             "RenderLoadedScene() stub active; Vulkan clear + present loop running while manifest data is loaded.");
+    }
+
+    void BuildAndLoadGeneratedGameplay(const std::filesystem::path& prototype_root) {
+        generated_cpp_root_ = prototype_root / "generated" / "cpp";
+        if (!std::filesystem::exists(generated_cpp_root_ / "scene.cpp")) {
+            Log(LogLevel::kWarn, "Generated scene.cpp not found; continuing with manifest-only stubs.");
+            return;
+        }
+
+#ifdef _WIN32
+        generated_library_path_ = prototype_root / "generated" / "gameplay_generated.dll";
+        std::string compile_command =
+            "g++ -std=c++17 -shared \"" + (generated_cpp_root_ / "scene.cpp").string() + "\" \"" +
+            (generated_cpp_root_ / "player_controller.cpp").string() + "\" \"" +
+            (generated_cpp_root_ / "basic_npc.cpp").string() + "\" -o \"" + generated_library_path_.string() + "\"";
+#else
+        generated_library_path_ = prototype_root / "generated" / "libgameplay_generated.so";
+        std::string compile_command =
+            "g++ -std=c++17 -shared -fPIC \"" + (generated_cpp_root_ / "scene.cpp").string() + "\" \"" +
+            (generated_cpp_root_ / "player_controller.cpp").string() + "\" \"" +
+            (generated_cpp_root_ / "basic_npc.cpp").string() + "\" -o \"" + generated_library_path_.string() + "\"";
+#endif
+
+        Log(LogLevel::kInfo, "Compiling generated gameplay sources: " + compile_command);
+        const int compile_exit_code = std::system(compile_command.c_str());
+        if (compile_exit_code != 0) {
+            throw std::runtime_error("Failed to compile generated gameplay sources.");
+        }
+
+#ifdef _WIN32
+        generated_library_handle_ = LoadLibraryA(generated_library_path_.string().c_str());
+        if (generated_library_handle_ == nullptr) {
+            throw std::runtime_error("Failed to load generated gameplay DLL: " + generated_library_path_.string());
+        }
+        generated_init_scene_ = reinterpret_cast<InitGeneratedSceneFn>(
+            GetProcAddress(generated_library_handle_, "GF_InitGeneratedScene"));
+        generated_update_player_ = reinterpret_cast<UpdatePlayerControllerFn>(
+            GetProcAddress(generated_library_handle_, "GF_UpdatePlayerController"));
+        generated_update_npc_ = reinterpret_cast<UpdateBasicNpcFn>(
+            GetProcAddress(generated_library_handle_, "GF_UpdateBasicNpc"));
+#else
+        generated_library_handle_ = dlopen(generated_library_path_.string().c_str(), RTLD_NOW);
+        if (generated_library_handle_ == nullptr) {
+            throw std::runtime_error(
+                "Failed to load generated gameplay shared library: " + generated_library_path_.string() +
+                " (" + dlerror() + ")");
+        }
+        generated_init_scene_ = reinterpret_cast<InitGeneratedSceneFn>(dlsym(generated_library_handle_, "GF_InitGeneratedScene"));
+        generated_update_player_ = reinterpret_cast<UpdatePlayerControllerFn>(dlsym(generated_library_handle_, "GF_UpdatePlayerController"));
+        generated_update_npc_ = reinterpret_cast<UpdateBasicNpcFn>(dlsym(generated_library_handle_, "GF_UpdateBasicNpc"));
+#endif
+
+        if (generated_init_scene_ == nullptr || generated_update_player_ == nullptr || generated_update_npc_ == nullptr) {
+            throw std::runtime_error("Generated gameplay library is missing required exported functions.");
+        }
+
+        generated_init_scene_(&generated_scene_state_);
+        last_update_time_ = std::chrono::steady_clock::now();
+        Log(LogLevel::kInfo, "Generated gameplay library loaded successfully.");
+    }
+
+    void SyncRuntimeEntitiesFromGeneratedState() {
+        runtime_entities_.clear();
+        const int clamped_count = std::max(0, std::min(generated_scene_state_.entity_count, kGeneratedSceneEntityLimit));
+        runtime_entities_.reserve(static_cast<std::size_t>(clamped_count));
+        for (int index = 0; index < clamped_count; ++index) {
+            const GeneratedEntity& source = generated_scene_state_.entities[static_cast<std::size_t>(index)];
+            RuntimeEntity entity;
+            entity.id = source.id;
+            entity.position.x = source.x;
+            entity.position.y = source.y;
+            entity.velocity_x = source.vx;
+            entity.velocity_y = source.vy;
+            entity.render.size = source.size;
+            entity.render.r = source.r;
+            entity.render.g = source.g;
+            entity.render.b = source.b;
+            entity.active = source.active != 0;
+            runtime_entities_.push_back(entity);
+        }
+    }
+
+    void UpdateGeneratedSceneState() {
+        if (generated_update_player_ == nullptr || generated_update_npc_ == nullptr) {
+            return;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        float dt_seconds = std::chrono::duration_cast<std::chrono::duration<float>>(now - last_update_time_).count();
+        last_update_time_ = now;
+        if (dt_seconds <= 0.0F || dt_seconds > 0.1F) {
+            dt_seconds = 1.0F / 60.0F;
+        }
+
+        generated_scene_state_.elapsed_time += dt_seconds;
+        generated_update_player_(&generated_scene_state_, dt_seconds);
+        generated_update_npc_(&generated_scene_state_, dt_seconds);
+        SyncRuntimeEntitiesFromGeneratedState();
+    }
+
+    void RecordCommandBuffer(std::uint32_t image_index) {
+        if (vkResetCommandBuffer(command_buffers_[image_index], 0) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to reset command buffer.");
+        }
+
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        if (vkBeginCommandBuffer(command_buffers_[image_index], &begin_info) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to begin recording command buffer.");
+        }
+
+        VkRenderPassBeginInfo render_pass_begin_info{};
+        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_pass_begin_info.renderPass = render_pass_;
+        render_pass_begin_info.framebuffer = swap_chain_framebuffers_[image_index];
+        render_pass_begin_info.renderArea.offset = {0, 0};
+        render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+
+        const float pulse = 0.5F + 0.5F * std::sin(generated_scene_state_.elapsed_time * 0.6F);
+        VkClearValue clear_color = {{{0.05F + (0.08F * pulse), 0.06F, 0.10F + (0.10F * pulse), 1.0F}}};
+        render_pass_begin_info.clearValueCount = 1;
+        render_pass_begin_info.pClearValues = &clear_color;
+
+        vkCmdBeginRenderPass(command_buffers_[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+        for (const RuntimeEntity& entity : runtime_entities_) {
+            if (!entity.active) {
+                continue;
+            }
+
+            const float normalized_x = std::clamp(entity.position.x, -0.95F, 0.95F);
+            const float normalized_y = std::clamp(entity.position.y, -0.95F, 0.95F);
+            const std::uint32_t rect_width = static_cast<std::uint32_t>(
+                std::max(4.0F, entity.render.size * static_cast<float>(swap_chain_extent_.width)));
+            const std::uint32_t rect_height = static_cast<std::uint32_t>(
+                std::max(4.0F, entity.render.size * static_cast<float>(swap_chain_extent_.height)));
+
+            const int center_x = static_cast<int>(((normalized_x + 1.0F) * 0.5F) * static_cast<float>(swap_chain_extent_.width));
+            const int center_y = static_cast<int>(((1.0F - (normalized_y + 1.0F) * 0.5F)) * static_cast<float>(swap_chain_extent_.height));
+
+            const std::int32_t offset_x = static_cast<std::int32_t>(std::max(0, center_x - static_cast<int>(rect_width / 2U)));
+            const std::int32_t offset_y = static_cast<std::int32_t>(std::max(0, center_y - static_cast<int>(rect_height / 2U)));
+
+            VkClearAttachment attachment{};
+            attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            attachment.colorAttachment = 0;
+            attachment.clearValue.color.float32[0] = std::clamp(entity.render.r, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[1] = std::clamp(entity.render.g, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[2] = std::clamp(entity.render.b, 0.0F, 1.0F);
+            attachment.clearValue.color.float32[3] = 1.0F;
+
+            VkClearRect clear_rect{};
+            clear_rect.baseArrayLayer = 0;
+            clear_rect.layerCount = 1;
+            clear_rect.rect.offset = {offset_x, offset_y};
+            clear_rect.rect.extent = {rect_width, rect_height};
+            vkCmdClearAttachments(command_buffers_[image_index], 1, &attachment, 1, &clear_rect);
+        }
+
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+
+        if (vkEndCommandBuffer(command_buffers_[image_index]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to finalize command buffer.");
+        }
     }
 
     void CleanupSwapChain() {
@@ -379,6 +615,15 @@ private:
 
         if (instance_ != VK_NULL_HANDLE) {
             vkDestroyInstance(instance_, nullptr);
+        }
+
+        if (generated_library_handle_ != nullptr) {
+#ifdef _WIN32
+            FreeLibrary(generated_library_handle_);
+#else
+            dlclose(generated_library_handle_);
+#endif
+            generated_library_handle_ = nullptr;
         }
 
         if (window_ != nullptr) {
@@ -800,33 +1045,6 @@ private:
         if (vkAllocateCommandBuffers(device_, &allocate_info, command_buffers_.data()) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate command buffers.");
         }
-
-        for (std::size_t i = 0; i < command_buffers_.size(); ++i) {
-            VkCommandBufferBeginInfo begin_info{};
-            begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-            if (vkBeginCommandBuffer(command_buffers_[i], &begin_info) != VK_SUCCESS) {
-                throw std::runtime_error("Failed to begin recording command buffer.");
-            }
-
-            VkRenderPassBeginInfo render_pass_begin_info{};
-            render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            render_pass_begin_info.renderPass = render_pass_;
-            render_pass_begin_info.framebuffer = swap_chain_framebuffers_[i];
-            render_pass_begin_info.renderArea.offset = {0, 0};
-            render_pass_begin_info.renderArea.extent = swap_chain_extent_;
-
-            VkClearValue clear_color = {{{0.05F, 0.07F, 0.10F, 1.0F}}};
-            render_pass_begin_info.clearValueCount = 1;
-            render_pass_begin_info.pClearValues = &clear_color;
-
-            vkCmdBeginRenderPass(command_buffers_[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdEndRenderPass(command_buffers_[i]);
-
-            if (vkEndCommandBuffer(command_buffers_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("Failed to record command buffer.");
-            }
-        }
     }
 
     void CreateSyncObjects() {
@@ -871,6 +1089,11 @@ private:
         }
 
         vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
+
+        if (scene_loaded_from_manifest_) {
+            UpdateGeneratedSceneState();
+        }
+        RecordCommandBuffer(image_index);
 
         VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_frame_]};
         VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};

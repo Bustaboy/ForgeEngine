@@ -652,6 +652,113 @@ def _escape_cpp_string_literal(value: object) -> str:
     return text
 
 
+def _render_generated_runtime_templates(
+    prototype_root: Path,
+    concept: str,
+    scene: dict[str, object],
+    asset_plan: dict[str, object],
+) -> dict[str, object]:
+    repo_root = Path(__file__).resolve().parents[2]
+    templates_root = repo_root / "runtime" / "cpp" / "templates"
+    if not templates_root.exists():
+        raise ValueError(f"Runtime template root is missing: {templates_root}")
+
+    generated_root = prototype_root / "generated" / "cpp"
+    generated_root.mkdir(parents=True, exist_ok=True)
+
+    spawn = dict(scene.get("player_spawn", {}))
+    npcs = scene.get("npcs", [])
+    first_npc = npcs[0] if isinstance(npcs, list) and npcs else {}
+
+    def _float_literal(value: object, default: float) -> str:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            number = default
+        literal = f"{number:.3f}".rstrip("0").rstrip(".")
+        if "." not in literal:
+            literal = f"{literal}.0"
+        return literal
+
+    replacements = {
+        "{{PLAYER_SPAWN_X}}": _float_literal(spawn.get("x", 0.0), 0.0),
+        "{{PLAYER_SPAWN_Y}}": _float_literal(spawn.get("y", 0.0), 0.0),
+        "{{PLAYER_SPEED}}": "0.42",
+        "{{NPC_ID}}": str(first_npc.get("id", "npc_01")),
+        "{{NPC_SPAWN_X}}": _float_literal(first_npc.get("spawn_x", 0.35), 0.35),
+        "{{NPC_SPAWN_Y}}": _float_literal(first_npc.get("spawn_y", -0.15), -0.15),
+        "{{NPC_RADIUS}}": "0.34",
+        "{{NPC_ANGULAR_SPEED}}": "0.85",
+    }
+
+    api_header = """#pragma once
+
+#include <cstddef>
+
+constexpr int kGeneratedSceneEntityLimit = 32;
+constexpr int kGeneratedEntityIdCapacity = 64;
+
+struct GeneratedEntity {
+    char id[kGeneratedEntityIdCapacity];
+    float x;
+    float y;
+    float vx;
+    float vy;
+    float size;
+    float r;
+    float g;
+    float b;
+    int active;
+};
+
+struct GeneratedSceneState {
+    GeneratedEntity entities[kGeneratedSceneEntityLimit];
+    int entity_count;
+    float elapsed_time;
+};
+
+inline void gf_copy_id(char* destination, const char* source) {
+    if (destination == nullptr || source == nullptr) {
+        return;
+    }
+    std::size_t index = 0;
+    while (source[index] != '\\0' && index < static_cast<std::size_t>(kGeneratedEntityIdCapacity - 1)) {
+        destination[index] = source[index];
+        ++index;
+    }
+    destination[index] = '\\0';
+}
+
+extern "C" void GF_InitGeneratedScene(GeneratedSceneState* state);
+extern "C" void GF_UpdatePlayerController(GeneratedSceneState* state, float dt_seconds);
+extern "C" void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds);
+"""
+    _write_text(generated_root / "gameplay_api.hpp", api_header)
+
+    generated_files: list[str] = []
+    for template_name in ("scene.cpp.template", "player_controller.cpp.template", "basic_npc.cpp.template"):
+        template_path = templates_root / template_name
+        content = template_path.read_text(encoding="utf-8")
+        for key, value in replacements.items():
+            content = content.replace(key, value)
+        output_name = template_name.replace(".template", "")
+        output_path = generated_root / output_name
+        _write_text(output_path, content)
+        generated_files.append(str(output_path))
+
+    metadata = {
+        "schema": "gameforge.generated_runtime_templates.v1",
+        "concept": concept,
+        "generated_at_utc": _utc_now_iso(),
+        "source_templates_root": str(templates_root),
+        "generated_cpp_root": str(generated_root),
+        "files": generated_files,
+        "asset_policy_blocked": asset_plan.get("blocked_licenses", []),
+    }
+    _write_json(prototype_root / "generated" / "generated_runtime_manifest.v1.json", metadata)
+    return metadata
+
+
 def _normalize_license_id(raw_license: str) -> str:
     normalized = raw_license.strip().lower().replace("_", "-")
     normalized = re.sub(r"\s+", "-", normalized)
@@ -1449,15 +1556,24 @@ def _execute_generation_pipeline(
         if prototype_root is None:
             raise ValueError("Prototype root missing from code generation stage.")
         artifact = prototype_root / "pipeline" / "07_export_manifest.v1.json"
+        scene_payload = json.loads((prototype_root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"))
+        asset_plan_payload = json.loads((prototype_root / "pipeline" / "03_asset_plan.v1.json").read_text(encoding="utf-8"))
+        generated_runtime = _render_generated_runtime_templates(
+            prototype_root=prototype_root,
+            concept=str(brief.get("concept", "GameForge Prototype")),
+            scene=scene_payload,
+            asset_plan=asset_plan_payload,
+        )
         export_manifest = {
             "schema": "gameforge.pipeline.export.v1",
             "prototype_root": str(prototype_root),
             "dead_end_blockers": dead_end_blockers,
             "benchmark_state_path": benchmark_result.get("state_path"),
+            "generated_runtime": generated_runtime,
             "generated_at_utc": _utc_now_iso(),
         }
         _write_json(artifact, export_manifest)
-        return export_manifest, [str(artifact)]
+        return export_manifest, [str(artifact), str(prototype_root / "generated" / "generated_runtime_manifest.v1.json")]
 
     stage_actions = {
         "story_analysis": stage_story_analysis,
@@ -1518,9 +1634,10 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
 
     scene = {
         "scene_id": "baseline_scene",
-        "player_spawn": {"x": 0, "y": 1, "z": 0},
+        "player_spawn": {"x": 0, "y": 0, "z": 0},
         "camera": {"mode": "third_person", "follow_player": True},
         "world_notes": narrative.get("world_notes", ""),
+        "npcs": [{"id": "npc_01", "spawn_x": 0.35, "spawn_y": -0.15}],
     }
 
     player_controller = {

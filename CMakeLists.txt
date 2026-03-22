@@ -38,3 +38,7 @@ endif()
 set_target_properties(forge_runtime PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(forge_runtime PRIVATE dl)
+endif()

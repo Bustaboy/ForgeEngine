@@ -1,0 +1,24 @@
+#include <cmath>
+
+#include "gameplay_api.hpp"
+
+extern "C" void GF_UpdatePlayerController(GeneratedSceneState* state, float dt_seconds) {
+    if (state == nullptr || state->entity_count <= 0 || dt_seconds <= 0.0f) {
+        return;
+    }
+
+    GeneratedEntity& player = state->entities[0];
+    const float speed = {{PLAYER_SPEED}}f;
+    const float wave = std::sin(state->elapsed_time * 1.6f);
+
+    player.vx = speed;
+    player.vy = wave * 0.35f;
+    player.x += player.vx * dt_seconds;
+    player.y += player.vy * dt_seconds;
+
+    if (player.x > 0.82f) {
+        player.x = -0.82f;
+    }
+
+    player.g = 0.45f + 0.40f * (wave + 1.0f) * 0.5f;
+}

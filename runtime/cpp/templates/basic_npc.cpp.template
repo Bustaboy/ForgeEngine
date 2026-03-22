@@ -1,0 +1,19 @@
+#include <cmath>
+
+#include "gameplay_api.hpp"
+
+extern "C" void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds) {
+    if (state == nullptr || state->entity_count < 2 || dt_seconds <= 0.0f) {
+        return;
+    }
+
+    GeneratedEntity& npc = state->entities[1];
+    const float radius = {{NPC_RADIUS}}f;
+    const float angular_speed = {{NPC_ANGULAR_SPEED}}f;
+    const float angle = state->elapsed_time * angular_speed;
+
+    npc.x = std::cos(angle) * radius;
+    npc.y = std::sin(angle) * radius;
+    npc.r = 0.60f + 0.35f * (std::sin(angle * 1.5f) + 1.0f) * 0.5f;
+    npc.b = 0.45f + 0.45f * (std::cos(angle * 1.2f) + 1.0f) * 0.5f;
+}

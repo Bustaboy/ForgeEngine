@@ -1,0 +1,34 @@
+#include "gameplay_api.hpp"
+
+extern "C" void GF_InitGeneratedScene(GeneratedSceneState* state) {
+    if (state == nullptr) {
+        return;
+    }
+
+    state->entity_count = 2;
+    state->elapsed_time = 0.0f;
+
+    GeneratedEntity& player = state->entities[0];
+    gf_copy_id(player.id, "player_01");
+    player.x = {{PLAYER_SPAWN_X}}f;
+    player.y = {{PLAYER_SPAWN_Y}}f;
+    player.vx = 0.0f;
+    player.vy = 0.0f;
+    player.size = 0.10f;
+    player.r = 0.15f;
+    player.g = 0.85f;
+    player.b = 0.95f;
+    player.active = 1;
+
+    GeneratedEntity& npc = state->entities[1];
+    gf_copy_id(npc.id, "{{NPC_ID}}");
+    npc.x = {{NPC_SPAWN_X}}f;
+    npc.y = {{NPC_SPAWN_Y}}f;
+    npc.vx = 0.0f;
+    npc.vy = 0.0f;
+    npc.size = 0.08f;
+    npc.r = 0.95f;
+    npc.g = 0.35f;
+    npc.b = 0.30f;
+    npc.active = 1;
+}
