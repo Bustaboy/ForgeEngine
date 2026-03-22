@@ -171,16 +171,21 @@
           </Grid>
 
           <Border Grid.Row="4" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
-            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="6">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="8">
               <TextBlock Text="Runtime Preview" Foreground="#EEF4FF" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Grid.Row="1" Text="{Binding RuntimePreviewSummary}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+              <Border Grid.Row="1" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="8">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="🟢 Vulkan Runtime Live Feed" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding RuntimePreviewSummary}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
               <TextBlock Grid.Row="2" Text="Runtime Status" Foreground="#D5E4F8" FontWeight="SemiBold" />
-              <TextBlock Grid.Row="3" Text="{Binding RuntimeLaunchStatus}" Foreground="#AFC2DF" />
-              <TextBlock Grid.Row="4" Text="Generated Entity List" Foreground="#D5E4F8" FontWeight="SemiBold" />
-              <ScrollViewer Grid.Row="5" MaxHeight="120">
-                <TextBlock Text="{Binding RuntimeEntityList}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="3" Text="{Binding RuntimeLaunchStatus, StringFormat=Live in Vulkan status: {0}}" Foreground="#AFC2DF" />
+              <TextBlock Grid.Row="4" Text="Generated Entity List (scene/scene_scaffold.json)" Foreground="#D5E4F8" FontWeight="SemiBold" />
+              <ScrollViewer Grid.Row="5" MaxHeight="140">
+                <TextBlock Text="{Binding RuntimeEntityList}" Foreground="#AFC2DF" TextWrapping="Wrap" FontFamily="Consolas, Menlo, Monospace" />
               </ScrollViewer>
-              <Button Grid.Row="6" Classes="generate-cta" Content="Relaunch Runtime" Click="OnPlayRuntimeClick" />
+              <Button Grid.Row="6" Classes="generate-cta" Content="Relaunch Runtime" Click="OnPlayRuntimeClick" ToolTip.Tip="Rebuild generated runtime and relaunch generated_gameplay_runner" />
             </Grid>
           </Border>
 
