@@ -137,6 +137,46 @@ public sealed class EditorShellTests
         Assert.False(workspace.AiContext.Properties.ContainsKey("safe_radius"));
     }
 
+    [Fact]
+    public async Task MajorMutationConfirmation_IsBlockedIfWorkspaceStateChanged()
+    {
+        var workspace = await LoadWorkspaceAsync();
+        Assert.True(workspace.SelectObject("main-camera"));
+
+        var majorResult = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "major-camera-overhaul",
+            TargetObjectId = "main-camera",
+            Summary = "Major camera overhaul",
+            ImpactLevel = AiEditImpactLevel.Major,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["mode"] = JsonSerializer.SerializeToElement("cinematic"),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.PreviewRequired, majorResult.Status);
+        Assert.NotNull(workspace.PendingPreview);
+
+        var minorResult = workspace.ApplyAiMutation(new AiMutationRequest
+        {
+            MutationId = "minor-camera-fov",
+            TargetObjectId = "main-camera",
+            Summary = "Adjust camera zoom for near framing",
+            ImpactLevel = AiEditImpactLevel.Minor,
+            PropertyChanges = new Dictionary<string, JsonElement>
+            {
+                ["zoom"] = JsonSerializer.SerializeToElement(1.1),
+            },
+        });
+
+        Assert.Equal(AiMutationApplyStatus.Applied, minorResult.Status);
+        Assert.Null(workspace.PendingPreview);
+        Assert.Equal("1.1", workspace.AiContext!.Properties["zoom"]);
+        Assert.False(workspace.ConfirmPendingMajorMutation());
+        Assert.Equal("follow_player", workspace.AiContext.Properties["mode"]);
+    }
+
     private static async Task<EditorWorkspace> LoadWorkspaceAsync()
     {
         var projectRoot = ResolveProjectRoot();

@@ -116,6 +116,12 @@ public sealed class EditorWorkspace
             return false;
         }
 
+        if (!PropertySetsEqual(target.Properties, _pendingMajorMutation.BeforeProperties))
+        {
+            _pendingMajorMutation = null;
+            return false;
+        }
+
         target.Properties.Clear();
         foreach (var property in _pendingMajorMutation.AfterProperties)
         {
@@ -163,6 +169,7 @@ public sealed class EditorWorkspace
         }
 
         _redoStack.Push(snapshot);
+        InvalidatePendingMajorMutation();
         RefreshSelectionIfNeeded(snapshot.TargetObjectId);
         return true;
     }
@@ -187,6 +194,7 @@ public sealed class EditorWorkspace
         }
 
         _undoStack.Push(snapshot);
+        InvalidatePendingMajorMutation();
         RefreshSelectionIfNeeded(snapshot.TargetObjectId);
         return true;
     }
@@ -216,7 +224,13 @@ public sealed class EditorWorkspace
             AppliedAtUtc = DateTimeOffset.UtcNow,
         });
 
+        InvalidatePendingMajorMutation();
         RefreshSelectionIfNeeded(targetObjectId);
+    }
+
+    private void InvalidatePendingMajorMutation()
+    {
+        _pendingMajorMutation = null;
     }
 
     private void RefreshSelectionIfNeeded(string objectId)
@@ -261,6 +275,31 @@ public sealed class EditorWorkspace
         }
 
         return string.Equals(left.GetRawText(), right.GetRawText(), StringComparison.Ordinal);
+    }
+
+    private static bool PropertySetsEqual(
+        IReadOnlyDictionary<string, JsonElement> left,
+        IReadOnlyDictionary<string, JsonElement> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var entry in left)
+        {
+            if (!right.TryGetValue(entry.Key, out var rightValue))
+            {
+                return false;
+            }
+
+            if (!JsonElementsEqual(entry.Value, rightValue))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static AiEditPreview BuildPreview(
