@@ -3,7 +3,8 @@ import json
 import shutil
 from pathlib import Path
 
-SAMPLE_PROJECT = Path("app/samples/generated-prototype/cozy-colony-tales")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_PROJECT = REPO_ROOT / "app" / "samples" / "generated-prototype" / "cozy-colony-tales"
 
 
 def _json_files(root: Path) -> list[Path]:
