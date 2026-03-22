@@ -45,6 +45,7 @@
     "sections": {
       "type": "array",
       "minItems": 5,
+      "maxItems": 5,
       "items": {
         "type": "object",
         "required": ["section_id", "title", "status", "findings", "recommendations"],
@@ -79,7 +80,69 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "progression"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "economy"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "dead-end"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "pacing"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "section_id": {
+                "const": "performance"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
     },
     "source_probe_results": {
       "type": "array",

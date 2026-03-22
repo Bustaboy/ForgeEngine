@@ -1560,21 +1560,22 @@ def generate_actionable_playtest_report(result: BotPlaytestResult) -> Actionable
         search_haystack = f"{probe.probe_id} {probe.details}".lower()
         normalized_probes.append((probe, search_haystack))
 
-    built_sections: list[PlaytestReportSection] = []
+    section_matches: dict[str, list[BotPlaytestProbeResult]] = {}
     used_probe_ids: set[str] = set()
     for section_id, keywords in sections_map.items():
         matched = [probe for probe, haystack in normalized_probes if any(keyword in haystack for keyword in keywords)]
         for probe in matched:
             used_probe_ids.add(probe.probe_id)
-        built_sections.append(_build_report_section(section_id, section_id.replace("-", " ").title(), matched))
+        section_matches[section_id] = matched
 
     uncategorized = [probe for probe in result.probe_results if probe.probe_id not in used_probe_ids]
     if uncategorized:
-        built_sections[0] = _build_report_section(
-            "progression",
-            "Progression",
-            [*uncategorized, *[probe for probe in result.probe_results if probe.probe_id in used_probe_ids and "progression" in probe.probe_id.lower()]],
-        )
+        section_matches["progression"] = [*section_matches["progression"], *uncategorized]
+
+    built_sections = [
+        _build_report_section(section_id, section_id.replace("-", " ").title(), section_matches[section_id])
+        for section_id in sections_map
+    ]
 
     return ActionablePlaytestReport(
         schema="gameforge.playtest_report.v1",
