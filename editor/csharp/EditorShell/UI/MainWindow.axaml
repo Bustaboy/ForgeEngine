@@ -55,6 +55,17 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
+
+    <Style Selector="Button.timeline-icon">
+      <Setter Property="Background" Value="#121E31" />
+      <Setter Property="BorderBrush" Value="#2E4564" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#D6E9FF" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="MinWidth" Value="38" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
@@ -349,18 +360,65 @@
     </Grid>
 
     <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
-      <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+          <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseGlyph}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play/Pause timeline preview" />
+          <Button Grid.Column="3" Classes="timeline-icon" Content="⏮" Command="{Binding StopTimelinePlaybackCommand}" ToolTip.Tip="Stop and rewind timeline" />
+          <Button Grid.Column="4" Classes="timeline-icon" Content="➕◇" Command="{Binding AddTimelineKeyframeCommand}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Add keyframe for selected entities" />
+          <ToggleSwitch Grid.Column="5" Classes="deep-toggle" IsChecked="{Binding IsTimelineLooping}" />
+          <TextBlock Grid.Column="6" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#AFC2DF" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="7" Text="{Binding TimelineMode, StringFormat=Mode: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+          <Button Classes="timeline-icon" Content="📍" Command="{Binding SetTimelineModeCommand}" CommandParameter="Position" />
+          <Button Classes="timeline-icon" Content="🔳" Command="{Binding SetTimelineModeCommand}" CommandParameter="Scale" />
+          <Button Classes="timeline-icon" Content="🎨" Command="{Binding SetTimelineModeCommand}" CommandParameter="Color" />
+          <TextBlock Text="Keyframe Position / Scale / Color. Loop toggle controls one-shot vs looping preview."
+                     Foreground="#8EA5C7"
+                     FontSize="11"
+                     VerticalAlignment="Center"
+                     Margin="8,0,0,0" />
+        </StackPanel>
+
+        <Slider Grid.Row="2"
+                Minimum="0"
+                Maximum="{Binding TimelineDurationSeconds}"
+                Value="{Binding TimelineCurrentTime}"
+                TickFrequency="0.25"
+                IsSnapToTickEnabled="False" />
+
+        <Border Grid.Row="3" Background="#0A111C" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="6">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding TimelineMarkers}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="4" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="#13233A" BorderBrush="#2E4564" BorderThickness="1" CornerRadius="4" Padding="6,4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="{Binding Icon}" />
+                      <TextBlock Text="{Binding TimeLabel}" Foreground="#C8D6EA" FontSize="11" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,8,0,0">
           <TextBlock Text="🕘" FontSize="16" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="History" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
           <TextBlock Grid.Column="2" Text="{Binding HistoryTimeline.Count, StringFormat=Steps: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
         </Grid>
-        <TextBlock Grid.Row="1"
-                   Text="Click any step to jump scene state. Current step is highlighted; future redo steps are dimmed."
-                   Foreground="#8EA5C7"
-                   FontSize="11"
-                   TextWrapping="Wrap" />
-        <ScrollViewer Grid.Row="2" MaxHeight="138" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+
+        <ScrollViewer Grid.Row="5" MaxHeight="108" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
           <ItemsControl ItemsSource="{Binding HistoryTimeline}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
