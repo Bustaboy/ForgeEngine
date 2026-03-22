@@ -1,14 +1,9 @@
-# GameForge V1
+# ForgeEngine V1
 
-GameForge V1 is a **local-first, single-player, no-code-first** game creation project.
-
-This repository currently provides the **Milestone 1 skeleton**:
-- `app/` app startup/module boundary docs
-- `editor/` C# editor launcher shell (main app entrypoint)
-- `runtime/` C++ runtime placeholder (generated game runtime entrypoint)
-- `ai-orchestration/` Python orchestration placeholder (tooling/automation only)
-- `docs/` setup and project docs
-- `scripts/` local bootstrap scripts
+ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation stack with:
+- C++ runtime (`runtime/`)
+- C# editor shell (`editor/`)
+- Python AI orchestration (`ai-orchestration/`)
 
 ## Quick Start
 
@@ -22,42 +17,53 @@ This repository currently provides the **Milestone 1 skeleton**:
 pwsh -f scripts/bootstrap.ps1
 ```
 
-## Optional Runtime-Only Verification
+## First-Run AI Setup (Mandatory Before Real Generation)
 
-If .NET SDK is not available yet, you can still verify the C++ runtime build path:
+Run these once on a fresh machine:
 
 ```bash
-./scripts/bootstrap.sh --runtime-only
+python3 ai-orchestration/python/orchestrator.py --prepare-models
+python3 ai-orchestration/python/orchestrator.py --benchmark
 ```
 
+This ensures local model artifacts are prepared and hardware recommendations are captured.
 
-## Milestone 3 Prototype Generation (One-Click)
+## First-Run Generation Pipeline Smoke
 
-Generate a playable baseline prototype from a saved interview brief:
+Run end-to-end generation and bot validation using the sample brief:
 
 ```bash
 python3 ai-orchestration/python/orchestrator.py \
+  --run-generation-pipeline \
   --generate-prototype app/samples/interview-brief.sample.json \
   --output build/generated-prototypes \
-  --launch
-```
-
-This single command generates scaffold artifacts (scene, player controller, UI, save/load hook), compiles the generated C++ runtime, and launches the prototype.
-
-Smoke test command:
-
-```bash
-python3 scripts/smoke_prototype_launch.py
-```
-
-## Milestone 7 Bot-First Playtesting Baseline
-
-Run automated baseline validation on a generated prototype before human testing:
-
-```bash
-python3 ai-orchestration/python/orchestrator.py \
-  --prototype-root app/samples/generated-prototype/cozy-colony-tales \
   --bot-playtest-scenario app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json
 ```
 
-If required checks are inconclusive, the result will set `human_review_required: true` for explicit human testing escalation.
+Then capture cross-platform smoke evidence:
+
+```bash
+python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root build/release-evidence
+# or on Windows host:
+python ai-orchestration/python/orchestrator.py --benchmark
+python scripts/run_smoke_and_capture_evidence.py --os windows --output-root build/release-evidence
+```
+
+## One-Command Packaging
+
+### Ubuntu (DEB + AppImage)
+```bash
+./scripts/package_ubuntu.sh
+```
+
+### Windows (MSI)
+```powershell
+pwsh -f scripts/package_windows.ps1 -Version 0.1.0
+```
+
+### macOS (DMG)
+```bash
+./scripts/package_macos.sh
+```
+
+See `DEPLOYMENT_GUIDE_IDIOT_PROOF.md` for zero-guesswork setup, prerequisites, and release flow.
