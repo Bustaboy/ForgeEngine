@@ -17,14 +17,36 @@ def run_cmd(cmd, cwd=REPO_ROOT):
 
 class TestMilestone1Skeleton(unittest.TestCase):
     def test_runtime_cpp_compiles_and_runs(self):
-        RUNTIME_BIN.parent.mkdir(parents=True, exist_ok=True)
-        compile_proc = run_cmd(["g++", "-std=c++17", str(RUNTIME_SRC), "-o", str(RUNTIME_BIN)])
-        self.assertEqual(compile_proc.returncode, 0, compile_proc.stderr)
+        import time
 
-        run_proc = run_cmd([str(RUNTIME_BIN), str(REPO_ROOT)])
-        self.assertEqual(run_proc.returncode, 0, run_proc.stderr)
-        self.assertIn("GameForge V1 minimal app (C++ runtime)", run_proc.stdout)
-        self.assertIn("App started successfully.", run_proc.stdout)
+        build_dir = REPO_ROOT / "build" / "runtime-test"
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
+        if configure_proc.returncode != 0:
+            if "Could NOT find Vulkan" in configure_proc.stderr or "Could NOT find glfw3" in configure_proc.stderr:
+                self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
+            self.fail(configure_proc.stdout + configure_proc.stderr)
+
+        build_proc = run_cmd(["cmake", "--build", str(build_dir)])
+        self.assertEqual(build_proc.returncode, 0, build_proc.stdout + build_proc.stderr)
+
+        runtime_bin = build_dir / "bin" / "forge_runtime"
+        self.assertTrue(runtime_bin.exists(), f"Runtime binary missing at {runtime_bin}")
+
+        process = subprocess.Popen(
+            [str(runtime_bin)],
+            cwd=REPO_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        time.sleep(2)
+        process.terminate()
+        stdout, _ = process.communicate(timeout=10)
+
+        self.assertIn("ForgeEngine Vulkan runtime initialized", stdout)
+        self.assertIn("Render loop started", stdout)
 
     def test_bootstrap_sh_runtime_only(self):
         proc = run_cmd(["./scripts/bootstrap.sh", "--runtime-only"])
