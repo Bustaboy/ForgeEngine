@@ -115,6 +115,45 @@ class TestAssetImportPipeline(unittest.TestCase):
             self.assertEqual("rights-confirmation-required", result.errors[1].code)
             self.assertIn("rights_confirmation=true", result.errors[1].remediation)
 
+    def test_non_contiguous_existing_ids_generate_next_highest_suffix(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            catalog_path = project_root / "assets" / "catalog.v1.json"
+            project_root.mkdir(parents=True, exist_ok=True)
+            catalog_path.parent.mkdir(parents=True, exist_ok=True)
+            catalog_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "gameforge.asset_catalog.v1",
+                        "generated_at_utc": "2026-03-22T00:00:00Z",
+                        "assets": [
+                            {"asset_id": "asset-0001", "relative_path": "assets/library/asset-0001.png"},
+                            {"asset_id": "asset-0003", "relative_path": "assets/library/asset-0003.png"},
+                            {"asset_id": "legacy-name", "relative_path": "assets/library/legacy-name.png"},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            source_png = Path(temp_dir) / "new_sprite.png"
+            source_png.write_bytes(b"sprite")
+
+            result = orchestrator.import_assets(
+                project_root,
+                [
+                    orchestrator.AssetImportRequest(
+                        source_path=str(source_png),
+                        source_type="manual-upload",
+                        license_id="cc0-1.0",
+                    )
+                ],
+            )
+
+            self.assertEqual([], result.errors)
+            self.assertEqual("asset-0004", result.imported_assets[0].asset_id)
+            self.assertTrue((project_root / "assets" / "library" / "asset-0004.png").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

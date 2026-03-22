@@ -446,6 +446,22 @@ def _write_asset_catalog(catalog_path: Path, assets: list[dict[str, object]]) ->
     _write_text(catalog_path, json.dumps(payload, indent=2))
 
 
+def _parse_asset_id_suffix(value: object) -> int | None:
+    match = re.fullmatch(r"asset-(\d+)", str(value or "").strip().lower())
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _next_asset_sequence(existing_assets: list[dict[str, object]]) -> int:
+    numeric_suffixes = [
+        parsed
+        for parsed in (_parse_asset_id_suffix(asset.get("asset_id")) for asset in existing_assets)
+        if parsed is not None
+    ]
+    return (max(numeric_suffixes) + 1) if numeric_suffixes else 1
+
+
 def import_assets(
     project_root: Path,
     requests: list[AssetImportRequest],
@@ -457,6 +473,7 @@ def import_assets(
     existing_assets = _read_asset_catalog(catalog_path)
     imported_assets: list[AssetCatalogEntry] = []
     errors: list[AssetImportError] = []
+    next_asset_sequence = _next_asset_sequence(existing_assets)
 
     for request in requests:
         source_path = Path(request.source_path)
@@ -520,7 +537,8 @@ def import_assets(
 
         category = _derive_asset_category(source_path)
         tags = _build_auto_tags(source_path, category, source_type, request.user_tags)
-        asset_id = f"asset-{len(existing_assets) + len(imported_assets) + 1:04d}"
+        asset_id = f"asset-{next_asset_sequence:04d}"
+        next_asset_sequence += 1
         imported_at_utc = datetime.now(timezone.utc).isoformat()
         target_name = f"{asset_id}{source_path.suffix.lower()}"
         target_path = library_dir / target_name
