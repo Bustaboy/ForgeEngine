@@ -13,7 +13,11 @@
       ],
       "manual_procedure": "Run clean-machine install/start flow on target OS and verify no crash on first launch.",
       "next_action": "Expand to true fresh-install smoke in CI images for Windows+Ubuntu.",
-      "owner_suggestion": "Platform QA"
+      "evidence_strength": "partial-automated",
+      "release_blocking": true,
+      "owner": "Platform QA",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-002",
@@ -24,7 +28,11 @@
       ],
       "manual_procedure": null,
       "next_action": "Expand with full editor UI create-project integration coverage in CI once harness is available.",
-      "owner_suggestion": "Editor/Core"
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Editor/Core",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-003",
@@ -36,7 +44,11 @@
       ],
       "manual_procedure": "Resume long interview session after restart and verify continuity.",
       "next_action": "Add long-session resume integration test with transcript fixtures.",
-      "owner_suggestion": "AI Orchestration"
+      "evidence_strength": "partial-automated",
+      "release_blocking": true,
+      "owner": "AI Orchestration",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-004",
@@ -46,7 +58,12 @@
         "tests/test_uncertainty_options.py::test_ambiguous_unknown_input_returns_exactly_three_options",
         "editor/csharp/tests/InterviewUncertaintyTests.cs::SaveAsync_RejectsDecisionWithoutExactlyThreeOptions"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Editor/Core",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-005",
@@ -56,7 +73,12 @@
         "tests/test_uncertainty_options.py::test_think_for_me_mode_returns_three_directional_concepts",
         "editor/csharp/tests/InterviewUncertaintyTests.cs::ThinkForMeEnvelope_MapsConfirmationGateAndThreeProposals"
       ],
-      "manual_procedure": "Run 5 prompts in think-for-me mode and assess coherence + confirmation gate."
+      "manual_procedure": "Run 5 prompts in think-for-me mode and assess coherence + confirmation gate.",
+      "evidence_strength": "partial-automated",
+      "release_blocking": false,
+      "owner": "AI Orchestration",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-006",
@@ -66,7 +88,12 @@
         "tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief",
         "tests/test_prototype_generation.py::TestPrototypeGeneration::test_smoke_script_generation_and_launch"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "AI Orchestration",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-007",
@@ -76,7 +103,12 @@
         "tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_skips_locked_paths_without_confirmation",
         "tests/test_prototype_generation.py::TestPrototypeGeneration::test_partial_regeneration_overwrites_locked_paths_after_confirmation"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "AI Orchestration",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-008",
@@ -84,7 +116,12 @@
       "status": "missing",
       "automation": [],
       "manual_procedure": "Trigger five sequential failures and verify guided manual mode offer.",
-      "next_action": "Add failure-counter integration test for fallback UX."
+      "next_action": "Add failure-counter integration test for fallback UX.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "AI Orchestration",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-009",
@@ -93,7 +130,12 @@
       "automation": [
         "editor/csharp/tests/EditorShellTests.cs::UndoRedoTimeline_SupportsMultiStepRollbackAndReapply"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Editor/Core",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-010",
@@ -105,7 +147,11 @@
       ],
       "manual_procedure": "Execute Windows smoke commands from docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md and archive a completed windows evidence template with linked logs.",
       "next_action": "Automate this exact runbook flow in Windows CI and publish evidence artifacts.",
-      "owner_suggestion": "Release Engineering"
+      "evidence_strength": "partial-automated",
+      "release_blocking": true,
+      "owner": "Release Engineering",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-011",
@@ -117,7 +163,11 @@
       ],
       "manual_procedure": "Execute Ubuntu smoke commands from docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md and archive a completed ubuntu evidence template with linked logs.",
       "next_action": "Automate this exact runbook flow in Ubuntu CI and publish evidence artifacts.",
-      "owner_suggestion": "Release Engineering"
+      "evidence_strength": "partial-automated",
+      "release_blocking": true,
+      "owner": "Release Engineering",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-012",
@@ -127,7 +177,12 @@
         "tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief",
         "editor/csharp/tests/EditorShellTests.cs::GeneratedProject_LoadsIntoWorkspaceWithoutCrash"
       ],
-      "manual_procedure": "Verify Vulkan backend initializes at startup on target machine."
+      "manual_procedure": "Verify Vulkan backend initializes at startup on target machine.",
+      "evidence_strength": "partial-automated",
+      "release_blocking": false,
+      "owner": "Runtime/Rendering",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-013",
@@ -137,7 +192,12 @@
         "tests/test_asset_import_pipeline.py::test_imported_assets_are_auto_tagged_and_searchable",
         "editor/csharp/tests/EditorShellTests.cs::AssetBrowserFilter_ReturnsTagAndCategoryMatches"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Content Pipeline",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-014",
@@ -146,7 +206,12 @@
       "automation": [
         "tests/test_asset_import_pipeline.py::test_blocked_or_unclear_license_returns_actionable_errors"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Content Pipeline",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-015",
@@ -154,7 +219,12 @@
       "status": "missing",
       "automation": [],
       "manual_procedure": "Export project with CC-BY assets and verify attribution bundle exists.",
-      "next_action": "Add attribution export tests with mixed-license fixtures."
+      "next_action": "Add attribution export tests with mixed-license fixtures.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "Content Pipeline",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-016",
@@ -163,7 +233,12 @@
       "automation": [
         "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Compliance/Release",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-017",
@@ -172,7 +247,12 @@
       "automation": [
         "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_WarningsRequireAcknowledgement_AndAllowOverride"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Compliance/Release",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-018",
@@ -181,7 +261,12 @@
       "automation": [
         "editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Compliance/Release",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-019",
@@ -190,7 +275,12 @@
       "automation": [
         "editor/csharp/tests/SteamReadinessPolicyTests.cs::BuildAuditTrail_GeneratesHashSignature_AndRequiresUploadConsent"
       ],
-      "manual_procedure": null
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Compliance/Release",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-020",
@@ -203,7 +293,11 @@
       ],
       "manual_procedure": "Run collector to produce readiness metrics evidence, then run steam-readiness flow against the artifact and verify crash-free threshold >=97% is enforced.",
       "next_action": "Add target-hardware session fixture captures to complement deterministic local fixture evidence.",
-      "owner_suggestion": "Quality/Telemetry"
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Quality/Telemetry",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-021",
@@ -216,7 +310,11 @@
       ],
       "manual_procedure": "Run collector with frame sample fixture and verify fps_60_compliance_percent threshold mapping (>=95%) in gate_evaluation checks.",
       "next_action": "Replace synthetic/local frame fixture inputs with target-scene runtime captures.",
-      "owner_suggestion": "Runtime/Perf"
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Runtime/Perf",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-022",
@@ -229,7 +327,11 @@
       ],
       "manual_procedure": "Run collector with stress-scene FPS fixture and verify sustained_fps_floor threshold >=30 in gate_evaluation checks.",
       "next_action": "Ingest sustained-floor measurements directly from runtime trace exports on target hardware.",
-      "owner_suggestion": "Runtime/Perf"
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Runtime/Perf",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-023",
@@ -243,7 +345,11 @@
       ],
       "manual_procedure": "Run collector with frame-time fixture from validation scene capture, verify frame_time_p95_ms <33.0 threshold mapping, then run steam-readiness flow and confirm warning acknowledgement is required when AT-023 fails.",
       "next_action": "Add target-hardware frame-time trace ingestion to replace synthetic/local fixture inputs.",
-      "owner_suggestion": "Runtime/Perf"
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Runtime/Perf",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-024",
@@ -255,7 +361,12 @@
         "editor/csharp/tests/SteamReadinessPolicyTests.cs::Evaluate_CriticalFailure_BlocksPublish"
       ],
       "manual_procedure": "Run collector with first-scene load fixture and verify initial_scene_load_seconds threshold <20.0 in gate_evaluation checks.",
-      "next_action": "Add automatic runtime startup probe ingestion from target baseline hardware."
+      "next_action": "Add automatic runtime startup probe ingestion from target baseline hardware.",
+      "evidence_strength": "strong-automated",
+      "release_blocking": false,
+      "owner": "Runtime/Perf",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-025",
@@ -266,7 +377,11 @@
       ],
       "manual_procedure": null,
       "next_action": "Keep regression loop in default pytest suite and add additional save fixtures as gameplay modules expand.",
-      "owner_suggestion": "Runtime + QA Automation"
+      "evidence_strength": "strong-automated",
+      "release_blocking": true,
+      "owner": "Runtime + QA Automation",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-026",
@@ -278,28 +393,47 @@
       ],
       "manual_procedure": "Traverse quest branches and verify zero critical dead-end blockers.",
       "next_action": "Add dead-end blocker scanner with CI fail condition.",
-      "owner_suggestion": "AI Testing"
+      "evidence_strength": "partial-automated",
+      "release_blocking": true,
+      "owner": "AI Testing",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-027",
       "priority": "P2",
       "status": "missing",
       "automation": [],
-      "manual_procedure": "Create project and confirm Git is disabled by default."
+      "manual_procedure": "Create project and confirm Git is disabled by default.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "Editor/Core",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-028",
       "priority": "P2",
       "status": "missing",
       "automation": [],
-      "manual_procedure": "Enable Git and verify repository initialization success."
+      "manual_procedure": "Enable Git and verify repository initialization success.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "Editor/Core",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-029",
       "priority": "P1",
       "status": "missing",
       "automation": [],
-      "manual_procedure": "Run discoverability walkthrough of top-level app sections without docs."
+      "manual_procedure": "Run discoverability walkthrough of top-level app sections without docs.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "UX",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-030",
@@ -308,18 +442,35 @@
       "automation": [
         "editor/csharp/tests/EditorShellTests.cs::Selection_UpdatesInspectorAndAiContext"
       ],
-      "manual_procedure": "Verify simple controls are default-visible and advanced controls collapsed but accessible."
+      "manual_procedure": "Verify simple controls are default-visible and advanced controls collapsed but accessible.",
+      "evidence_strength": "partial-automated",
+      "release_blocking": false,
+      "owner": "UX",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     },
     {
       "id": "AT-031",
       "priority": "P1",
       "status": "missing",
       "automation": [],
-      "manual_procedure": "Perform plain-language UX copy review of core labels/dialogs."
+      "manual_procedure": "Perform plain-language UX copy review of core labels/dialogs.",
+      "evidence_strength": "missing",
+      "release_blocking": false,
+      "owner": "UX",
+      "target_sprint_or_date": "RC governance freeze - 2026-03-22",
+      "last_verified_at_utc": "2026-03-22T00:00:00Z"
     }
   ],
   "fixture_notes": [
     "AT-002/AT-025 automation uses app/samples/generated-prototype/cozy-colony-tales copied into isolated tmp dirs.",
     "Tests mutate save/savegame_hook.json only and assert hash stability for untouched project JSON artifacts."
+  ],
+  "required_fields": [
+    "evidence_strength",
+    "release_blocking",
+    "owner",
+    "target_sprint_or_date",
+    "last_verified_at_utc"
   ]
 }
