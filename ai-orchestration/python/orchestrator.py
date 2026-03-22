@@ -96,6 +96,75 @@ class ConsequenceTransitionResult:
     world_state: dict[str, str]
 
 
+@dataclass(frozen=True)
+class AssetImportRequest:
+    source_path: str
+    source_type: str
+    license_id: str
+    display_name: str | None = None
+    user_tags: list[str] | None = None
+    rights_confirmation: bool = False
+
+
+@dataclass(frozen=True)
+class AssetImportError:
+    source_path: str
+    code: str
+    message: str
+    remediation: str
+
+
+@dataclass(frozen=True)
+class AssetCatalogEntry:
+    asset_id: str
+    display_name: str
+    category: str
+    tags: list[str]
+    license_id: str
+    source_type: str
+    relative_path: str
+    imported_at_utc: str
+    metadata: dict[str, object]
+
+
+@dataclass(frozen=True)
+class AssetImportPipelineResult:
+    imported_assets: list[AssetCatalogEntry]
+    errors: list[AssetImportError]
+
+
+ALLOWED_LICENSES = {
+    "cc0-1.0",
+    "public-domain",
+    "cc-by-4.0",
+    "user-owned",
+}
+
+BLOCKED_LICENSES = {
+    "cc-by-sa",
+    "cc-by-nc",
+}
+
+ASSET_CATEGORY_BY_EXTENSION = {
+    ".png": "textures",
+    ".jpg": "textures",
+    ".jpeg": "textures",
+    ".tga": "textures",
+    ".bmp": "textures",
+    ".gif": "ui",
+    ".svg": "ui",
+    ".wav": "audio",
+    ".mp3": "audio",
+    ".ogg": "audio",
+    ".flac": "audio",
+    ".fbx": "characters",
+    ".glb": "props",
+    ".gltf": "props",
+    ".obj": "props",
+    ".blend": "props",
+}
+
+
 def _build_curated_options(topic: str) -> list[SuggestionOption]:
     normalized_topic = topic.strip().lower() or "game-direction"
 
@@ -329,6 +398,206 @@ def _escape_cpp_string_literal(value: object) -> str:
     text = text.replace("\r", "\\r")
     text = text.replace("\t", "\\t")
     return text
+
+
+def _normalize_license_id(raw_license: str) -> str:
+    normalized = raw_license.strip().lower().replace("_", "-")
+    normalized = re.sub(r"\s+", "-", normalized)
+    return normalized
+
+
+def _derive_asset_category(path: Path) -> str:
+    return ASSET_CATEGORY_BY_EXTENSION.get(path.suffix.lower(), "uncategorized")
+
+
+def _split_tags(value: str) -> list[str]:
+    return [piece for piece in re.split(r"[^a-z0-9]+", value.lower()) if piece]
+
+
+def _build_auto_tags(path: Path, category: str, source_type: str, user_tags: list[str] | None) -> list[str]:
+    inferred = set(_split_tags(path.stem))
+    inferred.add(category)
+    inferred.add(source_type)
+    inferred.add(path.suffix.lower().lstrip(".") or "unknown")
+
+    for raw_tag in user_tags or []:
+        for normalized in _split_tags(raw_tag):
+            inferred.add(normalized)
+
+    return sorted(inferred)
+
+
+def _read_asset_catalog(catalog_path: Path) -> list[dict[str, object]]:
+    if not catalog_path.exists():
+        return []
+    payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    assets = payload.get("assets", [])
+    if not isinstance(assets, list):
+        raise ValueError("Asset catalog is invalid: expected a top-level 'assets' list.")
+    return [dict(item) for item in assets]
+
+
+def _write_asset_catalog(catalog_path: Path, assets: list[dict[str, object]]) -> None:
+    payload = {
+        "schema": "gameforge.asset_catalog.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "assets": assets,
+    }
+    _write_text(catalog_path, json.dumps(payload, indent=2))
+
+
+def _parse_asset_id_suffix(value: object) -> int | None:
+    match = re.fullmatch(r"asset-(\d+)", str(value or "").strip().lower())
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _next_asset_sequence(existing_assets: list[dict[str, object]]) -> int:
+    numeric_suffixes = [
+        parsed
+        for parsed in (_parse_asset_id_suffix(asset.get("asset_id")) for asset in existing_assets)
+        if parsed is not None
+    ]
+    return (max(numeric_suffixes) + 1) if numeric_suffixes else 1
+
+
+def import_assets(
+    project_root: Path,
+    requests: list[AssetImportRequest],
+) -> AssetImportPipelineResult:
+    catalog_path = project_root / "assets" / "catalog.v1.json"
+    library_dir = project_root / "assets" / "library"
+    library_dir.mkdir(parents=True, exist_ok=True)
+
+    existing_assets = _read_asset_catalog(catalog_path)
+    imported_assets: list[AssetCatalogEntry] = []
+    errors: list[AssetImportError] = []
+    next_asset_sequence = _next_asset_sequence(existing_assets)
+
+    for request in requests:
+        source_path = Path(request.source_path)
+        normalized_license = _normalize_license_id(request.license_id)
+        source_type = request.source_type.strip().lower()
+
+        if source_type not in {"ai-generated", "manual-upload"}:
+            errors.append(
+                AssetImportError(
+                    source_path=request.source_path,
+                    code="unsupported-source-type",
+                    message=f"Source type '{request.source_type}' is not supported in V1.",
+                    remediation="Use 'ai-generated' or 'manual-upload'.",
+                )
+            )
+            continue
+
+        if not source_path.exists() or not source_path.is_file():
+            errors.append(
+                AssetImportError(
+                    source_path=request.source_path,
+                    code="missing-source-file",
+                    message="Asset source file was not found.",
+                    remediation="Verify the source path points to an existing local file.",
+                )
+            )
+            continue
+
+        if normalized_license in BLOCKED_LICENSES:
+            errors.append(
+                AssetImportError(
+                    source_path=request.source_path,
+                    code="blocked-license",
+                    message=f"License '{request.license_id}' is blocked in V1.",
+                    remediation="Use CC0/Public Domain, CC-BY 4.0 (with attribution), or user-owned assets.",
+                )
+            )
+            continue
+
+        if normalized_license not in ALLOWED_LICENSES:
+            errors.append(
+                AssetImportError(
+                    source_path=request.source_path,
+                    code="unclear-license",
+                    message=f"License '{request.license_id}' is unsupported or unclear for V1.",
+                    remediation="Provide a clear allow-listed license id and re-import.",
+                )
+            )
+            continue
+
+        if normalized_license == "user-owned" and not request.rights_confirmation:
+            errors.append(
+                AssetImportError(
+                    source_path=request.source_path,
+                    code="rights-confirmation-required",
+                    message="User-owned assets require explicit rights confirmation.",
+                    remediation="Set rights_confirmation=true when importing user-owned assets.",
+                )
+            )
+            continue
+
+        category = _derive_asset_category(source_path)
+        tags = _build_auto_tags(source_path, category, source_type, request.user_tags)
+        asset_id = f"asset-{next_asset_sequence:04d}"
+        next_asset_sequence += 1
+        imported_at_utc = datetime.now(timezone.utc).isoformat()
+        target_name = f"{asset_id}{source_path.suffix.lower()}"
+        target_path = library_dir / target_name
+        target_path.write_bytes(source_path.read_bytes())
+        relative_path = str(target_path.relative_to(project_root)).replace("\\", "/")
+
+        entry = AssetCatalogEntry(
+            asset_id=asset_id,
+            display_name=request.display_name or source_path.stem,
+            category=category,
+            tags=tags,
+            license_id=normalized_license,
+            source_type=source_type,
+            relative_path=relative_path,
+            imported_at_utc=imported_at_utc,
+            metadata={
+                "source_filename": source_path.name,
+                "source_path": str(source_path),
+                "rights_confirmation": request.rights_confirmation,
+            },
+        )
+        imported_assets.append(entry)
+
+    updated_assets = [*existing_assets, *[asdict(asset) for asset in imported_assets]]
+    _write_asset_catalog(catalog_path, updated_assets)
+
+    return AssetImportPipelineResult(imported_assets=imported_assets, errors=errors)
+
+
+def search_asset_catalog(
+    project_root: Path,
+    query: str = "",
+    category: str | None = None,
+    required_tags: list[str] | None = None,
+) -> list[dict[str, object]]:
+    catalog_path = project_root / "assets" / "catalog.v1.json"
+    assets = _read_asset_catalog(catalog_path)
+    normalized_query = query.strip().lower()
+    normalized_category = category.strip().lower() if category else None
+    normalized_tags = {item.strip().lower() for item in (required_tags or []) if item.strip()}
+
+    results: list[dict[str, object]] = []
+    for asset in assets:
+        asset_name = str(asset.get("display_name", "")).lower()
+        asset_category = str(asset.get("category", "")).lower()
+        asset_tags = {str(item).lower() for item in asset.get("tags", [])}
+
+        if normalized_category and asset_category != normalized_category:
+            continue
+        if normalized_tags and not normalized_tags.issubset(asset_tags):
+            continue
+        if normalized_query:
+            haystack = " ".join([asset_name, asset_category, " ".join(sorted(asset_tags))])
+            if normalized_query not in haystack:
+                continue
+
+        results.append(asset)
+
+    return results
 
 
 def apply_consequence_choice(tracker: dict[str, object], choice_id: str) -> ConsequenceTransitionResult:
@@ -802,6 +1071,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--generate-prototype", dest="brief_path", help="Path to saved interview brief JSON")
     parser.add_argument("--output", default="build/generated-prototypes", help="Output directory for generated prototypes")
     parser.add_argument("--launch", action="store_true", help="Compile and launch generated prototype runtime")
+    parser.add_argument("--import-asset-manifest", help="Path to JSON list of asset import requests")
+    parser.add_argument("--project-root", help="Project root containing assets/catalog.v1.json")
+    parser.add_argument("--asset-query", default="", help="Search query for asset catalog")
+    parser.add_argument("--asset-category", default="", help="Category filter for asset search")
+    parser.add_argument(
+        "--asset-tags",
+        default="",
+        help="Comma-separated tag filters that must all be present in an asset.",
+    )
     return parser.parse_args()
 
 
@@ -823,6 +1101,26 @@ def main() -> int:
         print(f"Generated prototype at: {prototype_root}")
         if args.launch:
             return _launch_generated_prototype(prototype_root)
+        return 0
+
+    if args.import_asset_manifest:
+        if not args.project_root:
+            raise ValueError("--project-root is required with --import-asset-manifest")
+        manifest_payload = json.loads(Path(args.import_asset_manifest).read_text(encoding="utf-8"))
+        requests = [AssetImportRequest(**item) for item in manifest_payload]
+        result = import_assets(Path(args.project_root), requests)
+        print(json.dumps(asdict(result), indent=2))
+        return 0
+
+    if args.project_root and (args.asset_query or args.asset_category or args.asset_tags):
+        tags = [item.strip() for item in args.asset_tags.split(",") if item.strip()]
+        results = search_asset_catalog(
+            project_root=Path(args.project_root),
+            query=args.asset_query,
+            category=args.asset_category or None,
+            required_tags=tags,
+        )
+        print(json.dumps({"results": results}, indent=2))
         return 0
 
     print("GameForge V1 AI orchestration skeleton (Python)")

@@ -13,6 +13,7 @@ public static class EditorProjectLoader
 
         var manifestPath = Path.Combine(projectRoot, "prototype-manifest.json");
         var scenePath = Path.Combine(projectRoot, "scene", "scene_scaffold.json");
+        var assetCatalogPath = Path.Combine(projectRoot, "assets", "catalog.v1.json");
 
         if (!File.Exists(manifestPath))
         {
@@ -43,6 +44,7 @@ public static class EditorProjectLoader
         var sceneRoot = sceneDoc.RootElement;
 
         var sceneObjects = BuildSceneObjects(sceneRoot);
+        var assets = await BuildAssetCatalogAsync(assetCatalogPath);
 
         return new EditorProjectSnapshot
         {
@@ -51,7 +53,48 @@ public static class EditorProjectLoader
             Rendering = rendering,
             Platforms = platforms,
             SceneObjects = sceneObjects,
+            Assets = assets,
         };
+    }
+
+    private static async Task<IReadOnlyList<AssetCatalogEntry>> BuildAssetCatalogAsync(string assetCatalogPath)
+    {
+        if (!File.Exists(assetCatalogPath))
+        {
+            return [];
+        }
+
+        await using var stream = File.OpenRead(assetCatalogPath);
+        using var doc = await JsonDocument.ParseAsync(stream);
+        if (!doc.RootElement.TryGetProperty("assets", out var assetsNode) || assetsNode.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var output = new List<AssetCatalogEntry>();
+        foreach (var assetNode in assetsNode.EnumerateArray())
+        {
+            var tags = assetNode.TryGetProperty("tags", out var tagsNode) && tagsNode.ValueKind == JsonValueKind.Array
+                ? tagsNode.EnumerateArray()
+                    .Select(item => item.GetString() ?? string.Empty)
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .ToList()
+                : [];
+
+            output.Add(new AssetCatalogEntry
+            {
+                AssetId = assetNode.TryGetProperty("asset_id", out var assetId) ? assetId.GetString() ?? string.Empty : string.Empty,
+                DisplayName = assetNode.TryGetProperty("display_name", out var displayName) ? displayName.GetString() ?? string.Empty : string.Empty,
+                Category = assetNode.TryGetProperty("category", out var category) ? category.GetString() ?? string.Empty : string.Empty,
+                Tags = tags,
+                LicenseId = assetNode.TryGetProperty("license_id", out var licenseId) ? licenseId.GetString() ?? string.Empty : string.Empty,
+                SourceType = assetNode.TryGetProperty("source_type", out var sourceType) ? sourceType.GetString() ?? string.Empty : string.Empty,
+                RelativePath = assetNode.TryGetProperty("relative_path", out var relativePath) ? relativePath.GetString() ?? string.Empty : string.Empty,
+                ImportedAtUtc = assetNode.TryGetProperty("imported_at_utc", out var importedAtUtc) ? importedAtUtc.GetString() ?? string.Empty : string.Empty,
+            });
+        }
+
+        return output;
     }
 
     private static IReadOnlyList<SceneObject> BuildSceneObjects(JsonElement sceneRoot)

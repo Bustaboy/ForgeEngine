@@ -9,6 +9,7 @@ public sealed record EditorLayout(IReadOnlyList<DockedPanel> Panels)
     public static EditorLayout CreateDefault() => new(
     [
         new DockedPanel("hierarchy", "Hierarchy", "left", 0),
+        new DockedPanel("asset-browser", "Asset Browser", "left", 1),
         new DockedPanel("viewport", "Viewport", "center", 0),
         new DockedPanel("inspector", "Inspector", "right", 0),
         new DockedPanel("chat", "AI Copilot Chat", "bottom", 0),
@@ -59,6 +60,43 @@ public sealed record EditorProjectSnapshot
     public required IReadOnlyList<string> Platforms { get; init; }
 
     public required IReadOnlyList<SceneObject> SceneObjects { get; init; }
+
+    public required IReadOnlyList<AssetCatalogEntry> Assets { get; init; }
+}
+
+public sealed record AssetCatalogEntry
+{
+    public required string AssetId { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Category { get; init; }
+
+    public required IReadOnlyList<string> Tags { get; init; }
+
+    public required string LicenseId { get; init; }
+
+    public required string SourceType { get; init; }
+
+    public required string RelativePath { get; init; }
+
+    public required string ImportedAtUtc { get; init; }
+}
+
+public sealed record AssetBrowserFilter
+{
+    public string Query { get; init; } = string.Empty;
+
+    public string? Category { get; init; }
+
+    public IReadOnlyList<string> RequiredTags { get; init; } = [];
+}
+
+public sealed record AssetBrowserView
+{
+    public required AssetBrowserFilter Filter { get; init; }
+
+    public required IReadOnlyList<AssetCatalogEntry> Results { get; init; }
 }
 
 public enum AiEditImpactLevel

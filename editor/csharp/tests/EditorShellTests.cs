@@ -48,9 +48,59 @@ public sealed class EditorShellTests
         Assert.Collection(
             layout.Panels.OrderBy(panel => panel.DisplayName),
             panel => Assert.Equal("AI Copilot Chat", panel.DisplayName),
+            panel => Assert.Equal("Asset Browser", panel.DisplayName),
             panel => Assert.Equal("Hierarchy", panel.DisplayName),
             panel => Assert.Equal("Inspector", panel.DisplayName),
             panel => Assert.Equal("Viewport", panel.DisplayName));
+    }
+
+    [Fact]
+    public void AssetBrowserFilter_ReturnsTagAndCategoryMatches()
+    {
+        var snapshot = new EditorProjectSnapshot
+        {
+            ProjectName = "Asset Test",
+            Scope = "single-player baseline",
+            Rendering = "vulkan-first",
+            Platforms = ["windows", "ubuntu"],
+            SceneObjects = [],
+            Assets =
+            [
+                new AssetCatalogEntry
+                {
+                    AssetId = "asset-0001",
+                    DisplayName = "Forest Archer Portrait",
+                    Category = "ui",
+                    Tags = ["portrait", "character", "manual-upload"],
+                    LicenseId = "cc0-1.0",
+                    SourceType = "manual-upload",
+                    RelativePath = "assets/library/asset-0001.png",
+                    ImportedAtUtc = "2026-03-22T00:00:00Z",
+                },
+                new AssetCatalogEntry
+                {
+                    AssetId = "asset-0002",
+                    DisplayName = "Forest Ambience Loop",
+                    Category = "audio",
+                    Tags = ["ambient", "loop", "ai-generated"],
+                    LicenseId = "cc-by-4.0",
+                    SourceType = "ai-generated",
+                    RelativePath = "assets/library/asset-0002.ogg",
+                    ImportedAtUtc = "2026-03-22T00:00:00Z",
+                },
+            ],
+        };
+
+        var workspace = new EditorWorkspace(snapshot);
+        var filtered = workspace.QueryAssets(new AssetBrowserFilter
+        {
+            Query = "forest",
+            Category = "audio",
+            RequiredTags = ["ai-generated"],
+        });
+
+        Assert.Single(filtered.Results);
+        Assert.Equal("asset-0002", filtered.Results[0].AssetId);
     }
 
     [Fact]

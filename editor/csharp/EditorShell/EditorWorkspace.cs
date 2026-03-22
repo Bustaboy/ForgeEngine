@@ -36,6 +36,61 @@ public sealed class EditorWorkspace
 
     public AiEditPreview? PendingPreview => _pendingMajorMutation?.Preview;
 
+    public AssetBrowserView QueryAssets(AssetBrowserFilter filter)
+    {
+        var normalizedQuery = filter.Query.Trim().ToLowerInvariant();
+        var normalizedCategory = string.IsNullOrWhiteSpace(filter.Category)
+            ? string.Empty
+            : filter.Category.Trim().ToLowerInvariant();
+        var requiredTags = new HashSet<string>(
+            filter.RequiredTags
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => tag.Trim().ToLowerInvariant()),
+            StringComparer.OrdinalIgnoreCase);
+
+        var results = Project.Assets
+            .Where(asset =>
+            {
+                var assetCategory = asset.Category.Trim().ToLowerInvariant();
+                if (!string.IsNullOrEmpty(normalizedCategory) &&
+                    !string.Equals(assetCategory, normalizedCategory, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var assetTags = new HashSet<string>(asset.Tags.Select(tag => tag.Trim().ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
+                if (requiredTags.Count > 0 && !requiredTags.IsSubsetOf(assetTags))
+                {
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(normalizedQuery))
+                {
+                    return true;
+                }
+
+                var haystack = string.Join(
+                    " ",
+                    new[]
+                    {
+                        asset.DisplayName,
+                        asset.Category,
+                        asset.SourceType,
+                        string.Join(" ", asset.Tags),
+                    }).ToLowerInvariant();
+
+                return haystack.Contains(normalizedQuery, StringComparison.Ordinal);
+            })
+            .OrderBy(asset => asset.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new AssetBrowserView
+        {
+            Filter = filter,
+            Results = results,
+        };
+    }
+
     public bool SelectObject(string objectId)
     {
         if (!_objectIndex.TryGetValue(objectId, out var sceneObject))
