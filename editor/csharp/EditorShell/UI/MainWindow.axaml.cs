@@ -743,6 +743,17 @@ public partial class MainWindow : Window
         await _viewModel.RunPublishToSteamDryRunAsync(userConfirmed: true);
     }
 
+    private async void OnUploadToSteamStubClick(object? sender, RoutedEventArgs e)
+    {
+        var confirmed = await ShowUploadToSteamStubConfirmationAsync();
+        if (!confirmed)
+        {
+            return;
+        }
+
+        await _viewModel.RunSteamUploadStubAsync();
+    }
+
     private async Task<bool> ShowPublishDryRunConfirmationAsync()
     {
         var decision = false;
@@ -791,6 +802,84 @@ public partial class MainWindow : Window
                                 {
                                     Content = "Run Dry-Run",
                                     MinWidth = 110,
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        };
+
+        if (modal.Content is Border { Child: StackPanel panel }
+            && panel.Children[^1] is StackPanel actions
+            && actions.Children.Count == 2
+            && actions.Children[0] is Button cancel
+            && actions.Children[1] is Button confirm)
+        {
+            cancel.Click += (_, _) =>
+            {
+                decision = false;
+                modal.Close();
+            };
+            confirm.Click += (_, _) =>
+            {
+                decision = true;
+                modal.Close();
+            };
+        }
+
+        await modal.ShowDialog(this);
+        return decision;
+    }
+
+    private async Task<bool> ShowUploadToSteamStubConfirmationAsync()
+    {
+        var decision = false;
+        var modal = new Window
+        {
+            Width = 560,
+            Height = 300,
+            Title = "Upload to Steam (Stub)",
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new Border
+            {
+                Padding = new Thickness(18),
+                Background = new SolidColorBrush(Color.Parse("#0D1320")),
+                Child = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Confirm Steam upload stub?",
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                            FontSize = 16,
+                        },
+                        new TextBlock
+                        {
+                            Text = "This generates a fresh ZIP with release notes, writes a local audit log, and simulates upload progress. No real Steam API request is sent in V1.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children =
+                            {
+                                new Button
+                                {
+                                    Content = "Cancel",
+                                    MinWidth = 90,
+                                },
+                                new Button
+                                {
+                                    Content = "Upload (Stub)",
+                                    MinWidth = 120,
                                 },
                             }
                         },

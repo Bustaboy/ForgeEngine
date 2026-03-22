@@ -94,6 +94,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _steamReadinessSummary = "Steam readiness not evaluated yet.";
     private string _steamReadinessWarnings = "No readiness warnings.";
     private string _publishDryRunStatus = "Publish dry-run not started.";
+    private string _steamReleaseNotes = "V1 local-first release candidate.\n- Gameplay loop validated\n- Steam readiness checklist reviewed\n- Uploaded via local stub (no live Steam API)";
+    private bool _isSteamUploadInProgress;
+    private int _steamUploadProgressPercent;
+    private string _steamUploadStatus = "Steam upload stub not started.";
+    private string _steamUploadAuditPath = "No upload audit log yet.";
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -342,7 +347,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool IsExporting
     {
         get => _isExporting;
-        private set => SetField(ref _isExporting, value);
+        private set
+        {
+            if (!SetField(ref _isExporting, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(CanRunSteamUploadStub));
+        }
     }
 
     public string ExportStatus
@@ -428,6 +441,46 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _publishDryRunStatus;
         private set => SetField(ref _publishDryRunStatus, value);
     }
+
+    public string SteamReleaseNotes
+    {
+        get => _steamReleaseNotes;
+        set => SetField(ref _steamReleaseNotes, value);
+    }
+
+    public bool IsSteamUploadInProgress
+    {
+        get => _isSteamUploadInProgress;
+        private set
+        {
+            if (!SetField(ref _isSteamUploadInProgress, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(CanRunSteamUploadStub));
+        }
+    }
+
+    public int SteamUploadProgressPercent
+    {
+        get => _steamUploadProgressPercent;
+        private set => SetField(ref _steamUploadProgressPercent, Math.Clamp(value, 0, 100));
+    }
+
+    public string SteamUploadStatus
+    {
+        get => _steamUploadStatus;
+        private set => SetField(ref _steamUploadStatus, value);
+    }
+
+    public string SteamUploadAuditPath
+    {
+        get => _steamUploadAuditPath;
+        private set => SetField(ref _steamUploadAuditPath, value);
+    }
+
+    public bool CanRunSteamUploadStub => !IsExporting && !IsSteamUploadInProgress;
 
     public string PipelineProgress
     {
@@ -831,6 +884,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             CopyDirectory(Path.Combine(PrototypeRoot, "scene"), Path.Combine(exportFolder, "scene"));
             CopyDirectory(Path.Combine(PrototypeRoot, "generated", "cpp"), Path.Combine(exportFolder, "generated", "cpp"));
             CopyDirectory(Path.Combine(PrototypeRoot, "assets"), Path.Combine(exportFolder, "assets"), includeIfMissing: true);
+            WriteSteamReleaseNotesFile(exportFolder);
             CompleteExportChecklistItem("export-assets-code", "Assets + C++ runtime scaffolding exported.");
 
             StartExportChecklistItem("package-build", "Packaging export ZIP...");
@@ -937,6 +991,108 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StatusMessage = PublishDryRunStatus;
         ShowToast("Steam publish dry-run completed.");
         await Task.CompletedTask;
+    }
+
+    public async Task RunSteamUploadStubAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsSteamUploadInProgress)
+        {
+            return;
+        }
+
+        IsSteamUploadInProgress = true;
+        SteamUploadProgressPercent = 0;
+        SteamUploadStatus = "Preparing Steam upload stub bundle...";
+        ExportStatus = SteamUploadStatus;
+        var timeline = new List<UploadTimelineEntry>();
+        string? uploadZipPath = null;
+        string? releaseNotesPath = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+            {
+                throw new InvalidOperationException("Generate a prototype before running Steam upload.");
+            }
+
+            if (!HasExportFolderOutput || !Directory.Exists(ExportFolderPath))
+            {
+                await RunExportChecklistAsync(cancellationToken);
+                if (!HasExportFolderOutput || !Directory.Exists(ExportFolderPath))
+                {
+                    throw new InvalidOperationException("Steam upload requires export output. Run Export first.");
+                }
+            }
+
+            releaseNotesPath = WriteSteamReleaseNotesFile(ExportFolderPath);
+            timeline.Add(new UploadTimelineEntry(DateTimeOffset.UtcNow, "release_notes", $"Release notes staged: {releaseNotesPath}"));
+
+            var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            uploadZipPath = Path.Combine(PrototypeRoot, "build", "export", $"steam-upload-stub-{stamp}.zip");
+            if (File.Exists(uploadZipPath))
+            {
+                File.Delete(uploadZipPath);
+            }
+
+            ZipFile.CreateFromDirectory(ExportFolderPath, uploadZipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
+            timeline.Add(new UploadTimelineEntry(DateTimeOffset.UtcNow, "package", $"Upload ZIP generated: {uploadZipPath}"));
+
+            var progressStages = new (int Progress, string Message)[]
+            {
+                (12, "Queued local upload stub."),
+                (28, "Validating package manifest + release notes."),
+                (46, "Simulating Steam depot chunk upload."),
+                (63, "Simulating Steam branch metadata sync."),
+                (81, "Simulating publish gate verification."),
+                (100, "Steam upload stub completed successfully."),
+            };
+
+            foreach (var stage in progressStages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(250, cancellationToken);
+                SteamUploadProgressPercent = stage.Progress;
+                SteamUploadStatus = stage.Message;
+                ExportStatus = $"Upload stub: {stage.Message}";
+                timeline.Add(new UploadTimelineEntry(DateTimeOffset.UtcNow, "progress", $"{stage.Progress}% - {stage.Message}"));
+            }
+
+            var auditPath = ResolveSteamUploadStubAuditOutputPath();
+            var auditPayload = BuildSteamUploadStubAuditPayload(
+                success: true,
+                uploadZipPath,
+                releaseNotesPath,
+                timeline,
+                errorMessage: null);
+            await File.WriteAllTextAsync(auditPath, auditPayload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+
+            SteamUploadAuditPath = auditPath;
+            SteamUploadStatus = $"Steam upload stub complete. Audit log: {auditPath}";
+            ExportStatus = SteamUploadStatus;
+            StatusMessage = $"Steam upload stub succeeded. ZIP: {uploadZipPath}";
+            ShowToast("Steam upload stub completed.");
+        }
+        catch (Exception ex)
+        {
+            var auditPath = ResolveSteamUploadStubAuditOutputPath();
+            var auditPayload = BuildSteamUploadStubAuditPayload(
+                success: false,
+                uploadZipPath,
+                releaseNotesPath,
+                timeline,
+                errorMessage: ex.Message);
+            await File.WriteAllTextAsync(auditPath, auditPayload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+
+            SteamUploadAuditPath = auditPath;
+            SteamUploadStatus = $"Steam upload stub failed: {ex.Message}";
+            ExportStatus = SteamUploadStatus;
+            StatusMessage = SteamUploadStatus;
+            ShowToast("Steam upload stub failed.");
+        }
+        finally
+        {
+            IsSteamUploadInProgress = false;
+        }
     }
 
     public void OpenExportPackagePath()
@@ -1142,6 +1298,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ExportFolderPath = "Not exported yet.";
         ExportOutputPath = "Not packaged yet.";
         PublishDryRunStatus = "Publish dry-run not started.";
+        SteamUploadProgressPercent = 0;
+        SteamUploadStatus = "Steam upload stub not started.";
+        SteamUploadAuditPath = "No upload audit log yet.";
         SteamReadinessSummary = "Steam readiness not evaluated yet.";
         SteamReadinessWarnings = "No readiness warnings.";
         _lastSteamReadinessReport = null;
@@ -1226,6 +1385,61 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         throw new DirectoryNotFoundException("Unable to resolve repository root for steam publish audit output.");
+    }
+
+    private static string ResolveSteamUploadStubAuditOutputPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            if (File.Exists(markerPath))
+            {
+                return Path.Combine(current.FullName, "docs", "release", "evidence", $"steam-upload-stub-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root for steam upload audit output.");
+    }
+
+    private string WriteSteamReleaseNotesFile(string exportFolder)
+    {
+        var releaseFolder = Path.Combine(exportFolder, "release");
+        Directory.CreateDirectory(releaseFolder);
+        var releaseNotesPath = Path.Combine(releaseFolder, "steam_release_notes.txt");
+        var notes = string.IsNullOrWhiteSpace(SteamReleaseNotes)
+            ? "No release notes provided."
+            : SteamReleaseNotes.Trim();
+        File.WriteAllText(releaseNotesPath, notes, Encoding.UTF8);
+        return releaseNotesPath;
+    }
+
+    private JsonObject BuildSteamUploadStubAuditPayload(
+        bool success,
+        string? uploadZipPath,
+        string? releaseNotesPath,
+        IReadOnlyList<UploadTimelineEntry> timeline,
+        string? errorMessage)
+    {
+        return new JsonObject
+        {
+            ["mode"] = "steam-upload-stub",
+            ["success"] = success,
+            ["timestampUtc"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            ["uploadZipPath"] = uploadZipPath,
+            ["releaseNotesPath"] = releaseNotesPath,
+            ["publishDryRunStatus"] = PublishDryRunStatus,
+            ["steamReadinessSummary"] = SteamReadinessSummary,
+            ["error"] = errorMessage,
+            ["timeline"] = new JsonArray(timeline.Select(item => new JsonObject
+            {
+                ["timestampUtc"] = item.TimestampUtc.ToString("O", CultureInfo.InvariantCulture),
+                ["stage"] = item.Stage,
+                ["message"] = item.Message,
+            }).ToArray()),
+        };
     }
 
     private void ApplySteamReadinessDetails(SteamReadinessReport readinessReport)
@@ -4091,6 +4305,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     ? "✅"
                     : "•";
     }
+
+    private sealed record UploadTimelineEntry(DateTimeOffset TimestampUtc, string Stage, string Message);
 
     internal interface IRuntimeSupervisor
     {
