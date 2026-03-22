@@ -185,6 +185,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task PlayRuntimeAsync(CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrWhiteSpace(PrototypeRoot) && PrototypeRoot != "(none)")
+        {
+            await RelaunchGeneratedRuntimeAsync(cancellationToken);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(_lastBriefPath))
         {
             StatusMessage = "No generated brief yet. Click Generate & Play first.";
@@ -219,73 +225,91 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var executableName = OperatingSystem.IsWindows() ? "prototype_runtime.exe" : "prototype_runtime";
-        var executablePath = Path.Combine(PrototypeRoot, "runtime", executableName);
-        var compileArguments = OperatingSystem.IsWindows()
-            ? "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime.exe"
-            : "-std=c++17 runtime/main.cpp -o runtime/prototype_runtime";
-
-        var compileInfo = new ProcessStartInfo
+        var generatedRoot = Path.Combine(PrototypeRoot, "generated");
+        if (!Directory.Exists(generatedRoot))
         {
-            FileName = "g++",
-            Arguments = compileArguments,
-            WorkingDirectory = PrototypeRoot,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false,
-        };
-
-        PipelineProgress = "Recompiling runtime";
-        RuntimeLaunchStatus = "Recompiling";
-
-        using var compileProcess = Process.Start(compileInfo);
-        if (compileProcess is null)
-        {
-            StatusMessage = "Unable to start g++ compile process.";
-            RuntimeLaunchStatus = "Compile failed";
-            PipelineProgress = "Compile failed";
-            ShowToast("Compile process did not start.");
+            RuntimeLaunchStatus = "Recompile blocked";
+            PipelineProgress = "Recompile blocked";
+            StatusMessage = $"Generated runtime folder missing: {generatedRoot}";
+            ShowToast("Generated runtime folder missing.");
             return;
         }
 
-        var compileStdoutTask = compileProcess.StandardOutput.ReadToEndAsync(cancellationToken);
-        var compileStderrTask = compileProcess.StandardError.ReadToEndAsync(cancellationToken);
-        await compileProcess.WaitForExitAsync(cancellationToken);
+        RuntimeLaunchStatus = "Recompiling generated runtime";
+        PipelineProgress = "Code Mode: CMake configure";
+        StatusMessage = "Save complete. Running CMake configure for generated runtime...";
+        ShowToast("CMake configure started...");
 
-        var compileStdout = await compileStdoutTask;
-        var compileStderr = await compileStderrTask;
-        if (compileProcess.ExitCode != 0)
+        var generatedBuildRoot = Path.Combine(generatedRoot, "build");
+        var configureResult = await RunProcessAsync(
+            "cmake",
+            $"-S \"{generatedRoot}\" -B \"{generatedBuildRoot}\"",
+            PrototypeRoot,
+            cancellationToken);
+        if (configureResult.ExitCode != 0)
         {
             RuntimeLaunchStatus = "Compile failed";
             PipelineProgress = "Compile failed";
-            StatusMessage = BuildCompileFailureMessage(compileStdout, compileStderr);
-            ShowToast("Compile failed. See status panel.");
+            StatusMessage = BuildCompileFailureMessage("CMake configure", configureResult.Stdout, configureResult.Stderr);
+            ShowToast("CMake configure failed. See status details.");
             return;
         }
 
-        var launchInfo = new ProcessStartInfo
-        {
-            FileName = executablePath,
-            WorkingDirectory = PrototypeRoot,
-            UseShellExecute = false,
-        };
+        PipelineProgress = "Code Mode: CMake build";
+        RuntimeLaunchStatus = "Building generated runtime";
+        StatusMessage = "CMake configure passed. Building generated_gameplay_runner...";
+        ShowToast("CMake build started...");
 
-        var runtimeProcess = Process.Start(launchInfo);
-        if (runtimeProcess is null)
+        var buildResult = await RunProcessAsync(
+            "cmake",
+            $"--build \"{generatedBuildRoot}\"",
+            PrototypeRoot,
+            cancellationToken);
+        if (buildResult.ExitCode != 0)
+        {
+            RuntimeLaunchStatus = "Build failed";
+            PipelineProgress = "Build failed";
+            StatusMessage = BuildCompileFailureMessage("CMake build", buildResult.Stdout, buildResult.Stderr);
+            ShowToast("CMake build failed. See status details.");
+            return;
+        }
+
+        PipelineProgress = "Code Mode: launching generated runner";
+        StatusMessage = "Build passed. Relaunching generated runtime runner...";
+        ShowToast("Launching generated runner...");
+        var launchResult = LaunchGeneratedRunner(generatedBuildRoot);
+        if (!launchResult.Success)
         {
             RuntimeLaunchStatus = "Launch failed";
             PipelineProgress = "Launch failed";
-            StatusMessage = $"Compile succeeded, but failed to launch {executableName}.";
-            ShowToast("Runtime launch failed after compile.");
+            StatusMessage = launchResult.ErrorMessage;
+            ShowToast("Generated runtime launch failed.");
             return;
         }
 
-        RuntimePid = runtimeProcess.Id;
+        RuntimePid = launchResult.Pid;
         RuntimeLaunchStatus = "Running";
-        RuntimePreviewSummary = $"Live in Vulkan (PID: {runtimeProcess.Id})";
+        RuntimePreviewSummary = $"Live in Vulkan (PID: {launchResult.Pid})";
+        RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         PipelineProgress = "Runtime relaunched from Code Mode";
-        StatusMessage = $"Recompiled and relaunched runtime (PID: {runtimeProcess.Id}).";
+        StatusMessage = $"Save & Recompile complete. generated_gameplay_runner launched (PID: {launchResult.Pid}).";
         ShowToast("Save & Recompile completed.");
+    }
+
+    private async Task RelaunchGeneratedRuntimeAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "No generated prototype available for relaunch.";
+            ShowToast("Generate once before runtime relaunch.");
+            return;
+        }
+
+        RuntimeLaunchStatus = "Relaunching";
+        PipelineProgress = "Runtime relaunch requested";
+        StatusMessage = "Relaunching generated runtime from latest build...";
+        ShowToast("Relaunch runtime requested...");
+        await RecompileAndRelaunchRuntimeAsync(cancellationToken);
     }
 
     public void SetStatusMessage(string value)
@@ -354,6 +378,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var candidatePaths = new[]
         {
+            Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"),
+            Path.Combine(prototypeRoot, "generated", "cpp", "player_controller.cpp"),
+            Path.Combine(prototypeRoot, "generated", "cpp", "basic_npc.cpp"),
             Path.Combine(prototypeRoot, "runtime", "main.cpp"),
             Path.Combine(prototypeRoot, "runtime", "scene.cpp"),
             Path.Combine(prototypeRoot, "scene.cpp"),
@@ -397,6 +424,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var candidatePaths = new[]
         {
+            Path.Combine(PrototypeRoot, "generated", "cpp", "scene.cpp"),
+            Path.Combine(PrototypeRoot, "generated", "cpp", "player_controller.cpp"),
+            Path.Combine(PrototypeRoot, "generated", "cpp", "basic_npc.cpp"),
             Path.Combine(PrototypeRoot, "runtime", "main.cpp"),
             Path.Combine(PrototypeRoot, "runtime", "scene.cpp"),
             Path.Combine(PrototypeRoot, "scene.cpp"),
@@ -409,11 +439,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private static string BuildCompileFailureMessage(string compileStdout, string compileStderr)
+    private static string BuildCompileFailureMessage(string stage, string compileStdout, string compileStderr)
     {
         var stderr = string.IsNullOrWhiteSpace(compileStderr) ? "(none)" : compileStderr.Trim();
         var stdout = string.IsNullOrWhiteSpace(compileStdout) ? "(none)" : compileStdout.Trim();
-        return $"Compile failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
+        return $"{stage} failed. stderr: {stderr}{Environment.NewLine}stdout: {stdout}";
     }
 
     private static string BuildGeneratedEntityList(string prototypeRoot)
@@ -440,6 +470,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 lines.Add("• player");
             }
 
+            if (root.TryGetProperty("entities", out var entities) && entities.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entity in entities.EnumerateArray())
+                {
+                    var id = entity.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var type = entity.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "entity";
+                    lines.Add($"• {type}:{id ?? "unknown"}");
+                }
+            }
+
             if (root.TryGetProperty("npcs", out var npcs) && npcs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var npc in npcs.EnumerateArray())
@@ -447,6 +487,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
                     lines.Add($"• npc:{id ?? "unknown"}");
                 }
+            }
+
+            if (root.TryGetProperty("camera", out _))
+            {
+                lines.Add("• camera");
             }
 
             if (lines.Count == 0)
@@ -461,6 +506,100 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return $"Failed to parse entity preview: {ex.Message}";
         }
     }
+
+    private static async Task<ProcessResult> RunProcessAsync(
+        string fileName,
+        string arguments,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var processInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        using var process = Process.Start(processInfo);
+        if (process is null)
+        {
+            return new ProcessResult(-1, string.Empty, $"{fileName} process failed to start.");
+        }
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        return new ProcessResult(process.ExitCode, stdout, stderr);
+    }
+
+    private static LaunchResult LaunchGeneratedRunner(string generatedBuildRoot)
+    {
+        var executablePath = ResolveGeneratedRunnerPath(generatedBuildRoot);
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            return new LaunchResult(false, null, $"generated_gameplay_runner not found under {generatedBuildRoot}");
+        }
+
+        var launchInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            WorkingDirectory = Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+        };
+
+        var manifestPath = Path.Combine(Path.GetDirectoryName(generatedBuildRoot) ?? generatedBuildRoot, "..", "pipeline", "07_export_manifest.v1.json");
+        var normalizedManifestPath = Path.GetFullPath(manifestPath);
+        if (File.Exists(normalizedManifestPath))
+        {
+            launchInfo.ArgumentList.Add("--manifest");
+            launchInfo.ArgumentList.Add(normalizedManifestPath);
+        }
+
+        try
+        {
+            var runtimeProcess = Process.Start(launchInfo);
+            if (runtimeProcess is null)
+            {
+                return new LaunchResult(false, null, "generated_gameplay_runner process returned null.");
+            }
+
+            return new LaunchResult(true, runtimeProcess.Id, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return new LaunchResult(false, null, $"Failed to launch generated_gameplay_runner: {ex.Message}");
+        }
+    }
+
+    private static string ResolveGeneratedRunnerPath(string generatedBuildRoot)
+    {
+        var candidates = OperatingSystem.IsWindows()
+            ? new[]
+            {
+                Path.Combine(generatedBuildRoot, "Debug", "generated_gameplay_runner.exe"),
+                Path.Combine(generatedBuildRoot, "Release", "generated_gameplay_runner.exe"),
+                Path.Combine(generatedBuildRoot, "generated_gameplay_runner.exe"),
+            }
+            : new[]
+            {
+                Path.Combine(generatedBuildRoot, "generated_gameplay_runner"),
+            };
+
+        return candidates.FirstOrDefault(File.Exists) ?? string.Empty;
+    }
+
+    private readonly record struct ProcessResult(int ExitCode, string Stdout, string Stderr);
+
+    private readonly record struct LaunchResult(bool Success, int? Pid, string ErrorMessage);
 
     private static string BuildStatusMessage(PipelineRunResponse response)
     {
