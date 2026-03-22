@@ -7,7 +7,7 @@ import argparse
 import json
 import re
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -184,6 +184,7 @@ class BotPlaytestResult:
     completed_at_utc: str
     probe_results: list[BotPlaytestProbeResult]
     inconclusive_reasons: list[str]
+    critical_dead_end_blockers: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -204,6 +205,8 @@ class ActionablePlaytestReport:
     generated_at_utc: str
     overall_status: str
     summary: str
+    critical_dead_end_blockers_count: int
+    critical_dead_end_blockers: list[str]
     sections: list[PlaytestReportSection]
     source_probe_results: list[BotPlaytestProbeResult]
 
@@ -1480,9 +1483,132 @@ def _run_bot_probe(prototype_root: Path, probe: BotPlaytestProbe) -> BotPlaytest
     )
 
 
+def _scan_critical_dead_end_blockers(prototype_root: Path) -> list[str]:
+    quest_graph_path = prototype_root / "systems" / "rpg" / "quest_dialogue_framework.v1.json"
+    if not quest_graph_path.exists():
+        return [f"{quest_graph_path.relative_to(prototype_root)}: quest graph file is missing"]
+
+    try:
+        payload = json.loads(quest_graph_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"{quest_graph_path.relative_to(prototype_root)}: malformed JSON ({exc.msg})"]
+
+    quests = payload.get("quests")
+    dialogue_nodes = payload.get("dialogue_nodes")
+    blockers: list[str] = []
+
+    if not isinstance(quests, list) or not quests:
+        return [f"{quest_graph_path.relative_to(prototype_root)}: quests must be a non-empty list"]
+    if not isinstance(dialogue_nodes, list) or not dialogue_nodes:
+        return [f"{quest_graph_path.relative_to(prototype_root)}: dialogue_nodes must be a non-empty list"]
+
+    node_by_id: dict[str, dict[str, object]] = {}
+    duplicate_ids: set[str] = set()
+    for raw_node in dialogue_nodes:
+        if not isinstance(raw_node, dict):
+            blockers.append("dialogue_nodes: each entry must be an object")
+            continue
+        node_id = str(raw_node.get("node_id", "")).strip()
+        if not node_id:
+            blockers.append("dialogue_nodes: node_id is required")
+            continue
+        if node_id in node_by_id:
+            duplicate_ids.add(node_id)
+        node_by_id[node_id] = raw_node
+    for node_id in sorted(duplicate_ids):
+        blockers.append(f"dialogue_nodes.{node_id}: duplicate node_id")
+
+    if not node_by_id:
+        return [*blockers, "dialogue_nodes: no valid node_id entries found"]
+
+    for raw_quest in quests:
+        if not isinstance(raw_quest, dict):
+            blockers.append("quests: each entry must be an object")
+            continue
+        quest_id = str(raw_quest.get("quest_id", "")).strip() or "<unknown-quest>"
+        start_node_id = str(raw_quest.get("start_node_id", "")).strip()
+        completion_nodes = raw_quest.get("completion_nodes")
+
+        if not start_node_id:
+            blockers.append(f"{quest_id}: start_node_id is required")
+            continue
+        if start_node_id not in node_by_id:
+            blockers.append(f"{quest_id}: start_node_id '{start_node_id}' does not exist in dialogue_nodes")
+            continue
+        if not isinstance(completion_nodes, list) or not completion_nodes:
+            blockers.append(f"{quest_id}: completion_nodes must be a non-empty list")
+            continue
+
+        completion_set = {str(node_id).strip() for node_id in completion_nodes if str(node_id).strip()}
+        if not completion_set:
+            blockers.append(f"{quest_id}: completion_nodes must contain valid node ids")
+            continue
+        for completion_node_id in sorted(completion_set):
+            if completion_node_id not in node_by_id:
+                blockers.append(f"{quest_id}: completion node '{completion_node_id}' does not exist in dialogue_nodes")
+
+        stack = [start_node_id]
+        visited: set[str] = set()
+        reachable_completion = False
+        while stack:
+            node_id = stack.pop()
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+            if node_id in completion_set:
+                reachable_completion = True
+
+            node = node_by_id.get(node_id)
+            if not isinstance(node, dict):
+                blockers.append(f"{quest_id}: node '{node_id}' is not a valid object")
+                continue
+            choices = node.get("choices", [])
+            if not isinstance(choices, list):
+                blockers.append(f"{quest_id}: node '{node_id}' choices must be a list")
+                continue
+            if not choices and node_id not in completion_set:
+                blockers.append(f"{quest_id}: terminal node '{node_id}' is a non-completion dead-end")
+                continue
+
+            for choice in choices:
+                if not isinstance(choice, dict):
+                    blockers.append(f"{quest_id}: node '{node_id}' contains non-object choice entry")
+                    continue
+                next_node_id = str(choice.get("next_node_id", "")).strip()
+                if not next_node_id:
+                    blockers.append(f"{quest_id}: node '{node_id}' has choice without next_node_id")
+                    continue
+                if next_node_id not in node_by_id:
+                    blockers.append(
+                        f"{quest_id}: node '{node_id}' points to missing next_node_id '{next_node_id}'"
+                    )
+                    continue
+                stack.append(next_node_id)
+
+        if not reachable_completion:
+            blockers.append(
+                f"{quest_id}: no reachable completion path from start node '{start_node_id}'"
+            )
+
+    return sorted(set(blockers))
+
+
 def run_bot_playtest_scenario(prototype_root: Path, scenario_path: Path) -> BotPlaytestResult:
     scenario = _read_bot_playtest_scenario(scenario_path)
     probe_results = [_run_bot_probe(prototype_root, probe) for probe in scenario.probes]
+    critical_dead_end_blockers = _scan_critical_dead_end_blockers(prototype_root)
+    if critical_dead_end_blockers:
+        probe_results.append(
+            BotPlaytestProbeResult(
+                probe_id="critical-dead-end-blockers",
+                status="failed",
+                details=(
+                    f"Detected {len(critical_dead_end_blockers)} critical dead-end blocker(s): "
+                    + "; ".join(critical_dead_end_blockers)
+                ),
+                required=True,
+            )
+        )
     inconclusive_reasons = [
         f"{result.probe_id}: {result.details}"
         for result in probe_results
@@ -1510,6 +1636,7 @@ def run_bot_playtest_scenario(prototype_root: Path, scenario_path: Path) -> BotP
         completed_at_utc=datetime.now(timezone.utc).isoformat(),
         probe_results=probe_results,
         inconclusive_reasons=inconclusive_reasons,
+        critical_dead_end_blockers=critical_dead_end_blockers,
     )
 
 
@@ -1585,6 +1712,8 @@ def generate_actionable_playtest_report(result: BotPlaytestResult) -> Actionable
         generated_at_utc=datetime.now(timezone.utc).isoformat(),
         overall_status=result.status,
         summary=result.summary,
+        critical_dead_end_blockers_count=len(result.critical_dead_end_blockers),
+        critical_dead_end_blockers=result.critical_dead_end_blockers,
         sections=built_sections,
         source_probe_results=result.probe_results,
     )
@@ -1598,10 +1727,14 @@ def _write_playtest_report_markdown(report: ActionablePlaytestReport, destinatio
         f"- Scenario: `{report.scenario_id}`",
         f"- Generated (UTC): `{report.generated_at_utc}`",
         f"- Overall status: **{report.overall_status}**",
+        f"- Critical dead-end blockers: **{report.critical_dead_end_blockers_count}**",
         "",
         f"## Summary",
         report.summary,
     ]
+    if report.critical_dead_end_blockers:
+        lines.extend(["", "## Critical Dead-End Blockers"])
+        lines.extend([f"- {blocker}" for blocker in report.critical_dead_end_blockers])
 
     for section in report.sections:
         lines.extend(
