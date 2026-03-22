@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using GameForge.Editor.EditorShell.Services;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -18,6 +19,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isDebugConsoleEnabled;
     private string _statusToastMessage = string.Empty;
     private bool _isStatusToastVisible;
+    private string _pipelineProgress = "Idle";
+    private int? _runtimePid;
+    private string _runtimeLaunchStatus = "Not launched";
+    private string _prototypeRoot = "(none)";
+    private string _monacoEditorContent = "// Generate a prototype to load editable C++ runtime code.";
+    private string _runtimePreviewSummary = "Generate & Play to populate runtime preview.";
+    private string _runtimeEntityList = "No generated entities yet.";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -88,10 +96,68 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
 
+    public string PipelineProgress
+    {
+        get => _pipelineProgress;
+        private set => SetField(ref _pipelineProgress, value);
+    }
+
+    public string RuntimeLaunchStatus
+    {
+        get => _runtimeLaunchStatus;
+        private set => SetField(ref _runtimeLaunchStatus, value);
+    }
+
+    public int? RuntimePid
+    {
+        get => _runtimePid;
+        private set
+        {
+            SetField(ref _runtimePid, value);
+            OnPropertyChanged(nameof(RuntimePidLabel));
+            OnPropertyChanged(nameof(IsRuntimeLive));
+        }
+    }
+
+    public string RuntimePidLabel => RuntimePid is int pid ? pid.ToString() : "n/a";
+
+    public bool IsRuntimeLive => RuntimePid is int;
+
+    public string PrototypeRoot
+    {
+        get => _prototypeRoot;
+        private set => SetField(ref _prototypeRoot, value);
+    }
+
+    public string MonacoEditorContent
+    {
+        get => _monacoEditorContent;
+        set => SetField(ref _monacoEditorContent, value);
+    }
+
+    public string RuntimePreviewSummary
+    {
+        get => _runtimePreviewSummary;
+        private set => SetField(ref _runtimePreviewSummary, value);
+    }
+
+    public string RuntimeEntityList
+    {
+        get => _runtimeEntityList;
+        private set => SetField(ref _runtimeEntityList, value);
+    }
+
     public Task NewPrototypeAsync(CancellationToken cancellationToken = default)
     {
         ChatPrompt = string.Empty;
         _lastBriefPath = null;
+        RuntimePid = null;
+        RuntimeLaunchStatus = "Not launched";
+        PipelineProgress = "Idle";
+        PrototypeRoot = "(none)";
+        RuntimePreviewSummary = "Generate & Play to populate runtime preview.";
+        RuntimeEntityList = "No generated entities yet.";
+        MonacoEditorContent = "// New prototype ready.\n// Generate content to load editable C++ runtime code.";
         StatusMessage = "New prototype started. Describe your game to continue.";
         ShowToast("New prototype ready.");
         return Task.CompletedTask;
@@ -122,6 +188,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await RunPipelineForBriefAsync(_lastBriefPath, launchRuntime: true, cancellationToken);
     }
 
+    public async Task SaveCodeEditsAsync(CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            StatusMessage = "No generated prototype to save code into.";
+            ShowToast("Generate once before saving code.");
+            return;
+        }
+
+        var runtimePath = Path.Combine(PrototypeRoot, "runtime", "main.cpp");
+        if (!File.Exists(runtimePath))
+        {
+            StatusMessage = "Generated runtime C++ file not found.";
+            ShowToast("runtime/main.cpp missing in prototype.");
+            return;
+        }
+
+        await File.WriteAllTextAsync(runtimePath, MonacoEditorContent, cancellationToken);
+        StatusMessage = $"Saved runtime code: {runtimePath}";
+        ShowToast("Runtime C++ saved from Code Mode.");
+    }
+
     public void SetStatusMessage(string value)
     {
         StatusMessage = value;
@@ -136,23 +224,105 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsBusy = true;
+        PipelineProgress = launchRuntime ? "Generate + launch runtime" : "Generate prototype only";
         StatusMessage = "Running generation pipeline...";
-        ShowToast("Generation started...");
+        ShowToast($"Pipeline: {PipelineProgress}");
 
         try
         {
             var response = await _orchestratorClient.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
             StatusMessage = BuildStatusMessage(response);
             ShowToast(BuildToastMessage(response));
+            ApplyRuntimePreview(response);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Pipeline failed: {ex.Message}";
+            PipelineProgress = "Failed";
             ShowToast("Generation failed. See status panel.");
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private void ApplyRuntimePreview(PipelineRunResponse response)
+    {
+        PipelineProgress = response.Result?.Status ?? (response.ExitCode == 0 ? "Completed" : "Failed");
+        RuntimeLaunchStatus = response.Result?.RuntimeLaunchStatus ?? "Unknown";
+        RuntimePid = response.Result?.RuntimeLaunchPid;
+        PrototypeRoot = response.Result?.PrototypeRoot ?? "(none)";
+
+        RuntimePreviewSummary = RuntimePid is int pid
+            ? $"Live in Vulkan (PID: {pid})"
+            : $"Runtime status: {RuntimeLaunchStatus}";
+
+        RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+
+        var loadedCode = TryLoadGeneratedRuntimeCpp(PrototypeRoot);
+        if (!string.IsNullOrWhiteSpace(loadedCode))
+        {
+            MonacoEditorContent = loadedCode;
+        }
+    }
+
+    private static string TryLoadGeneratedRuntimeCpp(string prototypeRoot)
+    {
+        if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
+        {
+            return string.Empty;
+        }
+
+        var runtimePath = Path.Combine(prototypeRoot, "runtime", "main.cpp");
+        return File.Exists(runtimePath)
+            ? File.ReadAllText(runtimePath)
+            : string.Empty;
+    }
+
+    private static string BuildGeneratedEntityList(string prototypeRoot)
+    {
+        if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
+        {
+            return "No generated entities yet.";
+        }
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        if (!File.Exists(scenePath))
+        {
+            return "scene/scene_scaffold.json not found.";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(scenePath));
+            var root = document.RootElement;
+            var lines = new List<string>();
+
+            if (root.TryGetProperty("player_spawn", out _))
+            {
+                lines.Add("• player");
+            }
+
+            if (root.TryGetProperty("npcs", out var npcs) && npcs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var npc in npcs.EnumerateArray())
+                {
+                    var id = npc.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    lines.Add($"• npc:{id ?? "unknown"}");
+                }
+            }
+
+            if (lines.Count == 0)
+            {
+                return "No entities detected in scene scaffold.";
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+        catch (Exception ex)
+        {
+            return $"Failed to parse entity preview: {ex.Message}";
         }
     }
 

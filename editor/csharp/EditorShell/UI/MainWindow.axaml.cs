@@ -114,4 +114,9 @@ public partial class MainWindow : Window
     {
         await _viewModel.GenerateFromBriefAsync(launchRuntime: true);
     }
+
+    private async void OnSaveCodeClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveCodeEditsAsync();
+    }
 }
