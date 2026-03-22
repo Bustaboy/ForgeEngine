@@ -67,5 +67,10 @@
         "note": "Informational readiness signal; publish gate currently follows SteamReadinessPolicy fields."
       }
     ]
-  }
+  },
+  "crash_free_session_rate_percent": 100.0,
+  "sustained_fps_floor": 57.0,
+  "fps_60_compliance_percent": 70.0,
+  "initial_scene_load_seconds": 12.0,
+  "safe_save_pass_rate_percent": 100.0
 }

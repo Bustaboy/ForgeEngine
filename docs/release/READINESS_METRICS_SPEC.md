@@ -32,6 +32,12 @@ If `--input` is omitted, the script uses a deterministic embedded fixture.
 - `schema`: fixed schema id.
 - `collected_by`: collector script path.
 - `input_source`: input fixture path or `embedded_default_fixture`.
+- flattened root-level gate input keys (for `SteamReadinessPolicy.LoadMetrics` compatibility):
+  - `crash_free_session_rate_percent`
+  - `sustained_fps_floor`
+  - `fps_60_compliance_percent`
+  - `initial_scene_load_seconds`
+  - `safe_save_pass_rate_percent`
 - `metrics` (gate inputs aligned to `SteamQualityMetrics` naming):
   - `crash_free_session_rate_percent`
   - `sustained_fps_floor`

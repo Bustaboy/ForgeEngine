@@ -144,7 +144,7 @@ public sealed class SteamReadinessPolicyTests
     [Fact]
     public void LoadMetrics_ReadinessCollectorArtifact_MapsRequiredFields()
     {
-        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"));
+        var repoRoot = ResolveProjectRoot();
         var artifactPath = Path.Combine(repoRoot, "docs", "release", "evidence", "readiness_metrics_sample.json");
 
         Assert.True(File.Exists(artifactPath));
@@ -167,4 +167,18 @@ public sealed class SteamReadinessPolicyTests
         Assert.Contains("1,000", policy.RevenueShareSummary, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string ResolveProjectRoot()
+    {
+        var current = AppContext.BaseDirectory;
+        for (var i = 0; i < 8; i++)
+        {
+            var candidate = Path.GetFullPath(Path.Combine(current, string.Join(Path.DirectorySeparatorChar, Enumerable.Repeat("..", i))));
+            if (File.Exists(Path.Combine(candidate, "GAMEFORGE_V1_BLUEPRINT.md")))
+            {
+                return candidate;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root from test base directory.");
+    }
 }

@@ -23,6 +23,15 @@ def test_collector_output_schema_and_required_keys(tmp_path: Path) -> None:
     assert payload["schema"] == "gameforge.readiness_metrics.v1"
     assert payload["collected_by"] == "scripts/collect_readiness_metrics.py"
     assert payload["input_source"] == "embedded_default_fixture"
+    assert set(
+        k for k in payload if k.endswith("_percent") or k in {"sustained_fps_floor", "initial_scene_load_seconds"}
+    ) >= {
+        "crash_free_session_rate_percent",
+        "sustained_fps_floor",
+        "fps_60_compliance_percent",
+        "initial_scene_load_seconds",
+        "safe_save_pass_rate_percent",
+    }
 
     metrics = payload["metrics"]
     assert set(metrics) == {

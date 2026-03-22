@@ -149,7 +149,7 @@ def build_artifact(metrics: dict[str, float], evaluation: dict[str, Any], input_
         "initial_scene_load_seconds",
         "safe_save_pass_rate_percent",
     ]
-    return {
+    artifact = {
         "schema": SCHEMA,
         "collected_by": "scripts/collect_readiness_metrics.py",
         "input_source": str(input_path) if input_path else "embedded_default_fixture",
@@ -157,6 +157,11 @@ def build_artifact(metrics: dict[str, float], evaluation: dict[str, Any], input_
         "supplemental_metrics": {"frame_time_p95_ms": metrics["frame_time_p95_ms"]},
         "gate_evaluation": evaluation,
     }
+    # Keep SteamReadinessPolicy compatibility by flattening required gate inputs at the JSON root.
+    for key in ordered_metric_keys:
+        artifact[key] = metrics[key]
+
+    return artifact
 
 
 def main() -> int:
