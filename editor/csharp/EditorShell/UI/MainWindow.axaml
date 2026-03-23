@@ -379,6 +379,13 @@
                          Foreground="#8EA5C7"
                          FontSize="11"
                          TextWrapping="Wrap" />
+              <TextBlock Grid.Row="2"
+                         Margin="0,18,0,0"
+                         Text="{Binding AssetFilterSummaryLabel}"
+                         Foreground="#6FA8FF"
+                         FontSize="10"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
               <ScrollViewer Grid.Row="3">
                 <StackPanel Spacing="8">
                   <Border IsVisible="{Binding IsAssetBrowserDragPreviewVisible}"
@@ -391,8 +398,8 @@
                     <Grid ColumnDefinitions="50,*,Auto" ColumnSpacing="8">
                       <Border Width="48" Height="48" CornerRadius="8" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
                         <Grid>
-                          <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding SelectedImportedAsset.HasPreviewImage}" />
-                          <TextBlock Text="🧱" IsVisible="{Binding SelectedImportedAsset.HasNoPreviewImage}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
+                          <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding AssetDragGhostHasPreviewImage}" />
+                          <TextBlock Text="{Binding AssetDragGhostGlyph}" IsVisible="{Binding AssetDragGhostHasNoPreviewImage}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
                         </Grid>
                       </Border>
                       <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
@@ -650,8 +657,50 @@
               <TextBlock Text="{Binding StatusMessage}" Foreground="#AFC2DF" TextWrapping="Wrap" FontSize="12" />
             </StackPanel>
 
-            <Border Grid.Row="2" IsVisible="{Binding IsStatusToastVisible}" Background="#17304D" CornerRadius="8" Padding="10,8" HorizontalAlignment="Right">
-              <TextBlock Text="{Binding StatusToastMessage}" Foreground="#E8F3FF" FontSize="12" FontWeight="SemiBold" />
+            <Border Grid.Row="2"
+                    IsVisible="{Binding IsStatusToastVisible}"
+                    Background="#17304D"
+                    BorderBrush="#3F6EA1"
+                    BorderThickness="1.2"
+                    CornerRadius="9"
+                    Padding="12,10"
+                    HorizontalAlignment="Stretch">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
+                <TextBlock Text="{Binding StatusToastTitle}" Foreground="#F3F8FF" FontSize="12" FontWeight="Bold" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <Button Content="{Binding StatusToastActionLabel}"
+                          Command="{Binding StatusToastActionCommand}"
+                          IsVisible="{Binding IsStatusToastActionVisible}"
+                          Background="#2B6CB0"
+                          Foreground="#F3F8FF"
+                          BorderBrush="#5A95D4"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="10,4" />
+                  <Button Content="Dismiss"
+                          Command="{Binding DismissStatusToastCommand}"
+                          Background="#263C58"
+                          Foreground="#D9E9FF"
+                          BorderBrush="#466383"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="10,4" />
+                </StackPanel>
+                <TextBlock Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Text="{Binding StatusToastMessage}"
+                           Foreground="#E8F3FF"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2"
+                           Grid.ColumnSpan="2"
+                           Text="{Binding StatusToastGuidance}"
+                           Foreground="#9FCCFF"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding IsStatusToastError}" />
+              </Grid>
             </Border>
           </Grid>
         </Border>
@@ -1122,8 +1171,8 @@
       <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="8" MinWidth="190">
         <Border Width="40" Height="40" CornerRadius="7" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
           <Grid>
-            <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding SelectedImportedAsset.HasPreviewImage}" />
-            <TextBlock Text="🧱" IsVisible="{Binding SelectedImportedAsset.HasNoPreviewImage}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
+            <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding AssetDragGhostHasPreviewImage}" />
+            <TextBlock Text="{Binding AssetDragGhostGlyph}" IsVisible="{Binding AssetDragGhostHasNoPreviewImage}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
           </Grid>
         </Border>
         <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">

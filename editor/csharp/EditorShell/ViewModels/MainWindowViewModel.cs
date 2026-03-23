@@ -30,8 +30,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isCodeMode;
     private bool _isAdvancedInspectorEnabled;
     private bool _isDebugConsoleEnabled;
+    private string _statusToastTitle = "Notice";
     private string _statusToastMessage = string.Empty;
+    private string _statusToastGuidance = string.Empty;
+    private string _statusToastActionLabel = string.Empty;
+    private bool _isStatusToastError;
     private bool _isStatusToastVisible;
+    private Func<Task>? _statusToastAction;
     private string _pipelineProgress = "Idle";
     private int? _runtimePid;
     private string _runtimeLaunchStatus = "Not launched";
@@ -79,6 +84,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _assetDragGhostTitle = string.Empty;
     private string _assetDragGhostPreviewPath = string.Empty;
     private string _assetDragGhostKind = string.Empty;
+    private string _assetDragGhostGlyph = "🧱";
     private float _assetDragGhostWorldX;
     private float _assetDragGhostWorldY;
     private bool _isAssetDragGhostVisible;
@@ -158,6 +164,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         UndoCommand = new AsyncRelayCommand(() => UndoAsync());
         RedoCommand = new AsyncRelayCommand(() => RedoAsync());
         PlayRuntimeCommand = new AsyncRelayCommand(() => PlayRuntimeAsync());
+        StatusToastActionCommand = new AsyncRelayCommand(ExecuteStatusToastActionAsync);
+        DismissStatusToastCommand = new AsyncRelayCommand(() =>
+        {
+            DismissToast();
+            return Task.CompletedTask;
+        });
         JumpToHistoryCommand = new AsyncRelayCommand<object?>(JumpToHistoryAsync);
         AddTimelineKeyframeCommand = new AsyncRelayCommand(AddSelectedEntitiesKeyframeAsync);
         ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
@@ -210,6 +222,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand RedoCommand { get; }
 
     public ICommand PlayRuntimeCommand { get; }
+    public ICommand StatusToastActionCommand { get; }
+    public ICommand DismissStatusToastCommand { get; }
 
     public ICommand JumpToHistoryCommand { get; }
 
@@ -291,6 +305,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _statusToastMessage;
         private set => SetField(ref _statusToastMessage, value);
     }
+
+    public string StatusToastTitle
+    {
+        get => _statusToastTitle;
+        private set => SetField(ref _statusToastTitle, value);
+    }
+
+    public string StatusToastGuidance
+    {
+        get => _statusToastGuidance;
+        private set => SetField(ref _statusToastGuidance, value);
+    }
+
+    public string StatusToastActionLabel
+    {
+        get => _statusToastActionLabel;
+        private set => SetField(ref _statusToastActionLabel, value);
+    }
+
+    public bool IsStatusToastError
+    {
+        get => _isStatusToastError;
+        private set => SetField(ref _isStatusToastError, value);
+    }
+
+    public bool IsStatusToastActionVisible => !string.IsNullOrWhiteSpace(StatusToastActionLabel);
 
     public bool IsStatusToastVisible
     {
@@ -1024,6 +1064,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ? $"{FilteredImportedAssets.Count} shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}"
         : $"0 shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}";
 
+    public string AssetFilterSummaryLabel
+    {
+        get
+        {
+            var query = AssetSearchText.Trim();
+            var filter = SelectedAssetKindFilter;
+            var queryLabel = string.IsNullOrWhiteSpace(query)
+                ? "No search query"
+                : $"Search: \"{query}\"";
+            var filterLabel = string.Equals(filter, AssetFilterAll, StringComparison.OrdinalIgnoreCase)
+                ? "Type: All"
+                : $"Type: {filter}";
+            return $"{queryLabel} • {filterLabel}";
+        }
+    }
+
     public string AssetLastRefreshLabel => _assetCatalogLastRefreshedAtUtc is null
         ? "Not refreshed yet."
         : $"Updated {ToRelativeAgeLabel(_assetCatalogLastRefreshedAtUtc.Value)}";
@@ -1071,6 +1127,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _assetDragGhostKind;
         private set => SetField(ref _assetDragGhostKind, value);
     }
+
+    public string AssetDragGhostGlyph
+    {
+        get => _assetDragGhostGlyph;
+        private set => SetField(ref _assetDragGhostGlyph, value);
+    }
+
+    public bool AssetDragGhostHasPreviewImage => !string.IsNullOrWhiteSpace(AssetDragGhostPreviewPath);
+
+    public bool AssetDragGhostHasNoPreviewImage => !AssetDragGhostHasPreviewImage;
 
     public float AssetDragGhostWorldX
     {
@@ -1640,7 +1706,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
         {
             StatusMessage = "No generated prototype to recompile.";
-            ShowToast("Generate once before recompiling runtime.");
+            ShowFailureToast(
+                "Missing prototype",
+                "Generate once before recompiling runtime.",
+                "Create or generate a prototype first, then retry Save & Recompile.");
             return;
         }
 
@@ -1650,7 +1719,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             RuntimeLaunchStatus = "Recompile blocked";
             PipelineProgress = "Recompile blocked";
             StatusMessage = $"Generated runtime folder missing: {generatedRoot}";
-            ShowToast("Generated runtime folder missing.");
+            ShowFailureToast(
+                "Missing generated runtime",
+                "Generated runtime folder missing.",
+                "Regenerate the prototype to restore generated C++ runtime files, then retry.",
+                "Retry",
+                () => RecompileAndRelaunchRuntimeAsync(CancellationToken.None));
             return;
         }
 
@@ -1670,7 +1744,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             RuntimeLaunchStatus = "Compile failed";
             PipelineProgress = "Compile failed";
             StatusMessage = BuildCompileFailureMessage("CMake configure", configureResult.Stdout, configureResult.Stderr);
-            ShowToast("CMake configure failed. See status details.");
+            ShowFailureToast(
+                "Compile configure failed",
+                "CMake configure failed for generated runtime.",
+                BuildCompileGuidance(configureResult.Stderr),
+                "Retry Build",
+                () => RecompileAndRelaunchRuntimeAsync(CancellationToken.None));
             return;
         }
 
@@ -1689,7 +1768,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             RuntimeLaunchStatus = "Build failed";
             PipelineProgress = "Build failed";
             StatusMessage = BuildCompileFailureMessage("CMake build", buildResult.Stdout, buildResult.Stderr);
-            ShowToast("CMake build failed. See status details.");
+            ShowFailureToast(
+                "Compile build failed",
+                "CMake build failed for generated runtime.",
+                BuildCompileGuidance(buildResult.Stderr),
+                "Retry Build",
+                () => RecompileAndRelaunchRuntimeAsync(CancellationToken.None));
             return;
         }
 
@@ -1702,7 +1786,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             RuntimeLaunchStatus = "Launch failed";
             PipelineProgress = "Launch failed";
             StatusMessage = launchResult.ErrorMessage;
-            ShowToast("Generated runtime launch failed.");
+            ShowFailureToast(
+                "Runtime launch failed",
+                "Generated runtime failed to start. The process may have crashed at launch.",
+                "Check status details for crash hints, then retry relaunch. If repeated, regenerate prototype runtime artifacts.",
+                "Retry Launch",
+                () => RecompileAndRelaunchRuntimeAsync(CancellationToken.None));
             return;
         }
 
@@ -2129,7 +2218,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (scenePath is null)
         {
             StatusMessage = "Generate a prototype before refreshing assets.";
-            ShowToast("Generate prototype first.");
+            ShowFailureToast(
+                "Refresh blocked",
+                "Generate prototype first.",
+                "Asset refresh requires a generated scene scaffold. Generate once, then retry refresh.");
             return;
         }
 
@@ -2146,7 +2238,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Failed to refresh assets: {ex.Message}";
-            ShowToast("Asset refresh failed.");
+            ShowFailureToast(
+                "Asset refresh failed",
+                "Could not refresh the asset catalog.",
+                "Verify scene file access and JSON validity, then retry.",
+                "Retry",
+                () => RefreshImportedAssetsAsync(CancellationToken.None));
         }
     }
 
@@ -2167,6 +2264,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AssetDragGhostTitle = asset.DisplayName;
         AssetDragGhostPreviewPath = asset.PreviewPath;
         AssetDragGhostKind = asset.ThumbnailBadge;
+        AssetDragGhostGlyph = asset.ThumbnailGlyph;
+        OnPropertyChanged(nameof(AssetDragGhostHasPreviewImage));
+        OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
         AssetDragGhostWorldX = worldX;
         AssetDragGhostWorldY = worldY;
         IsAssetDragGhostVisible = true;
@@ -2190,6 +2290,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AssetDragGhostTitle = asset.DisplayName;
         AssetDragGhostPreviewPath = asset.PreviewPath;
         AssetDragGhostKind = asset.ThumbnailBadge;
+        AssetDragGhostGlyph = asset.ThumbnailGlyph;
+        OnPropertyChanged(nameof(AssetDragGhostHasPreviewImage));
+        OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
         IsAssetBrowserDragPreviewVisible = true;
         UpdateAssetBrowserDragPreviewPosition(18, 18);
         return true;
@@ -2209,6 +2312,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
         AssetDragGhostKind = string.Empty;
+        AssetDragGhostGlyph = "🧱";
+        OnPropertyChanged(nameof(AssetDragGhostHasPreviewImage));
+        OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
         IsAssetBrowserDragPreviewVisible = false;
     }
 
@@ -2229,6 +2335,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
         AssetDragGhostKind = string.Empty;
+        AssetDragGhostGlyph = "🧱";
+        OnPropertyChanged(nameof(AssetDragGhostHasPreviewImage));
+        OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
     }
 
     public EditorPreferences GetPreferencesSnapshot() => _preferences.Clone();
@@ -2284,14 +2393,48 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             var response = await _orchestratorGateway.RunGenerationPipelineAsync(briefPath, launchRuntime, cancellationToken);
             StatusMessage = BuildStatusMessage(response);
-            ShowToast(BuildToastMessage(response));
+            if (response.ExitCode != 0)
+            {
+                PipelineProgress = "Failed";
+                ShowFailureToast(
+                    "Generation pipeline failed",
+                    "Prototype generation did not complete.",
+                    BuildPipelineGuidance(response),
+                    "Retry",
+                    () => RunPipelineForBriefAsync(briefPath, launchRuntime, CancellationToken.None));
+            }
+            else
+            {
+                var runtimeStatus = response.Result?.RuntimeLaunchStatus ?? string.Empty;
+                if (launchRuntime && LooksLikeRuntimeCrash(runtimeStatus))
+                {
+                    ShowFailureToast(
+                        "Runtime crashed",
+                        "Generated runtime crashed during launch.",
+                        "Retry runtime launch. If this repeats, regenerate the prototype or simplify the latest edits.",
+                        "Retry Launch",
+                        () => PlayRuntimeAsync(CancellationToken.None));
+                }
+                else
+                {
+                    ShowToast(BuildToastMessage(response));
+                }
+            }
             ApplyRuntimePreview(response);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Pipeline failed: {ex.Message}";
             PipelineProgress = "Failed";
-            ShowToast("Generation failed. See status panel.");
+            var guidance = LooksLikeModelDownloadFailure(ex.Message)
+                ? "Model download failed. Check internet access and local model cache, then retry generation."
+                : "Open status details for technical context, then retry generation.";
+            ShowFailureToast(
+                "Generation request failed",
+                "Could not run the generation pipeline.",
+                guidance,
+                "Retry",
+                () => RunPipelineForBriefAsync(briefPath, launchRuntime, CancellationToken.None));
         }
         finally
         {
@@ -2775,14 +2918,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
         {
-            ShowToast("Selected asset file does not exist.");
+            ShowFailureToast(
+                "Missing asset file",
+                "Selected asset file does not exist.",
+                "Pick a local PNG or OBJ file that still exists on disk, then retry import.");
             return false;
         }
 
         if (!TryGetSupportedAssetKind(sourcePath, out var assetKind))
         {
             StatusMessage = "Only PNG textures and OBJ models are supported in V1.";
-            ShowToast("Unsupported file format.");
+            ShowFailureToast(
+                "Invalid asset import",
+                "Unsupported file format.",
+                "Use PNG textures or OBJ models for V1 asset import.");
             return false;
         }
 
@@ -2790,7 +2939,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (scenePath is null)
         {
             StatusMessage = "Generate a prototype before importing assets.";
-            ShowToast("Generate prototype first.");
+            ShowFailureToast(
+                "Import blocked",
+                "Generate prototype first.",
+                "Create a prototype so the scene scaffold exists before importing assets.");
             return false;
         }
 
@@ -2802,7 +2954,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var root = JsonNode.Parse(beforeContent)?.AsObject();
             if (root is null)
             {
-                ShowToast("Scene parse failed.");
+                ShowFailureToast(
+                    "Import blocked",
+                    "Scene parse failed while importing asset.",
+                    "Scene scaffold is invalid JSON. Regenerate or repair scene_scaffold.json, then retry import.");
                 return false;
             }
 
@@ -2836,7 +2991,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Asset import failed: {ex.Message}";
-            ShowToast("Asset import failed.");
+            ShowFailureToast(
+                "Asset import failed",
+                "Could not import the selected asset.",
+                "Check file access permissions and scene integrity, then retry.");
             return false;
         }
     }
@@ -5053,6 +5211,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasAssetResults));
         OnPropertyChanged(nameof(HasNoAssetResults));
         OnPropertyChanged(nameof(AssetResultsSummary));
+        OnPropertyChanged(nameof(AssetFilterSummaryLabel));
     }
 
     private void MarkAssetCatalogRefreshed()
@@ -5169,10 +5328,95 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             : "Pipeline failed. Open status details.";
     }
 
+    private static bool LooksLikeModelDownloadFailure(string message)
+        => message.Contains("model", StringComparison.OrdinalIgnoreCase)
+            && (message.Contains("download", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("pull", StringComparison.OrdinalIgnoreCase));
+
+    private static bool LooksLikeRuntimeCrash(string message)
+        => message.Contains("crash", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("segfault", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("access violation", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildPipelineGuidance(PipelineRunResponse response)
+    {
+        var stderr = response.Stderr ?? string.Empty;
+        if (LooksLikeModelDownloadFailure(stderr))
+        {
+            return "AI model download failed. Check internet access, disk space, and local model cache, then retry generation.";
+        }
+
+        if (stderr.Contains("permission", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Pipeline hit a filesystem permission issue. Verify local write access to the project and prototype folders.";
+        }
+
+        return "Open the status panel for technical details. Retry generation, or simplify the brief if the issue persists.";
+    }
+
+    private static string BuildCompileGuidance(string stderr)
+    {
+        if (stderr.Contains("No such file", StringComparison.OrdinalIgnoreCase)
+            || stderr.Contains("cannot find", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Required runtime files are missing. Regenerate the prototype or verify generated runtime files exist before retry.";
+        }
+
+        if (stderr.Contains("CMake", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CMake failed to configure/build. Verify CMake/toolchain installation and generated runtime folder integrity.";
+        }
+
+        return "Compile failed. Review status details, then retry after fixing reported C++/build errors.";
+    }
+
+    private async Task ExecuteStatusToastActionAsync()
+    {
+        var action = _statusToastAction;
+        if (action is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Retry action failed: {ex.Message}";
+            ShowFailureToast("Retry failed", "We couldn't complete the retry action.", "Check status details, then try again.");
+        }
+    }
+
+    private void DismissToast()
+    {
+        IsStatusToastVisible = false;
+        _statusToastAction = null;
+        StatusToastActionLabel = string.Empty;
+        OnPropertyChanged(nameof(IsStatusToastActionVisible));
+    }
+
+    private void ShowFailureToast(string title, string message, string guidance, string? actionLabel = null, Func<Task>? action = null)
+    {
+        ShowToast(message, title, guidance, isError: true, actionLabel, action);
+    }
+
+    private void ShowToast(string message, string title, string guidance, bool isError, string? actionLabel, Func<Task>? action)
+    {
+        StatusToastTitle = string.IsNullOrWhiteSpace(title) ? "Notice" : title.Trim();
+        StatusToastMessage = message;
+        StatusToastGuidance = guidance;
+        IsStatusToastError = isError;
+        StatusToastActionLabel = actionLabel?.Trim() ?? string.Empty;
+        _statusToastAction = action;
+        OnPropertyChanged(nameof(IsStatusToastActionVisible));
+        IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
+    }
+
     private void ShowToast(string message)
     {
-        StatusToastMessage = message;
-        IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
+        ShowToast(message, "Notice", string.Empty, isError: false, actionLabel: null, action: null);
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
