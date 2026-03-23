@@ -866,12 +866,14 @@ public partial class MainWindow : Window
 
         var selected = _viewModel.ImportedAssets.FirstOrDefault(asset => string.Equals(asset.Id, assetId, StringComparison.Ordinal));
         _viewModel.SelectedImportedAsset = selected;
+        _viewModel.BeginAssetBrowserDragPreview(assetId);
 
         var data = new DataObject();
         data.Set(AssetDragFormat, assetId);
         data.Set(DataFormats.Text, assetId);
 
         await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+        _viewModel.EndAssetBrowserDragPreview();
         _viewModel.ClearAssetDragGhost();
         RefreshViewportVisuals();
     }
