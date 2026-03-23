@@ -442,14 +442,35 @@
             <Border Grid.Row="2" Background="#06080D" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="10">
               <Grid ColumnDefinitions="2*,*" ColumnSpacing="12">
                 <Border Background="#0B1220" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="8" Padding="10">
-                  <Grid>
-                    <Canvas Name="ViewportCanvas" Background="#070B14" ClipToBounds="True" />
-                    <TextBlock Text="Drag entities directly. Double-click empty space to inspect from right panel."
-                               Foreground="#7F98BD"
-                               FontSize="11"
-                               Margin="6"
-                               VerticalAlignment="Top"
-                               HorizontalAlignment="Left" />
+                  <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
+                      <Border Background="#132235" CornerRadius="6" Padding="8,4">
+                        <TextBlock Text="{Binding ViewportEntityCountLabel}" Foreground="#DCEBFF" FontSize="11" FontWeight="SemiBold" />
+                      </Border>
+                      <Border Grid.Column="1" Background="#122C4A" CornerRadius="6" Padding="7,4">
+                        <TextBlock Text="■ Player" Foreground="#4AA3FF" FontSize="11" FontWeight="SemiBold" />
+                      </Border>
+                      <Border Grid.Column="2" Background="#162B1C" CornerRadius="6" Padding="7,4">
+                        <TextBlock Text="■ NPC" Foreground="#65C97A" FontSize="11" FontWeight="SemiBold" />
+                      </Border>
+                      <Border Grid.Column="3" Background="#1D2330" CornerRadius="6" Padding="7,4" HorizontalAlignment="Left">
+                        <TextBlock Text="■ Prop" Foreground="#9AA6BA" FontSize="11" FontWeight="SemiBold" />
+                      </Border>
+                      <TextBlock Grid.Column="4" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <Grid Grid.Row="1">
+                      <Canvas Name="ViewportCanvas" Background="#070B14" ClipToBounds="True" />
+                      <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322AA" CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="No entities in scene scaffold yet. Add entities or generate content to preview live." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Width="320" />
+                      </Border>
+                      <TextBlock Text="Drag entities directly. Ctrl+Click multi-select. Timeline playback updates this viewport live."
+                                 Foreground="#7F98BD"
+                                 FontSize="11"
+                                 Margin="6"
+                                 VerticalAlignment="Top"
+                                 HorizontalAlignment="Left" />
+                    </Grid>
                   </Grid>
                 </Border>
 
