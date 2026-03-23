@@ -20,6 +20,11 @@ namespace GameForge.Editor.EditorShell.ViewModels;
 
 public sealed class MainWindowViewModel : INotifyPropertyChanged
 {
+    private static readonly JsonSerializerOptions JsonSerializerOptionsIndented = new()
+    {
+        WriteIndented = true,
+    };
+
     private readonly IOrchestratorGateway _orchestratorGateway;
     private readonly IRuntimeSupervisor _runtimeSupervisor;
 
@@ -135,8 +140,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _installerBuildStatus = "Installer build not started.";
     private string _installerOutputPath = "No installer artifact yet.";
     private string _installerBuildLog = "Installer logs will appear here.";
+    private string _activeProjectFilePath = string.Empty;
+    private bool _isHelpOverlayVisible;
+    private DateTimeOffset? _deleteShortcutConfirmationExpiresAtUtc;
+    private string _deleteShortcutSelectionSignature = string.Empty;
     private readonly string _settingsFilePath;
     private EditorPreferences _preferences = EditorPreferences.CreateDefault();
+    private const int DeleteShortcutConfirmWindowSeconds = 2;
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -179,6 +189,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         CreateHierarchyGroupCommand = new AsyncRelayCommand(() => CreateHierarchyGroupAsync());
         ExpandHierarchyCommand = new AsyncRelayCommand(() => SetHierarchyExpansionAsync(expanded: true));
         CollapseHierarchyCommand = new AsyncRelayCommand(() => SetHierarchyExpansionAsync(expanded: false));
+        ToggleHelpOverlayCommand = new AsyncRelayCommand(ToggleHelpOverlayAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         ImportedAssets.CollectionChanged += OnImportedAssetsCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
@@ -193,6 +204,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ViewportSelectionStateLabel));
             OnPropertyChanged(nameof(IsDirectPropertyEditActive));
             OnPropertyChanged(nameof(DirectPropertyEditBadge));
+            OnPropertyChanged(nameof(CanDeleteSelection));
         };
         EnforceHistoryLimit();
     }
@@ -242,6 +254,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand ExpandHierarchyCommand { get; }
 
     public ICommand CollapseHierarchyCommand { get; }
+
+    public ICommand ToggleHelpOverlayCommand { get; }
 
     public string ChatPrompt
     {
@@ -470,6 +484,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string RuntimePreferencesSummary => $"{_preferences.Runtime.VulkanResolution} @ {_preferences.Runtime.FpsLimit} FPS cap";
 
     public string ShortcutHintBar => "Shortcuts: Ctrl+N New • Ctrl+S Save • Ctrl+Z/Y Undo/Redo • Ctrl+Shift+P Play • Ctrl+I Import • Ctrl+Shift+S Settings";
+
+    public string ActiveProjectFilePath
+    {
+        get => _activeProjectFilePath;
+        private set
+        {
+            if (!SetField(ref _activeProjectFilePath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasActiveProjectFilePath));
+            OnPropertyChanged(nameof(ProjectFileStatusLabel));
+        }
+    }
+
+    public bool HasActiveProjectFilePath => !string.IsNullOrWhiteSpace(ActiveProjectFilePath);
+
+    public string ProjectFileStatusLabel => HasActiveProjectFilePath
+        ? $"Project: {Path.GetFileName(ActiveProjectFilePath)}"
+        : "Project: unsaved";
+
+    public bool IsHelpOverlayVisible
+    {
+        get => _isHelpOverlayVisible;
+        set => SetField(ref _isHelpOverlayVisible, value);
+    }
+
+    public bool CanDeleteSelection => _selectedViewportEntities.Count > 0;
 
     public int RibbonIconSize => _preferences.Editor.IconSize;
 
@@ -1303,8 +1346,145 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await File.WriteAllTextAsync(codePath, MonacoEditorContent, cancellationToken);
         StatusMessage = $"Saved runtime code: {codePath}";
         ShowToast("Code saved. Recompiling runtime...");
+        await AutoSaveActiveProjectStateAsync(cancellationToken);
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
+    }
+
+    public async Task<bool> SaveProjectStateAsync(string projectFilePath, CancellationToken cancellationToken = default, bool notifyUser = true)
+    {
+        if (string.IsNullOrWhiteSpace(projectFilePath))
+        {
+            ShowFailureToast("Save failed", "Project file path is missing.", "Pick a valid .gfproj.json file path and retry.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            ShowFailureToast("Save failed", "No generated project is currently loaded.", "Create or open a local prototype first, then save.");
+            return false;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(projectFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var snapshot = new EditorProjectStateSnapshot
+            {
+                Version = 1,
+                PrototypeRoot = PrototypeRoot,
+                ChatPrompt = ChatPrompt,
+                IsCodeMode = IsCodeMode,
+                SavedAtUtc = DateTimeOffset.UtcNow,
+            };
+
+            await File.WriteAllTextAsync(
+                projectFilePath,
+                JsonSerializer.Serialize(snapshot, JsonSerializerOptionsIndented),
+                cancellationToken);
+
+            ActiveProjectFilePath = projectFilePath;
+            StatusMessage = $"Project saved: {projectFilePath}";
+            if (notifyUser)
+            {
+                ShowToast("Project saved.");
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Save failed: {ex.Message}";
+            if (notifyUser)
+            {
+                ShowFailureToast("Save failed", "Could not persist project file.", "Check write permissions and target path, then retry.");
+            }
+            return false;
+        }
+    }
+
+    public async Task<bool> OpenProjectStateAsync(string projectFilePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectFilePath) || !File.Exists(projectFilePath))
+        {
+            ShowFailureToast("Open failed", "Project file was not found.", "Pick an existing .gfproj.json file and retry.");
+            return false;
+        }
+
+        try
+        {
+            var payload = await File.ReadAllTextAsync(projectFilePath, cancellationToken);
+            var snapshot = JsonSerializer.Deserialize<EditorProjectStateSnapshot>(payload);
+            if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.PrototypeRoot))
+            {
+                throw new InvalidDataException("Invalid project file format.");
+            }
+
+            var scenePath = Path.Combine(snapshot.PrototypeRoot, "scene", "scene_scaffold.json");
+            if (!Directory.Exists(snapshot.PrototypeRoot) || !File.Exists(scenePath))
+            {
+                throw new DirectoryNotFoundException("Prototype root or scene scaffold is missing.");
+            }
+
+            ActiveProjectFilePath = projectFilePath;
+            PrototypeRoot = snapshot.PrototypeRoot;
+            ChatPrompt = snapshot.ChatPrompt ?? string.Empty;
+            IsCodeMode = snapshot.IsCodeMode;
+            RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
+            LoadViewportEntitiesFromScene(PrototypeRoot);
+            RuntimeLaunchStatus = "Loaded from project file";
+            RuntimePreviewSummary = "Project loaded. Click Play Runtime for live preview.";
+            StatusMessage = $"Project loaded: {projectFilePath}";
+            PipelineProgress = "Project loaded";
+            ShowToast("Project opened.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Open failed: {ex.Message}";
+            ShowFailureToast("Open failed", "Could not read the selected project file.", "Verify the file points to a valid local prototype root and retry.");
+            return false;
+        }
+    }
+
+    public async Task<bool> SaveProjectStateToActivePathAsync(CancellationToken cancellationToken = default)
+    {
+        if (!HasActiveProjectFilePath)
+        {
+            return false;
+        }
+
+        return await SaveProjectStateAsync(ActiveProjectFilePath, cancellationToken);
+    }
+
+    public async Task HandleDeleteShortcutAsync(CancellationToken cancellationToken = default)
+    {
+        if (_selectedViewportEntities.Count == 0)
+        {
+            ShowToast("Select an entity first.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var signature = BuildSelectionSignature(_selectedViewportEntities);
+        var confirmWindowOpen = _deleteShortcutConfirmationExpiresAtUtc is DateTimeOffset expiresAt
+            && expiresAt >= now
+            && string.Equals(_deleteShortcutSelectionSignature, signature, StringComparison.Ordinal);
+
+        if (!confirmWindowOpen)
+        {
+            _deleteShortcutSelectionSignature = signature;
+            _deleteShortcutConfirmationExpiresAtUtc = now.AddSeconds(DeleteShortcutConfirmWindowSeconds);
+            ShowToast("Press Delete again to confirm removal.");
+            return;
+        }
+
+        _deleteShortcutConfirmationExpiresAtUtc = null;
+        _deleteShortcutSelectionSignature = string.Empty;
+        await DeleteSelectedEntityAsync(cancellationToken);
     }
 
     public void OpenExportChecklist()
@@ -4230,6 +4410,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             .ToArray();
         await File.WriteAllTextAsync(scenePath, content, cancellationToken);
         await WriteAutosaveSnapshotAsync(content, cancellationToken);
+        await AutoSaveActiveProjectStateAsync(cancellationToken);
         StatusMessage = $"{operationDescription}. Recompiling and relaunching runtime...";
         ShowToast(operationDescription);
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
@@ -4237,6 +4418,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         LoadViewportEntitiesFromScene(PrototypeRoot, previousSelectionIds);
     }
+
+    private async Task ToggleHelpOverlayAsync()
+    {
+        IsHelpOverlayVisible = !IsHelpOverlayVisible;
+        await Task.CompletedTask;
+    }
+
+    private async Task AutoSaveActiveProjectStateAsync(CancellationToken cancellationToken)
+    {
+        if (!HasActiveProjectFilePath)
+        {
+            return;
+        }
+
+        try
+        {
+            await SaveProjectStateAsync(ActiveProjectFilePath, cancellationToken, notifyUser: false);
+        }
+        catch
+        {
+            // SaveProjectStateAsync already reports toast + status on failure.
+        }
+    }
+
+    private static string BuildSelectionSignature(IEnumerable<ViewportEntity> entities)
+        => string.Join("|", entities.Select(entity => entity.Id).OrderBy(id => id, StringComparer.Ordinal));
 
     private void NotifyHistoryChanged()
     {
@@ -5441,6 +5648,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly record struct DragEntitySnapshot(string EntityId, float StartX, float StartY);
 
     internal readonly record struct SceneHistoryEntry(string Content, string Description, int Revision);
+
+    private sealed class EditorProjectStateSnapshot
+    {
+        public int Version { get; init; } = 1;
+
+        public string PrototypeRoot { get; init; } = string.Empty;
+
+        public string ChatPrompt { get; init; } = string.Empty;
+
+        public bool IsCodeMode { get; init; }
+
+        public DateTimeOffset SavedAtUtc { get; init; }
+    }
 
     private sealed class EntityAnimationTrack
     {
