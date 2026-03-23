@@ -110,6 +110,7 @@
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding PlayRuntimeCommand}" />
+    <KeyBinding Gesture="Delete" Command="{Binding DeleteSelectedEntityCommand}" />
   </Window.KeyBindings>
 
   <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
@@ -474,7 +475,10 @@
                                     Foreground="#AFC2DF"
                                     VerticalAlignment="Center"
                                     ToolTip.Tip="Toggle optional live entity preview list panel." />
-                      <TextBlock Grid.Column="5" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                      <Border Grid.Column="5" Background="#122B46" BorderBrush="#4AA3FF" BorderThickness="1" CornerRadius="6" Padding="7,3" IsVisible="{Binding IsSelectionHighlightActive}">
+                        <TextBlock Text="{Binding SelectionHighlightBadge}" Foreground="#CFE7FF" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                      </Border>
+                      <TextBlock Grid.Column="5" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" IsVisible="{Binding IsSelectionHighlightInactive}" />
                     </Grid>
 
                     <Grid Grid.Row="1">
@@ -836,18 +840,18 @@
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🎛 Scene Properties" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
-              <TextBox x:Name="SceneEntityNameTextBox" Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Selection name field&#x0a;Rename one entity or batch-label multi-select." />
+              <TextBox x:Name="SceneEntityNameTextBox" Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Selection name field&#x0a;Rename one entity or batch-label multi-select." />
               <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
                 <TextBlock Text="X" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="X position (world units)." />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="X position (world units)." />
                 <TextBlock Grid.Column="2" Text="Y" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="3" Text="{Binding SelectedEntityPositionYEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Y position (world units)." />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityPositionYEditor, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Y position (world units)." />
               </Grid>
               <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
                 <TextBlock Text="Scale" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="1" Text="{Binding SelectedEntityScaleEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Uniform scale multiplier." />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityScaleEditor, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Uniform scale multiplier." />
                 <TextBlock Grid.Column="2" Text="Color" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Tint color in hex, e.g. #4AA3FF." />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Tint color in hex, e.g. #4AA3FF." />
               </Grid>
               <Border Grid.Row="5" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                 <StackPanel Spacing="4">
