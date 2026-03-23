@@ -8,16 +8,19 @@ namespace GameForge.Editor.EditorShell.UI;
 public partial class SettingsWindow : Window
 {
     private readonly IReadOnlyList<MainWindowViewModel.ProjectTemplatePreset> _templates;
+    private bool _isInitializing;
 
     public SettingsWindow(EditorPreferences preferences)
     {
         InitializeComponent();
         _templates = MainWindowViewModel.GetProjectTemplatePresets();
         PopulateTemplateOptions();
+        AttachPreviewHandlers();
         ApplyPreferences(preferences.Sanitize());
     }
 
     public EditorPreferences? Result { get; private set; }
+    public event Action<EditorPreferences>? PreferencesPreviewChanged;
 
     private void InitializeComponent()
     {
@@ -36,8 +39,20 @@ public partial class SettingsWindow : Window
         combo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(MainWindowViewModel.ProjectTemplatePreset.DisplayName));
     }
 
+    private void AttachPreviewHandlers()
+    {
+        this.FindControl<ComboBox>("ThemeComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("AutosaveToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("ResolutionComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("FpsLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("IconSizeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("HistoryLengthNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("DefaultTemplateComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+    }
+
     private void ApplyPreferences(EditorPreferences preferences)
     {
+        _isInitializing = true;
         SetComboText("ThemeComboBox", preferences.General.Theme);
         var autosaveToggle = this.FindControl<ToggleSwitch>("AutosaveToggle");
         if (autosaveToggle is not null)
@@ -56,6 +71,8 @@ public partial class SettingsWindow : Window
             templateCombo.SelectedItem = _templates.FirstOrDefault(template =>
                 string.Equals(template.Id, preferences.Editor.DefaultTemplateId, StringComparison.Ordinal));
         }
+
+        _isInitializing = false;
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e)
@@ -73,14 +90,6 @@ public partial class SettingsWindow : Window
 
         var theme = GetComboText("ThemeComboBox");
         var resolution = GetComboText("ResolutionComboBox");
-        var autosaveToggle = this.FindControl<ToggleSwitch>("AutosaveToggle");
-        var fpsLimit = GetNumericValue("FpsLimitNumeric", 60);
-        var iconSize = GetNumericValue("IconSizeNumeric", 58);
-        var historyLength = GetNumericValue("HistoryLengthNumeric", 120);
-        var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
-        var templateId = (templateCombo?.SelectedItem as MainWindowViewModel.ProjectTemplatePreset)?.Id
-            ?? MainWindowViewModel.GetProjectTemplatePresets()[0].Id;
-
         if (string.IsNullOrWhiteSpace(theme) || string.IsNullOrWhiteSpace(resolution))
         {
             if (validationMessage is not null)
@@ -91,7 +100,33 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        Result = new EditorPreferences
+        Result = BuildPreferencesFromControls();
+        Close();
+    }
+
+    private void EmitPreviewIfReady()
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        PreferencesPreviewChanged?.Invoke(BuildPreferencesFromControls());
+    }
+
+    private EditorPreferences BuildPreferencesFromControls()
+    {
+        var theme = GetComboText("ThemeComboBox");
+        var resolution = GetComboText("ResolutionComboBox");
+        var autosaveToggle = this.FindControl<ToggleSwitch>("AutosaveToggle");
+        var fpsLimit = GetNumericValue("FpsLimitNumeric", 60);
+        var iconSize = GetNumericValue("IconSizeNumeric", 58);
+        var historyLength = GetNumericValue("HistoryLengthNumeric", 120);
+        var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
+        var templateId = (templateCombo?.SelectedItem as MainWindowViewModel.ProjectTemplatePreset)?.Id
+            ?? MainWindowViewModel.GetProjectTemplatePresets()[0].Id;
+
+        return new EditorPreferences
         {
             General = new EditorPreferences.GeneralPreferences
             {
@@ -110,8 +145,6 @@ public partial class SettingsWindow : Window
                 DefaultTemplateId = templateId,
             },
         }.Sanitize();
-
-        Close();
     }
 
     private void SetComboText(string controlName, string value)

@@ -813,10 +813,13 @@ public partial class MainWindow : Window
 
     private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
     {
-        var settingsWindow = new SettingsWindow(_viewModel.GetPreferencesSnapshot());
+        var originalPreferences = _viewModel.GetPreferencesSnapshot();
+        var settingsWindow = new SettingsWindow(originalPreferences);
+        settingsWindow.PreferencesPreviewChanged += preview => _viewModel.ApplyPreferencesPreview(preview);
         await settingsWindow.ShowDialog(this);
         if (settingsWindow.Result is null)
         {
+            _viewModel.ApplyPreferencesPreview(originalPreferences);
             return;
         }
 

@@ -134,7 +134,7 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Classes="ribbon-icon" Content="🧩" ToolTip.Tip="Inspector Tools (placeholder)" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
               <Button Classes="ribbon-icon" Content="📊" ToolTip.Tip="Debug Console" />
-              <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings&#x0a;Tune autosave, theme, and runtime defaults.&#x0a;Shortcut: Ctrl+Shift+S" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
+              <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings&#x0a;Tune autosave, theme, and runtime defaults with live preview.&#x0a;Shortcut: Ctrl+Shift+S" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
             </StackPanel>
           </StackPanel>
 
