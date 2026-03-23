@@ -72,6 +72,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly ObservableCollection<ImportedAsset> _filteredImportedAssets = new();
     private readonly ReadOnlyObservableCollection<ImportedAsset> _readonlyFilteredImportedAssets;
     private string _assetSearchText = string.Empty;
+    private string _selectedAssetKindFilter = AssetFilterAll;
     private string _assetDragGhostTitle = string.Empty;
     private string _assetDragGhostPreviewPath = string.Empty;
     private string _assetDragGhostKind = string.Empty;
@@ -94,6 +95,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private const string LeftPanelTabHierarchy = "Hierarchy";
     private const string LeftPanelTabAssets = "Assets";
     private const string LeftPanelTabHistory = "History";
+    private const string AssetFilterAll = "All";
+    private const string AssetFilterPng = "PNG";
+    private const string AssetFilterObj = "OBJ";
     private string _timelineMode = TimelineModePosition;
     private CancellationTokenSource? _timelinePlaybackCts;
     private bool _isExportChecklistVisible;
@@ -950,13 +954,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public IReadOnlyList<string> AssetKindFilterOptions { get; } = [AssetFilterAll, AssetFilterPng, AssetFilterObj];
+
+    public string SelectedAssetKindFilter
+    {
+        get => _selectedAssetKindFilter;
+        set
+        {
+            if (!SetField(ref _selectedAssetKindFilter, value))
+            {
+                return;
+            }
+
+            ApplyAssetFilter();
+        }
+    }
+
     public bool HasAssetResults => FilteredImportedAssets.Count > 0;
 
     public bool HasNoAssetResults => !HasAssetResults;
 
     public string AssetResultsSummary => HasAssetResults
-        ? $"{FilteredImportedAssets.Count} shown / {ImportedAssets.Count} total"
-        : $"0 shown / {ImportedAssets.Count} total";
+        ? $"{FilteredImportedAssets.Count} shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}"
+        : $"0 shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}";
 
     public bool IsAssetDragGhostVisible
     {
@@ -4756,10 +4776,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void ApplyAssetFilter()
     {
         var query = AssetSearchText.Trim();
+        var kindFilter = SelectedAssetKindFilter;
         var next = string.IsNullOrWhiteSpace(query)
-            ? ImportedAssets.ToList()
+            ? ImportedAssets
+                .Where(asset => asset.MatchesKindFilter(kindFilter))
+                .ToList()
             : ImportedAssets
-                .Where(asset => asset.SearchCorpus.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Where(asset => asset.MatchesKindFilter(kindFilter)
+                    && asset.SearchCorpus.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
         next = next
@@ -5295,7 +5319,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public bool IsModel => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase);
 
         public string PreviewPath => IsTexture
-            ? SourcePath
+            ? (File.Exists(SourcePath) ? SourcePath : string.Empty)
             : string.Empty;
 
         public bool HasPreviewImage => !string.IsNullOrWhiteSpace(PreviewPath);
@@ -5303,7 +5327,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public bool HasNoPreviewImage => !HasPreviewImage;
 
         public string ThumbnailGlyph => IsModel
-            ? "🧊"
+            ? "🧱"
             : "🖼";
 
         public string KindLabel => IsModel
@@ -5313,6 +5337,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public string ThumbnailBadge => IsModel ? "OBJ" : "PNG";
 
         public string SearchCorpus => $"{DisplayName} {Kind} {KindLabel} {ThumbnailBadge} {Id} {SourcePath}";
+
+        public bool MatchesKindFilter(string kindFilter) => kindFilter switch
+        {
+            AssetFilterPng => IsTexture,
+            AssetFilterObj => IsModel,
+            _ => true,
+        };
     }
 
     private static class ImportedAssetKind

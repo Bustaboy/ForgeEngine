@@ -326,12 +326,16 @@
                            FontSize="11"
                            VerticalAlignment="Center" />
               </Grid>
-              <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+              <Grid Grid.Row="1" ColumnDefinitions="*,110,Auto,Auto" ColumnSpacing="6">
                 <TextBox Watermark="Search assets (name, type, id, path)"
                          Text="{Binding AssetSearchText}"
                          ToolTip.Tip="Search by name, kind, id, or import path." />
-                <Button Grid.Column="1" Content="Refresh Assets" Click="OnRefreshAssetsClick" />
-                <Button Grid.Column="2" Content="Import…" Click="OnImportAssetClick" />
+                <ComboBox Grid.Column="1"
+                          SelectedItem="{Binding SelectedAssetKindFilter}"
+                          ItemsSource="{Binding AssetKindFilterOptions}"
+                          ToolTip.Tip="Filter assets by file type." />
+                <Button Grid.Column="2" Content="Refresh Assets" Click="OnRefreshAssetsClick" />
+                <Button Grid.Column="3" Content="Import…" Click="OnImportAssetClick" />
               </Grid>
               <TextBlock Grid.Row="2"
                          Text="Thumbnail-first browser: PNG previews + OBJ cards. Drag any card into the viewport to place an instance."
@@ -340,6 +344,28 @@
                          TextWrapping="Wrap" />
               <ScrollViewer Grid.Row="3">
                 <StackPanel Spacing="8">
+                  <Border IsVisible="{Binding IsAssetDragGhostVisible}"
+                          Background="#11243B"
+                          BorderBrush="#4AA3FF"
+                          BorderThickness="1.4"
+                          CornerRadius="8"
+                          Padding="8">
+                    <Grid ColumnDefinitions="38,*,Auto" ColumnSpacing="8">
+                      <Border Width="36" Height="36" CornerRadius="6" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
+                        <Grid>
+                          <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding SelectedImportedAsset.HasPreviewImage}" />
+                          <TextBlock Text="🧱" IsVisible="{Binding SelectedImportedAsset.HasNoPreviewImage}" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
+                        </Grid>
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="Dragging to viewport…" Foreground="#D6E9FF" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding AssetDragGhostTitle}" Foreground="#9FC2E5" FontSize="10" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <Border Grid.Column="2" VerticalAlignment="Center" Background="#1B3654" CornerRadius="9" Padding="5,1">
+                        <TextBlock Text="{Binding AssetDragGhostKind}" Foreground="#D6E9FF" FontSize="10" />
+                      </Border>
+                    </Grid>
+                  </Border>
                   <ItemsControl ItemsSource="{Binding FilteredImportedAssets}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate>
@@ -782,7 +808,7 @@
           </Border>
 
           <Border Grid.Row="6" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
-            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="8">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="8">
               <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="🗂 Asset Browser" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
                 <Button Grid.Column="1" Content="Refresh Assets" Click="OnRefreshAssetsClick" ToolTip.Tip="Reload imported assets from scene_scaffold.json." />
@@ -792,8 +818,14 @@
                        Watermark="Search assets..."
                        Text="{Binding AssetSearchText}"
                        ToolTip.Tip="Filter by asset name, id, or kind." />
-              <TextBlock Grid.Row="2" Text="Drag asset cards directly onto the viewport to place new props. A ghost preview follows your drop target." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-              <ScrollViewer Grid.Row="3" MaxHeight="184">
+              <ComboBox Grid.Row="2"
+                        Width="124"
+                        HorizontalAlignment="Left"
+                        SelectedItem="{Binding SelectedAssetKindFilter}"
+                        ItemsSource="{Binding AssetKindFilterOptions}"
+                        ToolTip.Tip="Filter by PNG or OBJ." />
+              <TextBlock Grid.Row="3" Text="Drag asset cards directly onto the viewport to place new props. A ghost preview follows your drop target." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+              <ScrollViewer Grid.Row="4" MaxHeight="184">
                 <ItemsControl ItemsSource="{Binding FilteredImportedAssets}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -822,10 +854,10 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Border Grid.Row="4" IsVisible="{Binding HasNoAssetResults}" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+              <Border Grid.Row="5" IsVisible="{Binding HasNoAssetResults}" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                 <TextBlock Text="No assets match this filter yet." Foreground="#8EA5C7" FontSize="11" />
               </Border>
-              <Border Grid.Row="5" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+              <Border Grid.Row="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                 <StackPanel Spacing="4">
                   <TextBlock Text="Selected Asset Preview" Foreground="#D6E9FF" FontWeight="SemiBold" />
                   <TextBlock Text="{Binding SelectedImportedAssetName}" Foreground="#AFC2DF" TextWrapping="Wrap" />
