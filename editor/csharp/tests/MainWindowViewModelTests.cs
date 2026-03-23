@@ -360,6 +360,28 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task AssetBrowser_FilterSupportsMultiTermSearchAndUpdatesRefreshLabel()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        var texturePath = Path.Combine(_tempRoot, "forest_floor.png");
+        var modelPath = Path.Combine(_tempRoot, "forest_rock.obj");
+        await File.WriteAllBytesAsync(texturePath, [137, 80, 78, 71]);
+        await File.WriteAllTextAsync(modelPath, "o ForestRock");
+
+        await viewModel.ImportAssetAsync(texturePath);
+        await viewModel.ImportAssetAsync(modelPath);
+
+        viewModel.AssetSearchText = "forest obj";
+
+        Assert.Single(viewModel.FilteredImportedAssets);
+        Assert.Equal("OBJ", viewModel.FilteredImportedAssets[0].ThumbnailBadge);
+        Assert.StartsWith("Updated ", viewModel.AssetLastRefreshLabel, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunExportChecklist_CreatesZipAndCompletesChecklist()
     {
         var prototypeRoot = CreatePrototypeRoot(withEntity: true);

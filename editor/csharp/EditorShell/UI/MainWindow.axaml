@@ -339,14 +339,19 @@
             <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <TextBlock Text="🗂 Assets" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding AssetResultsSummary}"
-                           Foreground="#8EA5C7"
-                           FontSize="11"
-                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Spacing="1" HorizontalAlignment="Right">
+                  <TextBlock Text="{Binding AssetResultsSummary}"
+                             Foreground="#8EA5C7"
+                             FontSize="11"
+                             HorizontalAlignment="Right" />
+                  <TextBlock Text="{Binding AssetLastRefreshLabel}"
+                             Foreground="#6FA8FF"
+                             FontSize="10"
+                             HorizontalAlignment="Right" />
+                </StackPanel>
               </Grid>
               <Grid Grid.Row="1" ColumnDefinitions="*,110,Auto,Auto" ColumnSpacing="6">
-                <TextBox Watermark="Search assets (name, type, id, path)"
+                <TextBox Watermark="Search assets (name + type + id)"
                          Text="{Binding AssetSearchText}"
                          ToolTip.Tip="Search by name, kind, id, or import path." />
                 <ComboBox Grid.Column="1"
@@ -368,16 +373,17 @@
                           BorderBrush="#4AA3FF"
                           BorderThickness="1.4"
                           CornerRadius="8"
-                          Padding="8">
-                    <Grid ColumnDefinitions="38,*,Auto" ColumnSpacing="8">
-                      <Border Width="36" Height="36" CornerRadius="6" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
+                          Padding="8"
+                          Opacity="0.92">
+                    <Grid ColumnDefinitions="50,*,Auto" ColumnSpacing="8">
+                      <Border Width="48" Height="48" CornerRadius="8" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
                         <Grid>
                           <Image Source="{Binding AssetDragGhostPreviewPath}" Stretch="UniformToFill" IsVisible="{Binding SelectedImportedAsset.HasPreviewImage}" />
-                          <TextBlock Text="🧱" IsVisible="{Binding SelectedImportedAsset.HasNoPreviewImage}" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
+                          <TextBlock Text="🧱" IsVisible="{Binding SelectedImportedAsset.HasNoPreviewImage}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
                         </Grid>
                       </Border>
                       <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Text="Dragging to viewport…" Foreground="#D6E9FF" FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock Text="Ghost preview active" Foreground="#D6E9FF" FontSize="11" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding AssetDragGhostTitle}" Foreground="#9FC2E5" FontSize="10" TextTrimming="CharacterEllipsis" />
                       </StackPanel>
                       <Border Grid.Column="2" VerticalAlignment="Center" Background="#1B3654" CornerRadius="9" Padding="5,1">
@@ -401,7 +407,9 @@
                                 Classes="asset-card"
                                 Tag="{Binding Id}"
                                 PointerPressed="OnAssetChipPointerPressed"
-                                ToolTip.Tip="Drag to viewport">
+                                ToolTip.Tip="Drag to viewport"
+                                Background="{Binding CardToneHex}"
+                                BorderBrush="{Binding CardBorderHex}">
                           <Grid RowDefinitions="Auto,Auto,*" RowSpacing="6">
                             <Border Width="92" Height="88" CornerRadius="6" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1" HorizontalAlignment="Center">
                               <Grid>
