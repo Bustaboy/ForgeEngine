@@ -2285,7 +2285,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private void LoadViewportEntitiesFromScene(string prototypeRoot)
+    private void LoadViewportEntitiesFromScene(string prototypeRoot, IReadOnlyList<string>? preferredSelectionEntityIds = null)
     {
         StopTimelinePlayback();
         ViewportEntities.Clear();
@@ -2374,7 +2374,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             }
 
             RebuildHierarchyTree();
-            if (ViewportEntities.Count > 0)
+            var preferredSelection = ResolvePreferredSelection(preferredSelectionEntityIds);
+            if (preferredSelection.Count > 0)
+            {
+                ReplaceSelection(preferredSelection);
+            }
+            else if (ViewportEntities.Count > 0)
             {
                 ReplaceSelection(new[] { ViewportEntities[0] });
             }
@@ -2939,6 +2944,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             miscGroup.Children.Add(BuildHierarchyEntitySubtree(orphan, childrenByParentId, attached, new HashSet<string>(StringComparer.Ordinal)));
         }
 
+        foreach (var remaining in entities.Where(item => !attached.Contains(item.Id)))
+        {
+            miscGroup.Children.Add(BuildHierarchyEntitySubtree(remaining, childrenByParentId, attached, new HashSet<string>(StringComparer.Ordinal)));
+        }
+
         _hierarchyRoots.Add(sceneRoot);
         SyncHierarchySelectionFromViewport();
         OnPropertyChanged(nameof(HierarchyRoots));
@@ -3006,6 +3016,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private List<ViewportEntity> ResolvePreferredSelection(IReadOnlyList<string>? preferredSelectionEntityIds)
+    {
+        if (preferredSelectionEntityIds is null || preferredSelectionEntityIds.Count == 0)
+        {
+            return [];
+        }
+
+        var selected = new List<ViewportEntity>(preferredSelectionEntityIds.Count);
+        foreach (var id in preferredSelectionEntityIds)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.Ordinal));
+            if (entity is not null)
+            {
+                selected.Add(entity);
+            }
+        }
+
+        return selected;
     }
 
     private void RefreshInspectorDerivedState()
@@ -3330,6 +3365,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private async Task ApplySceneContentAndRelaunchAsync(string scenePath, string content, string operationDescription, CancellationToken cancellationToken)
     {
+        var previousSelectionIds = _selectedViewportEntities
+            .Select(entity => entity.Id)
+            .ToArray();
         await File.WriteAllTextAsync(scenePath, content, cancellationToken);
         await WriteAutosaveSnapshotAsync(content, cancellationToken);
         StatusMessage = $"{operationDescription}. Recompiling and relaunching runtime...";
@@ -3337,7 +3375,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
-        LoadViewportEntitiesFromScene(PrototypeRoot);
+        LoadViewportEntitiesFromScene(PrototypeRoot, previousSelectionIds);
     }
 
     private void NotifyHistoryChanged()

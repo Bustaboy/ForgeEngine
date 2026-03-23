@@ -168,7 +168,7 @@
       </Border>
 
       <Border Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
               <TextBlock Text="🌲" FontSize="16" />
@@ -218,7 +218,22 @@
                     ToolTip.Tip="History tab (coming next): full timeline remains in the lower history panel." />
           </StackPanel>
 
-          <TreeView Grid.Row="2"
+          <Border Grid.Row="2"
+                  IsVisible="{Binding IsHierarchyTabActive}"
+                  Background="#0B1524"
+                  BorderBrush="#2B3A52"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="8,6"
+                  Margin="0,0,0,8"
+                  VerticalAlignment="Top">
+            <TextBlock Text="🖱 Click to inspect • 🧲 drag entity icons to re-parent"
+                       Foreground="#8EA5C7"
+                       FontSize="11"
+                       HorizontalAlignment="Center" />
+          </Border>
+
+          <TreeView Grid.Row="3"
                     Name="HierarchyTree"
                     ItemsSource="{Binding HierarchyRoots}"
                     SelectedItem="{Binding SelectedHierarchyNode}"
@@ -239,7 +254,7 @@
             </TreeView.ItemTemplate>
           </TreeView>
 
-          <Border Grid.Row="2"
+          <Border Grid.Row="3"
                   IsVisible="{Binding IsHierarchyTabActive}"
                   Background="#0B1524"
                   BorderBrush="#2B3A52"
@@ -258,7 +273,7 @@
                        HorizontalAlignment="Center" />
           </Border>
 
-          <Border Grid.Row="2"
+          <Border Grid.Row="3"
                   IsVisible="{Binding IsAssetsTabActive}"
                   Background="#09111D"
                   BorderBrush="#2B3446"
@@ -353,7 +368,7 @@
             </Grid>
           </Border>
 
-          <Border Grid.Row="2"
+          <Border Grid.Row="3"
                   IsVisible="{Binding IsHistoryTabActive}"
                   Background="#09111D"
                   BorderBrush="#2B3446"
