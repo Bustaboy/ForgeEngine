@@ -228,13 +228,13 @@
                   Margin="0,0,0,8"
                   VerticalAlignment="Top">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <TextBlock Text="🖱 Inspect • 🧲 drag selected entities to re-parent"
+              <TextBlock Text="🖱 Inspect • 🧲 drag selected entities onto a 🗂 group"
                          Foreground="#8EA5C7"
                          FontSize="11"
                          VerticalAlignment="Center" />
               <Button Grid.Column="1"
                       Classes="panel-tab"
-                      Content="🗂 +"
+                      Content="🗂 Create Group"
                       Command="{Binding CreateHierarchyGroupCommand}"
                       ToolTip.Tip="Create Group: add an empty hierarchy group entity for organizing scene objects." />
             </Grid>
@@ -251,7 +251,7 @@
                     Padding="8">
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:MainWindowViewModel+HierarchyNode" ItemsSource="{Binding Children}">
-                <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver" ToolTip.Tip="Hierarchy item&#x0a;Click to select, drag to re-parent in scene tree.">
+                <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver" ToolTip.Tip="Hierarchy item&#x0a;Click to select, drag to re-parent onto groups in scene tree.">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="{Binding Icon}" Foreground="#D6E9FF" />
                     <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" />
@@ -264,7 +264,7 @@
                       <MenuItem Header="🗑 Delete"
                                 Tag="{Binding EntityId}"
                                 Click="OnHierarchyDeleteClick" />
-                      <MenuItem Header="🧩 Ungroup"
+                      <MenuItem Header="🧩 Ungroup / Detach"
                                 Tag="{Binding EntityId}"
                                 Click="OnHierarchyUngroupClick" />
                     </ContextMenu>

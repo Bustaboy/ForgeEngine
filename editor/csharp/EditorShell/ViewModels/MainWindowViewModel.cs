@@ -3082,6 +3082,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 return [];
             }
+
+            if (!string.Equals(target.Type, "group", StringComparison.Ordinal))
+            {
+                ShowToast("Drop onto a group to parent selected entities.");
+                return [];
+            }
         }
 
         var candidates = _selectedViewportEntities.Any(item => string.Equals(item.Id, sourceEntityId, StringComparison.Ordinal))
