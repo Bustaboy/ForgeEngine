@@ -6,8 +6,18 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann/json.hpp")
-if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
+set(FORGE_JSON_HEADER_CANDIDATES
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann/json.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann_json/single_include/nlohmann/json.hpp"
+)
+set(FORGE_JSON_HEADER_PATH "")
+foreach(candidate ${FORGE_JSON_HEADER_CANDIDATES})
+    if(EXISTS "${candidate}")
+        set(FORGE_JSON_HEADER_PATH "${candidate}")
+        break()
+    endif()
+endforeach()
+if(FORGE_JSON_HEADER_PATH STREQUAL "")
     message(FATAL_ERROR "Missing vendored nlohmann/json.hpp at runtime/cpp/external/nlohmann/json.hpp. Run ./scripts/bootstrap.sh --runtime-only first (or scripts/bootstrap.ps1 -RuntimeOnly on Windows).")
 endif()
 
@@ -76,6 +86,8 @@ target_include_directories(forge_runtime
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann_json/single_include
 )
 
 target_link_libraries(forge_runtime
@@ -100,8 +112,8 @@ find_program(GLSLC_EXECUTABLE glslc
 set(FORGE_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES
-    ${FORGE_SHADER_DIR}/basic.vert
-    ${FORGE_SHADER_DIR}/basic.frag
+    ${FORGE_SHADER_DIR}/vertex.vert
+    ${FORGE_SHADER_DIR}/fragment.frag
 )
 
 if(GLSLC_EXECUTABLE)

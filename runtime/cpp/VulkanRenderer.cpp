@@ -548,14 +548,14 @@ void VulkanRenderer::CreateRenderPass() {
 void VulkanRenderer::CreateGraphicsPipeline() {
     const std::filesystem::path cwd = std::filesystem::current_path();
     const std::vector<char> vert_shader_code = ReadBinaryFile({
-        cwd / "shaders/basic.vert.spv",
-        cwd / "../shaders/basic.vert.spv",
-        cwd / "../../shaders/basic.vert.spv",
+        cwd / "shaders/vertex.vert.spv",
+        cwd / "../shaders/vertex.vert.spv",
+        cwd / "../../shaders/vertex.vert.spv",
     });
     const std::vector<char> frag_shader_code = ReadBinaryFile({
-        cwd / "shaders/basic.frag.spv",
-        cwd / "../shaders/basic.frag.spv",
-        cwd / "../../shaders/basic.frag.spv",
+        cwd / "shaders/fragment.frag.spv",
+        cwd / "../shaders/fragment.frag.spv",
+        cwd / "../../shaders/fragment.frag.spv",
     });
 
     const VkShaderModule vert_shader_module = CreateShaderModule(device_, vert_shader_code);
@@ -636,12 +636,12 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     color_blending.pAttachments = &color_blend_attachment;
 
     VkPushConstantRange push_constant_ranges[2]{};
-    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_constant_ranges[0].offset = 0;
-    push_constant_ranges[0].size = sizeof(PerFramePush);
-    push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    push_constant_ranges[1].offset = sizeof(PerFramePush);
-    push_constant_ranges[1].size = sizeof(PerDrawPush);
+    push_constant_ranges[0].size = sizeof(PerFramePushConstants);
+    push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    push_constant_ranges[1].offset = sizeof(PerFramePushConstants);
+    push_constant_ranges[1].size = sizeof(PerDrawPushConstants);
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -779,15 +779,17 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 
     const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
-    PerFramePush per_frame_push{};
+    PerFramePushConstants per_frame_push{};
     per_frame_push.view_proj = view_proj;
+    per_frame_push.light_dir = glm::vec4(glm::normalize(glm::vec3(0.8F, 0.45F, 0.2F)), 0.0F);
+    per_frame_push.light_color = glm::vec4(1.0F, 0.98F, 0.92F, 1.0F);
 
     vkCmdPushConstants(
         command_buffers_[image_index],
         pipeline_layout_,
-        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0,
-        sizeof(PerFramePush),
+        sizeof(PerFramePushConstants),
         &per_frame_push);
 
     for (const Entity& entity : scene.entities) {
@@ -798,16 +800,16 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         model = glm::rotate(model, entity.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
         model = glm::scale(model, entity.transform.scale);
 
-        PerDrawPush per_draw_push{};
+        PerDrawPushConstants per_draw_push{};
         per_draw_push.model = model;
         per_draw_push.color = entity.renderable.color;
 
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,
-            VK_SHADER_STAGE_VERTEX_BIT,
-            sizeof(PerFramePush),
-            sizeof(PerDrawPush),
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
             &per_draw_push);
 
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
