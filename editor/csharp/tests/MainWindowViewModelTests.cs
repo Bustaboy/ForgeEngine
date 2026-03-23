@@ -347,6 +347,51 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Contains(".zip", viewModel.ExportOutputPath, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void HierarchyTree_BuildsNestedEntityNodesFromScene()
+    {
+        var prototypeRoot = CreatePrototypeRootWithHierarchy();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        var sceneRoot = Assert.Single(viewModel.HierarchyRoots);
+        var miscGroup = sceneRoot.Children.Single(node => node.Label == "Groups");
+        var squad = Assert.Single(miscGroup.Children.Where(node => node.EntityId == "group_01"));
+        var squadChild = Assert.Single(squad.Children.Where(node => node.EntityId == "npc_01"));
+        Assert.Equal("Prop Barrel", Assert.Single(squadChild.Children).Label);
+        Assert.Equal(4, viewModel.HierarchyEntityCount);
+    }
+
+    [Fact]
+    public async Task SelectingHierarchyNode_SyncsViewportSelectionAndSupportsReparent()
+    {
+        var prototypeRoot = CreatePrototypeRootWithHierarchy();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        var sceneRoot = Assert.Single(viewModel.HierarchyRoots);
+        var propNode = FindHierarchyEntityNode(sceneRoot, "prop_01");
+        Assert.NotNull(propNode);
+
+        viewModel.SelectedHierarchyNode = propNode;
+
+        Assert.Equal("prop_01", viewModel.SelectedViewportEntity?.Id);
+        Assert.Equal("🎯 Prop Barrel", viewModel.HierarchySelectionBadge);
+
+        var reparented = await viewModel.ReparentEntityAsync("prop_01", "group_01");
+        Assert.True(reparented);
+        Assert.Equal("group_01", viewModel.ViewportEntities.Single(entity => entity.Id == "prop_01").ParentId);
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var entity = document.RootElement.GetProperty("entities")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("id").GetString() == "prop_01");
+        Assert.Equal("group_01", entity.GetProperty("parent_id").GetString());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -455,6 +500,48 @@ public sealed class MainWindowViewModelTests : IDisposable
         File.WriteAllText(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"), scene);
         File.WriteAllText(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
         return prototypeRoot;
+    }
+
+    private string CreatePrototypeRootWithHierarchy()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+
+        const string scene = """
+                             {
+                               "player_spawn": { "x": 0, "y": 0 },
+                               "entities": [
+                                 { "id": "group_01", "type": "group", "name": "Squad Root", "x": 0, "y": 0, "z": 0 },
+                                 { "id": "npc_01", "type": "npc", "name": "Village Guard", "x": 2, "y": 1, "z": 0, "parent_id": "group_01" },
+                                 { "id": "prop_01", "type": "prop", "name": "Prop Barrel", "x": 1, "y": -1, "z": 0, "parent_id": "npc_01" },
+                                 { "id": "prop_02", "type": "prop", "name": "Loose Crate", "x": -3, "y": 1, "z": 0 }
+                               ]
+                             }
+                             """;
+        File.WriteAllText(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"), scene);
+        File.WriteAllText(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+        return prototypeRoot;
+    }
+
+    private static MainWindowViewModel.HierarchyNode? FindHierarchyEntityNode(MainWindowViewModel.HierarchyNode root, string entityId)
+    {
+        if (string.Equals(root.EntityId, entityId, StringComparison.Ordinal))
+        {
+            return root;
+        }
+
+        foreach (var child in root.Children)
+        {
+            var found = FindHierarchyEntityNode(child, entityId);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private static async Task InvokePrivateAsync(MainWindowViewModel viewModel, string methodName, params object[] arguments)
