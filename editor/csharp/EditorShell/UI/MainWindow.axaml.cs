@@ -80,6 +80,7 @@ public partial class MainWindow : Window
         _viewportCanvas.SizeChanged += (_, _) => RefreshViewportVisuals();
         DragDrop.SetAllowDrop(_viewportCanvas, true);
         _viewportCanvas.AddHandler(DragDrop.DragOverEvent, OnViewportDragOver);
+        _viewportCanvas.AddHandler(DragDrop.DragLeaveEvent, OnViewportDragLeave);
         _viewportCanvas.AddHandler(DragDrop.DropEvent, OnViewportDrop);
         _viewModel.ViewportEntities.CollectionChanged += OnViewportEntitiesChanged;
         RefreshViewportVisuals();
@@ -178,6 +179,7 @@ public partial class MainWindow : Window
             _viewportCanvas.PointerPressed -= OnViewportPointerPressed;
             _viewportCanvas.PointerReleased -= OnViewportPointerReleased;
             _viewportCanvas.RemoveHandler(DragDrop.DragOverEvent, OnViewportDragOver);
+            _viewportCanvas.RemoveHandler(DragDrop.DragLeaveEvent, OnViewportDragLeave);
             _viewportCanvas.RemoveHandler(DragDrop.DropEvent, OnViewportDrop);
         }
     }
@@ -221,6 +223,13 @@ public partial class MainWindow : Window
             var marker = BuildEntityMarker(entity);
             _viewportCanvas.Children.Add(marker);
             UpdateEntityMarkerPosition(marker, entity);
+        }
+
+        if (_viewModel.IsAssetDragGhostVisible)
+        {
+            var ghost = BuildAssetGhostMarker();
+            _viewportCanvas.Children.Add(ghost);
+            UpdateAssetGhostPosition(ghost);
         }
     }
 
@@ -551,14 +560,36 @@ public partial class MainWindow : Window
 
     private void OnViewportDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(AssetDragFormat) || e.Data.Contains(DataFormats.Text))
+        if (_viewportCanvas is null)
         {
+            return;
+        }
+
+        var assetId = e.Data.Get(AssetDragFormat) as string;
+        if (string.IsNullOrWhiteSpace(assetId) && e.Data.Contains(DataFormats.Text))
+        {
+            assetId = e.Data.GetText();
+        }
+
+        if (!string.IsNullOrWhiteSpace(assetId))
+        {
+            var world = ScreenToWorld(e.GetPosition(_viewportCanvas));
+            _viewModel.SetAssetDragGhost(assetId, world.X, world.Y);
+            RefreshViewportVisuals();
             e.DragEffects = DragDropEffects.Copy;
             e.Handled = true;
             return;
         }
 
+        _viewModel.ClearAssetDragGhost();
+        RefreshViewportVisuals();
         e.DragEffects = DragDropEffects.None;
+    }
+
+    private void OnViewportDragLeave(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.ClearAssetDragGhost();
+        RefreshViewportVisuals();
     }
 
     private async void OnViewportDrop(object? sender, DragEventArgs e)
@@ -576,11 +607,14 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(assetId))
         {
+            _viewModel.ClearAssetDragGhost();
+            RefreshViewportVisuals();
             return;
         }
 
         var world = ScreenToWorld(e.GetPosition(_viewportCanvas));
         await _viewModel.PlaceImportedAssetInSceneAsync(assetId, world.X, world.Y);
+        _viewModel.ClearAssetDragGhost();
         RefreshViewportVisuals();
     }
 
@@ -612,6 +646,8 @@ public partial class MainWindow : Window
         data.Set(AssetDragFormat, assetId);
         data.Set(DataFormats.Text, assetId);
         await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
+        _viewModel.ClearAssetDragGhost();
+        RefreshViewportVisuals();
     }
 
     private async void OnImportAssetClick(object? sender, RoutedEventArgs e)
@@ -642,6 +678,59 @@ public partial class MainWindow : Window
         }
 
         await _viewModel.ImportAssetAsync(picked.Path.LocalPath);
+    }
+
+    private async void OnRefreshAssetsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RefreshImportedAssetsAsync();
+    }
+
+    private Border BuildAssetGhostMarker()
+    {
+        var hasPreview = !string.IsNullOrWhiteSpace(_viewModel.AssetDragGhostPreviewPath)
+            && File.Exists(_viewModel.AssetDragGhostPreviewPath);
+        var marker = new Border
+        {
+            Width = MarkerSize * 1.15,
+            Height = MarkerSize * 1.15,
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Color.FromArgb(150, 74, 163, 255)),
+            BorderBrush = new SolidColorBrush(Color.Parse("#BFE1FF")),
+            BorderThickness = new Thickness(1.8),
+            Opacity = 0.82,
+            Child = hasPreview
+                ? new Image
+                {
+                    Source = new Avalonia.Media.Imaging.Bitmap(_viewModel.AssetDragGhostPreviewPath),
+                    Stretch = Stretch.UniformToFill,
+                }
+                : new TextBlock
+                {
+                    Text = "🧊",
+                    FontSize = 18,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                },
+        };
+
+        ToolTip.SetTip(marker, $"Drop: {_viewModel.AssetDragGhostTitle}");
+        return marker;
+    }
+
+    private void UpdateAssetGhostPosition(Control marker)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var centerX = _viewportCanvas.Bounds.Width / 2.0;
+        var centerY = _viewportCanvas.Bounds.Height / 2.0;
+        var markerSize = marker.Width;
+        var left = centerX + (_viewModel.AssetDragGhostWorldX * ViewportScale) - (markerSize / 2.0);
+        var top = centerY - (_viewModel.AssetDragGhostWorldY * ViewportScale) - (markerSize / 2.0);
+        Canvas.SetLeft(marker, left);
+        Canvas.SetTop(marker, top);
     }
 
     private async Task ShowBenchmarkModalAsync(BenchmarkResultEnvelope benchmark)

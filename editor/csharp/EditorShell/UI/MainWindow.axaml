@@ -233,13 +233,60 @@
                   BorderThickness="1"
                   CornerRadius="8"
                   Padding="10">
-            <StackPanel Spacing="6">
-              <TextBlock Text="🗂 Asset tab is staged." Foreground="#D6E9FF" FontWeight="SemiBold" />
-              <TextBlock Text="Use the main Asset Browser panel (right side) to import and place assets in this V1 slice."
+            <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+              <TextBlock Text="🗂 Assets" Foreground="#D6E9FF" FontWeight="SemiBold" />
+              <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                <TextBox Watermark="Filter assets"
+                         Text="{Binding AssetSearchText}"
+                         ToolTip.Tip="Search by name, kind, or id." />
+                <Button Grid.Column="1" Content="Refresh" Click="OnRefreshAssetsClick" />
+                <Button Grid.Column="2" Content="Import" Click="OnImportAssetClick" />
+              </Grid>
+              <TextBlock Grid.Row="2"
+                         Text="PNG thumbnails + OBJ icon cards. Drag any card into the viewport to place it."
                          Foreground="#8EA5C7"
                          FontSize="11"
                          TextWrapping="Wrap" />
-            </StackPanel>
+              <ScrollViewer Grid.Row="3">
+                <StackPanel Spacing="6">
+                  <ItemsControl ItemsSource="{Binding FilteredImportedAssets}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Padding="8"
+                                CornerRadius="6"
+                                Background="#0B1524"
+                                BorderBrush="#264566"
+                                BorderThickness="1"
+                                Tag="{Binding Id}"
+                                PointerPressed="OnAssetChipPointerPressed">
+                          <Grid ColumnDefinitions="52,*,Auto" ColumnSpacing="8">
+                            <Border Width="52" Height="52" CornerRadius="6" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
+                              <Grid>
+                                <Image Source="{Binding PreviewPath}" Stretch="UniformToFill" IsVisible="{Binding HasPreviewImage}" />
+                                <TextBlock Text="{Binding ThumbnailGlyph}"
+                                           IsVisible="{Binding HasNoPreviewImage}"
+                                           FontSize="22"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="#D6E9FF" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                              <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding KindLabel}" Foreground="#8EA5C7" FontSize="11" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="⇢" Foreground="#9FC2E5" VerticalAlignment="Center" FontSize="16" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Border IsVisible="{Binding HasNoAssetResults}" Padding="10" CornerRadius="6" BorderBrush="#264566" BorderThickness="1" Background="#0B1524">
+                    <TextBlock Text="No assets match this filter yet." Foreground="#8EA5C7" FontSize="11" />
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
           </Border>
 
           <Border Grid.Row="2"
@@ -546,22 +593,40 @@
           </Border>
 
           <Border Grid.Row="6" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
-            <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="8">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="8">
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <TextBlock Text="🗂 Asset Browser" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
-                <Button Grid.Column="1" Content="Import Asset" Click="OnImportAssetClick" ToolTip.Tip="Import PNG or OBJ into the local asset browser&#x0a;Shortcut: Ctrl+I" />
+                <Button Grid.Column="1" Content="Refresh Assets" Click="OnRefreshAssetsClick" ToolTip.Tip="Reload imported assets from scene_scaffold.json." />
+                <Button Grid.Column="2" Content="Import Asset" Click="OnImportAssetClick" ToolTip.Tip="Import PNG or OBJ into the local asset browser&#x0a;Shortcut: Ctrl+I" />
               </Grid>
-              <TextBlock Grid.Row="1" Text="Drag asset chips directly onto the viewport to place new props." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-              <ScrollViewer Grid.Row="2" MaxHeight="156">
-                <ItemsControl ItemsSource="{Binding ImportedAssets}">
+              <TextBox Grid.Row="1"
+                       Watermark="Search assets..."
+                       Text="{Binding AssetSearchText}"
+                       ToolTip.Tip="Filter by asset name, id, or kind." />
+              <TextBlock Grid.Row="2" Text="Drag asset cards directly onto the viewport to place new props. A ghost preview follows your drop target." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+              <ScrollViewer Grid.Row="3" MaxHeight="184">
+                <ItemsControl ItemsSource="{Binding FilteredImportedAssets}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Border Margin="0,0,0,6" Padding="8" CornerRadius="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" Tag="{Binding Id}" PointerPressed="OnAssetChipPointerPressed" ToolTip.Tip="Asset chip&#x0a;Drag into viewport to place as prop.">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                          <Border Width="16" Height="16" Background="{Binding ColorHex}" CornerRadius="3" VerticalAlignment="Center" />
-                          <StackPanel Grid.Column="1" Spacing="1">
+                      <Border Margin="0,0,0,6"
+                              Padding="8"
+                              CornerRadius="6"
+                              Background="#0B1524"
+                              BorderBrush="#264566"
+                              BorderThickness="1"
+                              Tag="{Binding Id}"
+                              PointerPressed="OnAssetChipPointerPressed"
+                              ToolTip.Tip="Asset chip&#x0a;Drag into viewport to place as prop.">
+                        <Grid ColumnDefinitions="48,*,Auto" ColumnSpacing="8">
+                          <Border Width="48" Height="48" CornerRadius="6" Background="#0F2239" BorderBrush="#355B85" BorderThickness="1">
+                            <Grid>
+                              <Image Source="{Binding PreviewPath}" Stretch="UniformToFill" IsVisible="{Binding HasPreviewImage}" />
+                              <TextBlock Text="{Binding ThumbnailGlyph}" IsVisible="{Binding HasNoPreviewImage}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#D6E9FF" />
+                            </Grid>
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                             <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Kind}" Foreground="#8EA5C7" FontSize="11" />
+                            <TextBlock Text="{Binding KindLabel}" Foreground="#8EA5C7" FontSize="11" />
                           </StackPanel>
                           <TextBlock Grid.Column="2" Text="⇢" Foreground="#9FC2E5" VerticalAlignment="Center" FontSize="16" />
                         </Grid>
@@ -570,7 +635,10 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Border Grid.Row="3" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+              <Border Grid.Row="4" IsVisible="{Binding HasNoAssetResults}" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                <TextBlock Text="No assets match this filter yet." Foreground="#8EA5C7" FontSize="11" />
+              </Border>
+              <Border Grid.Row="5" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                 <StackPanel Spacing="4">
                   <TextBlock Text="Selected Asset Preview" Foreground="#D6E9FF" FontWeight="SemiBold" />
                   <TextBlock Text="{Binding SelectedImportedAssetName}" Foreground="#AFC2DF" TextWrapping="Wrap" />
@@ -578,7 +646,6 @@
                   <Image Height="72" Stretch="Uniform" Source="{Binding SelectedImportedAssetPreviewPath}" />
                 </StackPanel>
               </Border>
-              <TextBlock Grid.Row="4" Text="V1 supports PNG textures + OBJ models only." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
             </Grid>
           </Border>
 
