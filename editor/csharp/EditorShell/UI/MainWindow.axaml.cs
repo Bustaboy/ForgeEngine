@@ -235,29 +235,34 @@ public partial class MainWindow : Window
 
     private Border BuildEntityMarker(MainWindowViewModel.ViewportEntity entity)
     {
-        var icon = entity.Type switch
+        var renderColor = entity.Type switch
         {
-            "player" => "👤",
-            "npc" => "🧍",
-            "group" => "🗂",
-            _ => "📦",
+            "player" => "#4AA3FF",
+            "npc" => "#65C97A",
+            "prop" => "#808A9B",
+            _ => entity.ColorHex,
         };
 
+        var markerSize = MarkerSize * Math.Max(0.7, entity.Scale);
         var marker = new Border
         {
-            Width = MarkerSize * Math.Max(0.7, entity.Scale),
-            Height = MarkerSize * Math.Max(0.7, entity.Scale),
-            CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(ParseColor(entity.ColorHex, "#1A2C45")),
-            BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#7FD1FF") : Color.Parse("#4AA3FF")),
+            Width = markerSize,
+            Height = markerSize,
+            CornerRadius = new CornerRadius(4),
+            Background = new SolidColorBrush(ParseColor(renderColor, "#1A2C45")),
+            BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#B5DFFF") : Color.Parse("#2E3D54")),
             BorderThickness = entity.IsSelected ? new Thickness(2.4) : new Thickness(1.2),
             Tag = entity.Id,
             Child = new TextBlock
             {
-                Text = icon,
-                FontSize = 15,
+                Text = entity.DisplayName,
+                FontSize = 9,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Foreground = Brushes.White,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(4, 0),
+                MaxWidth = Math.Max(8, markerSize - 8),
             }
         };
 

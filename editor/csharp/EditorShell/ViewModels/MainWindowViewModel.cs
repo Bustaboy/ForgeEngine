@@ -360,6 +360,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _ => "🌲",
     };
 
+
+    public bool HasViewportEntities => ViewportEntities.Count > 0;
+
+    public bool IsViewportEmpty => !HasViewportEntities;
+
+    public string ViewportEntityCountLabel => $"{ViewportEntities.Count} entities";
+
+    public string ViewportLivePreviewLabel => IsTimelinePlaying
+        ? $"Live Preview • {TimelineCurrentTime:0.00}s"
+        : "Live Preview • Idle";
+
+
     public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;
 
     public string ThemePreference => _preferences.General.Theme;
@@ -413,6 +425,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             OnPropertyChanged(nameof(TimelinePlayPauseIcon));
             OnPropertyChanged(nameof(TimelinePlaybackStatePill));
+            OnPropertyChanged(nameof(ViewportLivePreviewLabel));
         }
     }
 
@@ -990,6 +1003,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineCurrentTime));
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
+        OnPropertyChanged(nameof(ViewportLivePreviewLabel));
         TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
@@ -2254,6 +2268,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
+        OnPropertyChanged(nameof(ViewportLivePreviewLabel));
         ApplyTimelineToViewport(clamped);
         if (fromPlayback)
         {
@@ -2336,6 +2351,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineCurrentTime));
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
+        OnPropertyChanged(nameof(ViewportLivePreviewLabel));
         TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         SelectedViewportEntity = null;
@@ -4513,6 +4529,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HierarchyEntityCount));
         OnPropertyChanged(nameof(HierarchyEntityCountBadge));
         OnPropertyChanged(nameof(HierarchySelectionBadge));
+        OnPropertyChanged(nameof(HasViewportEntities));
+        OnPropertyChanged(nameof(IsViewportEmpty));
+        OnPropertyChanged(nameof(ViewportEntityCountLabel));
     }
 
     private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -4601,8 +4620,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private static string DefaultColorForType(string type) => type switch
     {
         "player" => "#4AA3FF",
-        "npc" => "#8BD17C",
-        _ => "#E4A14A",
+        "npc" => "#65C97A",
+        "prop" => "#808A9B",
+        _ => "#808A9B",
     };
 
     private static bool TryGetSupportedAssetKind(string sourcePath, out string kind)
