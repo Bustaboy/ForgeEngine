@@ -227,10 +227,17 @@
                   Padding="8,6"
                   Margin="0,0,0,8"
                   VerticalAlignment="Top">
-            <TextBlock Text="🖱 Click to inspect • 🧲 drag entity icons to re-parent"
-                       Foreground="#8EA5C7"
-                       FontSize="11"
-                       HorizontalAlignment="Center" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <TextBlock Text="🖱 Inspect • 🧲 drag selected entities to re-parent"
+                         Foreground="#8EA5C7"
+                         FontSize="11"
+                         VerticalAlignment="Center" />
+              <Button Grid.Column="1"
+                      Classes="panel-tab"
+                      Content="🗂 +"
+                      Command="{Binding CreateHierarchyGroupCommand}"
+                      ToolTip.Tip="Create Group: add an empty hierarchy group entity for organizing scene objects." />
+            </Grid>
           </Border>
 
           <TreeView Grid.Row="3"
@@ -249,6 +256,19 @@
                     <TextBlock Text="{Binding Icon}" Foreground="#D6E9FF" />
                     <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" />
                   </StackPanel>
+                  <Border.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="✏ Rename"
+                                Tag="{Binding EntityId}"
+                                Click="OnHierarchyRenameClick" />
+                      <MenuItem Header="🗑 Delete"
+                                Tag="{Binding EntityId}"
+                                Click="OnHierarchyDeleteClick" />
+                      <MenuItem Header="🧩 Ungroup"
+                                Tag="{Binding EntityId}"
+                                Click="OnHierarchyUngroupClick" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
                 </Border>
               </TreeDataTemplate>
             </TreeView.ItemTemplate>

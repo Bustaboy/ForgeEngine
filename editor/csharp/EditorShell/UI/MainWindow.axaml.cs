@@ -239,6 +239,7 @@ public partial class MainWindow : Window
         {
             "player" => "👤",
             "npc" => "🧍",
+            "group" => "🗂",
             _ => "📦",
         };
 
@@ -398,6 +399,48 @@ public partial class MainWindow : Window
 
         await _viewModel.ReparentEntityAsync(sourceEntityId, targetEntityId);
         e.Handled = true;
+    }
+
+    private async void OnHierarchyRenameClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string entityId } || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        var current = _viewModel.ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (current is null)
+        {
+            return;
+        }
+
+        var renamed = await ShowRenameHierarchyDialogAsync(current.DisplayName);
+        if (string.IsNullOrWhiteSpace(renamed))
+        {
+            return;
+        }
+
+        await _viewModel.RenameHierarchyEntityAsync(entityId, renamed);
+    }
+
+    private async void OnHierarchyDeleteClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string entityId } || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        await _viewModel.DeleteHierarchyEntityAsync(entityId);
+    }
+
+    private async void OnHierarchyUngroupClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string entityId } || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        await _viewModel.UngroupHierarchyEntityAsync(entityId);
     }
 
     private async void OnHierarchyRootDrop(object? sender, DragEventArgs e)
@@ -796,6 +839,62 @@ public partial class MainWindow : Window
         }
 
         await modal.ShowDialog(this);
+    }
+
+    private async Task<string?> ShowRenameHierarchyDialogAsync(string currentName)
+    {
+        var textBox = new TextBox
+        {
+            Text = currentName,
+            MinWidth = 320,
+        };
+
+        string? result = null;
+        var modal = new Window
+        {
+            Title = "Rename entity",
+            Width = 420,
+            Height = 190,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16),
+                Spacing = 10,
+                Children =
+                {
+                    new TextBlock { Text = "New display name", FontWeight = FontWeight.SemiBold },
+                    textBox,
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children =
+                        {
+                            new Button { Content = "Cancel", MinWidth = 86 },
+                            new Button { Content = "Apply", MinWidth = 86 },
+                        }
+                    },
+                },
+            },
+        };
+
+        if (modal.Content is StackPanel panel
+            && panel.Children[^1] is StackPanel actions
+            && actions.Children[0] is Button cancelButton
+            && actions.Children[1] is Button applyButton)
+        {
+            cancelButton.Click += (_, _) => modal.Close();
+            applyButton.Click += (_, _) =>
+            {
+                result = textBox.Text?.Trim();
+                modal.Close();
+            };
+        }
+
+        await modal.ShowDialog(this);
+        return result;
     }
 
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
