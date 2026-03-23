@@ -400,6 +400,23 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private async void OnHierarchyRootDrop(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.Contains(HierarchyDragFormat))
+        {
+            return;
+        }
+
+        var sourceEntityId = e.Data.Get(HierarchyDragFormat) as string;
+        if (string.IsNullOrWhiteSpace(sourceEntityId))
+        {
+            return;
+        }
+
+        await _viewModel.ReparentEntityAsync(sourceEntityId, targetEntityId: null);
+        e.Handled = true;
+    }
+
     private void OnViewportPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_viewportCanvas is null)
