@@ -39,6 +39,9 @@ public partial class MainWindow : Window
         ConfigureCodeEditor();
         ConfigureViewportSurface();
         DataContext = _viewModel;
+        AddHandler(DragDrop.DragOverEvent, OnWindowAssetDragOver);
+        AddHandler(DragDrop.DropEvent, OnWindowAssetDrop);
+        AddHandler(DragDrop.DragLeaveEvent, OnWindowAssetDragLeave);
         _viewModel.ThemePreferenceChanged += ApplyThemePreference;
         ApplyThemePreference(_viewModel.ThemePreference);
         Opened += OnOpened;
@@ -169,6 +172,9 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.ThemePreferenceChanged -= ApplyThemePreference;
         _viewModel.ViewportEntities.CollectionChanged -= OnViewportEntitiesChanged;
+        RemoveHandler(DragDrop.DragOverEvent, OnWindowAssetDragOver);
+        RemoveHandler(DragDrop.DropEvent, OnWindowAssetDrop);
+        RemoveHandler(DragDrop.DragLeaveEvent, OnWindowAssetDragLeave);
         KeyDown -= OnMainWindowKeyDown;
         foreach (var entity in _viewModel.ViewportEntities)
         {
@@ -867,6 +873,7 @@ public partial class MainWindow : Window
         var selected = _viewModel.ImportedAssets.FirstOrDefault(asset => string.Equals(asset.Id, assetId, StringComparison.Ordinal));
         _viewModel.SelectedImportedAsset = selected;
         _viewModel.BeginAssetBrowserDragPreview(assetId);
+        _viewModel.UpdateAssetBrowserDragPreviewPosition(e.GetPosition(this).X, e.GetPosition(this).Y);
 
         var data = new DataObject();
         data.Set(AssetDragFormat, assetId);
@@ -911,6 +918,33 @@ public partial class MainWindow : Window
     private async void OnRefreshAssetsClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RefreshImportedAssetsAsync();
+    }
+
+    private void OnWindowAssetDragOver(object? sender, DragEventArgs e)
+    {
+        var assetId = e.Data.Get(AssetDragFormat) as string;
+        if (string.IsNullOrWhiteSpace(assetId) && e.Data.Contains(DataFormats.Text))
+        {
+            assetId = e.Data.GetText();
+        }
+
+        if (string.IsNullOrWhiteSpace(assetId) || !_viewModel.IsAssetBrowserDragPreviewVisible)
+        {
+            return;
+        }
+
+        var point = e.GetPosition(this);
+        _viewModel.UpdateAssetBrowserDragPreviewPosition(point.X, point.Y);
+    }
+
+    private void OnWindowAssetDrop(object? sender, DragEventArgs e)
+    {
+        _viewModel.EndAssetBrowserDragPreview();
+    }
+
+    private void OnWindowAssetDragLeave(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.EndAssetBrowserDragPreview();
     }
 
     private Border BuildAssetGhostMarker()
