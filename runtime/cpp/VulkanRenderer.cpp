@@ -616,6 +616,7 @@ void VulkanRenderer::CreateRenderPass() {
     bloom_render_pass_info.pDependencies = &bloom_dependency;
 
     VK_CHECK(vkCreateRenderPass(device_, &bloom_render_pass_info, nullptr, &bloom_extract_render_pass_));
+    VK_CHECK(vkCreateRenderPass(device_, &bloom_render_pass_info, nullptr, &blur_render_pass_));
 
     VkAttachmentDescription combine_color_attachment{};
     combine_color_attachment.format = swap_chain_image_format_;
@@ -684,11 +685,23 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         cwd / "../shaders/fragment.frag.spv",
         cwd / "../../shaders/fragment.frag.spv",
     });
+    const std::vector<char> gaussian_blur_frag_shader_code = ReadBinaryFile({
+        cwd / "shaders/gaussian_blur.frag.spv",
+        cwd / "../shaders/gaussian_blur.frag.spv",
+        cwd / "../../shaders/gaussian_blur.frag.spv",
+        cwd / "shaders/bloom_extract.frag.spv",
+        cwd / "../shaders/bloom_extract.frag.spv",
+        cwd / "../../shaders/bloom_extract.frag.spv",
+        cwd / "shaders/fragment.frag.spv",
+        cwd / "../shaders/fragment.frag.spv",
+        cwd / "../../shaders/fragment.frag.spv",
+    });
 
     const VkShaderModule vert_shader_module = CreateShaderModule(device_, vert_shader_code);
     const VkShaderModule frag_shader_module = CreateShaderModule(device_, frag_shader_code);
     const VkShaderModule bloom_extract_frag_shader_module = CreateShaderModule(device_, bloom_extract_frag_shader_code);
     const VkShaderModule combine_tonemap_frag_shader_module = CreateShaderModule(device_, combine_tonemap_frag_shader_code);
+    const VkShaderModule gaussian_blur_frag_shader_module = CreateShaderModule(device_, gaussian_blur_frag_shader_code);
 
     VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
     vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -780,10 +793,14 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     combine_tonemap_push_constant_range.offset =
         sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants) + sizeof(BloomExtractPushConstants);
     combine_tonemap_push_constant_range.size = sizeof(CombineTonemapPushConstants);
+    VkPushConstantRange gaussian_blur_push_constant_range{};
+    gaussian_blur_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    gaussian_blur_push_constant_range.offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
+    gaussian_blur_push_constant_range.size = sizeof(GaussianBlurPushConstants);
     std::array<VkPushConstantRange, 4> all_push_constant_ranges = {
         push_constant_ranges[0],
         push_constant_ranges[1],
-        bloom_extract_push_constant_range,
+        gaussian_blur_push_constant_range,
         combine_tonemap_push_constant_range,
     };
 
@@ -830,6 +847,7 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     if (combine_descriptor_set_layout_result != VK_SUCCESS) {
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -858,6 +876,7 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -890,6 +909,7 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -924,11 +944,48 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, vert_shader_module, nullptr);
         VK_CHECK(bloom_extract_pipeline_result);
+    }
+    VkPipelineShaderStageCreateInfo gaussian_blur_frag_shader_stage_info{};
+    gaussian_blur_frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    gaussian_blur_frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    gaussian_blur_frag_shader_stage_info.module = gaussian_blur_frag_shader_module;
+    gaussian_blur_frag_shader_stage_info.pName = "main";
+    VkPipelineShaderStageCreateInfo gaussian_blur_shader_stages[] = {
+        vert_shader_stage_info,
+        gaussian_blur_frag_shader_stage_info};
+    VkGraphicsPipelineCreateInfo gaussian_blur_pipeline_info = pipeline_info;
+    gaussian_blur_pipeline_info.pStages = gaussian_blur_shader_stages;
+    gaussian_blur_pipeline_info.renderPass = blur_render_pass_;
+    const VkResult gaussian_blur_pipeline_result = vkCreateGraphicsPipelines(
+        device_,
+        VK_NULL_HANDLE,
+        1,
+        &gaussian_blur_pipeline_info,
+        nullptr,
+        &blur_pipeline_);
+    if (gaussian_blur_pipeline_result != VK_SUCCESS) {
+        vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
+        bloom_extract_pipeline_ = VK_NULL_HANDLE;
+        vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
+        graphics_pipeline_ = VK_NULL_HANDLE;
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
+        post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+        VK_CHECK(gaussian_blur_pipeline_result);
     }
     VkPipelineShaderStageCreateInfo combine_tonemap_frag_shader_stage_info{};
     combine_tonemap_frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -949,6 +1006,8 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         nullptr,
         &combine_pipeline_);
     if (combine_pipeline_result != VK_SUCCESS) {
+        vkDestroyPipeline(device_, blur_pipeline_, nullptr);
+        blur_pipeline_ = VK_NULL_HANDLE;
         vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
         bloom_extract_pipeline_ = VK_NULL_HANDLE;
         vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
@@ -959,6 +1018,7 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -966,6 +1026,7 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         VK_CHECK(combine_pipeline_result);
     }
 
+    vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -1137,6 +1198,53 @@ void VulkanRenderer::CreateOffscreenResources() {
     bloom_extract_framebuffer_info.height = swap_chain_extent_.height;
     bloom_extract_framebuffer_info.layers = 1;
     VK_CHECK(vkCreateFramebuffer(device_, &bloom_extract_framebuffer_info, nullptr, &bloom_extract_framebuffer_));
+
+    VkImageCreateInfo blur_ping_image_info{};
+    blur_ping_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    blur_ping_image_info.imageType = VK_IMAGE_TYPE_2D;
+    blur_ping_image_info.extent.width = swap_chain_extent_.width;
+    blur_ping_image_info.extent.height = swap_chain_extent_.height;
+    blur_ping_image_info.extent.depth = 1;
+    blur_ping_image_info.mipLevels = 1;
+    blur_ping_image_info.arrayLayers = 1;
+    blur_ping_image_info.format = swap_chain_image_format_;
+    blur_ping_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    blur_ping_image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    blur_ping_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    blur_ping_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    blur_ping_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateImage(device_, &blur_ping_image_info, nullptr, &blur_ping_image_));
+    VkMemoryRequirements blur_ping_memory_requirements{};
+    vkGetImageMemoryRequirements(device_, blur_ping_image_, &blur_ping_memory_requirements);
+    VkMemoryAllocateInfo blur_ping_allocate_info{};
+    blur_ping_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    blur_ping_allocate_info.allocationSize = blur_ping_memory_requirements.size;
+    blur_ping_allocate_info.memoryTypeIndex = FindMemoryType(
+        blur_ping_memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vkAllocateMemory(device_, &blur_ping_allocate_info, nullptr, &blur_ping_image_memory_));
+    VK_CHECK(vkBindImageMemory(device_, blur_ping_image_, blur_ping_image_memory_, 0));
+    VkImageViewCreateInfo blur_ping_image_view_info{};
+    blur_ping_image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    blur_ping_image_view_info.image = blur_ping_image_;
+    blur_ping_image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    blur_ping_image_view_info.format = swap_chain_image_format_;
+    blur_ping_image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blur_ping_image_view_info.subresourceRange.baseMipLevel = 0;
+    blur_ping_image_view_info.subresourceRange.levelCount = 1;
+    blur_ping_image_view_info.subresourceRange.baseArrayLayer = 0;
+    blur_ping_image_view_info.subresourceRange.layerCount = 1;
+    VK_CHECK(vkCreateImageView(device_, &blur_ping_image_view_info, nullptr, &blur_ping_image_view_));
+    VkImageView blur_ping_attachments[] = {blur_ping_image_view_};
+    VkFramebufferCreateInfo blur_ping_framebuffer_info{};
+    blur_ping_framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    blur_ping_framebuffer_info.renderPass = blur_render_pass_;
+    blur_ping_framebuffer_info.attachmentCount = 1;
+    blur_ping_framebuffer_info.pAttachments = blur_ping_attachments;
+    blur_ping_framebuffer_info.width = swap_chain_extent_.width;
+    blur_ping_framebuffer_info.height = swap_chain_extent_.height;
+    blur_ping_framebuffer_info.layers = 1;
+    VK_CHECK(vkCreateFramebuffer(device_, &blur_ping_framebuffer_info, nullptr, &blur_ping_framebuffer_));
 
     VkImageCreateInfo combine_image_info{};
     combine_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1313,6 +1421,22 @@ void VulkanRenderer::DestroyOffscreenResources() {
     if (bloom_extract_image_memory_ != VK_NULL_HANDLE) {
         vkFreeMemory(device_, bloom_extract_image_memory_, nullptr);
         bloom_extract_image_memory_ = VK_NULL_HANDLE;
+    }
+    if (blur_ping_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, blur_ping_framebuffer_, nullptr);
+        blur_ping_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (blur_ping_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, blur_ping_image_view_, nullptr);
+        blur_ping_image_view_ = VK_NULL_HANDLE;
+    }
+    if (blur_ping_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, blur_ping_image_, nullptr);
+        blur_ping_image_ = VK_NULL_HANDLE;
+    }
+    if (blur_ping_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, blur_ping_image_memory_, nullptr);
+        blur_ping_image_memory_ = VK_NULL_HANDLE;
     }
     if (combine_framebuffer_ != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(device_, combine_framebuffer_, nullptr);
@@ -1625,6 +1749,227 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         bloom_extract_to_shader_read.subresourceRange.levelCount = 1;
         bloom_extract_to_shader_read.subresourceRange.baseArrayLayer = 0;
         bloom_extract_to_shader_read.subresourceRange.layerCount = 1;
+        VkImageMemoryBarrier blur_ping_to_attachment{};
+        blur_ping_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        blur_ping_to_attachment.srcAccessMask = 0;
+        blur_ping_to_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        blur_ping_to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        blur_ping_to_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        blur_ping_to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        blur_ping_to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        blur_ping_to_attachment.image = blur_ping_image_;
+        blur_ping_to_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blur_ping_to_attachment.subresourceRange.baseMipLevel = 0;
+        blur_ping_to_attachment.subresourceRange.levelCount = 1;
+        blur_ping_to_attachment.subresourceRange.baseArrayLayer = 0;
+        blur_ping_to_attachment.subresourceRange.layerCount = 1;
+        std::array<VkImageMemoryBarrier, 2> blur_horizontal_pre_barriers = {
+            bloom_extract_to_shader_read,
+            blur_ping_to_attachment,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(blur_horizontal_pre_barriers.size()),
+            blur_horizontal_pre_barriers.data());
+        VkDescriptorImageInfo blur_horizontal_descriptor_image_info{};
+        blur_horizontal_descriptor_image_info.sampler = offscreen_color_sampler_;
+        blur_horizontal_descriptor_image_info.imageView = bloom_extract_image_view_;
+        blur_horizontal_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkWriteDescriptorSet blur_horizontal_descriptor_write{};
+        blur_horizontal_descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        blur_horizontal_descriptor_write.dstSet = post_process_descriptor_set_;
+        blur_horizontal_descriptor_write.dstBinding = 0;
+        blur_horizontal_descriptor_write.dstArrayElement = 0;
+        blur_horizontal_descriptor_write.descriptorCount = 1;
+        blur_horizontal_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        blur_horizontal_descriptor_write.pImageInfo = &blur_horizontal_descriptor_image_info;
+        vkUpdateDescriptorSets(device_, 1, &blur_horizontal_descriptor_write, 0, nullptr);
+        VkRenderPassBeginInfo blur_horizontal_render_pass_begin_info{};
+        blur_horizontal_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        blur_horizontal_render_pass_begin_info.renderPass = blur_render_pass_;
+        blur_horizontal_render_pass_begin_info.framebuffer = blur_ping_framebuffer_;
+        blur_horizontal_render_pass_begin_info.renderArea.offset = {0, 0};
+        blur_horizontal_render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+        VkClearValue blur_horizontal_clear_color = {{{0.0F, 0.0F, 0.0F, 1.0F}}};
+        blur_horizontal_render_pass_begin_info.clearValueCount = 1;
+        blur_horizontal_render_pass_begin_info.pClearValues = &blur_horizontal_clear_color;
+        vkCmdBeginRenderPass(
+            command_buffers_[image_index],
+            &blur_horizontal_render_pass_begin_info,
+            VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_);
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline_layout_,
+            0,
+            1,
+            &post_process_descriptor_set_,
+            0,
+            nullptr);
+        GaussianBlurPushConstants blur_horizontal_push_constants{};
+        blur_horizontal_push_constants.direction = glm::vec4(1.0F / static_cast<float>(swap_chain_extent_.width), 0.0F, 0.0F, 0.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(GaussianBlurPushConstants),
+            &blur_horizontal_push_constants);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(PerFramePushConstants),
+            &bloom_per_frame_push);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &bloom_per_draw_push);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+        VkImageMemoryBarrier blur_ping_to_shader_read{};
+        blur_ping_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        blur_ping_to_shader_read.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        blur_ping_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        blur_ping_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        blur_ping_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        blur_ping_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        blur_ping_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        blur_ping_to_shader_read.image = blur_ping_image_;
+        blur_ping_to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blur_ping_to_shader_read.subresourceRange.baseMipLevel = 0;
+        blur_ping_to_shader_read.subresourceRange.levelCount = 1;
+        blur_ping_to_shader_read.subresourceRange.baseArrayLayer = 0;
+        blur_ping_to_shader_read.subresourceRange.layerCount = 1;
+        VkImageMemoryBarrier bloom_extract_to_attachment_for_vertical{};
+        bloom_extract_to_attachment_for_vertical.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        bloom_extract_to_attachment_for_vertical.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        bloom_extract_to_attachment_for_vertical.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        bloom_extract_to_attachment_for_vertical.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bloom_extract_to_attachment_for_vertical.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        bloom_extract_to_attachment_for_vertical.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_extract_to_attachment_for_vertical.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_extract_to_attachment_for_vertical.image = bloom_extract_image_;
+        bloom_extract_to_attachment_for_vertical.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bloom_extract_to_attachment_for_vertical.subresourceRange.baseMipLevel = 0;
+        bloom_extract_to_attachment_for_vertical.subresourceRange.levelCount = 1;
+        bloom_extract_to_attachment_for_vertical.subresourceRange.baseArrayLayer = 0;
+        bloom_extract_to_attachment_for_vertical.subresourceRange.layerCount = 1;
+        std::array<VkImageMemoryBarrier, 2> blur_vertical_pre_barriers = {
+            blur_ping_to_shader_read,
+            bloom_extract_to_attachment_for_vertical,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(blur_vertical_pre_barriers.size()),
+            blur_vertical_pre_barriers.data());
+        VkDescriptorImageInfo blur_vertical_descriptor_image_info{};
+        blur_vertical_descriptor_image_info.sampler = offscreen_color_sampler_;
+        blur_vertical_descriptor_image_info.imageView = blur_ping_image_view_;
+        blur_vertical_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkWriteDescriptorSet blur_vertical_descriptor_write{};
+        blur_vertical_descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        blur_vertical_descriptor_write.dstSet = post_process_descriptor_set_;
+        blur_vertical_descriptor_write.dstBinding = 0;
+        blur_vertical_descriptor_write.dstArrayElement = 0;
+        blur_vertical_descriptor_write.descriptorCount = 1;
+        blur_vertical_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        blur_vertical_descriptor_write.pImageInfo = &blur_vertical_descriptor_image_info;
+        vkUpdateDescriptorSets(device_, 1, &blur_vertical_descriptor_write, 0, nullptr);
+        VkRenderPassBeginInfo blur_vertical_render_pass_begin_info{};
+        blur_vertical_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        blur_vertical_render_pass_begin_info.renderPass = blur_render_pass_;
+        blur_vertical_render_pass_begin_info.framebuffer = bloom_extract_framebuffer_;
+        blur_vertical_render_pass_begin_info.renderArea.offset = {0, 0};
+        blur_vertical_render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+        VkClearValue blur_vertical_clear_color = {{{0.0F, 0.0F, 0.0F, 1.0F}}};
+        blur_vertical_render_pass_begin_info.clearValueCount = 1;
+        blur_vertical_render_pass_begin_info.pClearValues = &blur_vertical_clear_color;
+        vkCmdBeginRenderPass(
+            command_buffers_[image_index],
+            &blur_vertical_render_pass_begin_info,
+            VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_);
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline_layout_,
+            0,
+            1,
+            &post_process_descriptor_set_,
+            0,
+            nullptr);
+        GaussianBlurPushConstants blur_vertical_push_constants{};
+        blur_vertical_push_constants.direction = glm::vec4(0.0F, 1.0F / static_cast<float>(swap_chain_extent_.height), 0.0F, 0.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(GaussianBlurPushConstants),
+            &blur_vertical_push_constants);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(PerFramePushConstants),
+            &bloom_per_frame_push);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &bloom_per_draw_push);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+        VkImageMemoryBarrier bloom_blur_to_shader_read{};
+        bloom_blur_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        bloom_blur_to_shader_read.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        bloom_blur_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        bloom_blur_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        bloom_blur_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bloom_blur_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_blur_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_blur_to_shader_read.image = bloom_extract_image_;
+        bloom_blur_to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bloom_blur_to_shader_read.subresourceRange.baseMipLevel = 0;
+        bloom_blur_to_shader_read.subresourceRange.levelCount = 1;
+        bloom_blur_to_shader_read.subresourceRange.baseArrayLayer = 0;
+        bloom_blur_to_shader_read.subresourceRange.layerCount = 1;
+        VkDescriptorImageInfo reset_post_process_descriptor_image_info{};
+        reset_post_process_descriptor_image_info.sampler = offscreen_color_sampler_;
+        reset_post_process_descriptor_image_info.imageView = offscreen_color_image_view_;
+        reset_post_process_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkWriteDescriptorSet reset_post_process_descriptor_write{};
+        reset_post_process_descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        reset_post_process_descriptor_write.dstSet = post_process_descriptor_set_;
+        reset_post_process_descriptor_write.dstBinding = 0;
+        reset_post_process_descriptor_write.dstArrayElement = 0;
+        reset_post_process_descriptor_write.descriptorCount = 1;
+        reset_post_process_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        reset_post_process_descriptor_write.pImageInfo = &reset_post_process_descriptor_image_info;
+        vkUpdateDescriptorSets(device_, 1, &reset_post_process_descriptor_write, 0, nullptr);
         VkImageMemoryBarrier combine_to_attachment{};
         combine_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         combine_to_attachment.srcAccessMask = 0;
@@ -1640,7 +1985,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         combine_to_attachment.subresourceRange.baseArrayLayer = 0;
         combine_to_attachment.subresourceRange.layerCount = 1;
         std::array<VkImageMemoryBarrier, 2> combine_pre_pass_barriers = {
-            bloom_extract_to_shader_read,
+            bloom_blur_to_shader_read,
             combine_to_attachment,
         };
         vkCmdPipelineBarrier(
@@ -2045,6 +2390,10 @@ void VulkanRenderer::CleanupSwapChain() {
         vkDestroyPipeline(device_, combine_pipeline_, nullptr);
         combine_pipeline_ = VK_NULL_HANDLE;
     }
+    if (blur_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, blur_pipeline_, nullptr);
+        blur_pipeline_ = VK_NULL_HANDLE;
+    }
     if (bloom_extract_pipeline_ != VK_NULL_HANDLE) {
         vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
         bloom_extract_pipeline_ = VK_NULL_HANDLE;
@@ -2074,6 +2423,10 @@ void VulkanRenderer::CleanupSwapChain() {
     if (combine_render_pass_ != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device_, combine_render_pass_, nullptr);
         combine_render_pass_ = VK_NULL_HANDLE;
+    }
+    if (blur_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, blur_render_pass_, nullptr);
+        blur_render_pass_ = VK_NULL_HANDLE;
     }
 
     for (VkImageView image_view : swap_chain_image_views_) {
