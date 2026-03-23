@@ -548,14 +548,14 @@ void VulkanRenderer::CreateRenderPass() {
 void VulkanRenderer::CreateGraphicsPipeline() {
     const std::filesystem::path cwd = std::filesystem::current_path();
     const std::vector<char> vert_shader_code = ReadBinaryFile({
-        cwd / "shaders/basic.vert.spv",
-        cwd / "../shaders/basic.vert.spv",
-        cwd / "../../shaders/basic.vert.spv",
+        cwd / "shaders/vertex.vert.spv",
+        cwd / "../shaders/vertex.vert.spv",
+        cwd / "../../shaders/vertex.vert.spv",
     });
     const std::vector<char> frag_shader_code = ReadBinaryFile({
-        cwd / "shaders/basic.frag.spv",
-        cwd / "../shaders/basic.frag.spv",
-        cwd / "../../shaders/basic.frag.spv",
+        cwd / "shaders/fragment.frag.spv",
+        cwd / "../shaders/fragment.frag.spv",
+        cwd / "../../shaders/fragment.frag.spv",
     });
 
     const VkShaderModule vert_shader_module = CreateShaderModule(device_, vert_shader_code);
@@ -636,10 +636,10 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     color_blending.pAttachments = &color_blend_attachment;
 
     VkPushConstantRange push_constant_ranges[2]{};
-    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_constant_ranges[0].offset = 0;
     push_constant_ranges[0].size = sizeof(PerFramePushConstants);
-    push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_constant_ranges[1].offset = sizeof(PerFramePushConstants);
     push_constant_ranges[1].size = sizeof(PerDrawPushConstants);
 
@@ -781,13 +781,13 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
     PerFramePushConstants per_frame_push{};
     per_frame_push.view_proj = view_proj;
-    per_frame_push.light_dir = glm::vec4(glm::normalize(glm::vec3(0.45F, 0.9F, 0.2F)), 0.0F);
+    per_frame_push.light_dir = glm::vec4(glm::normalize(glm::vec3(0.8F, 0.45F, 0.2F)), 0.0F);
     per_frame_push.light_color = glm::vec4(1.0F, 0.98F, 0.92F, 1.0F);
 
     vkCmdPushConstants(
         command_buffers_[image_index],
         pipeline_layout_,
-        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0,
         sizeof(PerFramePushConstants),
         &per_frame_push);
@@ -807,7 +807,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,
-            VK_SHADER_STAGE_VERTEX_BIT,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             sizeof(PerFramePushConstants),
             sizeof(PerDrawPushConstants),
             &per_draw_push);
