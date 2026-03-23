@@ -2007,10 +2007,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public EditorPreferences GetPreferencesSnapshot() => _preferences.Clone();
 
+    public void ApplyPreferencesPreview(EditorPreferences updatedPreferences)
+    {
+        ApplyPreferencesCore(updatedPreferences, triggerToast: false, statusMessageOverride: null);
+    }
+
     public async Task ApplyAndSavePreferencesAsync(EditorPreferences updatedPreferences, CancellationToken cancellationToken = default)
     {
-        _preferences = updatedPreferences.Sanitize();
+        ApplyPreferencesCore(updatedPreferences, triggerToast: true, statusMessageOverride: null);
         await _preferences.SaveAsync(_settingsFilePath, cancellationToken);
+        StatusMessage = $"Settings saved to {_settingsFilePath}";
+    }
+
+    private void ApplyPreferencesCore(EditorPreferences updatedPreferences, bool triggerToast, string? statusMessageOverride)
+    {
+        _preferences = updatedPreferences.Sanitize();
         EnforceHistoryLimit();
         OnPropertyChanged(nameof(IsAutosaveEnabled));
         OnPropertyChanged(nameof(ThemePreference));
@@ -2019,8 +2030,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(RibbonIconSize));
         OnPropertyChanged(nameof(EditorDefaultTemplateId));
         ThemePreferenceChanged?.Invoke(_preferences.General.Theme);
-        StatusMessage = $"Settings saved to {_settingsFilePath}";
-        ShowToast("Settings applied.");
+
+        if (!string.IsNullOrWhiteSpace(statusMessageOverride))
+        {
+            StatusMessage = statusMessageOverride;
+        }
+
+        if (triggerToast)
+        {
+            ShowToast("Settings applied.");
+        }
     }
 
     private async Task RunPipelineForBriefAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken)

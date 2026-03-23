@@ -20,7 +20,7 @@
         <TabItem Header="🎨 General">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Theme" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <ComboBox Name="ThemeComboBox">
+            <ComboBox Name="ThemeComboBox" SelectionChanged="OnPreferenceControlChanged">
               <ComboBoxItem Content="Dark" />
               <ComboBoxItem Content="Light" />
               <ComboBoxItem Content="System" />
@@ -28,7 +28,7 @@
 
             <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
               <TextBlock Text="Autosave scene changes" Foreground="#DDEBFF" VerticalAlignment="Center" />
-              <ToggleSwitch Grid.Column="1" Name="AutosaveToggle" OnContent="On" OffContent="Off" />
+              <ToggleSwitch Grid.Column="1" Name="AutosaveToggle" OnContent="On" OffContent="Off" Toggled="OnPreferenceControlChanged" />
             </Grid>
           </StackPanel>
         </TabItem>
@@ -36,7 +36,7 @@
         <TabItem Header="🎮 Runtime">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Vulkan preview resolution" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <ComboBox Name="ResolutionComboBox">
+            <ComboBox Name="ResolutionComboBox" SelectionChanged="OnPreferenceControlChanged">
               <ComboBoxItem Content="1280x720" />
               <ComboBoxItem Content="1600x900" />
               <ComboBoxItem Content="1920x1080" />
@@ -44,20 +44,20 @@
             </ComboBox>
 
             <TextBlock Text="FPS limit" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <NumericUpDown Name="FpsLimitNumeric" Minimum="30" Maximum="240" Increment="5" Value="60" />
+            <NumericUpDown Name="FpsLimitNumeric" Minimum="30" Maximum="240" Increment="5" Value="60" ValueChanged="OnPreferenceControlChanged" />
           </StackPanel>
         </TabItem>
 
         <TabItem Header="🧰 Editor">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <NumericUpDown Name="IconSizeNumeric" Minimum="40" Maximum="84" Increment="2" Value="58" />
+            <NumericUpDown Name="IconSizeNumeric" Minimum="40" Maximum="84" Increment="2" Value="58" ValueChanged="OnPreferenceControlChanged" />
 
             <TextBlock Text="Undo/redo history length" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <NumericUpDown Name="HistoryLengthNumeric" Minimum="10" Maximum="300" Increment="10" Value="120" />
+            <NumericUpDown Name="HistoryLengthNumeric" Minimum="10" Maximum="300" Increment="10" Value="120" ValueChanged="OnPreferenceControlChanged" />
 
             <TextBlock Text="Default new-project template" Foreground="#DDEBFF" FontWeight="SemiBold" />
-            <ComboBox Name="DefaultTemplateComboBox" />
+            <ComboBox Name="DefaultTemplateComboBox" SelectionChanged="OnPreferenceControlChanged" />
           </StackPanel>
         </TabItem>
       </TabControl>
