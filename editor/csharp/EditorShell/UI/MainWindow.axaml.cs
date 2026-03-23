@@ -1155,7 +1155,7 @@ public partial class MainWindow : Window
 
     private bool IsTextEntryFocused()
     {
-        var focused = FocusManager.GetFocusedElement(this);
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
         return focused is TextBox || focused is TextEditor;
     }
 
