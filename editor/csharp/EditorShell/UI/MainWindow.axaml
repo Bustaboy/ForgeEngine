@@ -70,6 +70,7 @@
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding PlayRuntimeCommand}" />
   </Window.KeyBindings>
 
   <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
@@ -79,9 +80,9 @@
           <StackPanel Spacing="5">
             <TextBlock Text="FILE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewProjectClick" ToolTip.Tip="New Project Wizard" />
+              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewProjectClick" ToolTip.Tip="New Project Wizard&#x0a;Start a local-first single-player project.&#x0a;Shortcut: Ctrl+N" />
               <Button Classes="ribbon-icon" Content="📂" ToolTip.Tip="Open Project (placeholder)" />
-              <Button Classes="ribbon-icon" Content="💾" ToolTip.Tip="Save Snapshot (placeholder)" />
+              <Button Classes="ribbon-icon" Content="💾" ToolTip.Tip="Save Snapshot (placeholder)&#x0a;Shortcut: Ctrl+S" />
             </StackPanel>
           </StackPanel>
 
@@ -96,7 +97,7 @@
           <StackPanel Spacing="5">
             <TextBlock Text="RUNTIME" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="▶" Click="OnPlayRuntimeClick" ToolTip.Tip="Play Runtime" />
+              <Button Classes="ribbon-icon" Content="▶" Click="OnPlayRuntimeClick" ToolTip.Tip="Play Runtime&#x0a;Build and launch the Vulkan runtime preview.&#x0a;Shortcut: Ctrl+Shift+P" />
               <Button Classes="ribbon-icon" Content="⏹" ToolTip.Tip="Stop Runtime (placeholder)" />
             </StackPanel>
           </StackPanel>
@@ -106,7 +107,7 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Classes="ribbon-icon" Content="🧩" ToolTip.Tip="Inspector Tools (placeholder)" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
               <Button Classes="ribbon-icon" Content="📊" ToolTip.Tip="Debug Console" />
-              <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
+              <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings&#x0a;Tune autosave, theme, and runtime defaults.&#x0a;Shortcut: Ctrl+Shift+S" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
             </StackPanel>
           </StackPanel>
 
@@ -161,7 +162,7 @@
                     Padding="8">
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:MainWindowViewModel+HierarchyNode" ItemsSource="{Binding Children}">
-                <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver">
+                <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver" ToolTip.Tip="Hierarchy item&#x0a;Click to select, drag to re-parent in scene tree.">
                   <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" />
                 </Border>
               </TreeDataTemplate>
@@ -178,8 +179,8 @@
               <Button Grid.Column="1" Content="+ 👤 Player" Command="{Binding AddPlayerEntityCommand}" ToolTip.Tip="Add Player entity and relaunch runtime" />
               <Button Grid.Column="2" Content="+ 🧍 NPC" Command="{Binding AddNpcEntityCommand}" ToolTip.Tip="Add NPC entity and relaunch runtime" />
               <Button Grid.Column="3" Content="+ 📦 Prop" Command="{Binding AddPropEntityCommand}" HorizontalAlignment="Left" ToolTip.Tip="Add Prop entity and relaunch runtime" />
-              <Button Grid.Column="4" Content="↶ Undo" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Ctrl+Z" />
-              <Button Grid.Column="5" Content="↷ Redo" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip.Tip="Ctrl+Y" />
+              <Button Grid.Column="4" Content="↶ Undo" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Undo latest scene change&#x0a;Shortcut: Ctrl+Z" />
+              <Button Grid.Column="5" Content="↷ Redo" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip.Tip="Redo reverted scene change&#x0a;Shortcut: Ctrl+Y" />
               <Button Grid.Column="6" Content="🗑 Delete" Command="{Binding DeleteSelectedEntityCommand}" ToolTip.Tip="Delete selected entity" />
             </Grid>
 
@@ -263,12 +264,12 @@
 
           <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
             <TextBlock Text="Advanced Inspector" Foreground="#D5E4F8" VerticalAlignment="Center" />
-            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsAdvancedInspectorEnabled}" />
+            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsAdvancedInspectorEnabled}" ToolTip.Tip="Settings field&#x0a;Enable deeper entity/runtime controls for power users." />
           </Grid>
 
           <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
             <TextBlock Text="Debug Console" Foreground="#D5E4F8" VerticalAlignment="Center" />
-            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsDebugConsoleEnabled}" />
+            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsDebugConsoleEnabled}" ToolTip.Tip="Settings field&#x0a;Show runtime diagnostics and development logs." />
           </Grid>
 
           <Border Grid.Row="4" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
@@ -459,14 +460,14 @@
             <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="8">
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                 <TextBlock Text="🗂 Asset Browser" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
-                <Button Grid.Column="1" Content="Import Asset" Click="OnImportAssetClick" ToolTip.Tip="Import PNG or OBJ into the local asset browser" />
+                <Button Grid.Column="1" Content="Import Asset" Click="OnImportAssetClick" ToolTip.Tip="Import PNG or OBJ into the local asset browser&#x0a;Shortcut: Ctrl+I" />
               </Grid>
               <TextBlock Grid.Row="1" Text="Drag asset chips directly onto the viewport to place new props." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
               <ScrollViewer Grid.Row="2" MaxHeight="156">
                 <ItemsControl ItemsSource="{Binding ImportedAssets}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <Border Margin="0,0,0,6" Padding="8" CornerRadius="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" Tag="{Binding Id}" PointerPressed="OnAssetChipPointerPressed">
+                      <Border Margin="0,0,0,6" Padding="8" CornerRadius="6" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" Tag="{Binding Id}" PointerPressed="OnAssetChipPointerPressed" ToolTip.Tip="Asset chip&#x0a;Drag into viewport to place as prop.">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                           <Border Width="16" Height="16" Background="{Binding ColorHex}" CornerRadius="3" VerticalAlignment="Center" />
                           <StackPanel Grid.Column="1" Spacing="1">
@@ -496,18 +497,18 @@
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🎛 Scene Properties" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
-              <TextBox Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" />
+              <TextBox Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Selection name field&#x0a;Rename one entity or batch-label multi-select." />
               <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
                 <TextBlock Text="X" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="X position (world units)." />
                 <TextBlock Grid.Column="2" Text="Y" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="3" Text="{Binding SelectedEntityPositionYEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityPositionYEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Y position (world units)." />
               </Grid>
               <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
                 <TextBlock Text="Scale" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="1" Text="{Binding SelectedEntityScaleEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBox Grid.Column="1" Text="{Binding SelectedEntityScaleEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Uniform scale multiplier." />
                 <TextBlock Grid.Column="2" Text="Color" VerticalAlignment="Center" Foreground="#AFC2DF" />
-                <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor}" IsEnabled="{Binding HasSelection}" />
+                <TextBox Grid.Column="3" Text="{Binding SelectedEntityColorEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Tint color in hex, e.g. #4AA3FF." />
               </Grid>
               <Border Grid.Row="5" Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                 <StackPanel Spacing="4">
@@ -649,7 +650,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <Border Background="#0E1727" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="6" Padding="8,4">
+                <Border Background="#0E1727" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="6" Padding="8,4" ToolTip.Tip="Timeline keyframe marker&#x0a;Represents snapshot data for selected animation mode.">
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <TextBlock Text="◆" Foreground="#6FA8FF" />
                     <TextBlock Text="{Binding Label}" Foreground="#C8D6EA" FontSize="11" />
@@ -664,11 +665,12 @@
     </Border>
 
     <Border Grid.Row="4" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10">
         <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="2" Text="{Binding RuntimeLaunchStatus, StringFormat=Runtime: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="3" Text="{Binding RuntimePidLabel, StringFormat=PID: {0}}" Foreground="#AFC2DF" FontSize="11" />
+        <TextBlock Grid.Column="4" Text="{Binding ShortcutHintBar}" Foreground="#8EA5C7" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" ToolTip.Tip="{Binding ShortcutHintBar}" />
       </Grid>
     </Border>
   </Grid>

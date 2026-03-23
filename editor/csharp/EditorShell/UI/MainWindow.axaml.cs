@@ -42,6 +42,7 @@ public partial class MainWindow : Window
         ApplyThemePreference(_viewModel.ThemePreference);
         Opened += OnOpened;
         Closed += OnClosed;
+        KeyDown += OnMainWindowKeyDown;
     }
 
     private void InitializeComponent()
@@ -166,6 +167,7 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.ThemePreferenceChanged -= ApplyThemePreference;
         _viewModel.ViewportEntities.CollectionChanged -= OnViewportEntitiesChanged;
+        KeyDown -= OnMainWindowKeyDown;
         foreach (var entity in _viewModel.ViewportEntities)
         {
             entity.PropertyChanged -= OnViewportEntityPropertyChanged;
@@ -803,6 +805,48 @@ public partial class MainWindow : Window
             "System" => ThemeVariant.Default,
             _ => ThemeVariant.Dark,
         };
+    }
+
+    private async void OnMainWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            return;
+        }
+
+        if (e.Key == Key.N)
+        {
+            OnNewProjectClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            OnOpenSettingsClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.S)
+        {
+            await _viewModel.SaveCodeEditsAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.P && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            await _viewModel.PlayRuntimeAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.I)
+        {
+            OnImportAssetClick(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
     }
 
     private async Task<bool> ShowPublishDryRunConfirmationAsync()
