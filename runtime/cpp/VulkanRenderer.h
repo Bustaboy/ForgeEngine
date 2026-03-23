@@ -32,6 +32,7 @@ public:
     void Init();
     void Shutdown();
     void RenderFrame(const Scene& scene, const Camera& camera);
+    void DrawFPSOverlay(float fps);
 
     [[nodiscard]] bool ShouldClose() const;
     [[nodiscard]] bool IsKeyPressed(int key) const;
@@ -57,6 +58,7 @@ private:
     };
 
     void CreateInstance();
+    void CreateDebugMessenger();
     void CreateSurface();
     void PickPhysicalDevice();
     void CreateLogicalDevice();
@@ -81,12 +83,28 @@ private:
     [[nodiscard]] VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes) const;
     [[nodiscard]] VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
     [[nodiscard]] bool ValidationLayersSupported() const;
+    [[nodiscard]] bool DebugUtilsExtensionSupported() const;
+    static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+        VkDebugUtilsMessageTypeFlagsEXT message_type,
+        const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+        void* user_data);
+    static VkResult CreateDebugUtilsMessengerEXT(
+        VkInstance instance,
+        const VkDebugUtilsMessengerCreateInfoEXT* create_info,
+        const VkAllocationCallbacks* allocator,
+        VkDebugUtilsMessengerEXT* debug_messenger);
+    static void DestroyDebugUtilsMessengerEXT(
+        VkInstance instance,
+        VkDebugUtilsMessengerEXT debug_messenger,
+        const VkAllocationCallbacks* allocator);
 
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     GLFWwindow* window_ = nullptr;
 
     VkInstance instance_ = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
@@ -113,4 +131,5 @@ private:
 
     std::size_t current_frame_ = 0;
     bool framebuffer_resized_ = false;
+    bool enable_validation_layers_ = false;
 };

@@ -24,6 +24,7 @@ void Engine::Run() {
 
     while (!renderer_.ShouldClose()) {
         timer_.BeginFrame();
+        renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()));
         renderer_.PollEvents();
         input.BeginFrame();
 
