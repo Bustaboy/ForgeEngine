@@ -98,6 +98,7 @@ void VulkanRenderer::Init() {
     CreateImageViews();
     CreateRenderPass();
     CreateGraphicsPipeline();
+    CreatePostProcessResources();
     CreateFramebuffers();
     CreateCommandPool();
     CreateCommandBuffers();
@@ -111,6 +112,7 @@ void VulkanRenderer::Shutdown() {
     }
 
     GF_LOG_INFO("Destroying swapchain resources...");
+    DestroyPostProcessResources();
     CleanupSwapChain();
 
     GF_LOG_INFO("Destroying synchronization objects...");
@@ -199,6 +201,7 @@ void VulkanRenderer::DrawFPSOverlay(float fps) {
 }
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
+    post_process_time_seconds_ += 1.0F / 60.0F;
     DrawFrame(scene, camera);
 }
 
@@ -548,7 +551,7 @@ void VulkanRenderer::CreateRenderPass() {
     color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference color_attachment_ref{};
     color_attachment_ref.attachment = 0;
@@ -577,6 +580,44 @@ void VulkanRenderer::CreateRenderPass() {
     render_pass_info.pDependencies = &dependency;
 
     VK_CHECK(vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_));
+
+    VkAttachmentDescription post_color_attachment{};
+    post_color_attachment.format = swap_chain_image_format_;
+    post_color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    post_color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    post_color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    post_color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    post_color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    post_color_attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    post_color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference post_color_attachment_ref{};
+    post_color_attachment_ref.attachment = 0;
+    post_color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription post_subpass{};
+    post_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    post_subpass.colorAttachmentCount = 1;
+    post_subpass.pColorAttachments = &post_color_attachment_ref;
+
+    VkSubpassDependency post_dependency{};
+    post_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    post_dependency.dstSubpass = 0;
+    post_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    post_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    post_dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    post_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+
+    VkRenderPassCreateInfo post_render_pass_info{};
+    post_render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    post_render_pass_info.attachmentCount = 1;
+    post_render_pass_info.pAttachments = &post_color_attachment;
+    post_render_pass_info.subpassCount = 1;
+    post_render_pass_info.pSubpasses = &post_subpass;
+    post_render_pass_info.dependencyCount = 1;
+    post_render_pass_info.pDependencies = &post_dependency;
+
+    VK_CHECK(vkCreateRenderPass(device_, &post_render_pass_info, nullptr, &post_process_render_pass_));
 }
 
 void VulkanRenderer::CreateGraphicsPipeline() {
@@ -719,6 +760,90 @@ void VulkanRenderer::CreateGraphicsPipeline() {
 
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+
+    const std::vector<char> post_vert_shader_code = ReadBinaryFile({
+        cwd / "shaders/postprocess.vert.spv",
+        cwd / "../shaders/postprocess.vert.spv",
+        cwd / "../../shaders/postprocess.vert.spv",
+        cwd / "shaders/vertex.vert.spv",
+        cwd / "../shaders/vertex.vert.spv",
+        cwd / "../../shaders/vertex.vert.spv",
+    });
+    const std::vector<char> post_frag_shader_code = ReadBinaryFile({
+        cwd / "shaders/postprocess.frag.spv",
+        cwd / "../shaders/postprocess.frag.spv",
+        cwd / "../../shaders/postprocess.frag.spv",
+        cwd / "shaders/fragment.frag.spv",
+        cwd / "../shaders/fragment.frag.spv",
+        cwd / "../../shaders/fragment.frag.spv",
+    });
+
+    const VkShaderModule post_vert_shader_module = CreateShaderModule(device_, post_vert_shader_code);
+    const VkShaderModule post_frag_shader_module = CreateShaderModule(device_, post_frag_shader_code);
+
+    VkPipelineShaderStageCreateInfo post_vert_shader_stage_info{};
+    post_vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    post_vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    post_vert_shader_stage_info.module = post_vert_shader_module;
+    post_vert_shader_stage_info.pName = "main";
+
+    VkPipelineShaderStageCreateInfo post_frag_shader_stage_info{};
+    post_frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    post_frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_frag_shader_stage_info.module = post_frag_shader_module;
+    post_frag_shader_stage_info.pName = "main";
+
+    VkPipelineShaderStageCreateInfo post_shader_stages[] = {post_vert_shader_stage_info, post_frag_shader_stage_info};
+
+    VkPushConstantRange post_push_constant_range{};
+    post_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_push_constant_range.offset = 0;
+    post_push_constant_range.size = sizeof(PostProcessPushConstants);
+
+    VkPipelineLayoutCreateInfo post_pipeline_layout_info{};
+    post_pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    post_pipeline_layout_info.pushConstantRangeCount = 1;
+    post_pipeline_layout_info.pPushConstantRanges = &post_push_constant_range;
+    VK_CHECK(vkCreatePipelineLayout(device_, &post_pipeline_layout_info, nullptr, &post_process_pipeline_layout_));
+
+    VkPipelineColorBlendAttachmentState post_color_blend_attachment{};
+    post_color_blend_attachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT |
+        VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT |
+        VK_COLOR_COMPONENT_A_BIT;
+    post_color_blend_attachment.blendEnable = VK_TRUE;
+    post_color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    post_color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    post_color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    post_color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    post_color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    post_color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo post_color_blending{};
+    post_color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    post_color_blending.logicOpEnable = VK_FALSE;
+    post_color_blending.attachmentCount = 1;
+    post_color_blending.pAttachments = &post_color_blend_attachment;
+
+    VkGraphicsPipelineCreateInfo post_pipeline_info{};
+    post_pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    post_pipeline_info.stageCount = 2;
+    post_pipeline_info.pStages = post_shader_stages;
+    post_pipeline_info.pVertexInputState = &vertex_input_info;
+    post_pipeline_info.pInputAssemblyState = &input_assembly;
+    post_pipeline_info.pViewportState = &viewport_state;
+    post_pipeline_info.pRasterizationState = &rasterizer;
+    post_pipeline_info.pMultisampleState = &multisampling;
+    post_pipeline_info.pColorBlendState = &post_color_blending;
+    post_pipeline_info.layout = post_process_pipeline_layout_;
+    post_pipeline_info.renderPass = post_process_render_pass_;
+    post_pipeline_info.subpass = 0;
+    post_pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+    VK_CHECK(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &post_pipeline_info, nullptr, &post_process_pipeline_));
+
+    vkDestroyShaderModule(device_, post_frag_shader_module, nullptr);
+    vkDestroyShaderModule(device_, post_vert_shader_module, nullptr);
 }
 
 void VulkanRenderer::CreateFramebuffers() {
@@ -738,6 +863,45 @@ void VulkanRenderer::CreateFramebuffers() {
 
         VK_CHECK(vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &swap_chain_framebuffers_[i]));
     }
+}
+
+void VulkanRenderer::CreatePostProcessResources() {
+}
+
+void VulkanRenderer::RecordPostProcessPass(VkCommandBuffer command_buffer, std::uint32_t image_index) {
+    if (!post_process_enabled_ || post_process_pipeline_ == VK_NULL_HANDLE || post_process_render_pass_ == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkRenderPassBeginInfo post_render_pass_begin_info{};
+    post_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    post_render_pass_begin_info.renderPass = post_process_render_pass_;
+    post_render_pass_begin_info.framebuffer = swap_chain_framebuffers_[image_index];
+    post_render_pass_begin_info.renderArea.offset = {0, 0};
+    post_render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+
+    vkCmdBeginRenderPass(command_buffer, &post_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, post_process_pipeline_);
+
+    PostProcessPushConstants post_process_push_constants{};
+    post_process_push_constants.bloom_strength = 0.28F;
+    post_process_push_constants.exposure = 1.05F;
+    post_process_push_constants.vignette_strength = 0.13F;
+    post_process_push_constants.time_seconds = post_process_time_seconds_;
+
+    vkCmdPushConstants(
+        command_buffer,
+        post_process_pipeline_layout_,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        0,
+        sizeof(PostProcessPushConstants),
+        &post_process_push_constants);
+
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    vkCmdEndRenderPass(command_buffer);
+}
+
+void VulkanRenderer::DestroyPostProcessResources() {
 }
 
 void VulkanRenderer::CreateCommandPool() {
@@ -841,6 +1005,9 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     }
 
     vkCmdEndRenderPass(command_buffers_[image_index]);
+    if (post_process_enabled_) {
+        RecordPostProcessPass(command_buffers_[image_index], image_index);
+    }
 
     VK_CHECK(vkEndCommandBuffer(command_buffers_[image_index]));
 }
@@ -925,14 +1092,29 @@ void VulkanRenderer::CleanupSwapChain() {
         graphics_pipeline_ = VK_NULL_HANDLE;
     }
 
+    if (post_process_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, post_process_pipeline_, nullptr);
+        post_process_pipeline_ = VK_NULL_HANDLE;
+    }
+
     if (pipeline_layout_ != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
         pipeline_layout_ = VK_NULL_HANDLE;
     }
 
+    if (post_process_pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, post_process_pipeline_layout_, nullptr);
+        post_process_pipeline_layout_ = VK_NULL_HANDLE;
+    }
+
     if (render_pass_ != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device_, render_pass_, nullptr);
         render_pass_ = VK_NULL_HANDLE;
+    }
+
+    if (post_process_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, post_process_render_pass_, nullptr);
+        post_process_render_pass_ = VK_NULL_HANDLE;
     }
 
     for (VkImageView image_view : swap_chain_image_views_) {
@@ -962,6 +1144,7 @@ void VulkanRenderer::RecreateSwapChain() {
     CreateImageViews();
     CreateRenderPass();
     CreateGraphicsPipeline();
+    CreatePostProcessResources();
     CreateFramebuffers();
     CreateCommandBuffers();
 }

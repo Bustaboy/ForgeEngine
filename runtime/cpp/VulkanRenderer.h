@@ -42,6 +42,20 @@ public:
     void SetWindowTitle(const std::string& title) const;
 
 private:
+    struct PostProcessPushConstants {
+        float bloom_strength = 0.32F;
+        float exposure = 1.05F;
+        float vignette_strength = 0.14F;
+        float time_seconds = 0.0F;
+    };
+
+    struct PostProcessImage {
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkImageView view = VK_NULL_HANDLE;
+        VkExtent2D extent{};
+    };
+
     struct QueueFamilyIndices {
         std::optional<std::uint32_t> graphics_family;
         std::optional<std::uint32_t> present_family;
@@ -66,6 +80,9 @@ private:
     void CreateImageViews();
     void CreateRenderPass();
     void CreateGraphicsPipeline();
+    void CreatePostProcessResources();
+    void RecordPostProcessPass(VkCommandBuffer command_buffer, std::uint32_t image_index);
+    void DestroyPostProcessResources();
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateCommandBuffers();
@@ -119,8 +136,15 @@ private:
     std::vector<VkFramebuffer> swap_chain_framebuffers_;
 
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
+    VkRenderPass post_process_render_pass_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+    VkPipelineLayout post_process_pipeline_layout_ = VK_NULL_HANDLE;
+    VkPipeline post_process_pipeline_ = VK_NULL_HANDLE;
+    PostProcessImage bloom_image_a_{};
+    PostProcessImage bloom_image_b_{};
+    bool post_process_enabled_ = true;
+    float post_process_time_seconds_ = 0.0F;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;

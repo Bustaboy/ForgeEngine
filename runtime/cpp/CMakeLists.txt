@@ -114,6 +114,8 @@ set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES
     ${FORGE_SHADER_DIR}/vertex.vert
     ${FORGE_SHADER_DIR}/fragment.frag
+    ${FORGE_SHADER_DIR}/postprocess.vert
+    ${FORGE_SHADER_DIR}/postprocess.frag
 )
 
 if(GLSLC_EXECUTABLE)
