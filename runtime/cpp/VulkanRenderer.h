@@ -24,9 +24,10 @@ public:
 
     void Init();
     void Shutdown();
-    void RenderFrame(const Scene& scene, float elapsed_seconds);
+    void RenderFrame(const Scene& scene);
 
     [[nodiscard]] bool ShouldClose() const;
+    [[nodiscard]] bool IsKeyPressed(int key) const;
     void PollEvents() const;
     void SetWindowTitle(const std::string& title) const;
 
@@ -60,8 +61,8 @@ private:
     void CreateSyncObjects();
     void CleanupSwapChain();
     void RecreateSwapChain();
-    void DrawFrame(const Scene& scene, float elapsed_seconds);
-    void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, float elapsed_seconds);
+    void DrawFrame(const Scene& scene);
+    void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene);
 
     [[nodiscard]] QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool IsDeviceSuitable(VkPhysicalDevice device) const;

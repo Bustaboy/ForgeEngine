@@ -6,6 +6,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 set(FORGE_VULKAN_HINT_PATHS)
 if(DEFINED ENV{VULKAN_SDK})
     list(APPEND FORGE_VULKAN_HINT_PATHS "$ENV{VULKAN_SDK}")
@@ -61,6 +69,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/Engine.cpp
     runtime/cpp/Timer.cpp
     runtime/cpp/VulkanRenderer.cpp
+    runtime/cpp/SceneLoader.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
@@ -68,14 +77,13 @@ add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
-        external/glm
-        external/nlohmann_json/include
 )
 
 target_link_libraries(forge_runtime
     PRIVATE
         Vulkan::Vulkan
         glfw
+        nlohmann_json::nlohmann_json
 )
 
 if(MSVC)

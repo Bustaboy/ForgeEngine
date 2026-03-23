@@ -1,10 +1,10 @@
 #include "Engine.h"
 
 #include "Logger.h"
+#include "SceneLoader.h"
 
 #include <array>
 #include <chrono>
-#include <cmath>
 #include <string>
 #include <thread>
 
@@ -19,6 +19,16 @@ void Engine::Run() {
         timer_.BeginFrame();
         renderer_.PollEvents();
 
+        if (renderer_.IsKeyPressed(GLFW_KEY_ESCAPE)) {
+            const bool saved = scene_.Save(scene_path_);
+            if (saved) {
+                GF_LOG_INFO("Scene saved: " + scene_path_);
+            } else {
+                GF_LOG_INFO("Scene save failed: " + scene_path_);
+            }
+            break;
+        }
+
         const auto now = std::chrono::steady_clock::now();
         const std::chrono::duration<double> frame_delta = now - previous_time;
         previous_time = now;
@@ -29,7 +39,7 @@ void Engine::Run() {
             accumulator -= fixed_dt;
         }
 
-        renderer_.RenderFrame(scene_, elapsed_seconds_);
+        renderer_.RenderFrame(scene_);
 
         if (timer_.ShouldUpdateFps()) {
             renderer_.SetWindowTitle(
@@ -46,6 +56,25 @@ void Engine::Run() {
 void Engine::Init() {
     Logger::Init();
     GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");
+
+    if (SceneLoader::Load(scene_path_, scene_)) {
+        GF_LOG_INFO("Loaded scene: " + scene_path_);
+    } else {
+        SeedFallbackScene();
+        GF_LOG_INFO("Using fallback scene entities");
+    }
+
+    renderer_.Init();
+    GF_LOG_INFO("Render loop started");
+}
+
+void Engine::Update(float dt_seconds) {
+    scene_.Update(dt_seconds);
+}
+
+void Engine::SeedFallbackScene() {
+    scene_.entities.clear();
+    scene_.elapsed_seconds = 0.0F;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
     constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};
@@ -66,34 +95,6 @@ void Engine::Init() {
         entity.renderable.color = kBaseColors[i];
         entity.velocity = {kVelocityX[i], 0.0F, 0.0F};
         scene_.entities.push_back(entity);
-    }
-
-    renderer_.Init();
-    GF_LOG_INFO("Render loop started");
-}
-
-void Engine::Update(float dt_seconds) {
-    elapsed_seconds_ += dt_seconds;
-
-    for (std::size_t i = 0; i < scene_.entities.size(); ++i) {
-        Entity& entity = scene_.entities[i];
-
-        entity.transform.pos.x += entity.velocity.x * dt_seconds;
-        entity.transform.pos.y = std::sin((elapsed_seconds_ * 1.35F) + static_cast<float>(i) * 0.85F) * 0.45F;
-        entity.transform.rot.z = elapsed_seconds_ * (0.3F + static_cast<float>(i) * 0.15F);
-
-        if (entity.transform.pos.x > 1.2F) {
-            entity.transform.pos.x = -1.2F;
-        }
-
-        const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (0.9F + static_cast<float>(i) * 0.1F));
-        const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (1.1F + static_cast<float>(i) * 0.07F));
-        const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (1.3F + static_cast<float>(i) * 0.05F));
-
-        entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
-        entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
-        entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
-        entity.renderable.color.a = 1.0F;
     }
 }
 
