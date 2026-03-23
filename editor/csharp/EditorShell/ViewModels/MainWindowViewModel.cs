@@ -871,6 +871,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public bool HasNoAssetResults => !HasAssetResults;
 
+    public string AssetResultsSummary => HasAssetResults
+        ? $"{FilteredImportedAssets.Count} shown / {ImportedAssets.Count} total"
+        : $"0 shown / {ImportedAssets.Count} total";
+
     public bool IsAssetDragGhostVisible
     {
         get => _isAssetDragGhostVisible;
@@ -4262,10 +4266,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var next = string.IsNullOrWhiteSpace(query)
             ? ImportedAssets.ToList()
             : ImportedAssets
-                .Where(asset =>
-                    asset.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                    asset.Kind.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                    asset.Id.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Where(asset => asset.SearchCorpus.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
         _filteredImportedAssets.Clear();
@@ -4276,6 +4277,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(HasAssetResults));
         OnPropertyChanged(nameof(HasNoAssetResults));
+        OnPropertyChanged(nameof(AssetResultsSummary));
     }
 
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
@@ -4754,7 +4756,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public string ColorHex { get; }
 
-        public string PreviewPath => string.Equals(Kind, ImportedAssetKind.Texture, StringComparison.OrdinalIgnoreCase)
+        public bool IsTexture => string.Equals(Kind, ImportedAssetKind.Texture, StringComparison.OrdinalIgnoreCase);
+
+        public bool IsModel => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase);
+
+        public string PreviewPath => IsTexture
             ? SourcePath
             : string.Empty;
 
@@ -4762,13 +4768,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public bool HasNoPreviewImage => !HasPreviewImage;
 
-        public string ThumbnailGlyph => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase)
+        public string ThumbnailGlyph => IsModel
             ? "🧊"
             : "🖼";
 
-        public string KindLabel => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase)
+        public string KindLabel => IsModel
             ? "OBJ Model"
             : "PNG Texture";
+
+        public string ThumbnailBadge => IsModel ? "OBJ" : "PNG";
+
+        public string SearchCorpus => $"{DisplayName} {Kind} {KindLabel} {Id} {SourcePath}";
     }
 
     private static class ImportedAssetKind
