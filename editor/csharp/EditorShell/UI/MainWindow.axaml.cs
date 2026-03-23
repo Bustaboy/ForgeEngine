@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
@@ -37,6 +38,8 @@ public partial class MainWindow : Window
         ConfigureCodeEditor();
         ConfigureViewportSurface();
         DataContext = _viewModel;
+        _viewModel.ThemePreferenceChanged += ApplyThemePreference;
+        ApplyThemePreference(_viewModel.ThemePreference);
         Opened += OnOpened;
         Closed += OnClosed;
     }
@@ -161,6 +164,7 @@ public partial class MainWindow : Window
         }
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.ThemePreferenceChanged -= ApplyThemePreference;
         _viewModel.ViewportEntities.CollectionChanged -= OnViewportEntitiesChanged;
         foreach (var entity in _viewModel.ViewportEntities)
         {
@@ -688,7 +692,7 @@ public partial class MainWindow : Window
 
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
-        var wizard = new NewProjectWizardWindow();
+        var wizard = new NewProjectWizardWindow(_viewModel.EditorDefaultTemplateId);
         await wizard.ShowDialog(this);
         if (wizard.Result is null)
         {
@@ -714,6 +718,18 @@ public partial class MainWindow : Window
     private async void OnGenerateAndPlayClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.GenerateFromBriefAsync(launchRuntime: true);
+    }
+
+    private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        var settingsWindow = new SettingsWindow(_viewModel.GetPreferencesSnapshot());
+        await settingsWindow.ShowDialog(this);
+        if (settingsWindow.Result is null)
+        {
+            return;
+        }
+
+        await _viewModel.ApplyAndSavePreferencesAsync(settingsWindow.Result);
     }
 
     private async void OnSaveCodeClick(object? sender, RoutedEventArgs e)
@@ -772,6 +788,21 @@ public partial class MainWindow : Window
     private void OnOpenInstallerOutputClick(object? sender, RoutedEventArgs e)
     {
         _viewModel.OpenInstallerOutputPath();
+    }
+
+    private void ApplyThemePreference(string themePreference)
+    {
+        if (Application.Current is null)
+        {
+            return;
+        }
+
+        Application.Current.RequestedThemeVariant = themePreference switch
+        {
+            "Light" => ThemeVariant.Light,
+            "System" => ThemeVariant.Default,
+            _ => ThemeVariant.Dark,
+        };
     }
 
     private async Task<bool> ShowPublishDryRunConfirmationAsync()

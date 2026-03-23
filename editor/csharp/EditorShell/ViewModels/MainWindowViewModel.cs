@@ -105,16 +105,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _installerBuildStatus = "Installer build not started.";
     private string _installerOutputPath = "No installer artifact yet.";
     private string _installerBuildLog = "Installer logs will appear here.";
+    private readonly string _settingsFilePath;
+    private EditorPreferences _preferences = EditorPreferences.CreateDefault();
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
     {
     }
 
-    internal MainWindowViewModel(IOrchestratorGateway orchestratorGateway, IRuntimeSupervisor runtimeSupervisor)
+    internal MainWindowViewModel(IOrchestratorGateway orchestratorGateway, IRuntimeSupervisor runtimeSupervisor, string? settingsFilePath = null)
     {
         _orchestratorGateway = orchestratorGateway;
         _runtimeSupervisor = runtimeSupervisor;
+        _settingsFilePath = settingsFilePath ?? Path.Combine(Environment.CurrentDirectory, ".forgeengine", "settings.json");
+        _preferences = EditorPreferences.LoadOrDefault(_settingsFilePath);
         _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
         _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
@@ -145,9 +149,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsSingleSelection));
             OnPropertyChanged(nameof(SelectedEntitiesCount));
         };
+        EnforceHistoryLimit();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event Action<string>? ThemePreferenceChanged;
 
     public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
 
@@ -271,6 +277,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
+
+    public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;
+
+    public string ThemePreference => _preferences.General.Theme;
+
+    public string AutosaveStatusLabel => IsAutosaveEnabled ? "Autosave: On" : "Autosave: Off";
+
+    public string RuntimePreferencesSummary => $"{_preferences.Runtime.VulkanResolution} @ {_preferences.Runtime.FpsLimit} FPS cap";
+
+    public int RibbonIconSize => _preferences.Editor.IconSize;
+
+    public string EditorDefaultTemplateId => _preferences.Editor.DefaultTemplateId;
 
     public bool HasTimelineKeyframes => _animationTracks.Values.Any(track => track.Keyframes.Count > 0);
 
@@ -1878,6 +1896,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ShowToast(value);
     }
 
+    public EditorPreferences GetPreferencesSnapshot() => _preferences.Clone();
+
+    public async Task ApplyAndSavePreferencesAsync(EditorPreferences updatedPreferences, CancellationToken cancellationToken = default)
+    {
+        _preferences = updatedPreferences.Sanitize();
+        await _preferences.SaveAsync(_settingsFilePath, cancellationToken);
+        EnforceHistoryLimit();
+        OnPropertyChanged(nameof(IsAutosaveEnabled));
+        OnPropertyChanged(nameof(ThemePreference));
+        OnPropertyChanged(nameof(AutosaveStatusLabel));
+        OnPropertyChanged(nameof(RuntimePreferencesSummary));
+        OnPropertyChanged(nameof(RibbonIconSize));
+        OnPropertyChanged(nameof(EditorDefaultTemplateId));
+        ThemePreferenceChanged?.Invoke(_preferences.General.Theme);
+        StatusMessage = $"Settings saved to {_settingsFilePath}";
+        ShowToast("Settings applied.");
+    }
+
     private async Task RunPipelineForBriefAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken)
     {
         if (IsBusy)
@@ -3226,6 +3262,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _undoStack.Push(_currentSceneHistoryEntry.Value);
         _redoStack.Clear();
         _currentSceneHistoryEntry = new SceneHistoryEntry(afterContent, operationDescription, _nextHistoryRevision++);
+        EnforceHistoryLimit();
         NotifyHistoryChanged();
         await ApplySceneContentAndRelaunchAsync(scenePath, afterContent, operationDescription, cancellationToken);
     }
@@ -3233,6 +3270,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private async Task ApplySceneContentAndRelaunchAsync(string scenePath, string content, string operationDescription, CancellationToken cancellationToken)
     {
         await File.WriteAllTextAsync(scenePath, content, cancellationToken);
+        await WriteAutosaveSnapshotAsync(content, cancellationToken);
         StatusMessage = $"{operationDescription}. Recompiling and relaunching runtime...";
         ShowToast(operationDescription);
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
@@ -3246,6 +3284,48 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
         RebuildHistoryTimeline();
+    }
+
+    private void EnforceHistoryLimit()
+    {
+        var historyLimit = _preferences.Editor.HistoryLength;
+        if (_undoStack.Count > historyLimit)
+        {
+            var retained = _undoStack.Take(historyLimit).ToArray();
+            _undoStack.Clear();
+            for (var index = retained.Length - 1; index >= 0; index--)
+            {
+                _undoStack.Push(retained[index]);
+            }
+        }
+
+        if (_redoStack.Count > historyLimit)
+        {
+            var retained = _redoStack.Take(historyLimit).ToArray();
+            _redoStack.Clear();
+            for (var index = retained.Length - 1; index >= 0; index--)
+            {
+                _redoStack.Push(retained[index]);
+            }
+        }
+    }
+
+    private async Task WriteAutosaveSnapshotAsync(string sceneContent, CancellationToken cancellationToken)
+    {
+        if (!IsAutosaveEnabled)
+        {
+            return;
+        }
+
+        var settingsRoot = Path.GetDirectoryName(_settingsFilePath) ?? ".forgeengine";
+        var autosavePath = Path.Combine(settingsRoot, "autosave", "scene_autosave.json");
+        var autosaveDirectory = Path.GetDirectoryName(autosavePath);
+        if (!string.IsNullOrWhiteSpace(autosaveDirectory))
+        {
+            Directory.CreateDirectory(autosaveDirectory);
+        }
+
+        await File.WriteAllTextAsync(autosavePath, sceneContent, cancellationToken);
     }
 
     private async Task JumpToHistoryAsync(object? parameter)
