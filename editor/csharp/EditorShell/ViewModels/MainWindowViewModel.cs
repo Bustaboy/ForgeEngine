@@ -151,6 +151,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StopTimelinePlaybackCommand = new AsyncRelayCommand(() => StopTimelinePlaybackAsync(resetTime: true));
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
+        CreateHierarchyGroupCommand = new AsyncRelayCommand(CreateHierarchyGroupAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         ImportedAssets.CollectionChanged += OnImportedAssetsCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
@@ -199,6 +200,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand SetTimelineModeCommand { get; }
 
     public ICommand SetLeftPanelTabCommand { get; }
+
+    public ICommand CreateHierarchyGroupCommand { get; }
 
     public string ChatPrompt
     {
@@ -2767,28 +2770,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task<bool> ReparentEntityAsync(string sourceEntityId, string? targetEntityId, CancellationToken cancellationToken = default)
     {
-        var source = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, sourceEntityId, StringComparison.Ordinal));
-        if (source is null || source.Type == "player")
+        var reparentTargets = ResolveReparentTargets(sourceEntityId, targetEntityId);
+        if (reparentTargets.Count == 0)
         {
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(targetEntityId))
-        {
-            var target = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, targetEntityId, StringComparison.Ordinal));
-            if (target is null || target.Id == source.Id || target.Type == "player")
-            {
-                return false;
-            }
-
-            if (IsDescendantOf(target.Id, source.Id))
-            {
-                ShowToast("Reparent blocked: cyclic hierarchy.");
-                return false;
-            }
-        }
-
-        if (string.Equals(source.ParentId ?? string.Empty, targetEntityId ?? string.Empty, StringComparison.Ordinal))
+        if (reparentTargets.All(entity => string.Equals(entity.ParentId ?? string.Empty, targetEntityId ?? string.Empty, StringComparison.Ordinal)))
         {
             return false;
         }
@@ -2810,16 +2798,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 return false;
             }
 
-            if (!TrySetEntityParentInScene(root, sourceEntityId, targetEntityId))
+            var updatedCount = 0;
+            foreach (var entity in reparentTargets)
+            {
+                if (TrySetEntityParentInScene(root, entity.Id, targetEntityId))
+                {
+                    updatedCount++;
+                }
+            }
+
+            if (updatedCount == 0)
             {
                 ShowToast("Hierarchy update failed.");
                 return false;
             }
 
             var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-            var label = string.IsNullOrWhiteSpace(targetEntityId)
-                ? $"Hierarchy updated: {source.DisplayName} moved to root"
-                : $"Hierarchy updated: {source.DisplayName} parent → {targetEntityId}";
+            var targetLabel = string.IsNullOrWhiteSpace(targetEntityId)
+                ? "root"
+                : targetEntityId;
+            var label = reparentTargets.Count == 1
+                ? $"Hierarchy updated: {reparentTargets[0].DisplayName} parent → {targetLabel}"
+                : $"Hierarchy updated: {reparentTargets.Count} entities parent → {targetLabel}";
             await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
             return true;
         }
@@ -2827,6 +2827,219 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             StatusMessage = $"Hierarchy reparent failed: {ex.Message}";
             ShowToast("Hierarchy reparent failed.");
+            return false;
+        }
+    }
+
+    public async Task<bool> CreateHierarchyGroupAsync(CancellationToken cancellationToken = default)
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before creating groups.";
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            var entities = root["entities"] as JsonArray ?? new JsonArray();
+            root["entities"] = entities;
+            var nextGroupIndex = ResolveNextGroupIndex(entities);
+            var groupId = $"group_{nextGroupIndex:00}";
+            var groupName = $"Group {nextGroupIndex:00}";
+            var spawnX = _selectedViewportEntities.Count > 0 ? _selectedViewportEntities.Average(entity => entity.X) : 0f;
+            var spawnY = _selectedViewportEntities.Count > 0 ? _selectedViewportEntities.Average(entity => entity.Y) : 0f;
+            entities.Add(new JsonObject
+            {
+                ["id"] = groupId,
+                ["type"] = "group",
+                ["name"] = groupName,
+                ["x"] = spawnX,
+                ["y"] = spawnY,
+                ["z"] = 0,
+                ["scale"] = 1,
+                ["color"] = "#6F89FF",
+            });
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Group created: {groupName}", cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Create group failed: {ex.Message}";
+            ShowToast("Group creation failed.");
+            return false;
+        }
+    }
+
+    public async Task<bool> RenameHierarchyEntityAsync(string entityId, string nextLabel, CancellationToken cancellationToken = default)
+    {
+        var trimmed = nextLabel.Trim();
+        if (string.IsNullOrWhiteSpace(entityId) || string.IsNullOrWhiteSpace(trimmed))
+        {
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            if (!TrySetEntityNameInScene(root, entityId, trimmed))
+            {
+                ShowToast("Rename failed: entity not found.");
+                return false;
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Renamed: {trimmed}", cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Rename failed: {ex.Message}";
+            ShowToast("Rename failed.");
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteHierarchyEntityAsync(string entityId, CancellationToken cancellationToken = default)
+    {
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null || entity.Type == "player")
+        {
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            var deletedIds = CollectEntityAndDescendantIds(entityId);
+            var deletedAny = false;
+            foreach (var id in deletedIds)
+            {
+                var selected = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.Ordinal));
+                if (selected is null)
+                {
+                    continue;
+                }
+
+                _animationTracks.Remove(id);
+                deletedAny = TryDeleteEntityInScene(root, selected) || deletedAny;
+            }
+
+            if (!deletedAny)
+            {
+                ShowToast("Delete failed: entity not found.");
+                return false;
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            var label = deletedIds.Count == 1 ? $"Entity deleted: {entity.DisplayName}" : $"Group deleted: {entity.DisplayName} + {deletedIds.Count - 1} children";
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Delete failed: {ex.Message}";
+            ShowToast("Delete failed.");
+            return false;
+        }
+    }
+
+    public async Task<bool> UngroupHierarchyEntityAsync(string entityId, CancellationToken cancellationToken = default)
+    {
+        var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
+        if (entity is null || entity.Type == "player")
+        {
+            return false;
+        }
+
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            ShowToast("Generate prototype first.");
+            return false;
+        }
+
+        try
+        {
+            var beforeContent = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var root = JsonNode.Parse(beforeContent)?.AsObject();
+            if (root is null)
+            {
+                ShowToast("Scene parse failed.");
+                return false;
+            }
+
+            var children = ViewportEntities.Where(item => string.Equals(item.ParentId, entityId, StringComparison.Ordinal)).ToList();
+            foreach (var child in children)
+            {
+                TrySetEntityParentInScene(root, child.Id, entity.ParentId);
+            }
+
+            if (!string.Equals(entity.Type, "group", StringComparison.Ordinal))
+            {
+                if (!TrySetEntityParentInScene(root, entity.Id, null))
+                {
+                    return false;
+                }
+
+                var detachedContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                await WriteSceneAndRelaunchAsync(scenePath, beforeContent, detachedContent, $"Ungrouped: {entity.DisplayName}", cancellationToken);
+                return true;
+            }
+
+            _animationTracks.Remove(entity.Id);
+            if (!TryDeleteEntityInScene(root, entity))
+            {
+                return false;
+            }
+
+            var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Ungrouped: {entity.DisplayName}", cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ungroup failed: {ex.Message}";
+            ShowToast("Ungroup failed.");
             return false;
         }
     }
@@ -2851,6 +3064,60 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return false;
+    }
+
+    private List<ViewportEntity> ResolveReparentTargets(string sourceEntityId, string? targetEntityId)
+    {
+        var source = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, sourceEntityId, StringComparison.Ordinal));
+        if (source is null || source.Type == "player")
+        {
+            return [];
+        }
+
+        ViewportEntity? target = null;
+        if (!string.IsNullOrWhiteSpace(targetEntityId))
+        {
+            target = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Id, targetEntityId, StringComparison.Ordinal));
+            if (target is null || target.Type == "player")
+            {
+                return [];
+            }
+        }
+
+        var candidates = _selectedViewportEntities.Any(item => string.Equals(item.Id, sourceEntityId, StringComparison.Ordinal))
+            ? _selectedViewportEntities
+            : [source];
+        var result = new List<ViewportEntity>();
+        foreach (var candidate in candidates)
+        {
+            if (candidate.Type == "player")
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(targetEntityId))
+            {
+                if (string.Equals(candidate.Id, targetEntityId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (IsDescendantOf(targetEntityId, candidate.Id))
+                {
+                    ShowToast("Reparent blocked: cyclic hierarchy.");
+                    return [];
+                }
+            }
+
+            result.Add(candidate);
+        }
+
+        if (target is not null)
+        {
+            result.RemoveAll(entity => string.Equals(entity.Id, target.Id, StringComparison.Ordinal));
+        }
+
+        return result;
     }
 
     private static bool TrySetEntityParentInScene(JsonObject root, string sourceEntityId, string? targetEntityId)
@@ -2900,6 +3167,77 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return false;
+    }
+
+    private static bool TrySetEntityNameInScene(JsonObject root, string entityId, string name)
+    {
+        if (root["entities"] is JsonArray entities)
+        {
+            foreach (var node in entities.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), entityId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                node["name"] = name;
+                return true;
+            }
+        }
+
+        if (root["npcs"] is JsonArray npcs)
+        {
+            foreach (var node in npcs.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), entityId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                node["name"] = name;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private List<string> CollectEntityAndDescendantIds(string entityId)
+    {
+        var collected = new List<string>();
+        var queue = new Queue<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        queue.Enqueue(entityId);
+
+        while (queue.Count > 0)
+        {
+            var next = queue.Dequeue();
+            if (!visited.Add(next))
+            {
+                continue;
+            }
+
+            collected.Add(next);
+            foreach (var child in ViewportEntities.Where(item => string.Equals(item.ParentId, next, StringComparison.Ordinal)))
+            {
+                queue.Enqueue(child.Id);
+            }
+        }
+
+        return collected;
+    }
+
+    private static int ResolveNextGroupIndex(JsonArray entities)
+    {
+        var maxGroup = entities
+            .OfType<JsonObject>()
+            .Select(node => node["id"]?.GetValue<string>() ?? string.Empty)
+            .Select(id => Regex.Match(id, "^group_(\\d+)$", RegexOptions.IgnoreCase))
+            .Where(match => match.Success)
+            .Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0)
+            .Max();
+        return maxGroup + 1;
     }
 
     private void RebuildHierarchyTree()
@@ -4553,6 +4891,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             "npc" => "🧍",
             "prop" => "📦",
+            "group" => "🗂",
             "player" => "👤",
             _ => "🧩",
         };
