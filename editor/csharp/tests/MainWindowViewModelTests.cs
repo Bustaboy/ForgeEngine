@@ -387,10 +387,14 @@ public sealed class MainWindowViewModelTests : IDisposable
         var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
 
         var sceneRoot = Assert.Single(viewModel.HierarchyRoots);
+        var playerNode = sceneRoot.Children.Single(node => node.Label == "Player");
+        Assert.Equal("player_spawn", playerNode.EntityId);
         var miscGroup = sceneRoot.Children.Single(node => node.Label == "Groups");
         var squad = Assert.Single(miscGroup.Children.Where(node => node.EntityId == "group_01"));
         var squadChild = Assert.Single(squad.Children.Where(node => node.EntityId == "npc_01"));
         Assert.Equal("Prop Barrel", Assert.Single(squadChild.Children).Label);
+        Assert.True(sceneRoot.IsExpanded);
+        Assert.True(miscGroup.IsExpanded);
         Assert.Equal(4, viewModel.HierarchyEntityCount);
     }
 
@@ -411,6 +415,9 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal("prop_01", viewModel.SelectedViewportEntity?.Id);
         Assert.Equal("🎯 Prop Barrel", viewModel.HierarchySelectionBadge);
 
+        var groupsNode = sceneRoot.Children.Single(node => node.Label == "Groups");
+        groupsNode.IsExpanded = false;
+
         var reparented = await viewModel.ReparentEntityAsync("prop_01", "group_01");
         Assert.True(reparented);
         Assert.Equal("group_01", viewModel.ViewportEntities.Single(entity => entity.Id == "prop_01").ParentId);
@@ -421,6 +428,10 @@ public sealed class MainWindowViewModelTests : IDisposable
             .EnumerateArray()
             .Single(item => item.GetProperty("id").GetString() == "prop_01");
         Assert.Equal("group_01", entity.GetProperty("parent_id").GetString());
+
+        var rebuiltRoot = Assert.Single(viewModel.HierarchyRoots);
+        var rebuiltGroupsNode = rebuiltRoot.Children.Single(node => node.Label == "Groups");
+        Assert.False(rebuiltGroupsNode.IsExpanded);
     }
 
     public void Dispose()

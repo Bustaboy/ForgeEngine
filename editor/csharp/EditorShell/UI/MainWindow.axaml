@@ -105,6 +105,10 @@
       <Setter Property="BorderBrush" Value="#4AA3FF" />
       <Setter Property="BorderThickness" Value="1.4" />
     </Style>
+
+    <Style Selector="TreeView#HierarchyTree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
