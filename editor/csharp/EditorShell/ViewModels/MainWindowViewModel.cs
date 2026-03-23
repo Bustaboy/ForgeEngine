@@ -832,6 +832,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return Task.CompletedTask;
     }
 
+    public async Task CreateProjectFromTemplateAsync(
+        ProjectTemplatePreset template,
+        string projectName,
+        string quickConcept,
+        CancellationToken cancellationToken = default)
+    {
+        var sanitizedProjectName = string.IsNullOrWhiteSpace(projectName) ? template.DisplayName : projectName.Trim();
+        var supplementalConcept = quickConcept?.Trim() ?? string.Empty;
+
+        await NewPrototypeAsync(cancellationToken);
+        ChatPrompt = BuildTemplatePrompt(template, sanitizedProjectName, supplementalConcept);
+        _lastBriefPath = _orchestratorGateway.CreateBriefFromTemplate(template, sanitizedProjectName, supplementalConcept);
+        StatusMessage = $"Creating '{sanitizedProjectName}' from {template.DisplayName} template...";
+        ShowToast($"New project: {template.DisplayName}");
+        await RunPipelineForBriefAsync(_lastBriefPath, launchRuntime: true, cancellationToken);
+    }
+
     public async Task GenerateFromBriefAsync(bool launchRuntime, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(ChatPrompt))
@@ -843,6 +860,37 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         _lastBriefPath = _orchestratorGateway.CreateBriefFromChatPrompt(ChatPrompt);
         await RunPipelineForBriefAsync(_lastBriefPath, launchRuntime, cancellationToken);
+    }
+
+    public static IReadOnlyList<ProjectTemplatePreset> GetProjectTemplatePresets()
+    {
+        return
+        [
+            new ProjectTemplatePreset(
+                Id: "empty-scene",
+                DisplayName: "Empty Scene",
+                Icon: "🌌",
+                BriefSummary: "Blank solo sandbox with only player start + camera ready.",
+                CoreLoop: "Explore -> Place basics -> Iterate"),
+            new ProjectTemplatePreset(
+                Id: "simple-rpg",
+                DisplayName: "Simple RPG",
+                Icon: "🗡️",
+                BriefSummary: "Quest-forward starter with NPC beats and lightweight progression.",
+                CoreLoop: "Talk -> Quest -> Reward"),
+            new ProjectTemplatePreset(
+                Id: "cozy-colony",
+                DisplayName: "Cozy Colony",
+                Icon: "🏡",
+                BriefSummary: "Relaxed colony loop with gathering, building, and villager rhythm.",
+                CoreLoop: "Gather -> Build -> Care"),
+            new ProjectTemplatePreset(
+                Id: "basic-rts",
+                DisplayName: "Basic RTS",
+                Icon: "⚔️",
+                BriefSummary: "Small command-and-expand battlefield baseline with resource pressure.",
+                CoreLoop: "Scout -> Expand -> Defend"),
+        ];
     }
 
     public async Task PlayRuntimeAsync(CancellationToken cancellationToken = default)
@@ -1859,6 +1907,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             IsBusy = false;
         }
+    }
+
+    private static string BuildTemplatePrompt(ProjectTemplatePreset template, string projectName, string quickConcept)
+    {
+        var builder = new StringBuilder();
+        builder.Append(projectName.Trim());
+        builder.Append(" — ");
+        builder.Append(template.DisplayName);
+        builder.Append(". Core loop: ");
+        builder.Append(template.CoreLoop);
+
+        if (!string.IsNullOrWhiteSpace(quickConcept))
+        {
+            builder.Append(". Concept twist: ");
+            builder.Append(quickConcept.Trim());
+        }
+
+        builder.Append(". Single-player local-first prototype for Windows + Ubuntu.");
+        return builder.ToString();
     }
 
     private void ApplyRuntimePreview(PipelineRunResponse response)
@@ -4602,7 +4669,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Task<PipelineRunResponse> RunGenerationPipelineAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken);
 
         string CreateBriefFromChatPrompt(string prompt);
+
+        string CreateBriefFromTemplate(ProjectTemplatePreset template, string projectName, string quickConcept);
     }
+
+    public sealed record ProjectTemplatePreset(
+        string Id,
+        string DisplayName,
+        string Icon,
+        string BriefSummary,
+        string CoreLoop);
 
     public sealed record ExportChecklistItem(
         string Id,
@@ -4656,6 +4732,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public string CreateBriefFromChatPrompt(string prompt)
             => OrchestratorClient.CreateBriefFromChatPrompt(prompt);
+
+        public string CreateBriefFromTemplate(ProjectTemplatePreset template, string projectName, string quickConcept)
+            => OrchestratorClient.CreateBriefFromTemplate(template.Id, template.DisplayName, template.CoreLoop, projectName, quickConcept);
     }
 
     private sealed class RuntimeSupervisor : IRuntimeSupervisor

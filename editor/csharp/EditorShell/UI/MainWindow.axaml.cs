@@ -686,9 +686,19 @@ public partial class MainWindow : Window
         await modal.ShowDialog(this);
     }
 
-    private async void OnNewPrototypeClick(object? sender, RoutedEventArgs e)
+    private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
-        await _viewModel.NewPrototypeAsync();
+        var wizard = new NewProjectWizardWindow();
+        await wizard.ShowDialog(this);
+        if (wizard.Result is null)
+        {
+            return;
+        }
+
+        await _viewModel.CreateProjectFromTemplateAsync(
+            wizard.Result.Template,
+            wizard.Result.ProjectName,
+            wizard.Result.ConceptNotes);
     }
 
     private async void OnGenerateFromBriefClick(object? sender, RoutedEventArgs e)
