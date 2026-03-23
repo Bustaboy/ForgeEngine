@@ -2897,57 +2897,72 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         _hierarchyRoots.Clear();
 
-        var sceneRoot = new HierarchyNode("scene_root", "🧭 Scene", "🧭", null, false);
-        var npcGroup = new HierarchyNode("group_npcs", "🧍 NPCs", "🧍", null, false);
-        var propGroup = new HierarchyNode("group_props", "📦 Props", "📦", null, false);
-        var miscGroup = new HierarchyNode("group_misc", "🧩 Groups", "🧩", null, false);
-        sceneRoot.Children.Add(new HierarchyNode("player_root", "👤 Player", "👤", "player_spawn", true));
+        var sceneRoot = new HierarchyNode("scene_root", "Scene", "🧭", null, false);
+        var npcGroup = new HierarchyNode("group_npcs", "NPCs", "🧍", null, false);
+        var propGroup = new HierarchyNode("group_props", "Props", "📦", null, false);
+        var miscGroup = new HierarchyNode("group_misc", "Groups", "🧩", null, false);
+        sceneRoot.Children.Add(new HierarchyNode("player_root", "Player", "👤", "player_spawn", true));
         sceneRoot.Children.Add(npcGroup);
         sceneRoot.Children.Add(propGroup);
         sceneRoot.Children.Add(miscGroup);
 
-        var lookup = ViewportEntities.ToDictionary(entity => entity.Id, entity => entity, StringComparer.Ordinal);
-        foreach (var entity in ViewportEntities.Where(item => item.Type != "player"))
-        {
-            if (string.IsNullOrWhiteSpace(entity.ParentId))
-            {
-                var parentGroup = entity.Type switch
-                {
-                    "npc" => npcGroup,
-                    "prop" => propGroup,
-                    _ => miscGroup,
-                };
-                parentGroup.Children.Add(HierarchyNode.FromEntity(entity));
-            }
-        }
-
+        var entities = ViewportEntities
+            .Where(entity => entity.Type != "player")
+            .ToList();
+        var entityLookup = entities.ToDictionary(entity => entity.Id, entity => entity, StringComparer.Ordinal);
+        var childrenByParentId = entities
+            .Where(entity => !string.IsNullOrWhiteSpace(entity.ParentId))
+            .GroupBy(entity => entity.ParentId!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
         var attached = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var parent in ViewportEntities.Where(entity => entity.Type != "player"))
-        {
-            var parentNode = FindNodeByEntity(sceneRoot, parent.Id);
-            if (parentNode is null)
-            {
-                continue;
-            }
 
-            foreach (var child in ViewportEntities.Where(entity => string.Equals(entity.ParentId, parent.Id, StringComparison.Ordinal)))
+        foreach (var entity in entities.Where(item => string.IsNullOrWhiteSpace(item.ParentId)))
+        {
+            var parentGroup = entity.Type switch
             {
-                parentNode.Children.Add(HierarchyNode.FromEntity(child));
-                attached.Add(child.Id);
-            }
+                "npc" => npcGroup,
+                "prop" => propGroup,
+                _ => miscGroup,
+            };
+            parentGroup.Children.Add(BuildHierarchyEntitySubtree(entity, childrenByParentId, attached, new HashSet<string>(StringComparer.Ordinal)));
         }
 
-        foreach (var loose in ViewportEntities.Where(entity => entity.Type != "player" && !string.IsNullOrWhiteSpace(entity.ParentId) && !attached.Contains(entity.Id)))
+        foreach (var orphan in entities.Where(item =>
+                     !attached.Contains(item.Id)
+                     && !string.IsNullOrWhiteSpace(item.ParentId)
+                     && !entityLookup.ContainsKey(item.ParentId!)))
         {
-            if (!lookup.ContainsKey(loose.ParentId!))
-            {
-                propGroup.Children.Add(HierarchyNode.FromEntity(loose));
-            }
+            miscGroup.Children.Add(BuildHierarchyEntitySubtree(orphan, childrenByParentId, attached, new HashSet<string>(StringComparer.Ordinal)));
         }
 
         _hierarchyRoots.Add(sceneRoot);
         SyncHierarchySelectionFromViewport();
         OnPropertyChanged(nameof(HierarchyRoots));
+    }
+
+    private HierarchyNode BuildHierarchyEntitySubtree(
+        ViewportEntity entity,
+        IReadOnlyDictionary<string, List<ViewportEntity>> childrenByParentId,
+        ISet<string> attached,
+        ISet<string> activePath)
+    {
+        var node = HierarchyNode.FromEntity(entity);
+        if (!activePath.Add(entity.Id))
+        {
+            return node;
+        }
+
+        attached.Add(entity.Id);
+        if (childrenByParentId.TryGetValue(entity.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                node.Children.Add(BuildHierarchyEntitySubtree(child, childrenByParentId, attached, activePath));
+            }
+        }
+
+        activePath.Remove(entity.Id);
+        return node;
     }
 
     private void SyncHierarchySelectionFromViewport()
@@ -4492,7 +4507,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public ObservableCollection<HierarchyNode> Children { get; } = new();
 
         public static HierarchyNode FromEntity(ViewportEntity entity)
-            => new(entity.Id, $"{ResolveIcon(entity.Type)} {entity.DisplayName}", ResolveIcon(entity.Type), entity.Id, true);
+            => new(entity.Id, entity.DisplayName, ResolveIcon(entity.Type), entity.Id, true);
 
         private static string ResolveIcon(string type) => type switch
         {
