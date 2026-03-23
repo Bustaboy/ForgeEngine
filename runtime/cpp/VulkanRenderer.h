@@ -3,6 +3,8 @@
 #include "Scene.h"
 
 #include <GLFW/glfw3.h>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
@@ -12,6 +14,11 @@
 
 class VulkanRenderer {
 public:
+    struct PushConstants {
+        glm::mat4 model{1.0F};
+        glm::vec4 color{1.0F, 1.0F, 1.0F, 1.0F};
+    };
+
     VulkanRenderer() = default;
     ~VulkanRenderer() = default;
 
@@ -46,6 +53,7 @@ private:
     void CreateSwapChain();
     void CreateImageViews();
     void CreateRenderPass();
+    void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateCommandBuffers();
@@ -83,6 +91,9 @@ private:
     std::vector<VkFramebuffer> swap_chain_framebuffers_;
 
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
+    VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
+    VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;
 
