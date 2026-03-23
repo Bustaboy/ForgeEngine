@@ -10,7 +10,7 @@ public partial class NewProjectWizardWindow : Window
     private readonly IReadOnlyList<MainWindowViewModel.ProjectTemplatePreset> _templates;
     private int _stepIndex;
 
-    public NewProjectWizardWindow()
+    public NewProjectWizardWindow(string? preferredTemplateId = null)
     {
         InitializeComponent();
         _templates = MainWindowViewModel.GetProjectTemplatePresets();
@@ -18,7 +18,10 @@ public partial class NewProjectWizardWindow : Window
         if (templateList is not null)
         {
             templateList.ItemsSource = _templates;
-            templateList.SelectedIndex = 0;
+            var preferredIndex = _templates
+                .Select((template, index) => new { template.Id, index })
+                .FirstOrDefault(entry => string.Equals(entry.Id, preferredTemplateId, StringComparison.Ordinal))?.index ?? 0;
+            templateList.SelectedIndex = preferredIndex;
         }
 
         UpdateStepUi();

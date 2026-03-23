@@ -16,6 +16,46 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplyAndSavePreferences_PersistsSettingsAndUpdatesLiveState()
+    {
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var settingsPath = Path.Combine(_tempRoot, ".forgeengine", "settings.json");
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath);
+
+        await viewModel.ApplyAndSavePreferencesAsync(new EditorPreferences
+        {
+            General = new EditorPreferences.GeneralPreferences
+            {
+                Theme = "Light",
+                AutosaveEnabled = false,
+            },
+            Runtime = new EditorPreferences.RuntimePreferences
+            {
+                VulkanResolution = "2560x1440",
+                FpsLimit = 120,
+            },
+            Editor = new EditorPreferences.EditorPanePreferences
+            {
+                IconSize = 64,
+                HistoryLength = 140,
+                DefaultTemplateId = "rpg-quest",
+            },
+        });
+
+        Assert.False(viewModel.IsAutosaveEnabled);
+        Assert.Equal("Light", viewModel.ThemePreference);
+        Assert.Equal("Autosave: Off", viewModel.AutosaveStatusLabel);
+        Assert.Equal("2560x1440 @ 120 FPS cap", viewModel.RuntimePreferencesSummary);
+        Assert.Equal("rpg-quest", viewModel.EditorDefaultTemplateId);
+        Assert.True(File.Exists(settingsPath));
+
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(settingsPath));
+        Assert.Equal("Light", document.RootElement.GetProperty("General").GetProperty("Theme").GetString());
+        Assert.False(document.RootElement.GetProperty("General").GetProperty("AutosaveEnabled").GetBoolean());
+    }
+
+    [Fact]
     public async Task GenerateAndPlay_UpdatesStatusAndPidFromPipelineResponse()
     {
         var prototypeRoot = CreatePrototypeRoot();
