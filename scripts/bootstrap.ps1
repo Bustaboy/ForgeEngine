@@ -9,6 +9,8 @@ $buildDir = Join-Path $repoRoot "build/runtime"
 $runtimeSrc = Join-Path $repoRoot "runtime/cpp/main.cpp"
 $runtimeBin = Join-Path $buildDir "gameforge_runtime.exe"
 $editorProject = Join-Path $repoRoot "editor/csharp/GameForge.Editor.csproj"
+$jsonHeader = Join-Path $repoRoot "runtime/cpp/external/nlohmann/json.hpp"
+$jsonUrl = "https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp"
 
 $requiredPaths = @(
     (Join-Path $repoRoot "app"),
@@ -33,6 +35,17 @@ foreach ($path in $requiredPaths) {
         Write-Host "MISSING - $display"
         exit 1
     }
+}
+
+Write-Host "== Runtime JSON Header =="
+if (Test-Path $jsonHeader -PathType Leaf) {
+    Write-Host "OK - runtime/cpp/external/nlohmann/json.hpp"
+}
+else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $jsonHeader -Parent) | Out-Null
+    Write-Host "Downloading nlohmann/json single header..."
+    Invoke-WebRequest -Uri $jsonUrl -OutFile $jsonHeader
+    Write-Host "Installed - runtime/cpp/external/nlohmann/json.hpp"
 }
 
 $gpp = Get-Command g++ -ErrorAction SilentlyContinue

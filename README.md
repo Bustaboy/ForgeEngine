@@ -7,6 +7,8 @@ ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation 
 
 ## Quick Start
 
+Bootstrap scripts now auto-install the runtime JSON header dependency.
+
 ### Ubuntu/Linux
 ```bash
 ./scripts/bootstrap.sh
