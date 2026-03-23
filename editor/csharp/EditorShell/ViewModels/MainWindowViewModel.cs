@@ -160,6 +160,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
         CreateHierarchyGroupCommand = new AsyncRelayCommand(() => CreateHierarchyGroupAsync());
+        ExpandHierarchyCommand = new AsyncRelayCommand(() => SetHierarchyExpansionAsync(expanded: true));
+        CollapseHierarchyCommand = new AsyncRelayCommand(() => SetHierarchyExpansionAsync(expanded: false));
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         ImportedAssets.CollectionChanged += OnImportedAssetsCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
@@ -214,6 +216,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand SetLeftPanelTabCommand { get; }
 
     public ICommand CreateHierarchyGroupCommand { get; }
+
+    public ICommand ExpandHierarchyCommand { get; }
+
+    public ICommand CollapseHierarchyCommand { get; }
 
     public string ChatPrompt
     {
@@ -356,6 +362,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string HierarchyEntityCountBadge => $"🧱 {HierarchyEntityCount}";
 
     public int HierarchyEntityCount => ViewportEntities.Count;
+
+    public string HierarchyTreeSummary
+    {
+        get
+        {
+            var playerCount = ViewportEntities.Count(entity => string.Equals(entity.Type, "player", StringComparison.Ordinal));
+            var npcCount = ViewportEntities.Count(entity => string.Equals(entity.Type, "npc", StringComparison.Ordinal));
+            var propCount = ViewportEntities.Count(entity => string.Equals(entity.Type, "prop", StringComparison.Ordinal));
+            var groupCount = ViewportEntities.Count(entity => string.Equals(entity.Type, "group", StringComparison.Ordinal));
+            return $"👤 {playerCount} • 🧍 {npcCount} • 📦 {propCount} • 🧩 {groupCount}";
+        }
+    }
 
     public string HierarchySelectionBadge => _selectedViewportEntities.Count switch
     {
@@ -3571,6 +3589,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return _hierarchyExpansionState.TryGetValue(nodeId, out var isExpanded) ? isExpanded : defaultExpanded;
     }
 
+    private Task SetHierarchyExpansionAsync(bool expanded)
+    {
+        foreach (var root in _hierarchyRoots)
+        {
+            SetHierarchyExpansion(root, expanded);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static void SetHierarchyExpansion(HierarchyNode node, bool expanded)
+    {
+        node.IsExpanded = expanded;
+        foreach (var child in node.Children)
+        {
+            SetHierarchyExpansion(child, expanded);
+        }
+    }
+
     private List<ViewportEntity> ResolvePreferredSelection(IReadOnlyList<string>? preferredSelectionEntityIds)
     {
         if (preferredSelectionEntityIds is null || preferredSelectionEntityIds.Count == 0)
@@ -4689,6 +4726,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RebuildTimelineMarkers();
         OnPropertyChanged(nameof(HierarchyEntityCount));
         OnPropertyChanged(nameof(HierarchyEntityCountBadge));
+        OnPropertyChanged(nameof(HierarchyTreeSummary));
         OnPropertyChanged(nameof(HierarchySelectionBadge));
         OnPropertyChanged(nameof(HasViewportEntities));
         OnPropertyChanged(nameof(IsViewportEmpty));
