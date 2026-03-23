@@ -482,7 +482,7 @@
                       <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322AA" CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="No entities in scene scaffold yet. Add entities or generate content to preview live." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Width="320" />
                       </Border>
-                      <TextBlock Text="Drag entities directly. Double-click marker for direct property edit. Right-click for quick actions. Ctrl+Click multi-select. Timeline playback updates this viewport live."
+                      <TextBlock Text="Drag entities directly. Double-click for direct property edit. Right-click for quick actions. Ctrl+Click multi-select. Timeline playback and keyframes update this viewport renderer live."
                                  Foreground="#7F98BD"
                                  FontSize="11"
                                  Margin="6"
