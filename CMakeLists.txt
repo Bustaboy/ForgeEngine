@@ -6,13 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-include(FetchContent)
-
-FetchContent_Declare(
-    nlohmann_json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-)
-FetchContent_MakeAvailable(nlohmann_json)
+# Download nlohmann/json single header and place it at external/nlohmann_json/single_include/nlohmann/json.hpp before configuring.
 
 set(FORGE_VULKAN_HINT_PATHS)
 if(DEFINED ENV{VULKAN_SDK})
@@ -77,13 +71,14 @@ add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
+        external
+        external/nlohmann_json/single_include
 )
 
 target_link_libraries(forge_runtime
     PRIVATE
         Vulkan::Vulkan
         glfw
-        nlohmann_json::nlohmann_json
 )
 
 if(MSVC)

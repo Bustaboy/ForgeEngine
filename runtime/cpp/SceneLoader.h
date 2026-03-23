@@ -2,6 +2,8 @@
 
 #include "Scene.h"
 
+#include <nlohmann/json.hpp>
+
 #include <string>
 
 class SceneLoader {
