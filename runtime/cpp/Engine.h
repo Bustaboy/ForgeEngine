@@ -3,6 +3,10 @@
 #include "Scene.h"
 #include "Timer.h"
 #include "VulkanRenderer.h"
+#include "src/core/Camera.h"
+#include "src/input/InputManager.h"
+
+#include <glm/vec3.hpp>
 
 #include <string>
 
@@ -12,12 +16,14 @@ public:
 
 private:
     void Init();
-    void Update(float dt_seconds);
+    void Update(float dt_seconds, const InputManager& input);
     void Shutdown();
     void SeedFallbackScene();
 
     VulkanRenderer renderer_{};
     Scene scene_{};
     Timer timer_{};
+    Camera camera_{};
+    glm::vec3 camera_velocity_{0.0F, 0.0F, 0.0F};
     std::string scene_path_ = "scene_scaffold.json";
 };

@@ -67,6 +67,7 @@ set(FORGE_RUNTIME_SOURCES
     Timer.cpp
     VulkanRenderer.cpp
     SceneLoader.cpp
+    src/input/InputManager.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})

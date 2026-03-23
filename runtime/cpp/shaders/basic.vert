@@ -1,6 +1,7 @@
 #version 450
 
 layout(push_constant) uniform PushConstants {
+    mat4 viewProj;
     mat4 model;
     vec4 color;
 } pc;
@@ -18,6 +19,6 @@ vec2 kQuadVertices[6] = vec2[](
 
 void main() {
     vec2 localPos = kQuadVertices[gl_VertexIndex];
-    gl_Position = pc.model * vec4(localPos, 0.0, 1.0);
+    gl_Position = pc.viewProj * pc.model * vec4(localPos, 0.0, 1.0);
     fragColor = pc.color;
 }

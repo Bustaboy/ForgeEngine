@@ -3,6 +3,10 @@
 #include "Logger.h"
 #include "SceneLoader.h"
 
+#include <GLFW/glfw3.h>
+#include <glm/geometric.hpp>
+#include <glm/vec2.hpp>
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <string>
@@ -11,6 +15,9 @@
 void Engine::Run() {
     Init();
 
+    InputManager input{};
+    input.AttachWindow(renderer_.GetWindow());
+
     constexpr double fixed_dt = 1.0 / 60.0;
     double accumulator = 0.0;
     auto previous_time = std::chrono::steady_clock::now();
@@ -18,8 +25,9 @@ void Engine::Run() {
     while (!renderer_.ShouldClose()) {
         timer_.BeginFrame();
         renderer_.PollEvents();
+        input.BeginFrame();
 
-        if (renderer_.IsKeyPressed(GLFW_KEY_ESCAPE)) {
+        if (input.IsKeyPressed(GLFW_KEY_ESCAPE)) {
             const bool saved = scene_.Save(scene_path_);
             if (saved) {
                 GF_LOG_INFO("Scene saved: " + scene_path_);
@@ -35,11 +43,11 @@ void Engine::Run() {
         accumulator += frame_delta.count();
 
         while (accumulator >= fixed_dt) {
-            Update(static_cast<float>(fixed_dt));
+            Update(static_cast<float>(fixed_dt), input);
             accumulator -= fixed_dt;
         }
 
-        renderer_.RenderFrame(scene_);
+        renderer_.RenderFrame(scene_, camera_);
 
         if (timer_.ShouldUpdateFps()) {
             renderer_.SetWindowTitle(
@@ -65,10 +73,51 @@ void Engine::Init() {
     }
 
     renderer_.Init();
+    camera_.position = {0.0F, 0.0F, 3.0F};
+    camera_.yaw = -90.0F;
+    camera_.pitch = 0.0F;
+    camera_.aspect_ratio = renderer_.GetAspectRatio();
     GF_LOG_INFO("Render loop started");
 }
 
-void Engine::Update(float dt_seconds) {
+void Engine::Update(float dt_seconds, const InputManager& input) {
+    constexpr float look_sensitivity = 0.09F;
+    constexpr float move_speed = 3.5F;
+    constexpr float smoothing = 10.0F;
+
+    const glm::vec2 mouse_delta = input.MouseDelta();
+    camera_.yaw += mouse_delta.x * look_sensitivity;
+    camera_.pitch -= mouse_delta.y * look_sensitivity;
+    camera_.pitch = std::clamp(camera_.pitch, -89.0F, 89.0F);
+
+    const glm::vec3 forward = camera_.Forward();
+    const glm::vec3 forward_flat = glm::normalize(glm::vec3(forward.x, 0.0F, forward.z));
+    const glm::vec3 right = glm::normalize(glm::cross(forward_flat, glm::vec3(0.0F, 1.0F, 0.0F)));
+
+    glm::vec3 input_direction{0.0F, 0.0F, 0.0F};
+    if (input.IsKeyPressed(GLFW_KEY_W)) {
+        input_direction += forward_flat;
+    }
+    if (input.IsKeyPressed(GLFW_KEY_S)) {
+        input_direction -= forward_flat;
+    }
+    if (input.IsKeyPressed(GLFW_KEY_D)) {
+        input_direction += right;
+    }
+    if (input.IsKeyPressed(GLFW_KEY_A)) {
+        input_direction -= right;
+    }
+
+    if (glm::dot(input_direction, input_direction) > 0.0F) {
+        input_direction = glm::normalize(input_direction);
+    }
+
+    const glm::vec3 target_velocity = input_direction * move_speed;
+    const float blend = std::min(1.0F, smoothing * dt_seconds);
+    camera_velocity_ += (target_velocity - camera_velocity_) * blend;
+    camera_.position += camera_velocity_ * dt_seconds;
+    camera_.aspect_ratio = renderer_.GetAspectRatio();
+
     scene_.Update(dt_seconds);
 }
 
