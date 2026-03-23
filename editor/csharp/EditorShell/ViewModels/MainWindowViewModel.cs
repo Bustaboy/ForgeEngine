@@ -159,6 +159,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(IsSingleSelection));
             OnPropertyChanged(nameof(SelectedEntitiesCount));
+            OnPropertyChanged(nameof(HierarchySelectionBadge));
         };
         EnforceHistoryLimit();
     }
@@ -339,6 +340,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         LeftPanelTabAssets => "Thumbnail browser + drag to viewport",
         LeftPanelTabHistory => "Scene revisions and timeline snapshots",
         _ => "Scene entity tree",
+    };
+
+    public string HierarchyEntityCountBadge => $"🧱 {HierarchyEntityCount}";
+
+    public int HierarchyEntityCount => ViewportEntities.Count;
+
+    public string HierarchySelectionBadge => _selectedViewportEntities.Count switch
+    {
+        0 => "🎯 none selected",
+        1 => $"🎯 {_selectedViewportEntities[0].DisplayName}",
+        _ => $"🎯 {_selectedViewportEntities.Count} selected",
     };
 
     public string ActiveLeftPanelIcon => ActiveLeftPanelTab switch
@@ -4498,6 +4510,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         RebuildTimelineMarkers();
+        OnPropertyChanged(nameof(HierarchyEntityCount));
+        OnPropertyChanged(nameof(HierarchyEntityCountBadge));
+        OnPropertyChanged(nameof(HierarchySelectionBadge));
     }
 
     private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
