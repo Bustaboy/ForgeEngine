@@ -1,9 +1,9 @@
 #version 450
 
 layout(push_constant) uniform PushConstants {
-    mat4 viewProj;
-    mat4 model;
-    vec4 color;
+    layout(offset = 0) mat4 viewProj;
+    layout(offset = 64) mat4 model;
+    layout(offset = 128) vec4 color;
 } pc;
 
 layout(location = 0) out vec4 fragColor;
