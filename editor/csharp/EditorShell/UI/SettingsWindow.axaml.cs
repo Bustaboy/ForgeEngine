@@ -15,6 +15,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _templates = MainWindowViewModel.GetProjectTemplatePresets();
         PopulateTemplateOptions();
+        AttachPreviewHandlers();
         ApplyPreferences(preferences.Sanitize());
     }
 
@@ -36,6 +37,17 @@ public partial class SettingsWindow : Window
 
         combo.ItemsSource = _templates;
         combo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(MainWindowViewModel.ProjectTemplatePreset.DisplayName));
+    }
+
+    private void AttachPreviewHandlers()
+    {
+        this.FindControl<ComboBox>("ThemeComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("AutosaveToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("ResolutionComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("FpsLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("IconSizeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("HistoryLengthNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("DefaultTemplateComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -92,7 +104,7 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void OnPreferenceControlChanged(object? sender, EventArgs e)
+    private void EmitPreviewIfReady()
     {
         if (_isInitializing)
         {
