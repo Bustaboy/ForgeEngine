@@ -67,6 +67,16 @@
       <Setter Property="FontSize" Value="16" />
     </Style>
 
+    <Style Selector="Button.timeline-mode">
+      <Setter Property="Background" Value="#101A29" />
+      <Setter Property="BorderBrush" Value="#2B3A52" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="#AFC2DF" />
+      <Setter Property="Padding" Value="9,6" />
+      <Setter Property="MinWidth" Value="54" />
+    </Style>
+
     <Style Selector="Button.panel-tab">
       <Setter Property="Background" Value="#111A2A" />
       <Setter Property="BorderBrush" Value="#2B3A52" />
@@ -685,21 +695,28 @@
 
     <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
           <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseGlyph}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play/Pause timeline preview" />
           <Button Grid.Column="3" Classes="timeline-icon" Content="⏮" Command="{Binding StopTimelinePlaybackCommand}" ToolTip.Tip="Stop and rewind timeline" />
           <Button Grid.Column="4" Classes="timeline-icon" Content="➕◇" Command="{Binding AddTimelineKeyframeCommand}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Add keyframe for selected entities" />
           <ToggleSwitch Grid.Column="5" Classes="deep-toggle" IsChecked="{Binding IsTimelineLooping}" />
-          <TextBlock Grid.Column="6" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#AFC2DF" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="7" Text="{Binding TimelineMode, StringFormat=Mode: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+          <Border Grid.Column="6" CornerRadius="8" Background="#133155" BorderBrush="#2A5D95" BorderThickness="1" Padding="8,2">
+            <TextBlock Text="{Binding TimelinePlaybackStatePill}" Foreground="#D5E9FF" FontSize="11" FontWeight="SemiBold" />
+          </Border>
+          <Border Grid.Column="7" CornerRadius="8" Background="#132136" BorderBrush="#2B3A52" BorderThickness="1" Padding="8,2">
+            <TextBlock Text="{Binding TimelinePlaybackHint}" Foreground="#AFC2DF" FontSize="11" />
+          </Border>
+          <TextBlock Grid.Column="8" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#AFC2DF" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="9" Text="{Binding TimelineMode, StringFormat=Mode: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
         </Grid>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
-          <Button Classes="timeline-icon" Content="📍" Command="{Binding SetTimelineModeCommand}" CommandParameter="Position" />
-          <Button Classes="timeline-icon" Content="🔳" Command="{Binding SetTimelineModeCommand}" CommandParameter="Scale" />
-          <Button Classes="timeline-icon" Content="🎨" Command="{Binding SetTimelineModeCommand}" CommandParameter="Color" />
+          <Button Classes="timeline-mode" Content="📍 Pos" Command="{Binding SetTimelineModeCommand}" CommandParameter="Position" />
+          <Button Classes="timeline-mode" Content="🔳 Scale" Command="{Binding SetTimelineModeCommand}" CommandParameter="Scale" />
+          <Button Classes="timeline-mode" Content="🎨 Color" Command="{Binding SetTimelineModeCommand}" CommandParameter="Color" />
+          <TextBlock Text="{Binding TimelineStateLabel}" Foreground="#9FC2E5" FontSize="11" VerticalAlignment="Center" />
           <TextBlock Text="Keyframe Position / Scale / Color. Loop toggle controls one-shot vs looping preview."
                      Foreground="#8EA5C7"
                      FontSize="11"
@@ -726,6 +743,7 @@
                 <DataTemplate>
                   <Border Background="#13233A" BorderBrush="#2E4564" BorderThickness="1" CornerRadius="4" Padding="6,4">
                     <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="●" Foreground="#6FA8FF" IsVisible="{Binding IsActive}" />
                       <TextBlock Text="{Binding Icon}" />
                       <TextBlock Text="{Binding TimeLabel}" Foreground="#C8D6EA" FontSize="11" />
                     </StackPanel>
