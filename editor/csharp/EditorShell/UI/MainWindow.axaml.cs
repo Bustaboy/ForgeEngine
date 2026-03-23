@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Controls.Shapes;
 using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
@@ -218,6 +219,7 @@ public partial class MainWindow : Window
         }
 
         _viewportCanvas.Children.Clear();
+        DrawViewportBackdrop();
         foreach (var entity in _viewModel.ViewportEntities)
         {
             var marker = BuildEntityMarker(entity);
@@ -233,32 +235,116 @@ public partial class MainWindow : Window
         }
     }
 
+    private void DrawViewportBackdrop()
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var width = _viewportCanvas.Bounds.Width;
+        var height = _viewportCanvas.Bounds.Height;
+        if (width <= 1 || height <= 1)
+        {
+            return;
+        }
+
+        const double gridWorldStep = 1.0;
+        var gridPixelStep = ViewportScale * gridWorldStep;
+        if (gridPixelStep < 8)
+        {
+            return;
+        }
+
+        var centerX = width / 2.0;
+        var centerY = height / 2.0;
+        var verticalOffset = centerX % gridPixelStep;
+        var horizontalOffset = centerY % gridPixelStep;
+        var gridBrush = new SolidColorBrush(Color.Parse("#1B2740"));
+
+        for (var x = verticalOffset; x <= width; x += gridPixelStep)
+        {
+            _viewportCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(x, 0),
+                EndPoint = new Point(x, height),
+                Stroke = gridBrush,
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+            });
+        }
+
+        for (var y = horizontalOffset; y <= height; y += gridPixelStep)
+        {
+            _viewportCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(0, y),
+                EndPoint = new Point(width, y),
+                Stroke = gridBrush,
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+            });
+        }
+
+        _viewportCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(centerX, 0),
+            EndPoint = new Point(centerX, height),
+            Stroke = new SolidColorBrush(Color.Parse("#375A89")),
+            StrokeThickness = 1.4,
+            IsHitTestVisible = false,
+        });
+        _viewportCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(0, centerY),
+            EndPoint = new Point(width, centerY),
+            Stroke = new SolidColorBrush(Color.Parse("#375A89")),
+            StrokeThickness = 1.4,
+            IsHitTestVisible = false,
+        });
+    }
+
     private Border BuildEntityMarker(MainWindowViewModel.ViewportEntity entity)
     {
-        var renderColor = entity.Type switch
-        {
-            "player" => "#4AA3FF",
-            "npc" => "#65C97A",
-            "prop" => "#808A9B",
-            _ => entity.ColorHex,
-        };
-
         var markerWidth = Math.Max(16, entity.RenderWidth);
         var markerHeight = Math.Max(14, entity.RenderHeight);
-        var typeGlyph = entity.Type switch
+        var markerContent = new Grid
         {
-            "player" => "👤",
-            "npc" => "🧍",
-            "prop" => "📦",
-            _ => "🧩",
+            RowDefinitions = new RowDefinitions("*,Auto"),
         };
+        markerContent.Children.Add(new Border
+        {
+            Margin = new Thickness(3),
+            BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#F2FBFF") : Color.Parse("#00000000")),
+            BorderThickness = new Thickness(entity.IsSelected ? 1.1 : 0),
+            CornerRadius = new CornerRadius(3),
+            IsHitTestVisible = false,
+        });
+
+        var selectedLabel = new Border
+        {
+            Margin = new Thickness(3, 0, 3, 3),
+            Padding = new Thickness(4, 1),
+            CornerRadius = new CornerRadius(3),
+            Background = new SolidColorBrush(Color.Parse("#7A0A1222")),
+            IsVisible = entity.IsSelected,
+            Child = new TextBlock
+            {
+                Text = entity.DisplayName,
+                FontSize = 9,
+                Foreground = Brushes.White,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            }
+        };
+        Grid.SetRow(selectedLabel, 1);
+        markerContent.Children.Add(selectedLabel);
 
         var marker = new Border
         {
             Width = markerWidth,
             Height = markerHeight,
             CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(ParseColor(renderColor, "#1A2C45")),
+            Background = entity.RenderBrush,
             BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#B5DFFF") : Color.Parse("#2E3D54")),
             BorderThickness = entity.IsSelected ? new Thickness(2.4) : new Thickness(1.2),
             BoxShadow = entity.IsSelected
@@ -272,14 +358,7 @@ public partial class MainWindow : Window
                 })
                 : default,
             Tag = entity.Id,
-            Child = new TextBlock
-            {
-                Text = typeGlyph,
-                FontSize = 12,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Foreground = Brushes.White,
-            }
+            Child = markerContent
         };
 
         ToolTip.SetTip(marker, $"{entity.DisplayName} ({entity.X:F2}, {entity.Y:F2}) • scale {entity.Scale:F2}");

@@ -5179,7 +5179,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public void SetColorHex(string colorHex)
         {
-            ColorHex = colorHex;
+            ColorHex = SanitizeColorHex(colorHex) ?? DefaultColorForType(Type);
         }
 
         public void SetParentId(string? parentId)
@@ -5198,13 +5198,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _ => Type.ToUpperInvariant(),
         };
 
-        public string RenderColorHex => Type switch
-        {
-            "player" => "#4AA3FF",
-            "npc" => "#65C97A",
-            "prop" => "#808A9B",
-            _ => ColorHex,
-        };
+        public string RenderColorHex => SanitizeColorHex(ColorHex) ?? DefaultColorForType(Type);
 
         public IBrush RenderBrush => new SolidColorBrush(Color.Parse(RenderColorHex));
 
