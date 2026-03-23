@@ -372,6 +372,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ? $"Live Preview • {TimelineCurrentTime:0.00}s"
         : "Live Preview • Idle";
 
+    public string ViewportPlaybackSummary => $"{ViewportEntityCountLabel} • {ViewportLivePreviewLabel}";
+
 
     public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;
 
@@ -427,6 +429,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(TimelinePlayPauseIcon));
             OnPropertyChanged(nameof(TimelinePlaybackStatePill));
             OnPropertyChanged(nameof(ViewportLivePreviewLabel));
+            OnPropertyChanged(nameof(ViewportPlaybackSummary));
         }
     }
 
@@ -1011,6 +1014,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
         OnPropertyChanged(nameof(ViewportLivePreviewLabel));
+        OnPropertyChanged(nameof(ViewportPlaybackSummary));
         TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         _undoStack.Clear();
@@ -2276,6 +2280,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
         OnPropertyChanged(nameof(ViewportLivePreviewLabel));
+        OnPropertyChanged(nameof(ViewportPlaybackSummary));
         ApplyTimelineToViewport(clamped);
         if (fromPlayback)
         {
@@ -2359,6 +2364,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineCurrentTimeLabel));
         OnPropertyChanged(nameof(TimelineScrubberPercent));
         OnPropertyChanged(nameof(ViewportLivePreviewLabel));
+        OnPropertyChanged(nameof(ViewportPlaybackSummary));
         TimelineStateLabel = "Idle";
         _selectedViewportEntities.Clear();
         SelectedViewportEntity = null;
@@ -4556,6 +4562,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasViewportEntities));
         OnPropertyChanged(nameof(IsViewportEmpty));
         OnPropertyChanged(nameof(ViewportEntityCountLabel));
+        OnPropertyChanged(nameof(ViewportPlaybackSummary));
     }
 
     private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -5088,6 +5095,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                 _scale = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Scale)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RenderWidth)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RenderHeight)));
             }
         }
 
@@ -5103,6 +5112,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                 _colorHex = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ColorHex)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RenderColorHex)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RenderBrush)));
             }
         }
 
@@ -5168,6 +5179,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         public string DisplayName => Name;
+
+        public string TypeBadge => Type switch
+        {
+            "player" => "PLAYER",
+            "npc" => "NPC",
+            "prop" => "PROP",
+            "group" => "GROUP",
+            _ => Type.ToUpperInvariant(),
+        };
+
+        public string RenderColorHex => Type switch
+        {
+            "player" => "#4AA3FF",
+            "npc" => "#65C97A",
+            "prop" => "#808A9B",
+            _ => ColorHex,
+        };
+
+        public IBrush RenderBrush => new SolidColorBrush(Color.Parse(RenderColorHex));
+
+        public double RenderWidth => (Type == "player" ? 44 : Type == "npc" ? 36 : 40) * Math.Max(0.65f, Scale);
+
+        public double RenderHeight => (Type == "player" ? 30 : Type == "npc" ? 30 : 26) * Math.Max(0.65f, Scale);
 
         public string? AssetId => _assetId;
 
