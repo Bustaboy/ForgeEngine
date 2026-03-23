@@ -288,9 +288,22 @@
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:MainWindowViewModel+HierarchyNode" ItemsSource="{Binding Children}">
                 <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver" ToolTip.Tip="Hierarchy item&#x0a;Click to select, drag to re-parent onto groups in scene tree.">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding Icon}" Foreground="#D6E9FF" />
-                    <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border Background="#14243B"
+                            BorderBrush="#36557E"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="4,2"
+                            VerticalAlignment="Top">
+                      <TextBlock Text="{Binding Icon}" Foreground="#D6E9FF" />
+                    </Border>
+                    <StackPanel Spacing="1">
+                      <TextBlock Text="{Binding Label}" Foreground="#D6E9FF" />
+                      <TextBlock Text="{Binding DetailText}"
+                                 Foreground="#7FA2CD"
+                                 FontSize="10"
+                                 IsVisible="{Binding HasDetailText}" />
+                    </StackPanel>
                   </StackPanel>
                   <Border.ContextMenu>
                     <ContextMenu>

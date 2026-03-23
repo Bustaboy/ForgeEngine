@@ -3572,6 +3572,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         if (hierarchyNode is not null && !ReferenceEquals(_selectedHierarchyNode, hierarchyNode))
         {
+            ExpandHierarchyPathForEntity(selected.Id);
             _selectedHierarchyNode = hierarchyNode;
             OnPropertyChanged(nameof(SelectedHierarchyNode));
         }
@@ -3594,6 +3595,38 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private void ExpandHierarchyPathForEntity(string entityId)
+    {
+        foreach (var root in _hierarchyRoots)
+        {
+            if (TryExpandPathToEntity(root, entityId))
+            {
+                break;
+            }
+        }
+    }
+
+    private static bool TryExpandPathToEntity(HierarchyNode current, string entityId)
+    {
+        if (current.IsEntityNode && string.Equals(current.EntityId, entityId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var child in current.Children)
+        {
+            if (!TryExpandPathToEntity(child, entityId))
+            {
+                continue;
+            }
+
+            current.IsExpanded = true;
+            return true;
+        }
+
+        return false;
     }
 
     private void CaptureHierarchyExpansionState()
@@ -5231,13 +5264,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         private bool _isExpanded;
 
-        public HierarchyNode(string id, string label, string icon, string? entityId, bool isEntityNode)
+        public HierarchyNode(string id, string label, string icon, string? entityId, bool isEntityNode, string detailText = "")
         {
             Id = id;
             Label = label;
             Icon = icon;
             EntityId = entityId;
             IsEntityNode = isEntityNode;
+            DetailText = detailText;
         }
 
         public string Id { get; }
@@ -5249,6 +5283,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public string? EntityId { get; }
 
         public bool IsEntityNode { get; }
+
+        public string DetailText { get; }
+
+        public bool HasDetailText => !string.IsNullOrWhiteSpace(DetailText);
 
         public ObservableCollection<HierarchyNode> Children { get; } = new();
 
@@ -5270,7 +5308,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public static HierarchyNode FromEntity(ViewportEntity entity)
-            => new(entity.Id, entity.DisplayName, ResolveIcon(entity.Type), entity.Id, true);
+            => new(
+                entity.Id,
+                entity.DisplayName,
+                ResolveIcon(entity.Type),
+                entity.Id,
+                true,
+                $"{entity.Type.ToUpperInvariant()} • {entity.ParentBadge}");
 
         private static string ResolveIcon(string type) => type switch
         {
