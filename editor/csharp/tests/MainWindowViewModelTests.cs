@@ -187,6 +187,21 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public void PreviewDragPosition_SyncsInspectorEditorsLive()
+    {
+        var prototypeRoot = CreatePrototypeRoot(withEntity: true);
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        Assert.True(viewModel.BeginDragForEntity("prop_01"));
+        Assert.True(viewModel.PreviewDragPosition("prop_01", 5.5f, -2.25f));
+
+        Assert.Equal("5.500", viewModel.SelectedEntityPositionXEditor);
+        Assert.Equal("-2.250", viewModel.SelectedEntityPositionYEditor);
+    }
+
+    [Fact]
     public async Task UndoRedoStack_SupportsAddMoveDeleteSequence()
     {
         var prototypeRoot = CreatePrototypeRoot();

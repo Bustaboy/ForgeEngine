@@ -51,7 +51,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedEntityPositionYEditor = "0";
     private string _selectedEntityScaleEditor = "1";
     private string _selectedEntityColorEditor = "#4AA3FF";
-    private string _selectionInteractionHint = "Tip: double-click a viewport marker to edit its properties.";
+    private string _selectionInteractionHint = "Tip: double-click a viewport marker to edit instantly, or press Delete to remove selection.";
     private string _runtimeSelectedEntityPreview = "No active selection.";
     private bool _isRefreshingSelectionEditors;
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
@@ -2566,8 +2566,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         SelectionInteractionHint = _selectedViewportEntities.Count == 1
-            ? $"Direct edit ready: {_selectedViewportEntities[0].DisplayName}."
-            : $"Direct edit ready: {_selectedViewportEntities.Count} entities.";
+            ? $"Direct edit ready: {_selectedViewportEntities[0].DisplayName}. Type values below or drag in viewport for live sync."
+            : $"Direct edit ready: {_selectedViewportEntities.Count} entities. Batch edits and drag remain in sync.";
         return true;
     }
 
@@ -3484,7 +3484,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             SelectedEntityAssetName = "No asset linked.";
             SelectedEntityAssetPreviewPath = string.Empty;
             SelectedEntityAssetKind = "n/a";
-            SelectionInteractionHint = "Tip: double-click a viewport marker to edit its properties.";
+            SelectionInteractionHint = "Tip: double-click a viewport marker to edit instantly, or press Delete to remove selection.";
             SetSelectionEditorDefaults();
             return;
         }
@@ -3505,8 +3505,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedEntityAssetPreviewPath = primaryAsset.AssetPreviewPath ?? string.Empty;
         SelectedEntityAssetKind = string.IsNullOrWhiteSpace(primaryAsset.AssetKind) ? "n/a" : primaryAsset.AssetKind!;
         SelectionInteractionHint = _selectedViewportEntities.Count == 1
-            ? $"Selected: {_selectedViewportEntities[0].DisplayName}. Drag marker or edit fields below."
-            : $"Selected: {_selectedViewportEntities.Count} entities. Drag or batch-edit properties.";
+            ? $"Selected: {_selectedViewportEntities[0].DisplayName}. Drag marker for live inspector sync, double-click for direct edit."
+            : $"Selected: {_selectedViewportEntities.Count} entities. Drag or batch-edit properties with live sync.";
 
         RefreshSelectionEditorsFromSelection();
     }
