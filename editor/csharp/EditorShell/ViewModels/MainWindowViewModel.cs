@@ -52,6 +52,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedEntityScaleEditor = "1";
     private string _selectedEntityColorEditor = "#4AA3FF";
     private string _selectionInteractionHint = "Tip: double-click a viewport marker to edit instantly, or press Delete to remove selection.";
+    private bool _isDirectPropertyEditActive;
     private string _runtimeSelectedEntityPreview = "No active selection.";
     private bool _isRefreshingSelectionEditors;
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
@@ -173,6 +174,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsSelectionHighlightActive));
             OnPropertyChanged(nameof(IsSelectionHighlightInactive));
             OnPropertyChanged(nameof(SelectionHighlightBadge));
+            OnPropertyChanged(nameof(ViewportSelectionStateLabel));
+            OnPropertyChanged(nameof(IsDirectPropertyEditActive));
+            OnPropertyChanged(nameof(DirectPropertyEditBadge));
         };
         EnforceHistoryLimit();
     }
@@ -795,6 +799,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         1 => $"✦ {_selectedViewportEntities[0].DisplayName}",
         _ => $"✦ {_selectedViewportEntities.Count} markers selected",
     };
+
+    public string ViewportSelectionStateLabel => _selectedViewportEntities.Count switch
+    {
+        0 => "🎯 Select an entity",
+        1 => $"🎯 {_selectedViewportEntities[0].DisplayName}",
+        _ => $"🎯 {_selectedViewportEntities.Count} selected",
+    };
+
+    public bool IsDirectPropertyEditActive => _isDirectPropertyEditActive && _selectedViewportEntities.Count > 0;
+
+    public string DirectPropertyEditBadge => IsDirectPropertyEditActive
+        ? "✏ Direct Edit"
+        : "✏ Double-click to edit";
 
     public string SelectedEntitySummary
     {
@@ -2661,6 +2678,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return false;
         }
 
+        SetDirectPropertyEditActive(false);
         ReplaceSelection(new[] { entity });
         return true;
     }
@@ -2672,6 +2690,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return false;
         }
 
+        SetDirectPropertyEditActive(true);
         SelectionInteractionHint = _selectedViewportEntities.Count == 1
             ? $"Direct edit ready: {_selectedViewportEntities[0].DisplayName}. Type values below or drag in viewport for live sync."
             : $"Direct edit ready: {_selectedViewportEntities.Count} entities. Batch edits and drag remain in sync.";
@@ -3643,6 +3662,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         if (_selectedViewportEntities.Count == 0)
         {
+            SetDirectPropertyEditActive(false);
             SelectedEntitySummary = "No entity selected.";
             SelectedEntityType = "n/a";
             SelectedEntityX = 0;
@@ -3654,6 +3674,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             SelectionInteractionHint = "Tip: double-click a viewport marker to edit instantly, or press Delete to remove selection.";
             SetSelectionEditorDefaults();
             return;
+        }
+
+        if (!_isDirectPropertyEditActive)
+        {
+            OnPropertyChanged(nameof(DirectPropertyEditBadge));
         }
 
         SelectedViewportEntity = _selectedViewportEntities[0];
@@ -3746,6 +3771,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var first = list[0];
         return list.All(value => string.Equals(value, first, StringComparison.Ordinal)) ? first : fallback;
+    }
+
+    private void SetDirectPropertyEditActive(bool isActive)
+    {
+        if (_isDirectPropertyEditActive == isActive)
+        {
+            return;
+        }
+
+        _isDirectPropertyEditActive = isActive;
+        OnPropertyChanged(nameof(IsDirectPropertyEditActive));
+        OnPropertyChanged(nameof(DirectPropertyEditBadge));
     }
 
     private void ReplaceSelection(IEnumerable<ViewportEntity> entities)
