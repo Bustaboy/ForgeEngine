@@ -1,6 +1,7 @@
 #include "SceneLoader.h"
 
 #include "Logger.h"
+#include "templates/generated_gameplay.h"
 
 #include <cmath>
 #include <cstddef>
@@ -152,6 +153,8 @@ void Scene::Update(float dt_seconds) {
         entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
         entity.renderable.color.a = 1.0F;
     }
+
+    UpdateGameplay(*this, dt_seconds);
 }
 
 bool Scene::Save(const std::string& path) const {

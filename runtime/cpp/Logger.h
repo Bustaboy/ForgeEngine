@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -7,6 +8,8 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+
+#include <vulkan/vulkan.h>
 
 class Logger {
 public:
@@ -63,3 +66,11 @@ private:
 #define GF_LOG_INFO(message) Logger::Write("INFO", (message))
 #define GF_LOG_WARN(message) Logger::Write("WARN", (message))
 #define GF_LOG_ERROR(message) Logger::Write("ERROR", (message))
+#define VK_CHECK(expression)                                                                                              \
+    do {                                                                                                                  \
+        const VkResult vk_check_result = (expression);                                                                    \
+        if (vk_check_result != VK_SUCCESS) {                                                                              \
+            GF_LOG_ERROR("Vulkan call failed with VkResult " + std::to_string(static_cast<int>(vk_check_result)));      \
+            std::abort();                                                                                                 \
+        }                                                                                                                 \
+    } while (false)
