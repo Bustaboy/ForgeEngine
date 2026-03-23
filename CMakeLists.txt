@@ -6,7 +6,25 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Download nlohmann/json single header and place it at external/nlohmann_json/single_include/nlohmann/json.hpp before configuring.
+set(FORGE_JSON_HEADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann")
+set(FORGE_JSON_HEADER_PATH "${FORGE_JSON_HEADER_DIR}/json.hpp")
+set(FORGE_JSON_HEADER_URL "https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp")
+
+if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
+    file(MAKE_DIRECTORY "${FORGE_JSON_HEADER_DIR}")
+    file(DOWNLOAD
+        "${FORGE_JSON_HEADER_URL}"
+        "${FORGE_JSON_HEADER_PATH}"
+        STATUS FORGE_JSON_DOWNLOAD_STATUS
+        TLS_VERIFY ON
+    )
+    list(GET FORGE_JSON_DOWNLOAD_STATUS 0 FORGE_JSON_DOWNLOAD_CODE)
+    list(GET FORGE_JSON_DOWNLOAD_STATUS 1 FORGE_JSON_DOWNLOAD_MESSAGE)
+    if(NOT FORGE_JSON_DOWNLOAD_CODE EQUAL 0)
+        file(REMOVE "${FORGE_JSON_HEADER_PATH}")
+        message(FATAL_ERROR "Failed to download nlohmann/json.hpp: ${FORGE_JSON_DOWNLOAD_MESSAGE}")
+    endif()
+endif()
 
 set(FORGE_VULKAN_HINT_PATHS)
 if(DEFINED ENV{VULKAN_SDK})
@@ -71,8 +89,7 @@ add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
-        external
-        external/nlohmann_json/single_include
+        runtime/cpp/external
 )
 
 target_link_libraries(forge_runtime
