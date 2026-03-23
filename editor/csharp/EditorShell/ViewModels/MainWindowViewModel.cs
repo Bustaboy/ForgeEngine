@@ -4651,10 +4651,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 .Where(asset => asset.SearchCorpus.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
+        next = next
+            .OrderByDescending(asset => asset.IsTexture)
+            .ThenBy(asset => asset.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         _filteredImportedAssets.Clear();
         foreach (var asset in next)
         {
             _filteredImportedAssets.Add(asset);
+        }
+
+        if (SelectedImportedAsset is not null
+            && !_filteredImportedAssets.Any(asset => string.Equals(asset.Id, SelectedImportedAsset.Id, StringComparison.Ordinal)))
+        {
+            SelectedImportedAsset = _filteredImportedAssets.FirstOrDefault() ?? ImportedAssets.FirstOrDefault();
         }
 
         OnPropertyChanged(nameof(HasAssetResults));
@@ -5161,7 +5172,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         public string ThumbnailBadge => IsModel ? "OBJ" : "PNG";
 
-        public string SearchCorpus => $"{DisplayName} {Kind} {KindLabel} {Id} {SourcePath}";
+        public string SearchCorpus => $"{DisplayName} {Kind} {KindLabel} {ThumbnailBadge} {Id} {SourcePath}";
     }
 
     private static class ImportedAssetKind

@@ -705,6 +705,11 @@ public partial class MainWindow : Window
         var data = new DataObject();
         data.Set(AssetDragFormat, assetId);
         data.Set(DataFormats.Text, assetId);
+        if (selected is not null)
+        {
+            DragDrop.SetDragAdorner(data, BuildAssetDragAdorner(selected));
+        }
+
         await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
         _viewModel.ClearAssetDragGhost();
         RefreshViewportVisuals();
@@ -775,6 +780,74 @@ public partial class MainWindow : Window
 
         ToolTip.SetTip(marker, $"Drop: {_viewModel.AssetDragGhostTitle}");
         return marker;
+    }
+
+    private static Border BuildAssetDragAdorner(MainWindowViewModel.ImportedAsset asset)
+    {
+        var hasPreview = asset.HasPreviewImage && File.Exists(asset.PreviewPath);
+        return new Border
+        {
+            Width = 108,
+            Height = 128,
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Color.FromArgb(225, 10, 23, 38)),
+            BorderBrush = new SolidColorBrush(Color.Parse("#4AA3FF")),
+            BorderThickness = new Thickness(1.4),
+            Padding = new Thickness(8),
+            Opacity = 0.95,
+            Child = new Grid
+            {
+                RowDefinitions = new RowDefinitions("84,Auto,*"),
+                RowSpacing = 5,
+                Children =
+                {
+                    new Border
+                    {
+                        Width = 84,
+                        Height = 84,
+                        CornerRadius = new CornerRadius(8),
+                        Background = new SolidColorBrush(Color.Parse("#0F2239")),
+                        BorderBrush = new SolidColorBrush(Color.Parse("#355B85")),
+                        BorderThickness = new Thickness(1),
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                        Child = hasPreview
+                            ? new Image
+                            {
+                                Source = new Avalonia.Media.Imaging.Bitmap(asset.PreviewPath),
+                                Stretch = Stretch.UniformToFill,
+                            }
+                            : new TextBlock
+                            {
+                                Text = asset.ThumbnailGlyph,
+                                FontSize = 30,
+                                Foreground = new SolidColorBrush(Color.Parse("#D6E9FF")),
+                                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                            },
+                    },
+                    new TextBlock
+                    {
+                        Text = asset.ThumbnailBadge,
+                        Foreground = new SolidColorBrush(Color.Parse("#D6E9FF")),
+                        FontSize = 10,
+                        FontWeight = FontWeight.SemiBold,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                        [Grid.RowProperty] = 1,
+                    },
+                    new TextBlock
+                    {
+                        Text = asset.DisplayName,
+                        Foreground = new SolidColorBrush(Color.Parse("#D6E9FF")),
+                        FontSize = 11,
+                        FontWeight = FontWeight.SemiBold,
+                        TextAlignment = Avalonia.Media.TextAlignment.Center,
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                        MaxLines = 2,
+                        [Grid.RowProperty] = 2,
+                    },
+                },
+            },
+        };
     }
 
     private void UpdateAssetGhostPosition(Control marker)

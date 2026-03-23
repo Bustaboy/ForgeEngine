@@ -93,6 +93,18 @@
       <Setter Property="BorderBrush" Value="#4AA3FF" />
       <Setter Property="Foreground" Value="#EEF4FF" />
     </Style>
+
+    <Style Selector="Border.asset-card">
+      <Setter Property="Background" Value="#0B1524" />
+      <Setter Property="BorderBrush" Value="#264566" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Border.asset-card:pointerover">
+      <Setter Property="Background" Value="#12243A" />
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+      <Setter Property="BorderThickness" Value="1.4" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
@@ -197,13 +209,13 @@
                     Command="{Binding SetLeftPanelTabCommand}"
                     CommandParameter="Assets"
                     IsVisible="{Binding IsAssetsTabActive}"
-                    ToolTip.Tip="Assets tab (coming next): use the asset browser panel below for now." />
+                    ToolTip.Tip="Assets tab: thumbnail browser with drag-to-viewport placement." />
             <Button Classes="panel-tab"
                     Content="🗂"
                     Command="{Binding SetLeftPanelTabCommand}"
                     CommandParameter="Assets"
                     IsVisible="{Binding IsAssetsTabInactive}"
-                    ToolTip.Tip="Assets tab (coming next): use the asset browser panel below for now." />
+                    ToolTip.Tip="Assets tab: thumbnail browser with drag-to-viewport placement." />
             <Button Classes="panel-tab active"
                     Content="🕘"
                     Command="{Binding SetLeftPanelTabCommand}"
@@ -336,9 +348,7 @@
                                 Padding="8"
                                 Margin="0,0,8,8"
                                 CornerRadius="8"
-                                Background="#0B1524"
-                                BorderBrush="#264566"
-                                BorderThickness="1"
+                                Classes="asset-card"
                                 Tag="{Binding Id}"
                                 PointerPressed="OnAssetChipPointerPressed"
                                 ToolTip.Tip="Drag to viewport">
@@ -710,9 +720,7 @@
                       <Border Margin="0,0,0,6"
                               Padding="8"
                               CornerRadius="6"
-                              Background="#0B1524"
-                              BorderBrush="#264566"
-                              BorderThickness="1"
+                              Classes="asset-card"
                               Tag="{Binding Id}"
                               PointerPressed="OnAssetChipPointerPressed"
                               ToolTip.Tip="Asset chip&#x0a;Drag into viewport to place as prop.">
