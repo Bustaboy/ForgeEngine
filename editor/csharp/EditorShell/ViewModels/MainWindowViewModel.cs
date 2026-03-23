@@ -13,6 +13,7 @@ using GameForge.Editor.EditorShell;
 using GameForge.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
+using Avalonia;
 using Avalonia.Media;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -82,6 +83,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private float _assetDragGhostWorldY;
     private bool _isAssetDragGhostVisible;
     private bool _isAssetBrowserDragPreviewVisible;
+    private double _assetBrowserDragPreviewScreenX = 18;
+    private double _assetBrowserDragPreviewScreenY = 18;
     private DateTimeOffset? _assetCatalogLastRefreshedAtUtc;
     private readonly Dictionary<string, EntityAnimationTrack> _animationTracks = new(StringComparer.Ordinal);
     private readonly ObservableCollection<TimelineMarker> _timelineMarkers = new();
@@ -1036,6 +1039,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _isAssetBrowserDragPreviewVisible;
         private set => SetField(ref _isAssetBrowserDragPreviewVisible, value);
     }
+
+    public double AssetBrowserDragPreviewScreenX
+    {
+        get => _assetBrowserDragPreviewScreenX;
+        private set => SetField(ref _assetBrowserDragPreviewScreenX, value);
+    }
+
+    public double AssetBrowserDragPreviewScreenY
+    {
+        get => _assetBrowserDragPreviewScreenY;
+        private set => SetField(ref _assetBrowserDragPreviewScreenY, value);
+    }
+
+    public Thickness AssetBrowserDragPreviewMargin => new(AssetBrowserDragPreviewScreenX, AssetBrowserDragPreviewScreenY, 0, 0);
 
     public string AssetDragGhostTitle
     {
@@ -2174,12 +2191,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         AssetDragGhostPreviewPath = asset.PreviewPath;
         AssetDragGhostKind = asset.ThumbnailBadge;
         IsAssetBrowserDragPreviewVisible = true;
+        UpdateAssetBrowserDragPreviewPosition(18, 18);
         return true;
+    }
+
+    public void UpdateAssetBrowserDragPreviewPosition(double screenX, double screenY)
+    {
+        AssetBrowserDragPreviewScreenX = Math.Max(8, screenX + 14);
+        AssetBrowserDragPreviewScreenY = Math.Max(8, screenY + 14);
+        OnPropertyChanged(nameof(AssetBrowserDragPreviewMargin));
     }
 
     public void ClearAssetDragGhost()
     {
         IsAssetDragGhostVisible = false;
+        UpdateAssetBrowserDragPreviewPosition(18, 18);
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
         AssetDragGhostKind = string.Empty;
@@ -2194,6 +2220,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsAssetBrowserDragPreviewVisible = false;
+        UpdateAssetBrowserDragPreviewPosition(18, 18);
         if (IsAssetDragGhostVisible)
         {
             return;
