@@ -158,6 +158,18 @@ bool VulkanRenderer::IsKeyPressed(int key) const {
     return glfwGetKey(window_, key) == GLFW_PRESS;
 }
 
+GLFWwindow* VulkanRenderer::GetWindow() const {
+    return window_;
+}
+
+float VulkanRenderer::GetAspectRatio() const {
+    if (swap_chain_extent_.height == 0) {
+        return 16.0F / 9.0F;
+    }
+
+    return static_cast<float>(swap_chain_extent_.width) / static_cast<float>(swap_chain_extent_.height);
+}
+
 void VulkanRenderer::PollEvents() const {
     glfwPollEvents();
 }
@@ -168,8 +180,8 @@ void VulkanRenderer::SetWindowTitle(const std::string& title) const {
     }
 }
 
-void VulkanRenderer::RenderFrame(const Scene& scene) {
-    DrawFrame(scene);
+void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
+    DrawFrame(scene, camera);
 }
 
 void VulkanRenderer::FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -623,17 +635,20 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     color_blending.attachmentCount = 1;
     color_blending.pAttachments = &color_blend_attachment;
 
-    VkPushConstantRange push_constant_range{};
-    push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    push_constant_range.offset = 0;
-    push_constant_range.size = sizeof(PushConstants);
+    VkPushConstantRange push_constant_ranges[2]{};
+    push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[0].offset = 0;
+    push_constant_ranges[0].size = sizeof(PerFramePush);
+    push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_ranges[1].offset = sizeof(PerFramePush);
+    push_constant_ranges[1].size = sizeof(PerDrawPush);
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_info.setLayoutCount = 0;
     pipeline_layout_info.pSetLayouts = nullptr;
-    pipeline_layout_info.pushConstantRangeCount = 1;
-    pipeline_layout_info.pPushConstantRanges = &push_constant_range;
+    pipeline_layout_info.pushConstantRangeCount = 2;
+    pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
 
     if (vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
@@ -738,7 +753,7 @@ void VulkanRenderer::CreateSyncObjects() {
     }
 }
 
-void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene& scene) {
+void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera) {
     if (vkResetCommandBuffer(command_buffers_[image_index], 0) != VK_SUCCESS) {
         throw std::runtime_error("Failed to reset command buffer.");
     }
@@ -763,6 +778,18 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     vkCmdBeginRenderPass(command_buffers_[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 
+    const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
+    PerFramePush per_frame_push{};
+    per_frame_push.view_proj = view_proj;
+
+    vkCmdPushConstants(
+        command_buffers_[image_index],
+        pipeline_layout_,
+        VK_SHADER_STAGE_VERTEX_BIT,
+        0,
+        sizeof(PerFramePush),
+        &per_frame_push);
+
     for (const Entity& entity : scene.entities) {
         glm::mat4 model(1.0F);
         model = glm::translate(model, entity.transform.pos);
@@ -771,17 +798,17 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         model = glm::rotate(model, entity.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
         model = glm::scale(model, entity.transform.scale);
 
-        PushConstants push_constants{};
-        push_constants.model = model;
-        push_constants.color = entity.renderable.color;
+        PerDrawPush per_draw_push{};
+        per_draw_push.model = model;
+        per_draw_push.color = entity.renderable.color;
 
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,
             VK_SHADER_STAGE_VERTEX_BIT,
-            0,
-            sizeof(PushConstants),
-            &push_constants);
+            sizeof(PerFramePush),
+            sizeof(PerDrawPush),
+            &per_draw_push);
 
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
@@ -793,7 +820,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     }
 }
 
-void VulkanRenderer::DrawFrame(const Scene& scene) {
+void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {
     vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
 
     std::uint32_t image_index = 0;
@@ -816,7 +843,7 @@ void VulkanRenderer::DrawFrame(const Scene& scene) {
 
     vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
 
-    RecordCommandBuffer(image_index, scene);
+    RecordCommandBuffer(image_index, scene, camera);
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

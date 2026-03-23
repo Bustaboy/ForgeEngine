@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Scene.h"
+#include "src/core/Camera.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
@@ -14,7 +15,11 @@
 
 class VulkanRenderer {
 public:
-    struct PushConstants {
+    struct PerFramePush {
+        glm::mat4 view_proj{1.0F};
+    };
+
+    struct PerDrawPush {
         glm::mat4 model{1.0F};
         glm::vec4 color{1.0F, 1.0F, 1.0F, 1.0F};
     };
@@ -24,10 +29,12 @@ public:
 
     void Init();
     void Shutdown();
-    void RenderFrame(const Scene& scene);
+    void RenderFrame(const Scene& scene, const Camera& camera);
 
     [[nodiscard]] bool ShouldClose() const;
     [[nodiscard]] bool IsKeyPressed(int key) const;
+    [[nodiscard]] GLFWwindow* GetWindow() const;
+    [[nodiscard]] float GetAspectRatio() const;
     void PollEvents() const;
     void SetWindowTitle(const std::string& title) const;
 
@@ -61,8 +68,8 @@ private:
     void CreateSyncObjects();
     void CleanupSwapChain();
     void RecreateSwapChain();
-    void DrawFrame(const Scene& scene);
-    void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene);
+    void DrawFrame(const Scene& scene, const Camera& camera);
+    void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
 
     [[nodiscard]] QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool IsDeviceSuitable(VkPhysicalDevice device) const;
