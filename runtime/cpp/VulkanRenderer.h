@@ -67,6 +67,8 @@ private:
     void CreateRenderPass();
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
+    void CreateOffscreenResources();
+    void DestroyOffscreenResources();
     void CreateCommandPool();
     void CreateCommandBuffers();
     void CreateSyncObjects();
@@ -74,6 +76,8 @@ private:
     void RecreateSwapChain();
     void DrawFrame(const Scene& scene, const Camera& camera);
     void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
+    [[nodiscard]] std::uint32_t FindMemoryType(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
+    [[nodiscard]] VkFormat FindSupportedDepthFormat() const;
 
     [[nodiscard]] QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool IsDeviceSuitable(VkPhysicalDevice device) const;
@@ -121,6 +125,15 @@ private:
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+    VkImage offscreen_color_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory offscreen_color_image_memory_ = VK_NULL_HANDLE;
+    VkImageView offscreen_color_image_view_ = VK_NULL_HANDLE;
+    VkImage offscreen_depth_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory offscreen_depth_image_memory_ = VK_NULL_HANDLE;
+    VkImageView offscreen_depth_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer offscreen_framebuffer_ = VK_NULL_HANDLE;
+    VkFormat offscreen_depth_format_ = VK_FORMAT_UNDEFINED;
+    bool post_process_enabled_ = true;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;
