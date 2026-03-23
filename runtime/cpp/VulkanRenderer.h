@@ -57,6 +57,10 @@ private:
         std::vector<VkPresentModeKHR> present_modes;
     };
 
+    struct PostProcessPushConstants {
+        glm::vec4 params0{0.0F};
+    };
+
     void CreateInstance();
     void CreateDebugMessenger();
     void CreateSurface();
@@ -66,6 +70,14 @@ private:
     void CreateImageViews();
     void CreateRenderPass();
     void CreateGraphicsPipeline();
+    void CreatePostProcessResources();
+    void CreatePostProcessRenderPass();
+    void CreatePostProcessDescriptorSetLayout();
+    void CreatePostProcessPipelineLayout();
+    void CreatePostProcessPipelines();
+    void CreatePostProcessFramebuffers();
+    void CreatePostProcessDescriptorPool();
+    void CreatePostProcessDescriptorSets();
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateCommandBuffers();
@@ -74,6 +86,25 @@ private:
     void RecreateSwapChain();
     void DrawFrame(const Scene& scene, const Camera& camera);
     void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
+    void RecordPostProcessPass(VkCommandBuffer command_buffer, std::uint32_t image_index);
+    void TransitionImageLayout(
+        VkCommandBuffer command_buffer,
+        VkImage image,
+        VkImageLayout old_layout,
+        VkImageLayout new_layout,
+        VkAccessFlags src_access_mask,
+        VkAccessFlags dst_access_mask,
+        VkPipelineStageFlags src_stage_mask,
+        VkPipelineStageFlags dst_stage_mask) const;
+    void CreateImage(
+        std::uint32_t width,
+        std::uint32_t height,
+        VkFormat format,
+        VkImageUsageFlags usage,
+        VkImage& image,
+        VkDeviceMemory& image_memory) const;
+    [[nodiscard]] VkImageView CreateImageView(VkImage image, VkFormat format) const;
+    [[nodiscard]] std::uint32_t FindMemoryType(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
 
     [[nodiscard]] QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool IsDeviceSuitable(VkPhysicalDevice device) const;
@@ -121,6 +152,45 @@ private:
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+    VkRenderPass post_process_render_pass_ = VK_NULL_HANDLE;
+    VkPipelineLayout post_process_pipeline_layout_ = VK_NULL_HANDLE;
+    VkPipeline bloom_extract_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline gaussian_blur_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline combine_tonemap_pipeline_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+    VkDescriptorPool post_process_descriptor_pool_ = VK_NULL_HANDLE;
+    VkSampler post_process_sampler_ = VK_NULL_HANDLE;
+
+    VkImage scene_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory scene_image_memory_ = VK_NULL_HANDLE;
+    VkImageView scene_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer scene_framebuffer_ = VK_NULL_HANDLE;
+
+    VkImage post_process_output_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory post_process_output_image_memory_ = VK_NULL_HANDLE;
+    VkImageView post_process_output_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer post_process_output_framebuffer_ = VK_NULL_HANDLE;
+
+    VkImage bloom_extract_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory bloom_extract_image_memory_ = VK_NULL_HANDLE;
+    VkImageView bloom_extract_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer bloom_extract_framebuffer_ = VK_NULL_HANDLE;
+
+    VkImage bloom_blur_ping_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory bloom_blur_ping_image_memory_ = VK_NULL_HANDLE;
+    VkImageView bloom_blur_ping_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer bloom_blur_ping_framebuffer_ = VK_NULL_HANDLE;
+
+    VkImage bloom_blur_pong_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory bloom_blur_pong_image_memory_ = VK_NULL_HANDLE;
+    VkImageView bloom_blur_pong_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer bloom_blur_pong_framebuffer_ = VK_NULL_HANDLE;
+
+    std::vector<VkFramebuffer> combine_framebuffers_;
+    std::vector<VkDescriptorSet> descriptor_sets_scene_to_extract_;
+    std::vector<VkDescriptorSet> descriptor_sets_extract_to_blur_;
+    std::vector<VkDescriptorSet> descriptor_sets_ping_to_blur_;
+    std::vector<VkDescriptorSet> descriptor_sets_pong_to_combine_;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;
@@ -132,4 +202,5 @@ private:
     std::size_t current_frame_ = 0;
     bool framebuffer_resized_ = false;
     bool enable_validation_layers_ = false;
+    bool post_process_enabled_ = true;
 };
