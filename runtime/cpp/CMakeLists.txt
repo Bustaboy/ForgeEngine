@@ -6,20 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp")
+set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann/json.hpp")
 if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
-    message(FATAL_ERROR
-        "Missing vendored nlohmann/json header at runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp\n"
-        "Download once, then re-run CMake:\n"
-        "Windows (curl):\n"
-        "  mkdir runtime\\cpp\\external\\nlohmann_json\\single_include\\nlohmann\n"
-        "  curl -L https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -o runtime\\cpp\\external\\nlohmann_json\\single_include\\nlohmann\\json.hpp\n"
-        "Windows (PowerShell):\n"
-        "  New-Item -ItemType Directory -Force runtime/cpp/external/nlohmann_json/single_include/nlohmann | Out-Null\n"
-        "  Invoke-WebRequest -Uri https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -OutFile runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp\n"
-        "Ubuntu:\n"
-        "  mkdir -p runtime/cpp/external/nlohmann_json/single_include/nlohmann\n"
-        "  wget -O runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp")
+    message(FATAL_ERROR "Missing vendored nlohmann/json.hpp at runtime/cpp/external/nlohmann/json.hpp. Run ./scripts/bootstrap.sh --runtime-only first (or scripts/bootstrap.ps1 -RuntimeOnly on Windows).")
 endif()
 
 set(FORGE_VULKAN_HINT_PATHS)
@@ -73,19 +62,19 @@ if(NOT glfw3_FOUND)
 endif()
 
 set(FORGE_RUNTIME_SOURCES
-    runtime/cpp/main.cpp
-    runtime/cpp/Engine.cpp
-    runtime/cpp/Timer.cpp
-    runtime/cpp/VulkanRenderer.cpp
-    runtime/cpp/SceneLoader.cpp
+    main.cpp
+    Engine.cpp
+    Timer.cpp
+    VulkanRenderer.cpp
+    SceneLoader.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 
 target_include_directories(forge_runtime
     PRIVATE
-        runtime/cpp
-        runtime/cpp/external/nlohmann_json/single_include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
 target_link_libraries(forge_runtime
@@ -107,7 +96,7 @@ find_program(GLSLC_EXECUTABLE glslc
         /usr/local/bin
     PATH_SUFFIXES Bin bin
 )
-set(FORGE_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/shaders)
+set(FORGE_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES
     ${FORGE_SHADER_DIR}/basic.vert

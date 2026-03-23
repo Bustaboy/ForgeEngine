@@ -150,6 +150,14 @@ bool VulkanRenderer::ShouldClose() const {
     return window_ == nullptr || glfwWindowShouldClose(window_) != 0;
 }
 
+bool VulkanRenderer::IsKeyPressed(int key) const {
+    if (window_ == nullptr) {
+        return false;
+    }
+
+    return glfwGetKey(window_, key) == GLFW_PRESS;
+}
+
 void VulkanRenderer::PollEvents() const {
     glfwPollEvents();
 }
@@ -160,8 +168,8 @@ void VulkanRenderer::SetWindowTitle(const std::string& title) const {
     }
 }
 
-void VulkanRenderer::RenderFrame(const Scene& scene, float elapsed_seconds) {
-    DrawFrame(scene, elapsed_seconds);
+void VulkanRenderer::RenderFrame(const Scene& scene) {
+    DrawFrame(scene);
 }
 
 void VulkanRenderer::FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -730,7 +738,7 @@ void VulkanRenderer::CreateSyncObjects() {
     }
 }
 
-void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, float elapsed_seconds) {
+void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene& scene) {
     if (vkResetCommandBuffer(command_buffers_[image_index], 0) != VK_SUCCESS) {
         throw std::runtime_error("Failed to reset command buffer.");
     }
@@ -748,8 +756,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     render_pass_begin_info.renderArea.offset = {0, 0};
     render_pass_begin_info.renderArea.extent = swap_chain_extent_;
 
-    const float pulse = 0.5F + 0.5F * std::sin(elapsed_seconds * 0.6F);
-    VkClearValue clear_color = {{{0.05F + (0.08F * pulse), 0.06F, 0.10F + (0.10F * pulse), 1.0F}}};
+    VkClearValue clear_color = {{{0.05F, 0.06F, 0.10F, 1.0F}}};
     render_pass_begin_info.clearValueCount = 1;
     render_pass_begin_info.pClearValues = &clear_color;
 
@@ -786,7 +793,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     }
 }
 
-void VulkanRenderer::DrawFrame(const Scene& scene, float elapsed_seconds) {
+void VulkanRenderer::DrawFrame(const Scene& scene) {
     vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
 
     std::uint32_t image_index = 0;
@@ -809,7 +816,7 @@ void VulkanRenderer::DrawFrame(const Scene& scene, float elapsed_seconds) {
 
     vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
 
-    RecordCommandBuffer(image_index, scene, elapsed_seconds);
+    RecordCommandBuffer(image_index, scene);
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
