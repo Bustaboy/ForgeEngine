@@ -246,6 +246,22 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public void BeginDirectPropertyEditForEntity_SelectsEntityAndUpdatesHint()
+    {
+        var prototypeRoot = CreatePrototypeRoot(withEntity: true);
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        var result = viewModel.BeginDirectPropertyEditForEntity("prop_01");
+
+        Assert.True(result);
+        Assert.NotNull(viewModel.SelectedViewportEntity);
+        Assert.Equal("prop_01", viewModel.SelectedViewportEntity!.Id);
+        Assert.Contains("Direct edit ready", viewModel.SelectionInteractionHint);
+    }
+
+    [Fact]
     public async Task Relaunch_CleansUpPreviousPidBeforeStartingNewRuntime()
     {
         var prototypeRoot = CreatePrototypeRoot();

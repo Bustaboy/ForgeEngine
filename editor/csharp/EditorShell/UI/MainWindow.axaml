@@ -464,7 +464,7 @@
                       <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322AA" CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="No entities in scene scaffold yet. Add entities or generate content to preview live." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Width="320" />
                       </Border>
-                      <TextBlock Text="Drag entities directly. Ctrl+Click multi-select. Timeline playback updates this viewport live."
+                      <TextBlock Text="Drag entities directly. Double-click marker for direct property edit. Ctrl+Click multi-select. Timeline playback updates this viewport live."
                                  Foreground="#7F98BD"
                                  FontSize="11"
                                  Margin="6"
@@ -482,7 +482,7 @@
                     <TextBlock Text="{Binding SelectedEntityType, StringFormat=Type: {0}}" Foreground="#AFC2DF" />
                     <TextBlock Text="{Binding SelectedEntityX, StringFormat=X: {0:F2}}" Foreground="#AFC2DF" />
                     <TextBlock Text="{Binding SelectedEntityY, StringFormat=Y: {0:F2}}" Foreground="#AFC2DF" />
-                    <TextBlock Text="Hint: Ctrl+Click toggles selection. Drag empty canvas for marquee multi-select." Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SelectionInteractionHint}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </Grid>
@@ -785,7 +785,7 @@
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🎛 Scene Properties" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
-              <TextBox Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Selection name field&#x0a;Rename one entity or batch-label multi-select." />
+              <TextBox x:Name="SceneEntityNameTextBox" Grid.Row="2" Watermark="Entity Name (or mixed)" Text="{Binding SelectedEntityNameEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="Selection name field&#x0a;Rename one entity or batch-label multi-select." />
               <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
                 <TextBlock Text="X" VerticalAlignment="Center" Foreground="#AFC2DF" />
                 <TextBox Grid.Column="1" Text="{Binding SelectedEntityPositionXEditor}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="X position (world units)." />
