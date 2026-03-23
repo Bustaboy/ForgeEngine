@@ -430,14 +430,25 @@
               <Button Grid.Column="3" Content="+ 📦 Prop" Command="{Binding AddPropEntityCommand}" HorizontalAlignment="Left" ToolTip.Tip="Add Prop entity and relaunch runtime" />
               <Button Grid.Column="4" Content="↶ Undo" Command="{Binding UndoCommand}" IsEnabled="{Binding CanUndo}" ToolTip.Tip="Undo latest scene change&#x0a;Shortcut: Ctrl+Z" />
               <Button Grid.Column="5" Content="↷ Redo" Command="{Binding RedoCommand}" IsEnabled="{Binding CanRedo}" ToolTip.Tip="Redo reverted scene change&#x0a;Shortcut: Ctrl+Y" />
-              <Button Grid.Column="6" Content="🗑 Delete" Command="{Binding DeleteSelectedEntityCommand}" ToolTip.Tip="Delete selected entity" />
+              <Button Grid.Column="6" Content="🗑" Command="{Binding DeleteSelectedEntityCommand}" ToolTip.Tip="Delete selected entity&#x0a;Shortcut: Delete&#x0a;Also available via marker right-click menu." />
             </Grid>
 
-            <TextBlock Grid.Row="1"
-                       Text="No-code scene editing: click and drag entities directly in the viewport. Undo/redo tracks add, move, and delete."
-                       Foreground="#93A7C7"
-                       FontSize="12"
-                       TextWrapping="Wrap" />
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+                <TextBlock Text="🖱 Drag" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
+              </Border>
+              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+                <TextBlock Text="✏ Double-click Edit" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
+              </Border>
+              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+                <TextBlock Text="🗑 Delete key / Menu" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
+              </Border>
+              <TextBlock Text="Undo/redo tracks add, move, and delete."
+                         Foreground="#93A7C7"
+                         FontSize="12"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap" />
+            </StackPanel>
 
             <Border Grid.Row="2" Background="#06080D" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="10">
               <Grid ColumnDefinitions="2*,*" ColumnSpacing="12">
@@ -471,7 +482,7 @@
                       <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322AA" CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="No entities in scene scaffold yet. Add entities or generate content to preview live." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Width="320" />
                       </Border>
-                      <TextBlock Text="Drag entities directly. Double-click marker for direct property edit. Ctrl+Click multi-select. Timeline playback updates this viewport live."
+                      <TextBlock Text="Drag entities directly. Double-click marker for direct property edit. Right-click for quick actions. Ctrl+Click multi-select. Timeline playback updates this viewport live."
                                  Foreground="#7F98BD"
                                  FontSize="11"
                                  Margin="6"
