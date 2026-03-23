@@ -86,6 +86,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isTimelinePlaying;
     private bool _isTimelineLoopEnabled = true;
     private bool _isTimelineApplyingPose;
+    private bool _isViewportEntityPreviewListVisible = true;
     private string _timelineStateLabel = "Idle";
     private const string TimelineModePosition = "Position";
     private const string TimelineModeScale = "Scale";
@@ -373,6 +374,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         : "Live Preview • Idle";
 
     public string ViewportPlaybackSummary => $"{ViewportEntityCountLabel} • {ViewportLivePreviewLabel}";
+
+    public bool IsViewportEntityPreviewListVisible
+    {
+        get => _isViewportEntityPreviewListVisible;
+        set => SetField(ref _isViewportEntityPreviewListVisible, value);
+    }
 
 
     public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;

@@ -243,11 +243,20 @@ public partial class MainWindow : Window
             _ => entity.ColorHex,
         };
 
-        var markerSize = MarkerSize * Math.Max(0.7, entity.Scale);
+        var markerWidth = Math.Max(16, entity.RenderWidth);
+        var markerHeight = Math.Max(14, entity.RenderHeight);
+        var typeGlyph = entity.Type switch
+        {
+            "player" => "👤",
+            "npc" => "🧍",
+            "prop" => "📦",
+            _ => "🧩",
+        };
+
         var marker = new Border
         {
-            Width = markerSize,
-            Height = markerSize,
+            Width = markerWidth,
+            Height = markerHeight,
             CornerRadius = new CornerRadius(4),
             Background = new SolidColorBrush(ParseColor(renderColor, "#1A2C45")),
             BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#B5DFFF") : Color.Parse("#2E3D54")),
@@ -265,18 +274,15 @@ public partial class MainWindow : Window
             Tag = entity.Id,
             Child = new TextBlock
             {
-                Text = entity.DisplayName,
-                FontSize = 9,
+                Text = typeGlyph,
+                FontSize = 12,
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Foreground = Brushes.White,
-                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(4, 0),
-                MaxWidth = Math.Max(8, markerSize - 8),
             }
         };
 
-        ToolTip.SetTip(marker, $"{entity.DisplayName} ({entity.X:F2}, {entity.Y:F2})");
+        ToolTip.SetTip(marker, $"{entity.DisplayName} ({entity.X:F2}, {entity.Y:F2}) • scale {entity.Scale:F2}");
         marker.PointerPressed += OnEntityPointerPressed;
         marker.ContextMenu = BuildEntityContextMenu(entity.Id);
         return marker;
@@ -307,9 +313,10 @@ public partial class MainWindow : Window
 
         var centerX = _viewportCanvas.Bounds.Width / 2.0;
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
-        var markerSize = MarkerSize * Math.Max(0.7, entity.Scale);
-        var left = centerX + (entity.X * ViewportScale) - (markerSize / 2.0);
-        var top = centerY - (entity.Y * ViewportScale) - (markerSize / 2.0);
+        var markerWidth = entity.RenderWidth;
+        var markerHeight = entity.RenderHeight;
+        var left = centerX + (entity.X * ViewportScale) - (markerWidth / 2.0);
+        var top = centerY - (entity.Y * ViewportScale) - (markerHeight / 2.0);
         Canvas.SetLeft(marker, left);
         Canvas.SetTop(marker, top);
     }

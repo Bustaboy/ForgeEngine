@@ -443,7 +443,7 @@
               <Grid ColumnDefinitions="2*,*" ColumnSpacing="12">
                 <Border Background="#0B1220" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="8" Padding="10">
                   <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
                       <Border Background="#132235" CornerRadius="6" Padding="8,4">
                         <TextBlock Text="{Binding ViewportEntityCountLabel}" Foreground="#DCEBFF" FontSize="11" FontWeight="SemiBold" />
                       </Border>
@@ -456,7 +456,14 @@
                       <Border Grid.Column="3" Background="#1D2330" CornerRadius="6" Padding="7,4" HorizontalAlignment="Left">
                         <TextBlock Text="■ Prop" Foreground="#9AA6BA" FontSize="11" FontWeight="SemiBold" />
                       </Border>
-                      <TextBlock Grid.Column="4" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                      <ToggleSwitch Grid.Column="4"
+                                    IsChecked="{Binding IsViewportEntityPreviewListVisible}"
+                                    OnContent="List On"
+                                    OffContent="List Off"
+                                    Foreground="#AFC2DF"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="Toggle optional live entity preview list panel." />
+                      <TextBlock Grid.Column="5" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
                     </Grid>
 
                     <Grid Grid.Row="1">
@@ -484,7 +491,7 @@
                         <Border Background="#102038" CornerRadius="6" Padding="8,6">
                           <TextBlock Text="{Binding SelectionInteractionHint}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                         </Border>
-                        <ItemsControl ItemsSource="{Binding ViewportEntities}">
+                        <ItemsControl ItemsSource="{Binding ViewportEntities}" IsVisible="{Binding IsViewportEntityPreviewListVisible}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>
                               <Border Background="#0F1B2E" BorderBrush="#2D4567" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,0,6">
