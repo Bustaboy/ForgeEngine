@@ -312,6 +312,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsAssetsTabInactive));
             OnPropertyChanged(nameof(IsHistoryTabActive));
             OnPropertyChanged(nameof(IsHistoryTabInactive));
+            OnPropertyChanged(nameof(ActiveLeftPanelTitle));
+            OnPropertyChanged(nameof(ActiveLeftPanelSubtitle));
+            OnPropertyChanged(nameof(ActiveLeftPanelIcon));
         }
     }
 
@@ -323,6 +326,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public bool IsHistoryTabActive => string.Equals(ActiveLeftPanelTab, LeftPanelTabHistory, StringComparison.Ordinal);
     public bool IsHistoryTabInactive => !IsHistoryTabActive;
+
+    public string ActiveLeftPanelTitle => ActiveLeftPanelTab switch
+    {
+        LeftPanelTabAssets => "Assets",
+        LeftPanelTabHistory => "History",
+        _ => "Hierarchy",
+    };
+
+    public string ActiveLeftPanelSubtitle => ActiveLeftPanelTab switch
+    {
+        LeftPanelTabAssets => "Thumbnail browser + drag to viewport",
+        LeftPanelTabHistory => "Scene revisions and timeline snapshots",
+        _ => "Scene entity tree",
+    };
+
+    public string ActiveLeftPanelIcon => ActiveLeftPanelTab switch
+    {
+        LeftPanelTabAssets => "🗂",
+        LeftPanelTabHistory => "🕘",
+        _ => "🌲",
+    };
 
     public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;
 
