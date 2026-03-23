@@ -5136,6 +5136,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                 _isSelected = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ListBorderBrush)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelectionBadgeVisible)));
             }
         }
 
@@ -5205,6 +5207,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         };
 
         public IBrush RenderBrush => new SolidColorBrush(Color.Parse(RenderColorHex));
+
+        public IBrush ListBorderBrush => IsSelected
+            ? new SolidColorBrush(Color.Parse("#6FB8FF"))
+            : new SolidColorBrush(Color.Parse("#2D4567"));
+
+        public bool IsSelectionBadgeVisible => IsSelected;
 
         public double RenderWidth => (Type == "player" ? 44 : Type == "npc" ? 36 : 40) * Math.Max(0.65f, Scale);
 

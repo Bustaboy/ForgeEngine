@@ -356,9 +356,12 @@ public partial class MainWindow : Window
 
         if (e.GetCurrentPoint(marker).Properties.IsRightButtonPressed)
         {
-            _viewModel.BeginDirectPropertyEditForEntity(entityId);
-            RefreshViewportVisuals();
-            e.Handled = true;
+            var changedSelection = _viewModel.BeginDirectPropertyEditForEntity(entityId);
+            if (changedSelection)
+            {
+                RefreshViewportVisuals();
+            }
+
             return;
         }
 
