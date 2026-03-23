@@ -135,8 +135,8 @@ void Scene::Update(float dt_seconds) {
     for (std::size_t i = 0; i < entities.size(); ++i) {
         Entity& entity = entities[i];
 
-        entity.transform.pos.x += entity.velocity.x * dt_seconds;
-        entity.transform.pos.y = std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.45F;
+        entity.transform.pos += entity.velocity * dt_seconds;
+        entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * dt_seconds;
         entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
 
         if (entity.transform.pos.x > 1.2F) {

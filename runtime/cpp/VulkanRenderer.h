@@ -15,11 +15,13 @@
 
 class VulkanRenderer {
 public:
-    struct PerFramePush {
+    struct PerFramePushConstants {
         glm::mat4 view_proj{1.0F};
+        glm::vec4 light_dir{0.0F, 1.0F, 0.0F, 0.0F};
+        glm::vec4 light_color{1.0F, 1.0F, 1.0F, 1.0F};
     };
 
-    struct PerDrawPush {
+    struct PerDrawPushConstants {
         glm::mat4 model{1.0F};
         glm::vec4 color{1.0F, 1.0F, 1.0F, 1.0F};
     };
