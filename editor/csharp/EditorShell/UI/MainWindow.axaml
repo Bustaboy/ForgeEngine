@@ -348,7 +348,7 @@
                          TextWrapping="Wrap" />
               <ScrollViewer Grid.Row="3">
                 <StackPanel Spacing="8">
-                  <Border IsVisible="{Binding IsAssetDragGhostVisible}"
+                  <Border IsVisible="{Binding IsAssetBrowserDragPreviewVisible}"
                           Background="#11243B"
                           BorderBrush="#4AA3FF"
                           BorderThickness="1.4"

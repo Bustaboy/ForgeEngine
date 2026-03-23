@@ -80,6 +80,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private float _assetDragGhostWorldX;
     private float _assetDragGhostWorldY;
     private bool _isAssetDragGhostVisible;
+    private bool _isAssetBrowserDragPreviewVisible;
     private readonly Dictionary<string, EntityAnimationTrack> _animationTracks = new(StringComparer.Ordinal);
     private readonly ObservableCollection<TimelineMarker> _timelineMarkers = new();
     private readonly ReadOnlyObservableCollection<TimelineMarker> _readonlyTimelineMarkers;
@@ -985,6 +986,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         private set => SetField(ref _isAssetDragGhostVisible, value);
     }
 
+    public bool IsAssetBrowserDragPreviewVisible
+    {
+        get => _isAssetBrowserDragPreviewVisible;
+        private set => SetField(ref _isAssetBrowserDragPreviewVisible, value);
+    }
+
     public string AssetDragGhostTitle
     {
         get => _assetDragGhostTitle;
@@ -1064,6 +1071,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _currentSceneHistoryEntry = null;
         _nextHistoryRevision = 1;
         _activeDragSession = null;
+        IsAssetBrowserDragPreviewVisible = false;
         NotifyHistoryChanged();
         SelectedViewportEntity = null;
         SelectedHierarchyNode = null;
@@ -2102,6 +2110,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public bool BeginAssetBrowserDragPreview(string assetId)
+    {
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            return false;
+        }
+
+        var asset = ImportedAssets.FirstOrDefault(item => string.Equals(item.Id, assetId, StringComparison.Ordinal));
+        if (asset is null)
+        {
+            return false;
+        }
+
+        SelectedImportedAsset = asset;
+        AssetDragGhostTitle = asset.DisplayName;
+        AssetDragGhostPreviewPath = asset.PreviewPath;
+        AssetDragGhostKind = asset.Kind;
+        IsAssetBrowserDragPreviewVisible = true;
+        return true;
+    }
+
     public void ClearAssetDragGhost()
     {
         if (!IsAssetDragGhostVisible)
@@ -2110,6 +2139,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         IsAssetDragGhostVisible = false;
+        AssetDragGhostTitle = string.Empty;
+        AssetDragGhostPreviewPath = string.Empty;
+        AssetDragGhostKind = string.Empty;
+        IsAssetBrowserDragPreviewVisible = false;
+    }
+
+    public void EndAssetBrowserDragPreview()
+    {
+        if (!IsAssetBrowserDragPreviewVisible)
+        {
+            return;
+        }
+
+        IsAssetBrowserDragPreviewVisible = false;
+        if (IsAssetDragGhostVisible)
+        {
+            return;
+        }
+
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
         AssetDragGhostKind = string.Empty;
