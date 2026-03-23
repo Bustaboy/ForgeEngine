@@ -132,6 +132,57 @@ public sealed class OrchestratorClient
         return path;
     }
 
+    public static string CreateBriefFromTemplate(
+        string templateId,
+        string templateName,
+        string templateCoreLoop,
+        string projectName,
+        string quickConcept)
+    {
+        var trimmedName = string.IsNullOrWhiteSpace(projectName) ? templateName : projectName.Trim();
+        var trimmedConcept = quickConcept?.Trim() ?? string.Empty;
+        var narrativeNotes = string.IsNullOrWhiteSpace(trimmedConcept)
+            ? $"Generated from {templateName} template."
+            : trimmedConcept;
+
+        var projectRoot = ResolveProjectRoot();
+        var briefsDir = Path.Combine(projectRoot, "build", "editor-briefs");
+        Directory.CreateDirectory(briefsDir);
+
+        var slug = Slugify(trimmedName);
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ");
+        var path = Path.Combine(briefsDir, $"{slug}-{timestamp}.json");
+
+        var payload = new
+        {
+            concept = trimmedName,
+            template = new
+            {
+                id = templateId,
+                name = templateName,
+                starter_scene_scaffold = true,
+            },
+            mechanics = new
+            {
+                core_loop = templateCoreLoop,
+            },
+            style = new
+            {
+                ui_direction = "Sleek icon-heavy editor HUD",
+            },
+            narrative = new
+            {
+                world_notes = narrativeNotes,
+            },
+            commercial = false,
+            monetization = "none",
+            commercial_policy_acknowledged = false,
+        };
+
+        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+        return path;
+    }
+
     private static PipelineExecutionEnvelope? TryParsePipelineResult(string stdout)
     {
         var start = stdout.IndexOf('{');

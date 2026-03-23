@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GameForge.Editor.EditorShell.UI.NewProjectWizardWindow"
+        Title="New Project Wizard"
+        Width="760"
+        Height="560"
+        MinWidth="720"
+        MinHeight="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B111D">
+  <Border Padding="18" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="12" Background="#0B111D">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+      <StackPanel>
+        <TextBlock Text="🧠 New Project Wizard" Foreground="#EDF5FF" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Template → Name → Concept → Create" Foreground="#97AECC" Margin="0,4,0,0" />
+      </StackPanel>
+
+      <Border Grid.Row="1" Background="#101B2B" BorderBrush="#30435F" BorderThickness="1" CornerRadius="8" Padding="10,8">
+        <TextBlock Name="StepLabel" Foreground="#D8E8FF" FontSize="13" />
+      </Border>
+
+      <Grid Grid.Row="2">
+        <StackPanel Name="TemplateStepPanel" Spacing="10">
+          <TextBlock Text="Pick a starter template" Foreground="#DDEBFF" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Templates preload scene scaffold + brief defaults so beginners can prototype immediately." Foreground="#93A9C8" TextWrapping="Wrap" />
+          <ListBox Name="TemplateListBox" BorderBrush="#31445F" BorderThickness="1" Background="#0D1626">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#121E31" BorderBrush="#2D405D" BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" Padding="10">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <TextBlock Text="{Binding Icon}" FontSize="20" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="2">
+                      <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding BriefSummary}" Foreground="#9FB6D5" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+
+        <StackPanel Name="NamingStepPanel" IsVisible="False" Spacing="10">
+          <TextBlock Text="Name your project" Foreground="#DDEBFF" FontSize="17" FontWeight="SemiBold" />
+          <TextBox Name="ProjectNameTextBox" Watermark="My Cozy Prototype" FontSize="15" />
+          <TextBlock Text="Used for project folder naming + initial brief title." Foreground="#93A9C8" FontSize="12" />
+        </StackPanel>
+
+        <StackPanel Name="ConceptStepPanel" IsVisible="False" Spacing="10">
+          <TextBlock Text="Quick concept (optional)" Foreground="#DDEBFF" FontSize="17" FontWeight="SemiBold" />
+          <TextBox Name="ConceptTextBox" Height="180" AcceptsReturn="True" TextWrapping="Wrap"
+                   Watermark="Add a one-line twist, theme, or prototype objective..." />
+          <TextBlock Text="Skip this if you want the template defaults only." Foreground="#93A9C8" FontSize="12" />
+        </StackPanel>
+      </Grid>
+
+      <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+        <TextBlock Name="ValidationMessageText" Foreground="#FF9CB4" VerticalAlignment="Center" TextWrapping="Wrap" />
+        <Button Name="BackButton" Grid.Column="1" Content="Back" MinWidth="90" Click="OnBackClick" />
+        <Button Name="NextButton" Grid.Column="2" Content="Next" MinWidth="90" Click="OnNextClick" />
+        <Button Name="CreateButton" Grid.Column="3" Content="Create Project" MinWidth="130" Click="OnCreateClick" IsVisible="False" />
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

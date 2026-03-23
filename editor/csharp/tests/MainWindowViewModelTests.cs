@@ -57,6 +57,45 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateProjectFromTemplate_GeneratesPrototypeAndLaunchesRuntime()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var template = MainWindowViewModel.GetProjectTemplatePresets().Single(entry => entry.Id == "cozy-colony");
+
+        orchestrator
+            .Setup(client => client.CreateBriefFromTemplate(template, "Moonlight Colony", "A gentle night market economy"))
+            .Returns(Path.Combine(_tempRoot, "template-brief.json"));
+        orchestrator
+            .Setup(client => client.RunGenerationPipelineAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PipelineRunResponse
+            {
+                ExitCode = 0,
+                Stdout = "ok",
+                Stderr = string.Empty,
+                Result = new PipelineExecutionEnvelope
+                {
+                    Status = "Completed",
+                    RuntimeLaunchStatus = "Running",
+                    RuntimeLaunchPid = 5252,
+                    PrototypeRoot = prototypeRoot,
+                },
+            });
+
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object);
+
+        await viewModel.CreateProjectFromTemplateAsync(template, "Moonlight Colony", "A gentle night market economy");
+
+        Assert.Equal(prototypeRoot, viewModel.PrototypeRoot);
+        Assert.Equal(5252, viewModel.RuntimePid);
+        Assert.Equal("Running", viewModel.RuntimeLaunchStatus);
+        Assert.Contains("Moonlight Colony", viewModel.ChatPrompt);
+        Assert.Contains("Gather -> Build -> Care", viewModel.ChatPrompt);
+        orchestrator.VerifyAll();
+    }
+
+    [Fact]
     public async Task SaveCodeEdits_RunsConfigureBuildAndRelaunch()
     {
         var prototypeRoot = CreatePrototypeRoot();

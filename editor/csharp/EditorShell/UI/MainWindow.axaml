@@ -79,7 +79,7 @@
           <StackPanel Spacing="5">
             <TextBlock Text="FILE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewPrototypeClick" ToolTip.Tip="New Prototype" />
+              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewProjectClick" ToolTip.Tip="New Project Wizard" />
               <Button Classes="ribbon-icon" Content="📂" ToolTip.Tip="Open Project (placeholder)" />
               <Button Classes="ribbon-icon" Content="💾" ToolTip.Tip="Save Snapshot (placeholder)" />
             </StackPanel>
