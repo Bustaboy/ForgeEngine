@@ -6,8 +6,55 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Vulkan REQUIRED)
-find_package(glfw3 3.3 REQUIRED)
+set(FORGE_VULKAN_HINT_PATHS)
+if(DEFINED ENV{VULKAN_SDK})
+    list(APPEND FORGE_VULKAN_HINT_PATHS "$ENV{VULKAN_SDK}")
+endif()
+if(WIN32)
+    if(DEFINED ENV{ProgramFiles})
+        list(APPEND FORGE_VULKAN_HINT_PATHS "$ENV{ProgramFiles}/VulkanSDK")
+    endif()
+    if(DEFINED ENV{ProgramFiles\(x86\)})
+        list(APPEND FORGE_VULKAN_HINT_PATHS "$ENV{ProgramFiles\(x86\)}/VulkanSDK")
+    endif()
+else()
+    list(APPEND FORGE_VULKAN_HINT_PATHS /usr /usr/local /opt/vulkansdk)
+endif()
+
+find_package(Vulkan MODULE QUIET)
+if(NOT Vulkan_FOUND)
+    find_package(Vulkan QUIET HINTS ${FORGE_VULKAN_HINT_PATHS})
+endif()
+if(NOT Vulkan_FOUND)
+    find_package(Vulkan REQUIRED)
+endif()
+
+find_package(glfw3 3.3 QUIET)
+if(NOT glfw3_FOUND)
+    find_path(GLFW3_INCLUDE_DIR GLFW/glfw3.h
+        HINTS
+            $ENV{GLFW_DIR}/include
+            /usr/include
+            /usr/local/include
+    )
+    find_library(GLFW3_LIBRARY NAMES glfw3 glfw
+        HINTS
+            $ENV{GLFW_DIR}/lib
+            /usr/lib
+            /usr/local/lib
+            /usr/lib/x86_64-linux-gnu
+    )
+
+    if(NOT GLFW3_INCLUDE_DIR OR NOT GLFW3_LIBRARY)
+        message(FATAL_ERROR "glfw3 not found. Install glfw3 dev package or set GLFW_DIR.")
+    endif()
+
+    add_library(glfw UNKNOWN IMPORTED)
+    set_target_properties(glfw PROPERTIES
+        IMPORTED_LOCATION "${GLFW3_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${GLFW3_INCLUDE_DIR}"
+    )
+endif()
 
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
@@ -37,7 +84,13 @@ else()
     target_compile_options(forge_runtime PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-find_program(GLSLC_EXECUTABLE glslc HINTS ENV VULKAN_SDK PATH_SUFFIXES Bin bin)
+find_program(GLSLC_EXECUTABLE glslc
+    HINTS
+        ENV VULKAN_SDK
+        /usr/bin
+        /usr/local/bin
+    PATH_SUFFIXES Bin bin
+)
 set(FORGE_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/shaders)
 set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES

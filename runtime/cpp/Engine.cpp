@@ -2,6 +2,7 @@
 
 #include "Logger.h"
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <string>
@@ -46,13 +47,26 @@ void Engine::Init() {
     Logger::Init();
     GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");
 
-    Entity rectangle{};
-    rectangle.id = 1;
-    rectangle.transform.pos = {0.0F, 0.0F, 0.0F};
-    rectangle.transform.scale = {0.20F, 0.20F, 1.0F};
-    rectangle.renderable.color = {0.35F, 0.85F, 0.65F};
-    rectangle.velocity = {0.42F, 0.0F, 0.0F};
-    scene_.entities.push_back(rectangle);
+    constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
+    constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};
+    constexpr std::array<float, 5> kScale = {0.18F, 0.16F, 0.20F, 0.14F, 0.17F};
+    constexpr std::array<glm::vec4, 5> kBaseColors = {
+        glm::vec4(0.95F, 0.35F, 0.35F, 1.0F),
+        glm::vec4(0.35F, 0.95F, 0.45F, 1.0F),
+        glm::vec4(0.35F, 0.55F, 0.95F, 1.0F),
+        glm::vec4(0.95F, 0.85F, 0.35F, 1.0F),
+        glm::vec4(0.85F, 0.35F, 0.95F, 1.0F),
+    };
+
+    for (std::size_t i = 0; i < kInitialX.size(); ++i) {
+        Entity entity{};
+        entity.id = i + 1;
+        entity.transform.pos = {kInitialX[i], 0.0F, 0.0F};
+        entity.transform.scale = {kScale[i], kScale[i], 1.0F};
+        entity.renderable.color = kBaseColors[i];
+        entity.velocity = {kVelocityX[i], 0.0F, 0.0F};
+        scene_.entities.push_back(entity);
+    }
 
     renderer_.Init();
     GF_LOG_INFO("Render loop started");
@@ -61,15 +75,25 @@ void Engine::Init() {
 void Engine::Update(float dt_seconds) {
     elapsed_seconds_ += dt_seconds;
 
-    for (Entity& entity : scene_.entities) {
-        entity.transform.pos[0] += entity.velocity[0] * dt_seconds;
-        entity.transform.pos[1] = std::sin(elapsed_seconds_ * 1.35F) * 0.35F;
+    for (std::size_t i = 0; i < scene_.entities.size(); ++i) {
+        Entity& entity = scene_.entities[i];
 
-        if (entity.transform.pos[0] > 0.82F) {
-            entity.transform.pos[0] = -0.82F;
+        entity.transform.pos.x += entity.velocity.x * dt_seconds;
+        entity.transform.pos.y = std::sin((elapsed_seconds_ * 1.35F) + static_cast<float>(i) * 0.85F) * 0.45F;
+        entity.transform.rot.z = elapsed_seconds_ * (0.3F + static_cast<float>(i) * 0.15F);
+
+        if (entity.transform.pos.x > 1.2F) {
+            entity.transform.pos.x = -1.2F;
         }
 
-        entity.renderable.color[1] = 0.45F + 0.40F * (std::sin(elapsed_seconds_) + 1.0F) * 0.5F;
+        const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (0.9F + static_cast<float>(i) * 0.1F));
+        const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (1.1F + static_cast<float>(i) * 0.07F));
+        const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds_ * (1.3F + static_cast<float>(i) * 0.05F));
+
+        entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
+        entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
+        entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
+        entity.renderable.color.a = 1.0F;
     }
 }
 
