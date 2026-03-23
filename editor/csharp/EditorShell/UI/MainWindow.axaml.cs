@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorShell.ViewModels;
