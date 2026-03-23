@@ -66,6 +66,23 @@
       <Setter Property="MinWidth" Value="44" />
       <Setter Property="FontSize" Value="16" />
     </Style>
+
+    <Style Selector="Button.panel-tab">
+      <Setter Property="Background" Value="#111A2A" />
+      <Setter Property="BorderBrush" Value="#2B3A52" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#9FB7D8" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="MinWidth" Value="40" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.panel-tab.active">
+      <Setter Property="Background" Value="#1D2D46" />
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+      <Setter Property="Foreground" Value="#EEF4FF" />
+    </Style>
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
@@ -141,7 +158,7 @@
       </Border>
 
       <Border Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
-        <Grid RowDefinitions="Auto,*" RowSpacing="10">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
               <TextBlock Text="🌲" FontSize="16" />
@@ -152,10 +169,50 @@
             </StackPanel>
           </StackPanel>
 
-          <TreeView Grid.Row="1"
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+            <Button Classes="panel-tab active"
+                    Content="🌲"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="Hierarchy"
+                    IsVisible="{Binding IsHierarchyTabActive}"
+                    ToolTip.Tip="Hierarchy tab: entity tree and re-parenting." />
+            <Button Classes="panel-tab"
+                    Content="🌲"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="Hierarchy"
+                    IsVisible="{Binding IsHierarchyTabInactive}"
+                    ToolTip.Tip="Hierarchy tab: entity tree and re-parenting." />
+            <Button Classes="panel-tab active"
+                    Content="🗂"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="Assets"
+                    IsVisible="{Binding IsAssetsTabActive}"
+                    ToolTip.Tip="Assets tab (coming next): use the asset browser panel below for now." />
+            <Button Classes="panel-tab"
+                    Content="🗂"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="Assets"
+                    IsVisible="{Binding IsAssetsTabInactive}"
+                    ToolTip.Tip="Assets tab (coming next): use the asset browser panel below for now." />
+            <Button Classes="panel-tab active"
+                    Content="🕘"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="History"
+                    IsVisible="{Binding IsHistoryTabActive}"
+                    ToolTip.Tip="History tab (coming next): full timeline remains in the lower history panel." />
+            <Button Classes="panel-tab"
+                    Content="🕘"
+                    Command="{Binding SetLeftPanelTabCommand}"
+                    CommandParameter="History"
+                    IsVisible="{Binding IsHistoryTabInactive}"
+                    ToolTip.Tip="History tab (coming next): full timeline remains in the lower history panel." />
+          </StackPanel>
+
+          <TreeView Grid.Row="2"
                     Name="HierarchyTree"
                     ItemsSource="{Binding HierarchyRoots}"
                     SelectedItem="{Binding SelectedHierarchyNode}"
+                    IsVisible="{Binding IsHierarchyTabActive}"
                     Background="#09111D"
                     BorderBrush="#2B3446"
                     BorderThickness="1"
@@ -168,6 +225,38 @@
               </TreeDataTemplate>
             </TreeView.ItemTemplate>
           </TreeView>
+
+          <Border Grid.Row="2"
+                  IsVisible="{Binding IsAssetsTabActive}"
+                  Background="#09111D"
+                  BorderBrush="#2B3446"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="10">
+            <StackPanel Spacing="6">
+              <TextBlock Text="🗂 Asset tab is staged." Foreground="#D6E9FF" FontWeight="SemiBold" />
+              <TextBlock Text="Use the main Asset Browser panel (right side) to import and place assets in this V1 slice."
+                         Foreground="#8EA5C7"
+                         FontSize="11"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Row="2"
+                  IsVisible="{Binding IsHistoryTabActive}"
+                  Background="#09111D"
+                  BorderBrush="#2B3446"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="10">
+            <StackPanel Spacing="6">
+              <TextBlock Text="🕘 History tab is staged." Foreground="#D6E9FF" FontWeight="SemiBold" />
+              <TextBlock Text="Undo/redo history remains active in the dedicated timeline panel below."
+                         Foreground="#8EA5C7"
+                         FontSize="11"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
         </Grid>
       </Border>
 

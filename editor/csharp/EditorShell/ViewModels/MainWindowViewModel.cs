@@ -63,6 +63,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly ObservableCollection<HierarchyNode> _hierarchyRoots = new();
     private readonly ReadOnlyObservableCollection<HierarchyNode> _readonlyHierarchyRoots;
     private HierarchyNode? _selectedHierarchyNode;
+    private string _activeLeftPanelTab = LeftPanelTabHierarchy;
     private DragSession? _activeDragSession;
     private string _selectedEntityAssetName = "No asset linked.";
     private string _selectedEntityAssetPreviewPath = string.Empty;
@@ -81,6 +82,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private const string TimelineModePosition = "Position";
     private const string TimelineModeScale = "Scale";
     private const string TimelineModeColor = "Color";
+    private const string LeftPanelTabHierarchy = "Hierarchy";
+    private const string LeftPanelTabAssets = "Assets";
+    private const string LeftPanelTabHistory = "History";
     private string _timelineMode = TimelineModePosition;
     private CancellationTokenSource? _timelinePlaybackCts;
     private bool _isExportChecklistVisible;
@@ -143,6 +147,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
         StopTimelinePlaybackCommand = new AsyncRelayCommand(StopTimelinePlaybackAsync);
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
+        SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
         {
@@ -187,6 +192,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand StopTimelinePlaybackCommand { get; }
 
     public ICommand SetTimelineModeCommand { get; }
+
+    public ICommand SetLeftPanelTabCommand { get; }
 
     public string ChatPrompt
     {
@@ -280,6 +287,34 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public string GenerateButtonLabel => IsBusy ? "Generating..." : "Generate & Play";
+
+    public string ActiveLeftPanelTab
+    {
+        get => _activeLeftPanelTab;
+        private set
+        {
+            if (!SetField(ref _activeLeftPanelTab, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsHierarchyTabActive));
+            OnPropertyChanged(nameof(IsHierarchyTabInactive));
+            OnPropertyChanged(nameof(IsAssetsTabActive));
+            OnPropertyChanged(nameof(IsAssetsTabInactive));
+            OnPropertyChanged(nameof(IsHistoryTabActive));
+            OnPropertyChanged(nameof(IsHistoryTabInactive));
+        }
+    }
+
+    public bool IsHierarchyTabActive => string.Equals(ActiveLeftPanelTab, LeftPanelTabHierarchy, StringComparison.Ordinal);
+    public bool IsHierarchyTabInactive => !IsHierarchyTabActive;
+
+    public bool IsAssetsTabActive => string.Equals(ActiveLeftPanelTab, LeftPanelTabAssets, StringComparison.Ordinal);
+    public bool IsAssetsTabInactive => !IsAssetsTabActive;
+
+    public bool IsHistoryTabActive => string.Equals(ActiveLeftPanelTab, LeftPanelTabHistory, StringComparison.Ordinal);
+    public bool IsHistoryTabInactive => !IsHistoryTabActive;
 
     public bool IsAutosaveEnabled => _preferences.General.AutosaveEnabled;
 
@@ -3436,6 +3471,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             || string.Equals(mode, TimelineModeColor, StringComparison.Ordinal))
         {
             TimelineMode = mode;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task SetLeftPanelTabAsync(object? parameter)
+    {
+        if (parameter is not string tab)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (string.Equals(tab, LeftPanelTabHierarchy, StringComparison.Ordinal)
+            || string.Equals(tab, LeftPanelTabAssets, StringComparison.Ordinal)
+            || string.Equals(tab, LeftPanelTabHistory, StringComparison.Ordinal))
+        {
+            ActiveLeftPanelTab = tab;
         }
 
         return Task.CompletedTask;
