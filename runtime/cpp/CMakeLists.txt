@@ -85,6 +85,8 @@ add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 target_include_directories(forge_runtime
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/templates
         ${CMAKE_CURRENT_SOURCE_DIR}/external
         ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann
         ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann_json/single_include

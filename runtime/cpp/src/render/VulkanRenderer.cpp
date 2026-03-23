@@ -132,6 +132,7 @@ void VulkanRenderer::Shutdown() {
         vkDeviceWaitIdle(device_);
     }
 
+    GF_LOG_INFO("Vulkan shutdown: cleanup swapchain resources");
     CleanupSwapChain();
 
     for (std::size_t i = 0; i < image_available_semaphores_.size(); ++i) {
@@ -153,16 +154,19 @@ void VulkanRenderer::Shutdown() {
     image_available_semaphores_.clear();
 
     if (command_pool_ != VK_NULL_HANDLE) {
+        GF_LOG_INFO("Vulkan shutdown: destroy command pool");
         vkDestroyCommandPool(device_, command_pool_, nullptr);
         command_pool_ = VK_NULL_HANDLE;
     }
 
     if (device_ != VK_NULL_HANDLE) {
+        GF_LOG_INFO("Vulkan shutdown: destroy logical device");
         vkDestroyDevice(device_, nullptr);
         device_ = VK_NULL_HANDLE;
     }
 
     if (surface_ != VK_NULL_HANDLE) {
+        GF_LOG_INFO("Vulkan shutdown: destroy surface");
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         surface_ = VK_NULL_HANDLE;
     }
@@ -173,6 +177,7 @@ void VulkanRenderer::Shutdown() {
     }
 
     if (instance_ != VK_NULL_HANDLE) {
+        GF_LOG_INFO("Vulkan shutdown: destroy instance");
         vkDestroyInstance(instance_, nullptr);
         instance_ = VK_NULL_HANDLE;
     }
@@ -221,6 +226,14 @@ void VulkanRenderer::SetWindowTitle(const std::string& title) const {
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
     DrawFrame(scene, camera);
+}
+
+void VulkanRenderer::DrawFPSOverlay(float fps) {
+    static int frame_counter = 0;
+    ++frame_counter;
+    if ((frame_counter % 60) == 0) {
+        GF_LOG_INFO("FPS overlay hook fps=" + std::to_string(fps));
+    }
 }
 
 void VulkanRenderer::DrawText(const std::string& text, float x, float y) {
@@ -989,6 +1002,7 @@ void VulkanRenderer::RecreateSwapChain() {
 
     vkDeviceWaitIdle(device_);
 
+    GF_LOG_INFO("Vulkan shutdown: cleanup swapchain resources");
     CleanupSwapChain();
     CreateSwapChain();
     CreateImageViews();

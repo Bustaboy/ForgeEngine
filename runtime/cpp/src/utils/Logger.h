@@ -66,11 +66,11 @@ private:
 #define GF_LOG_INFO(message) Logger::Write("INFO", (message))
 #define GF_LOG_WARN(message) Logger::Write("WARN", (message))
 #define GF_LOG_ERROR(message) Logger::Write("ERROR", (message))
-#define VK_CHECK(result)                                                                                               \
-    do {                                                                                                               \
-        const VkResult vk_check_result__ = (result);                                                                  \
-        if (vk_check_result__ != VK_SUCCESS) {                                                                         \
-            GF_LOG_ERROR(std::string("Vulkan failure: ") + #result + " -> code " + std::to_string(vk_check_result__)); \
-            std::abort();                                                                                              \
-        }                                                                                                              \
+#define VK_CHECK(result)                                                                                                  \
+    do {                                                                                                                  \
+        const VkResult vk_check_result__ = (result);                                                                     \
+        if (vk_check_result__ < 0) {                                                                                     \
+            GF_LOG_ERROR(std::string("Vulkan failure: ") + #result + " -> code " + std::to_string(vk_check_result__));    \
+            std::abort();                                                                                                 \
+        }                                                                                                                 \
     } while (false)

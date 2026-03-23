@@ -39,6 +39,7 @@ public:
     [[nodiscard]] float GetAspectRatio() const;
     void PollEvents() const;
     void SetWindowTitle(const std::string& title) const;
+    void DrawFPSOverlay(float fps);
 
 private:
     struct QueueFamilyIndices {
