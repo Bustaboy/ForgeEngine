@@ -137,6 +137,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ApplySelectionPropertiesCommand = new AsyncRelayCommand(() => ApplySelectionPropertiesAsync());
         UndoCommand = new AsyncRelayCommand(() => UndoAsync());
         RedoCommand = new AsyncRelayCommand(() => RedoAsync());
+        PlayRuntimeCommand = new AsyncRelayCommand(() => PlayRuntimeAsync());
         JumpToHistoryCommand = new AsyncRelayCommand<object?>(JumpToHistoryAsync);
         AddTimelineKeyframeCommand = new AsyncRelayCommand(AddTimelineKeyframeAsync);
         ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
@@ -174,6 +175,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ICommand UndoCommand { get; }
 
     public ICommand RedoCommand { get; }
+
+    public ICommand PlayRuntimeCommand { get; }
 
     public ICommand JumpToHistoryCommand { get; }
 
@@ -285,6 +288,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string AutosaveStatusLabel => IsAutosaveEnabled ? "Autosave: On" : "Autosave: Off";
 
     public string RuntimePreferencesSummary => $"{_preferences.Runtime.VulkanResolution} @ {_preferences.Runtime.FpsLimit} FPS cap";
+
+    public string ShortcutHintBar => "Shortcuts: Ctrl+N New • Ctrl+S Save • Ctrl+Z/Y Undo/Redo • Ctrl+Shift+P Play • Ctrl+I Import • Ctrl+Shift+S Settings";
 
     public int RibbonIconSize => _preferences.Editor.IconSize;
 
