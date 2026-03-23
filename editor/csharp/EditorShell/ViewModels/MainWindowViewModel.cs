@@ -82,6 +82,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private float _assetDragGhostWorldY;
     private bool _isAssetDragGhostVisible;
     private bool _isAssetBrowserDragPreviewVisible;
+    private DateTimeOffset? _assetCatalogLastRefreshedAtUtc;
     private readonly Dictionary<string, EntityAnimationTrack> _animationTracks = new(StringComparer.Ordinal);
     private readonly ObservableCollection<TimelineMarker> _timelineMarkers = new();
     private readonly ReadOnlyObservableCollection<TimelineMarker> _readonlyTimelineMarkers;
@@ -1019,6 +1020,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string AssetResultsSummary => HasAssetResults
         ? $"{FilteredImportedAssets.Count} shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}"
         : $"0 shown / {ImportedAssets.Count} total • {SelectedAssetKindFilter}";
+
+    public string AssetLastRefreshLabel => _assetCatalogLastRefreshedAtUtc is null
+        ? "Not refreshed yet."
+        : $"Updated {ToRelativeAgeLabel(_assetCatalogLastRefreshedAtUtc.Value)}";
 
     public bool IsAssetDragGhostVisible
     {
@@ -2117,6 +2122,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             using var document = JsonDocument.Parse(content);
             ImportedAssets.Clear();
             LoadImportedAssets(document.RootElement);
+            MarkAssetCatalogRefreshed();
             StatusMessage = $"Assets refreshed ({ImportedAssets.Count} loaded).";
             ShowToast("Asset browser refreshed.");
         }
@@ -2143,7 +2149,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedImportedAsset = asset;
         AssetDragGhostTitle = asset.DisplayName;
         AssetDragGhostPreviewPath = asset.PreviewPath;
-        AssetDragGhostKind = asset.Kind;
+        AssetDragGhostKind = asset.ThumbnailBadge;
         AssetDragGhostWorldX = worldX;
         AssetDragGhostWorldY = worldY;
         IsAssetDragGhostVisible = true;
@@ -2166,18 +2172,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedImportedAsset = asset;
         AssetDragGhostTitle = asset.DisplayName;
         AssetDragGhostPreviewPath = asset.PreviewPath;
-        AssetDragGhostKind = asset.Kind;
+        AssetDragGhostKind = asset.ThumbnailBadge;
         IsAssetBrowserDragPreviewVisible = true;
         return true;
     }
 
     public void ClearAssetDragGhost()
     {
-        if (!IsAssetDragGhostVisible)
-        {
-            return;
-        }
-
         IsAssetDragGhostVisible = false;
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
@@ -2799,6 +2800,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
             var afterContent = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, $"Imported asset: {Path.GetFileName(normalizedPath)}", cancellationToken);
+            using var refreshedDocument = JsonDocument.Parse(afterContent);
+            ImportedAssets.Clear();
+            LoadImportedAssets(refreshedDocument.RootElement);
+            MarkAssetCatalogRefreshed();
             return true;
         }
         catch (Exception ex)
@@ -4945,6 +4950,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 SanitizeColorHex(color ?? string.Empty) ?? "#7FD1FF"));
         }
 
+        MarkAssetCatalogRefreshed();
         ApplyAssetFilter();
         SelectedImportedAsset = FilteredImportedAssets.FirstOrDefault() ?? ImportedAssets.FirstOrDefault();
     }
@@ -4964,7 +4970,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 .ToList()
             : ImportedAssets
                 .Where(asset => asset.MatchesKindFilter(kindFilter)
-                    && asset.SearchCorpus.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    && asset.MatchesSearchQuery(query))
                 .ToList();
 
         next = next
@@ -4987,6 +4993,33 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasAssetResults));
         OnPropertyChanged(nameof(HasNoAssetResults));
         OnPropertyChanged(nameof(AssetResultsSummary));
+    }
+
+    private void MarkAssetCatalogRefreshed()
+    {
+        _assetCatalogLastRefreshedAtUtc = DateTimeOffset.UtcNow;
+        OnPropertyChanged(nameof(AssetLastRefreshLabel));
+    }
+
+    private static string ToRelativeAgeLabel(DateTimeOffset timestampUtc)
+    {
+        var elapsed = DateTimeOffset.UtcNow - timestampUtc;
+        if (elapsed.TotalSeconds < 30)
+        {
+            return "just now";
+        }
+
+        if (elapsed.TotalMinutes < 1)
+        {
+            return $"{Math.Max(1, (int)Math.Round(elapsed.TotalSeconds))} sec ago";
+        }
+
+        if (elapsed.TotalHours < 1)
+        {
+            return $"{Math.Max(1, (int)Math.Round(elapsed.TotalMinutes))} min ago";
+        }
+
+        return $"{Math.Max(1, (int)Math.Round(elapsed.TotalHours))} hr ago";
     }
 
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
@@ -5542,6 +5575,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public string ThumbnailBadge => IsModel ? "OBJ" : "PNG";
 
         public string SearchCorpus => $"{DisplayName} {Kind} {KindLabel} {ThumbnailBadge} {Id} {SourcePath}";
+
+        public string CardToneHex => IsModel ? "#28333F" : "#133858";
+
+        public string CardBorderHex => IsModel ? "#5C6B7D" : "#4AA3FF";
+
+        public bool MatchesSearchQuery(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return true;
+            }
+
+            var terms = query
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static token => token.Length > 0)
+                .ToArray();
+            if (terms.Length == 0)
+            {
+                return true;
+            }
+
+            return terms.All(token => SearchCorpus.Contains(token, StringComparison.OrdinalIgnoreCase));
+        }
 
         public bool MatchesKindFilter(string kindFilter) => kindFilter switch
         {
