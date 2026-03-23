@@ -252,6 +252,16 @@ public partial class MainWindow : Window
             Background = new SolidColorBrush(ParseColor(renderColor, "#1A2C45")),
             BorderBrush = new SolidColorBrush(entity.IsSelected ? Color.Parse("#B5DFFF") : Color.Parse("#2E3D54")),
             BorderThickness = entity.IsSelected ? new Thickness(2.4) : new Thickness(1.2),
+            BoxShadow = entity.IsSelected
+                ? new BoxShadows(new BoxShadow
+                {
+                    Blur = 18,
+                    Spread = 1,
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    Color = Color.Parse("#805AB8FF"),
+                })
+                : default,
             Tag = entity.Id,
             Child = new TextBlock
             {
@@ -268,7 +278,24 @@ public partial class MainWindow : Window
 
         ToolTip.SetTip(marker, $"{entity.DisplayName} ({entity.X:F2}, {entity.Y:F2})");
         marker.PointerPressed += OnEntityPointerPressed;
+        marker.ContextMenu = BuildEntityContextMenu(entity.Id);
         return marker;
+    }
+
+    private ContextMenu BuildEntityContextMenu(string entityId)
+    {
+        var editItem = new MenuItem { Header = "✏ Edit Properties", Tag = entityId };
+        editItem.Click += OnViewportEditPropertiesClick;
+        var deleteItem = new MenuItem { Header = "🗑 Delete Entity", Tag = entityId };
+        deleteItem.Click += OnViewportDeleteEntityClick;
+        return new ContextMenu
+        {
+            Items =
+            {
+                editItem,
+                deleteItem,
+            },
+        };
     }
 
     private void UpdateEntityMarkerPosition(Control marker, MainWindowViewModel.ViewportEntity entity)
@@ -320,6 +347,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.GetCurrentPoint(marker).Properties.IsRightButtonPressed)
+        {
+            _viewModel.BeginDirectPropertyEditForEntity(entityId);
+            RefreshViewportVisuals();
+            e.Handled = true;
+            return;
+        }
+
         var modifiers = e.KeyModifiers;
         if (modifiers.HasFlag(KeyModifiers.Control))
         {
@@ -329,7 +364,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        _viewModel.SelectSingleEntity(entityId);
+        var selected = _viewModel.SelectSingleEntity(entityId);
+        if (selected && e.ClickCount >= 2)
+        {
+            _viewModel.BeginDirectPropertyEditForEntity(entityId);
+            FocusSceneEntityNameEditor();
+            RefreshViewportVisuals();
+            e.Handled = true;
+            return;
+        }
+
         if (!_viewModel.BeginDragForEntity(entityId))
         {
             return;
@@ -346,6 +390,33 @@ public partial class MainWindow : Window
         _dragEntityStartY = _draggingEntity.Y;
         e.Pointer.Capture(_viewportCanvas);
         e.Handled = true;
+    }
+
+    private void OnViewportEditPropertiesClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string entityId } || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        if (_viewModel.BeginDirectPropertyEditForEntity(entityId))
+        {
+            FocusSceneEntityNameEditor();
+            RefreshViewportVisuals();
+        }
+    }
+
+    private void OnViewportDeleteEntityClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string entityId } || string.IsNullOrWhiteSpace(entityId))
+        {
+            return;
+        }
+
+        if (_viewModel.SelectSingleEntity(entityId))
+        {
+            _viewModel.DeleteSelectedEntityCommand.Execute(null);
+        }
     }
 
     private async void OnHierarchyNodePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1023,6 +1094,13 @@ public partial class MainWindow : Window
 
     private async void OnMainWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Delete && !IsTextEntryFocused())
+        {
+            _viewModel.DeleteSelectedEntityCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             return;
@@ -1061,6 +1139,24 @@ public partial class MainWindow : Window
             OnImportAssetClick(this, new RoutedEventArgs());
             e.Handled = true;
         }
+    }
+
+    private void FocusSceneEntityNameEditor()
+    {
+        var nameEditor = this.FindControl<TextBox>("SceneEntityNameTextBox");
+        if (nameEditor is null || !nameEditor.IsEnabled)
+        {
+            return;
+        }
+
+        nameEditor.Focus();
+        nameEditor.SelectAll();
+    }
+
+    private bool IsTextEntryFocused()
+    {
+        var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        return focused is TextBox || focused is TextEditor;
     }
 
     private async Task<bool> ShowPublishDryRunConfirmationAsync()

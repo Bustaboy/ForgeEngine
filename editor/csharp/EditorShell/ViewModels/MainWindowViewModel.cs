@@ -51,6 +51,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedEntityPositionYEditor = "0";
     private string _selectedEntityScaleEditor = "1";
     private string _selectedEntityColorEditor = "#4AA3FF";
+    private string _selectionInteractionHint = "Tip: double-click a viewport marker to edit its properties.";
     private string _runtimeSelectedEntityPreview = "No active selection.";
     private bool _isRefreshingSelectionEditors;
     private readonly Stack<SceneHistoryEntry> _undoStack = new();
@@ -881,6 +882,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         get => _runtimeSelectedEntityPreview;
         private set => SetField(ref _runtimeSelectedEntityPreview, value);
+    }
+
+    public string SelectionInteractionHint
+    {
+        get => _selectionInteractionHint;
+        private set => SetField(ref _selectionInteractionHint, value);
     }
 
     public ImportedAsset? SelectedImportedAsset
@@ -2538,6 +2545,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public bool BeginDirectPropertyEditForEntity(string entityId)
+    {
+        if (!SelectSingleEntity(entityId))
+        {
+            return false;
+        }
+
+        SelectionInteractionHint = _selectedViewportEntities.Count == 1
+            ? $"Direct edit ready: {_selectedViewportEntities[0].DisplayName}."
+            : $"Direct edit ready: {_selectedViewportEntities.Count} entities.";
+        return true;
+    }
+
     public bool ToggleEntitySelection(string entityId)
     {
         var entity = ViewportEntities.FirstOrDefault(item => string.Equals(item.Id, entityId, StringComparison.Ordinal));
@@ -3448,9 +3468,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             SelectedEntityX = 0;
             SelectedEntityY = 0;
             RuntimeSelectedEntityPreview = "No active selection.";
-        SelectedEntityAssetName = "No asset linked.";
-        SelectedEntityAssetPreviewPath = string.Empty;
-        SelectedEntityAssetKind = "n/a";
+            SelectedEntityAssetName = "No asset linked.";
+            SelectedEntityAssetPreviewPath = string.Empty;
+            SelectedEntityAssetKind = "n/a";
+            SelectionInteractionHint = "Tip: double-click a viewport marker to edit its properties.";
             SetSelectionEditorDefaults();
             return;
         }
@@ -3470,6 +3491,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SelectedEntityAssetName = primaryAsset.AssetLabel;
         SelectedEntityAssetPreviewPath = primaryAsset.AssetPreviewPath ?? string.Empty;
         SelectedEntityAssetKind = string.IsNullOrWhiteSpace(primaryAsset.AssetKind) ? "n/a" : primaryAsset.AssetKind!;
+        SelectionInteractionHint = _selectedViewportEntities.Count == 1
+            ? $"Selected: {_selectedViewportEntities[0].DisplayName}. Drag marker or edit fields below."
+            : $"Selected: {_selectedViewportEntities.Count} entities. Drag or batch-edit properties.";
 
         RefreshSelectionEditorsFromSelection();
     }
