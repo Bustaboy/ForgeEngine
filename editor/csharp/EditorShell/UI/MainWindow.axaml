@@ -523,10 +523,15 @@
                                     Foreground="#AFC2DF"
                                     VerticalAlignment="Center"
                                     ToolTip.Tip="Toggle optional live entity preview list panel." />
-                      <Border Grid.Column="6" Background="#122B46" BorderBrush="#4AA3FF" BorderThickness="1" CornerRadius="6" Padding="7,3" IsVisible="{Binding IsSelectionHighlightActive}">
-                        <TextBlock Text="{Binding SelectionHighlightBadge}" Foreground="#CFE7FF" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                      </Border>
-                      <TextBlock Grid.Column="6" Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" IsVisible="{Binding IsSelectionHighlightInactive}" />
+                      <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                        <Border Background="#122B46" BorderBrush="#4AA3FF" BorderThickness="1" CornerRadius="6" Padding="7,3">
+                          <TextBlock Text="{Binding ViewportSelectionStateLabel}" Foreground="#CFE7FF" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <Border Background="#16273F" BorderBrush="#5D9EE2" BorderThickness="1" CornerRadius="6" Padding="7,3" IsVisible="{Binding IsDirectPropertyEditActive}">
+                          <TextBlock Text="{Binding DirectPropertyEditBadge}" Foreground="#DDF0FF" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding ViewportLivePreviewLabel}" Foreground="#7FB4FF" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                      </StackPanel>
                     </Grid>
 
                     <Grid Grid.Row="1">
