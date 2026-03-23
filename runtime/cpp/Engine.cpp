@@ -78,6 +78,9 @@ void Engine::Init() {
     camera_.yaw = -90.0F;
     camera_.pitch = 0.0F;
     camera_.aspect_ratio = renderer_.GetAspectRatio();
+    camera_.smoothedYaw = camera_.yaw;
+    camera_.smoothedPitch = camera_.pitch;
+    camera_.smoothedPosition = camera_.position;
     GF_LOG_INFO("Render loop started");
 }
 
@@ -118,6 +121,11 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     camera_velocity_ += (target_velocity - camera_velocity_) * blend;
     camera_.position += camera_velocity_ * dt_seconds;
     camera_.aspect_ratio = renderer_.GetAspectRatio();
+    CameraInputState camera_input_state{};
+    camera_input_state.mouse_delta = mouse_delta;
+    camera_input_state.raw_position = camera_.position;
+    camera_input_state.horizontal_speed = glm::length(glm::vec2(camera_velocity_.x, camera_velocity_.z));
+    camera_.Update(dt_seconds, camera_input_state);
 
     scene_.Update(dt_seconds);
 }
