@@ -62,6 +62,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly ReadOnlyObservableCollection<HistoryTimelineEntry> _readonlyHistoryTimeline;
     private readonly ObservableCollection<HierarchyNode> _hierarchyRoots = new();
     private readonly ReadOnlyObservableCollection<HierarchyNode> _readonlyHierarchyRoots;
+    private readonly Dictionary<string, bool> _hierarchyExpansionState = new(StringComparer.Ordinal);
     private HierarchyNode? _selectedHierarchyNode;
     private string _activeLeftPanelTab = LeftPanelTabHierarchy;
     private DragSession? _activeDragSession;
@@ -3367,13 +3368,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void RebuildHierarchyTree()
     {
+        CaptureHierarchyExpansionState();
         _hierarchyRoots.Clear();
 
         var sceneRoot = new HierarchyNode("scene_root", "Scene", "🧭", null, false);
         var npcGroup = new HierarchyNode("group_npcs", "NPCs", "🧍", null, false);
         var propGroup = new HierarchyNode("group_props", "Props", "📦", null, false);
         var miscGroup = new HierarchyNode("group_misc", "Groups", "🧩", null, false);
-        sceneRoot.Children.Add(new HierarchyNode("player_root", "Player", "👤", "player_spawn", true));
+        sceneRoot.IsExpanded = ResolveHierarchyExpansionState(sceneRoot.Id, defaultExpanded: true);
+        npcGroup.IsExpanded = ResolveHierarchyExpansionState(npcGroup.Id, defaultExpanded: true);
+        propGroup.IsExpanded = ResolveHierarchyExpansionState(propGroup.Id, defaultExpanded: true);
+        miscGroup.IsExpanded = ResolveHierarchyExpansionState(miscGroup.Id, defaultExpanded: true);
+        var player = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Type, "player", StringComparison.Ordinal));
+        if (player is not null)
+        {
+            var playerNode = HierarchyNode.FromEntity(player);
+            playerNode.IsExpanded = ResolveHierarchyExpansionState(playerNode.Id, defaultExpanded: false);
+            sceneRoot.Children.Add(playerNode);
+        }
+        else
+        {
+            var playerPlaceholder = new HierarchyNode("player_root", "Player", "👤", null, false);
+            playerPlaceholder.IsExpanded = ResolveHierarchyExpansionState(playerPlaceholder.Id, defaultExpanded: false);
+            sceneRoot.Children.Add(playerPlaceholder);
+        }
         sceneRoot.Children.Add(npcGroup);
         sceneRoot.Children.Add(propGroup);
         sceneRoot.Children.Add(miscGroup);
@@ -3424,6 +3442,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ISet<string> activePath)
     {
         var node = HierarchyNode.FromEntity(entity);
+        node.IsExpanded = ResolveHierarchyExpansionState(node.Id, defaultExpanded: true);
         if (!activePath.Add(entity.Id))
         {
             return node;
@@ -3479,6 +3498,29 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private void CaptureHierarchyExpansionState()
+    {
+        _hierarchyExpansionState.Clear();
+        foreach (var root in _hierarchyRoots)
+        {
+            CaptureHierarchyExpansionState(root);
+        }
+    }
+
+    private void CaptureHierarchyExpansionState(HierarchyNode node)
+    {
+        _hierarchyExpansionState[node.Id] = node.IsExpanded;
+        foreach (var child in node.Children)
+        {
+            CaptureHierarchyExpansionState(child);
+        }
+    }
+
+    private bool ResolveHierarchyExpansionState(string nodeId, bool defaultExpanded)
+    {
+        return _hierarchyExpansionState.TryGetValue(nodeId, out var isExpanded) ? isExpanded : defaultExpanded;
     }
 
     private List<ViewportEntity> ResolvePreferredSelection(IReadOnlyList<string>? preferredSelectionEntityIds)
@@ -5013,8 +5055,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public sealed class HierarchyNode
+    public sealed class HierarchyNode : INotifyPropertyChanged
     {
+        private bool _isExpanded;
+
         public HierarchyNode(string id, string label, string icon, string? entityId, bool isEntityNode)
         {
             Id = id;
@@ -5035,6 +5079,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public bool IsEntityNode { get; }
 
         public ObservableCollection<HierarchyNode> Children { get; } = new();
+
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (_isExpanded == value)
+                {
+                    return;
+                }
+
+                _isExpanded = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExpanded)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         public static HierarchyNode FromEntity(ViewportEntity entity)
             => new(entity.Id, entity.DisplayName, ResolveIcon(entity.Type), entity.Id, true);
