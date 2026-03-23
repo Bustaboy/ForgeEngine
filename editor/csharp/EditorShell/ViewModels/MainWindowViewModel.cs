@@ -396,11 +396,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string ViewportEntityCountLabel => $"{ViewportEntities.Count} entities";
 
+    public int ViewportRenderableEntityCount => ViewportEntities.Count(entity => !string.Equals(entity.Type, "group", StringComparison.Ordinal));
+
     public string ViewportLivePreviewLabel => IsTimelinePlaying
         ? $"Live Preview • {TimelineCurrentTime:0.00}s"
         : "Live Preview • Idle";
 
     public string ViewportPlaybackSummary => $"{ViewportEntityCountLabel} • {ViewportLivePreviewLabel}";
+
+    public string ViewportRenderFrameLabel => $"{TimelineCurrentTime:0.00}s • {ViewportRenderableEntityCount} rects";
 
     public bool IsViewportEntityPreviewListVisible
     {
@@ -464,6 +468,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(TimelinePlaybackStatePill));
             OnPropertyChanged(nameof(ViewportLivePreviewLabel));
             OnPropertyChanged(nameof(ViewportPlaybackSummary));
+            OnPropertyChanged(nameof(ViewportRenderFrameLabel));
         }
     }
 
@@ -2389,6 +2394,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TimelineScrubberPercent));
         OnPropertyChanged(nameof(ViewportLivePreviewLabel));
         OnPropertyChanged(nameof(ViewportPlaybackSummary));
+        OnPropertyChanged(nameof(ViewportRenderFrameLabel));
         ApplyTimelineToViewport(clamped);
         if (fromPlayback)
         {
@@ -4731,7 +4737,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasViewportEntities));
         OnPropertyChanged(nameof(IsViewportEmpty));
         OnPropertyChanged(nameof(ViewportEntityCountLabel));
+        OnPropertyChanged(nameof(ViewportRenderableEntityCount));
         OnPropertyChanged(nameof(ViewportPlaybackSummary));
+        OnPropertyChanged(nameof(ViewportRenderFrameLabel));
     }
 
     private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -4749,6 +4757,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 || e.PropertyName == nameof(ViewportEntity.ColorHex)))
         {
             RefreshInspectorDerivedState();
+        }
+
+        if (e.PropertyName == nameof(ViewportEntity.X)
+            || e.PropertyName == nameof(ViewportEntity.Y)
+            || e.PropertyName == nameof(ViewportEntity.Scale)
+            || e.PropertyName == nameof(ViewportEntity.ColorHex))
+        {
+            OnPropertyChanged(nameof(ViewportRenderFrameLabel));
         }
 
         if (e.PropertyName == nameof(ViewportEntity.Name) || e.PropertyName == nameof(ViewportEntity.ParentId))
@@ -5338,6 +5354,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
                 _parentId = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParentId)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParentBadge)));
             }
         }
 
@@ -5382,6 +5399,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             "group" => "GROUP",
             _ => Type.ToUpperInvariant(),
         };
+
+        public string ParentBadge => string.IsNullOrWhiteSpace(ParentId)
+            ? "ROOT"
+            : $"Parent: {ParentId}";
 
         public string RenderColorHex => SanitizeColorHex(ColorHex) ?? DefaultColorForType(Type);
 
