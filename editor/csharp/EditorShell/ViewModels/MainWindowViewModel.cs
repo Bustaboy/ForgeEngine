@@ -148,7 +148,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         JumpToHistoryCommand = new AsyncRelayCommand<object?>(JumpToHistoryAsync);
         AddTimelineKeyframeCommand = new AsyncRelayCommand(AddSelectedEntitiesKeyframeAsync);
         ToggleTimelinePlaybackCommand = new AsyncRelayCommand(ToggleTimelinePlaybackAsync);
-        StopTimelinePlaybackCommand = new AsyncRelayCommand(StopTimelinePlaybackAsync);
+        StopTimelinePlaybackCommand = new AsyncRelayCommand(() => StopTimelinePlaybackAsync(resetTime: true));
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
