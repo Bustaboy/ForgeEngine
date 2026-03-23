@@ -494,7 +494,7 @@
                         <ItemsControl ItemsSource="{Binding ViewportEntities}" IsVisible="{Binding IsViewportEntityPreviewListVisible}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                              <Border Background="#0F1B2E" BorderBrush="#2D4567" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,0,6">
+                              <Border Background="#0F1B2E" BorderBrush="{Binding ListBorderBrush}" BorderThickness="1.2" CornerRadius="6" Padding="8,6" Margin="0,0,0,6">
                                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                   <Border Width="{Binding RenderWidth}"
                                           Height="{Binding RenderHeight}"
@@ -509,6 +509,9 @@
                                     <TextBlock Text="{Binding X, StringFormat=X {0:F2}}" Foreground="#8EA5C7" FontSize="10" />
                                   </StackPanel>
                                   <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Right">
+                                    <Border Background="#1A2F4C" BorderBrush="#6FB8FF" BorderThickness="1" CornerRadius="8" Padding="6,1" HorizontalAlignment="Right" IsVisible="{Binding IsSelectionBadgeVisible}">
+                                      <TextBlock Text="SELECTED" Foreground="#CFE7FF" FontSize="9" FontWeight="SemiBold" />
+                                    </Border>
                                     <TextBlock Text="{Binding Y, StringFormat=Y {0:F2}}" Foreground="#8EA5C7" FontSize="10" HorizontalAlignment="Right" />
                                     <TextBlock Text="{Binding Scale, StringFormat=S {0:F2}}" Foreground="#8EA5C7" FontSize="10" HorizontalAlignment="Right" />
                                     <TextBlock Text="{Binding RenderColorHex}" Foreground="#8EA5C7" FontSize="10" HorizontalAlignment="Right" />
