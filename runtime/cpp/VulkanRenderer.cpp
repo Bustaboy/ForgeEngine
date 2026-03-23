@@ -20,6 +20,11 @@ constexpr std::uint32_t kWindowWidth = 1280;
 constexpr std::uint32_t kWindowHeight = 720;
 constexpr int kMaxFramesInFlight = 2;
 constexpr std::uint32_t kQuadVertexCount = 6;
+constexpr float kFullscreenScale = 2.0F;
+
+struct PostProcessParams {
+    glm::vec4 config{1.0F, 1.0F, 0.0F, 0.0F};
+};
 
 const std::vector<const char*> kValidationLayers = {"VK_LAYER_KHRONOS_validation"};
 const std::vector<const char*> kRequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -100,6 +105,7 @@ void VulkanRenderer::Init() {
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateOffscreenResources();
+    CreatePostProcessResources();
     CreateCommandPool();
     CreateCommandBuffers();
     CreateSyncObjects();
@@ -741,6 +747,360 @@ void VulkanRenderer::CreateFramebuffers() {
     }
 }
 
+void VulkanRenderer::CreatePostProcessResources() {
+    VkImageCreateInfo bloom_image_info{};
+    bloom_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    bloom_image_info.imageType = VK_IMAGE_TYPE_2D;
+    bloom_image_info.extent.width = swap_chain_extent_.width;
+    bloom_image_info.extent.height = swap_chain_extent_.height;
+    bloom_image_info.extent.depth = 1;
+    bloom_image_info.mipLevels = 1;
+    bloom_image_info.arrayLayers = 1;
+    bloom_image_info.format = swap_chain_image_format_;
+    bloom_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    bloom_image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    bloom_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    bloom_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    bloom_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateImage(device_, &bloom_image_info, nullptr, &bloom_extract_image_));
+
+    VkMemoryRequirements bloom_memory_requirements{};
+    vkGetImageMemoryRequirements(device_, bloom_extract_image_, &bloom_memory_requirements);
+
+    VkMemoryAllocateInfo bloom_allocate_info{};
+    bloom_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    bloom_allocate_info.allocationSize = bloom_memory_requirements.size;
+    bloom_allocate_info.memoryTypeIndex = FindMemoryType(bloom_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vkAllocateMemory(device_, &bloom_allocate_info, nullptr, &bloom_extract_image_memory_));
+    VK_CHECK(vkBindImageMemory(device_, bloom_extract_image_, bloom_extract_image_memory_, 0));
+
+    VkImageViewCreateInfo bloom_view_info{};
+    bloom_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    bloom_view_info.image = bloom_extract_image_;
+    bloom_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    bloom_view_info.format = swap_chain_image_format_;
+    bloom_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    bloom_view_info.subresourceRange.baseMipLevel = 0;
+    bloom_view_info.subresourceRange.levelCount = 1;
+    bloom_view_info.subresourceRange.baseArrayLayer = 0;
+    bloom_view_info.subresourceRange.layerCount = 1;
+    VK_CHECK(vkCreateImageView(device_, &bloom_view_info, nullptr, &bloom_extract_image_view_));
+
+    VkAttachmentDescription bloom_attachment{};
+    bloom_attachment.format = swap_chain_image_format_;
+    bloom_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    bloom_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    bloom_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    bloom_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    bloom_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    bloom_attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    bloom_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference bloom_attachment_ref{};
+    bloom_attachment_ref.attachment = 0;
+    bloom_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription bloom_subpass{};
+    bloom_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    bloom_subpass.colorAttachmentCount = 1;
+    bloom_subpass.pColorAttachments = &bloom_attachment_ref;
+
+    VkRenderPassCreateInfo bloom_render_pass_info{};
+    bloom_render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    bloom_render_pass_info.attachmentCount = 1;
+    bloom_render_pass_info.pAttachments = &bloom_attachment;
+    bloom_render_pass_info.subpassCount = 1;
+    bloom_render_pass_info.pSubpasses = &bloom_subpass;
+    VK_CHECK(vkCreateRenderPass(device_, &bloom_render_pass_info, nullptr, &bloom_extract_render_pass_));
+
+    VkImageView bloom_attachments[] = {bloom_extract_image_view_};
+    VkFramebufferCreateInfo bloom_framebuffer_info{};
+    bloom_framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    bloom_framebuffer_info.renderPass = bloom_extract_render_pass_;
+    bloom_framebuffer_info.attachmentCount = 1;
+    bloom_framebuffer_info.pAttachments = bloom_attachments;
+    bloom_framebuffer_info.width = swap_chain_extent_.width;
+    bloom_framebuffer_info.height = swap_chain_extent_.height;
+    bloom_framebuffer_info.layers = 1;
+    VK_CHECK(vkCreateFramebuffer(device_, &bloom_framebuffer_info, nullptr, &bloom_extract_framebuffer_));
+
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter = VK_FILTER_LINEAR;
+    sampler_info.minFilter = VK_FILTER_LINEAR;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.anisotropyEnable = VK_FALSE;
+    sampler_info.maxAnisotropy = 1.0F;
+    sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+    sampler_info.unnormalizedCoordinates = VK_FALSE;
+    sampler_info.compareEnable = VK_FALSE;
+    sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_info.mipLodBias = 0.0F;
+    sampler_info.minLod = 0.0F;
+    sampler_info.maxLod = 0.0F;
+    VK_CHECK(vkCreateSampler(device_, &sampler_info, nullptr, &post_process_sampler_));
+
+    VkDescriptorSetLayoutBinding scene_binding{};
+    scene_binding.binding = 0;
+    scene_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    scene_binding.descriptorCount = 1;
+    scene_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding bloom_binding{};
+    bloom_binding.binding = 1;
+    bloom_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bloom_binding.descriptorCount = 1;
+    bloom_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> descriptor_bindings = {scene_binding, bloom_binding};
+    VkDescriptorSetLayoutCreateInfo descriptor_layout_info{};
+    descriptor_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptor_layout_info.bindingCount = static_cast<std::uint32_t>(descriptor_bindings.size());
+    descriptor_layout_info.pBindings = descriptor_bindings.data();
+    VK_CHECK(vkCreateDescriptorSetLayout(device_, &descriptor_layout_info, nullptr, &post_process_descriptor_set_layout_));
+
+    std::array<VkDescriptorPoolSize, 1> descriptor_pool_sizes{};
+    descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptor_pool_sizes[0].descriptorCount = static_cast<std::uint32_t>(swap_chain_images_.size() * 4);
+
+    VkDescriptorPoolCreateInfo descriptor_pool_info{};
+    descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptor_pool_info.poolSizeCount = static_cast<std::uint32_t>(descriptor_pool_sizes.size());
+    descriptor_pool_info.pPoolSizes = descriptor_pool_sizes.data();
+    descriptor_pool_info.maxSets = static_cast<std::uint32_t>(swap_chain_images_.size() * 2);
+    VK_CHECK(vkCreateDescriptorPool(device_, &descriptor_pool_info, nullptr, &post_process_descriptor_pool_));
+
+    bloom_extract_descriptor_sets_.resize(swap_chain_images_.size());
+    combine_descriptor_sets_.resize(swap_chain_images_.size());
+
+    std::vector<VkDescriptorSetLayout> layouts(swap_chain_images_.size(), post_process_descriptor_set_layout_);
+    VkDescriptorSetAllocateInfo descriptor_alloc_info{};
+    descriptor_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_alloc_info.descriptorPool = post_process_descriptor_pool_;
+    descriptor_alloc_info.descriptorSetCount = static_cast<std::uint32_t>(layouts.size());
+    descriptor_alloc_info.pSetLayouts = layouts.data();
+    VK_CHECK(vkAllocateDescriptorSets(device_, &descriptor_alloc_info, bloom_extract_descriptor_sets_.data()));
+    VK_CHECK(vkAllocateDescriptorSets(device_, &descriptor_alloc_info, combine_descriptor_sets_.data()));
+
+    for (std::size_t i = 0; i < swap_chain_images_.size(); ++i) {
+        VkDescriptorImageInfo scene_info{};
+        scene_info.sampler = post_process_sampler_;
+        scene_info.imageView = offscreen_color_image_view_;
+        scene_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkDescriptorImageInfo bloom_info{};
+        bloom_info.sampler = post_process_sampler_;
+        bloom_info.imageView = bloom_extract_image_view_;
+        bloom_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        std::array<VkWriteDescriptorSet, 2> extract_writes{};
+        extract_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        extract_writes[0].dstSet = bloom_extract_descriptor_sets_[i];
+        extract_writes[0].dstBinding = 0;
+        extract_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        extract_writes[0].descriptorCount = 1;
+        extract_writes[0].pImageInfo = &scene_info;
+        extract_writes[1] = extract_writes[0];
+        extract_writes[1].dstBinding = 1;
+        vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(extract_writes.size()), extract_writes.data(), 0, nullptr);
+
+        std::array<VkWriteDescriptorSet, 2> combine_writes{};
+        combine_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        combine_writes[0].dstSet = combine_descriptor_sets_[i];
+        combine_writes[0].dstBinding = 0;
+        combine_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        combine_writes[0].descriptorCount = 1;
+        combine_writes[0].pImageInfo = &scene_info;
+        combine_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        combine_writes[1].dstSet = combine_descriptor_sets_[i];
+        combine_writes[1].dstBinding = 1;
+        combine_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        combine_writes[1].descriptorCount = 1;
+        combine_writes[1].pImageInfo = &bloom_info;
+        vkUpdateDescriptorSets(device_, static_cast<std::uint32_t>(combine_writes.size()), combine_writes.data(), 0, nullptr);
+    }
+
+    std::array<VkPushConstantRange, 2> post_process_push_constants{};
+    post_process_push_constants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_process_push_constants[0].offset = 0;
+    post_process_push_constants[0].size = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
+    post_process_push_constants[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_process_push_constants[1].offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
+    post_process_push_constants[1].size = sizeof(PostProcessParams);
+
+    VkPipelineLayoutCreateInfo post_process_layout_info{};
+    post_process_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    post_process_layout_info.setLayoutCount = 1;
+    post_process_layout_info.pSetLayouts = &post_process_descriptor_set_layout_;
+    post_process_layout_info.pushConstantRangeCount = static_cast<std::uint32_t>(post_process_push_constants.size());
+    post_process_layout_info.pPushConstantRanges = post_process_push_constants.data();
+    VK_CHECK(vkCreatePipelineLayout(device_, &post_process_layout_info, nullptr, &post_process_pipeline_layout_));
+
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    const std::vector<char> post_vert_shader_code = ReadBinaryFile({
+        cwd / "shaders/vertex.vert.spv",
+        cwd / "../shaders/vertex.vert.spv",
+        cwd / "../../shaders/vertex.vert.spv",
+    });
+    const std::vector<char> bloom_extract_shader_code = ReadBinaryFile({
+        cwd / "shaders/bloom_extract.frag.spv",
+        cwd / "../shaders/bloom_extract.frag.spv",
+        cwd / "../../shaders/bloom_extract.frag.spv",
+        cwd / "src/render/shaders/bloom_extract.frag.spv",
+        cwd / "../src/render/shaders/bloom_extract.frag.spv",
+    });
+    const std::vector<char> combine_shader_code = ReadBinaryFile({
+        cwd / "shaders/combine_tonemap.frag.spv",
+        cwd / "../shaders/combine_tonemap.frag.spv",
+        cwd / "../../shaders/combine_tonemap.frag.spv",
+        cwd / "src/render/shaders/combine_tonemap.frag.spv",
+        cwd / "../src/render/shaders/combine_tonemap.frag.spv",
+    });
+
+    const VkShaderModule post_vert_shader_module = CreateShaderModule(device_, post_vert_shader_code);
+    const VkShaderModule bloom_extract_shader_module = CreateShaderModule(device_, bloom_extract_shader_code);
+    const VkShaderModule combine_shader_module = CreateShaderModule(device_, combine_shader_code);
+
+    VkPipelineShaderStageCreateInfo post_vert_stage{};
+    post_vert_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    post_vert_stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    post_vert_stage.module = post_vert_shader_module;
+    post_vert_stage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo bloom_extract_stage{};
+    bloom_extract_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    bloom_extract_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bloom_extract_stage.module = bloom_extract_shader_module;
+    bloom_extract_stage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo combine_stage{};
+    combine_stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    combine_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    combine_stage.module = combine_shader_module;
+    combine_stage.pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertex_input_info{};
+    vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+    input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkViewport viewport{};
+    viewport.width = static_cast<float>(swap_chain_extent_.width);
+    viewport.height = static_cast<float>(swap_chain_extent_.height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+
+    VkRect2D scissor{};
+    scissor.extent = swap_chain_extent_;
+
+    VkPipelineViewportStateCreateInfo viewport_state{};
+    viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state.viewportCount = 1;
+    viewport_state.pViewports = &viewport;
+    viewport_state.scissorCount = 1;
+    viewport_state.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0F;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment{};
+    color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo color_blending{};
+    color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blending.attachmentCount = 1;
+    color_blending.pAttachments = &color_blend_attachment;
+
+    VkGraphicsPipelineCreateInfo pipeline_info{};
+    pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_info.stageCount = 2;
+    pipeline_info.pVertexInputState = &vertex_input_info;
+    pipeline_info.pInputAssemblyState = &input_assembly;
+    pipeline_info.pViewportState = &viewport_state;
+    pipeline_info.pRasterizationState = &rasterizer;
+    pipeline_info.pMultisampleState = &multisampling;
+    pipeline_info.pColorBlendState = &color_blending;
+    pipeline_info.layout = post_process_pipeline_layout_;
+    pipeline_info.subpass = 0;
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> bloom_stages = {post_vert_stage, bloom_extract_stage};
+    pipeline_info.pStages = bloom_stages.data();
+    pipeline_info.renderPass = bloom_extract_render_pass_;
+    VK_CHECK(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &bloom_extract_pipeline_));
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> combine_stages = {post_vert_stage, combine_stage};
+    pipeline_info.pStages = combine_stages.data();
+    pipeline_info.renderPass = render_pass_;
+    VK_CHECK(vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &combine_tonemap_pipeline_));
+
+    vkDestroyShaderModule(device_, combine_shader_module, nullptr);
+    vkDestroyShaderModule(device_, bloom_extract_shader_module, nullptr);
+    vkDestroyShaderModule(device_, post_vert_shader_module, nullptr);
+}
+
+void VulkanRenderer::DestroyPostProcessResources() {
+    bloom_extract_descriptor_sets_.clear();
+    combine_descriptor_sets_.clear();
+
+    if (bloom_extract_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
+        bloom_extract_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (combine_tonemap_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, combine_tonemap_pipeline_, nullptr);
+        combine_tonemap_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (post_process_pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, post_process_pipeline_layout_, nullptr);
+        post_process_pipeline_layout_ = VK_NULL_HANDLE;
+    }
+    if (post_process_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, post_process_descriptor_pool_, nullptr);
+        post_process_descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    if (post_process_descriptor_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
+        post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
+    if (post_process_sampler_ != VK_NULL_HANDLE) {
+        vkDestroySampler(device_, post_process_sampler_, nullptr);
+        post_process_sampler_ = VK_NULL_HANDLE;
+    }
+    if (bloom_extract_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, bloom_extract_framebuffer_, nullptr);
+        bloom_extract_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (bloom_extract_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, bloom_extract_render_pass_, nullptr);
+        bloom_extract_render_pass_ = VK_NULL_HANDLE;
+    }
+    if (bloom_extract_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, bloom_extract_image_view_, nullptr);
+        bloom_extract_image_view_ = VK_NULL_HANDLE;
+    }
+    if (bloom_extract_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, bloom_extract_image_, nullptr);
+        bloom_extract_image_ = VK_NULL_HANDLE;
+    }
+    if (bloom_extract_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, bloom_extract_image_memory_, nullptr);
+        bloom_extract_image_memory_ = VK_NULL_HANDLE;
+    }
+}
+
 void VulkanRenderer::CreateOffscreenResources() {
     VkImageCreateInfo color_image_info{};
     color_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1022,102 +1382,11 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     vkCmdEndRenderPass(command_buffers_[image_index]);
 
     if (post_process_enabled_) {
-        VkImageMemoryBarrier offscreen_color_to_transfer_src{};
-        offscreen_color_to_transfer_src.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        offscreen_color_to_transfer_src.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        offscreen_color_to_transfer_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        offscreen_color_to_transfer_src.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        offscreen_color_to_transfer_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        offscreen_color_to_transfer_src.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        offscreen_color_to_transfer_src.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        offscreen_color_to_transfer_src.image = offscreen_color_image_;
-        offscreen_color_to_transfer_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        offscreen_color_to_transfer_src.subresourceRange.baseMipLevel = 0;
-        offscreen_color_to_transfer_src.subresourceRange.levelCount = 1;
-        offscreen_color_to_transfer_src.subresourceRange.baseArrayLayer = 0;
-        offscreen_color_to_transfer_src.subresourceRange.layerCount = 1;
-
-        VkImageMemoryBarrier swapchain_to_transfer_dst{};
-        swapchain_to_transfer_dst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        swapchain_to_transfer_dst.srcAccessMask = 0;
-        swapchain_to_transfer_dst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        swapchain_to_transfer_dst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        swapchain_to_transfer_dst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        swapchain_to_transfer_dst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchain_to_transfer_dst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchain_to_transfer_dst.image = swap_chain_images_[image_index];
-        swapchain_to_transfer_dst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        swapchain_to_transfer_dst.subresourceRange.baseMipLevel = 0;
-        swapchain_to_transfer_dst.subresourceRange.levelCount = 1;
-        swapchain_to_transfer_dst.subresourceRange.baseArrayLayer = 0;
-        swapchain_to_transfer_dst.subresourceRange.layerCount = 1;
-
-        std::array<VkImageMemoryBarrier, 2> pre_blit_barriers = {
-            offscreen_color_to_transfer_src,
-            swapchain_to_transfer_dst,
-        };
-        vkCmdPipelineBarrier(
-            command_buffers_[image_index],
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            0,
-            nullptr,
-            0,
-            nullptr,
-            static_cast<std::uint32_t>(pre_blit_barriers.size()),
-            pre_blit_barriers.data());
-
-        VkImageBlit blit_region{};
-        blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit_region.srcSubresource.mipLevel = 0;
-        blit_region.srcSubresource.baseArrayLayer = 0;
-        blit_region.srcSubresource.layerCount = 1;
-        blit_region.srcOffsets[0] = {0, 0, 0};
-        blit_region.srcOffsets[1] = {
-            static_cast<std::int32_t>(swap_chain_extent_.width),
-            static_cast<std::int32_t>(swap_chain_extent_.height),
-            1};
-        blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit_region.dstSubresource.mipLevel = 0;
-        blit_region.dstSubresource.baseArrayLayer = 0;
-        blit_region.dstSubresource.layerCount = 1;
-        blit_region.dstOffsets[0] = {0, 0, 0};
-        blit_region.dstOffsets[1] = {
-            static_cast<std::int32_t>(swap_chain_extent_.width),
-            static_cast<std::int32_t>(swap_chain_extent_.height),
-            1};
-
-        vkCmdBlitImage(
-            command_buffers_[image_index],
-            offscreen_color_image_,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            swap_chain_images_[image_index],
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &blit_region,
-            VK_FILTER_LINEAR);
-
-        VkImageMemoryBarrier swapchain_to_present{};
-        swapchain_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        swapchain_to_present.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        swapchain_to_present.dstAccessMask = 0;
-        swapchain_to_present.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        swapchain_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        swapchain_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchain_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        swapchain_to_present.image = swap_chain_images_[image_index];
-        swapchain_to_present.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        swapchain_to_present.subresourceRange.baseMipLevel = 0;
-        swapchain_to_present.subresourceRange.levelCount = 1;
-        swapchain_to_present.subresourceRange.baseArrayLayer = 0;
-        swapchain_to_present.subresourceRange.layerCount = 1;
-
         VkImageMemoryBarrier offscreen_color_to_shader_read{};
         offscreen_color_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        offscreen_color_to_shader_read.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        offscreen_color_to_shader_read.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         offscreen_color_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        offscreen_color_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        offscreen_color_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         offscreen_color_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         offscreen_color_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         offscreen_color_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1128,21 +1397,183 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         offscreen_color_to_shader_read.subresourceRange.baseArrayLayer = 0;
         offscreen_color_to_shader_read.subresourceRange.layerCount = 1;
 
-        std::array<VkImageMemoryBarrier, 2> post_blit_barriers = {
-            swapchain_to_present,
-            offscreen_color_to_shader_read,
-        };
+        VkImageMemoryBarrier bloom_to_attachment{};
+        bloom_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        bloom_to_attachment.srcAccessMask = 0;
+        bloom_to_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        bloom_to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        bloom_to_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        bloom_to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_to_attachment.image = bloom_extract_image_;
+        bloom_to_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bloom_to_attachment.subresourceRange.baseMipLevel = 0;
+        bloom_to_attachment.subresourceRange.levelCount = 1;
+        bloom_to_attachment.subresourceRange.baseArrayLayer = 0;
+        bloom_to_attachment.subresourceRange.layerCount = 1;
+
+        std::array<VkImageMemoryBarrier, 2> pre_extract_barriers = {offscreen_color_to_shader_read, bloom_to_attachment};
         vkCmdPipelineBarrier(
             command_buffers_[image_index],
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(pre_extract_barriers.size()),
+            pre_extract_barriers.data());
+
+        VkRenderPassBeginInfo bloom_pass_info{};
+        bloom_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        bloom_pass_info.renderPass = bloom_extract_render_pass_;
+        bloom_pass_info.framebuffer = bloom_extract_framebuffer_;
+        bloom_pass_info.renderArea.offset = {0, 0};
+        bloom_pass_info.renderArea.extent = swap_chain_extent_;
+        VkClearValue bloom_clear = {{{0.0F, 0.0F, 0.0F, 1.0F}}};
+        bloom_pass_info.clearValueCount = 1;
+        bloom_pass_info.pClearValues = &bloom_clear;
+
+        vkCmdBeginRenderPass(command_buffers_[image_index], &bloom_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, bloom_extract_pipeline_);
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            post_process_pipeline_layout_,
+            0,
+            1,
+            &bloom_extract_descriptor_sets_[image_index],
+            0,
+            nullptr);
+
+        PostProcessParams extract_params{};
+        extract_params.config = glm::vec4(1.0F, 0.0F, 0.0F, 0.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            post_process_pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(PostProcessParams),
+            &extract_params);
+
+        PerFramePushConstants post_frame{};
+        post_frame.view_proj = glm::mat4(1.0F);
+        post_frame.light_dir = glm::vec4(0.0F);
+        post_frame.light_color = glm::vec4(0.0F);
+        PerDrawPushConstants post_draw{};
+        post_draw.model = glm::scale(glm::mat4(1.0F), glm::vec3(kFullscreenScale, kFullscreenScale, 1.0F));
+        post_draw.color = glm::vec4(1.0F);
+        vkCmdPushConstants(command_buffers_[image_index], post_process_pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PerFramePushConstants), &post_frame);
+        vkCmdPushConstants(command_buffers_[image_index], post_process_pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PerFramePushConstants), sizeof(PerDrawPushConstants), &post_draw);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+
+        VkImageMemoryBarrier bloom_to_shader_read{};
+        bloom_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        bloom_to_shader_read.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        bloom_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        bloom_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        bloom_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bloom_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_to_shader_read.image = bloom_extract_image_;
+        bloom_to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bloom_to_shader_read.subresourceRange.baseMipLevel = 0;
+        bloom_to_shader_read.subresourceRange.levelCount = 1;
+        bloom_to_shader_read.subresourceRange.baseArrayLayer = 0;
+        bloom_to_shader_read.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier swapchain_to_color_attachment{};
+        swapchain_to_color_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapchain_to_color_attachment.srcAccessMask = 0;
+        swapchain_to_color_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        swapchain_to_color_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        swapchain_to_color_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        swapchain_to_color_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_color_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_color_attachment.image = swap_chain_images_[image_index];
+        swapchain_to_color_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapchain_to_color_attachment.subresourceRange.baseMipLevel = 0;
+        swapchain_to_color_attachment.subresourceRange.levelCount = 1;
+        swapchain_to_color_attachment.subresourceRange.baseArrayLayer = 0;
+        swapchain_to_color_attachment.subresourceRange.layerCount = 1;
+
+        std::array<VkImageMemoryBarrier, 2> pre_combine_barriers = {bloom_to_shader_read, swapchain_to_color_attachment};
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(pre_combine_barriers.size()),
+            pre_combine_barriers.data());
+
+        VkRenderPassBeginInfo combine_pass_info{};
+        combine_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        combine_pass_info.renderPass = render_pass_;
+        combine_pass_info.framebuffer = swap_chain_framebuffers_[image_index];
+        combine_pass_info.renderArea.offset = {0, 0};
+        combine_pass_info.renderArea.extent = swap_chain_extent_;
+        VkClearValue combine_clear = {{{0.0F, 0.0F, 0.0F, 1.0F}}};
+        combine_pass_info.clearValueCount = 1;
+        combine_pass_info.pClearValues = &combine_clear;
+
+        vkCmdBeginRenderPass(command_buffers_[image_index], &combine_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, combine_tonemap_pipeline_);
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            post_process_pipeline_layout_,
+            0,
+            1,
+            &combine_descriptor_sets_[image_index],
+            0,
+            nullptr);
+
+        PostProcessParams combine_params{};
+        combine_params.config = glm::vec4(1.15F, 0.35F, 0.0F, 0.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            post_process_pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(PostProcessParams),
+            &combine_params);
+        vkCmdPushConstants(command_buffers_[image_index], post_process_pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PerFramePushConstants), &post_frame);
+        vkCmdPushConstants(command_buffers_[image_index], post_process_pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PerFramePushConstants), sizeof(PerDrawPushConstants), &post_draw);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+
+        VkImageMemoryBarrier swapchain_to_present{};
+        swapchain_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapchain_to_present.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        swapchain_to_present.dstAccessMask = 0;
+        swapchain_to_present.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        swapchain_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        swapchain_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.image = swap_chain_images_[image_index];
+        swapchain_to_present.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapchain_to_present.subresourceRange.baseMipLevel = 0;
+        swapchain_to_present.subresourceRange.levelCount = 1;
+        swapchain_to_present.subresourceRange.baseArrayLayer = 0;
+        swapchain_to_present.subresourceRange.layerCount = 1;
+
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
             0,
             0,
             nullptr,
             0,
             nullptr,
-            static_cast<std::uint32_t>(post_blit_barriers.size()),
-            post_blit_barriers.data());
+            1,
+            &swapchain_to_present);
     } else {
         VkImageMemoryBarrier swapchain_to_present{};
         swapchain_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1240,6 +1671,7 @@ void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {
 }
 
 void VulkanRenderer::CleanupSwapChain() {
+    DestroyPostProcessResources();
     DestroyOffscreenResources();
 
     for (VkFramebuffer framebuffer : swap_chain_framebuffers_) {
@@ -1296,6 +1728,7 @@ void VulkanRenderer::RecreateSwapChain() {
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateOffscreenResources();
+    CreatePostProcessResources();
     CreateCommandBuffers();
 }
 
