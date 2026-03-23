@@ -99,6 +99,7 @@ void VulkanRenderer::Init() {
     CreateRenderPass();
     CreateGraphicsPipeline();
     CreateFramebuffers();
+    CreateOffscreenResources();
     CreateCommandPool();
     CreateCommandBuffers();
     CreateSyncObjects();
@@ -485,7 +486,7 @@ void VulkanRenderer::CreateSwapChain() {
     create_info.imageColorSpace = surface_format.colorSpace;
     create_info.imageExtent = extent;
     create_info.imageArrayLayers = 1;
-    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     const QueueFamilyIndices indices = FindQueueFamilies(physical_device_);
     const std::uint32_t queue_family_indices[] = {
@@ -548,7 +549,7 @@ void VulkanRenderer::CreateRenderPass() {
     color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference color_attachment_ref{};
     color_attachment_ref.attachment = 0;
@@ -740,6 +741,136 @@ void VulkanRenderer::CreateFramebuffers() {
     }
 }
 
+void VulkanRenderer::CreateOffscreenResources() {
+    VkImageCreateInfo color_image_info{};
+    color_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    color_image_info.imageType = VK_IMAGE_TYPE_2D;
+    color_image_info.extent.width = swap_chain_extent_.width;
+    color_image_info.extent.height = swap_chain_extent_.height;
+    color_image_info.extent.depth = 1;
+    color_image_info.mipLevels = 1;
+    color_image_info.arrayLayers = 1;
+    color_image_info.format = swap_chain_image_format_;
+    color_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    color_image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_image_info.usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT;
+    color_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateImage(device_, &color_image_info, nullptr, &offscreen_color_image_));
+
+    VkMemoryRequirements color_memory_requirements{};
+    vkGetImageMemoryRequirements(device_, offscreen_color_image_, &color_memory_requirements);
+
+    VkMemoryAllocateInfo color_allocate_info{};
+    color_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    color_allocate_info.allocationSize = color_memory_requirements.size;
+    color_allocate_info.memoryTypeIndex = FindMemoryType(
+        color_memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vkAllocateMemory(device_, &color_allocate_info, nullptr, &offscreen_color_image_memory_));
+    VK_CHECK(vkBindImageMemory(device_, offscreen_color_image_, offscreen_color_image_memory_, 0));
+
+    VkImageViewCreateInfo color_image_view_info{};
+    color_image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    color_image_view_info.image = offscreen_color_image_;
+    color_image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    color_image_view_info.format = swap_chain_image_format_;
+    color_image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    color_image_view_info.subresourceRange.baseMipLevel = 0;
+    color_image_view_info.subresourceRange.levelCount = 1;
+    color_image_view_info.subresourceRange.baseArrayLayer = 0;
+    color_image_view_info.subresourceRange.layerCount = 1;
+    VK_CHECK(vkCreateImageView(device_, &color_image_view_info, nullptr, &offscreen_color_image_view_));
+
+    offscreen_depth_format_ = FindSupportedDepthFormat();
+
+    VkImageCreateInfo depth_image_info{};
+    depth_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    depth_image_info.imageType = VK_IMAGE_TYPE_2D;
+    depth_image_info.extent.width = swap_chain_extent_.width;
+    depth_image_info.extent.height = swap_chain_extent_.height;
+    depth_image_info.extent.depth = 1;
+    depth_image_info.mipLevels = 1;
+    depth_image_info.arrayLayers = 1;
+    depth_image_info.format = offscreen_depth_format_;
+    depth_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    depth_image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    depth_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateImage(device_, &depth_image_info, nullptr, &offscreen_depth_image_));
+
+    VkMemoryRequirements depth_memory_requirements{};
+    vkGetImageMemoryRequirements(device_, offscreen_depth_image_, &depth_memory_requirements);
+
+    VkMemoryAllocateInfo depth_allocate_info{};
+    depth_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    depth_allocate_info.allocationSize = depth_memory_requirements.size;
+    depth_allocate_info.memoryTypeIndex = FindMemoryType(
+        depth_memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vkAllocateMemory(device_, &depth_allocate_info, nullptr, &offscreen_depth_image_memory_));
+    VK_CHECK(vkBindImageMemory(device_, offscreen_depth_image_, offscreen_depth_image_memory_, 0));
+
+    VkImageViewCreateInfo depth_image_view_info{};
+    depth_image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    depth_image_view_info.image = offscreen_depth_image_;
+    depth_image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    depth_image_view_info.format = offscreen_depth_format_;
+    depth_image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depth_image_view_info.subresourceRange.baseMipLevel = 0;
+    depth_image_view_info.subresourceRange.levelCount = 1;
+    depth_image_view_info.subresourceRange.baseArrayLayer = 0;
+    depth_image_view_info.subresourceRange.layerCount = 1;
+    VK_CHECK(vkCreateImageView(device_, &depth_image_view_info, nullptr, &offscreen_depth_image_view_));
+
+    VkImageView attachments[] = {offscreen_color_image_view_};
+    VkFramebufferCreateInfo framebuffer_info{};
+    framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebuffer_info.renderPass = render_pass_;
+    framebuffer_info.attachmentCount = 1;
+    framebuffer_info.pAttachments = attachments;
+    framebuffer_info.width = swap_chain_extent_.width;
+    framebuffer_info.height = swap_chain_extent_.height;
+    framebuffer_info.layers = 1;
+    VK_CHECK(vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &offscreen_framebuffer_));
+}
+
+void VulkanRenderer::DestroyOffscreenResources() {
+    if (offscreen_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, offscreen_framebuffer_, nullptr);
+        offscreen_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_depth_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, offscreen_depth_image_view_, nullptr);
+        offscreen_depth_image_view_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_depth_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, offscreen_depth_image_, nullptr);
+        offscreen_depth_image_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_depth_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, offscreen_depth_image_memory_, nullptr);
+        offscreen_depth_image_memory_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_color_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, offscreen_color_image_view_, nullptr);
+        offscreen_color_image_view_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_color_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, offscreen_color_image_, nullptr);
+        offscreen_color_image_ = VK_NULL_HANDLE;
+    }
+    if (offscreen_color_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, offscreen_color_image_memory_, nullptr);
+        offscreen_color_image_memory_ = VK_NULL_HANDLE;
+    }
+    offscreen_depth_format_ = VK_FORMAT_UNDEFINED;
+}
+
 void VulkanRenderer::CreateCommandPool() {
     const QueueFamilyIndices queue_family_indices = FindQueueFamilies(physical_device_);
 
@@ -789,10 +920,58 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     VK_CHECK(vkBeginCommandBuffer(command_buffers_[image_index], &begin_info));
 
+    if (post_process_enabled_) {
+        VkImageMemoryBarrier offscreen_color_to_attachment{};
+        offscreen_color_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_color_to_attachment.srcAccessMask = 0;
+        offscreen_color_to_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        offscreen_color_to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        offscreen_color_to_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        offscreen_color_to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_attachment.image = offscreen_color_image_;
+        offscreen_color_to_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreen_color_to_attachment.subresourceRange.baseMipLevel = 0;
+        offscreen_color_to_attachment.subresourceRange.levelCount = 1;
+        offscreen_color_to_attachment.subresourceRange.baseArrayLayer = 0;
+        offscreen_color_to_attachment.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier offscreen_depth_to_attachment{};
+        offscreen_depth_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_depth_to_attachment.srcAccessMask = 0;
+        offscreen_depth_to_attachment.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        offscreen_depth_to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        offscreen_depth_to_attachment.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        offscreen_depth_to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_depth_to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_depth_to_attachment.image = offscreen_depth_image_;
+        offscreen_depth_to_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        offscreen_depth_to_attachment.subresourceRange.baseMipLevel = 0;
+        offscreen_depth_to_attachment.subresourceRange.levelCount = 1;
+        offscreen_depth_to_attachment.subresourceRange.baseArrayLayer = 0;
+        offscreen_depth_to_attachment.subresourceRange.layerCount = 1;
+
+        std::array<VkImageMemoryBarrier, 2> pre_render_barriers = {
+            offscreen_color_to_attachment,
+            offscreen_depth_to_attachment,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(pre_render_barriers.size()),
+            pre_render_barriers.data());
+    }
+
     VkRenderPassBeginInfo render_pass_begin_info{};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.renderPass = render_pass_;
-    render_pass_begin_info.framebuffer = swap_chain_framebuffers_[image_index];
+    render_pass_begin_info.framebuffer = post_process_enabled_ ? offscreen_framebuffer_ : swap_chain_framebuffers_[image_index];
     render_pass_begin_info.renderArea.offset = {0, 0};
     render_pass_begin_info.renderArea.extent = swap_chain_extent_;
 
@@ -842,6 +1021,156 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
 
     vkCmdEndRenderPass(command_buffers_[image_index]);
 
+    if (post_process_enabled_) {
+        VkImageMemoryBarrier offscreen_color_to_transfer_src{};
+        offscreen_color_to_transfer_src.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_color_to_transfer_src.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        offscreen_color_to_transfer_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        offscreen_color_to_transfer_src.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        offscreen_color_to_transfer_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        offscreen_color_to_transfer_src.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_transfer_src.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_transfer_src.image = offscreen_color_image_;
+        offscreen_color_to_transfer_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreen_color_to_transfer_src.subresourceRange.baseMipLevel = 0;
+        offscreen_color_to_transfer_src.subresourceRange.levelCount = 1;
+        offscreen_color_to_transfer_src.subresourceRange.baseArrayLayer = 0;
+        offscreen_color_to_transfer_src.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier swapchain_to_transfer_dst{};
+        swapchain_to_transfer_dst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapchain_to_transfer_dst.srcAccessMask = 0;
+        swapchain_to_transfer_dst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        swapchain_to_transfer_dst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        swapchain_to_transfer_dst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        swapchain_to_transfer_dst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_transfer_dst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_transfer_dst.image = swap_chain_images_[image_index];
+        swapchain_to_transfer_dst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapchain_to_transfer_dst.subresourceRange.baseMipLevel = 0;
+        swapchain_to_transfer_dst.subresourceRange.levelCount = 1;
+        swapchain_to_transfer_dst.subresourceRange.baseArrayLayer = 0;
+        swapchain_to_transfer_dst.subresourceRange.layerCount = 1;
+
+        std::array<VkImageMemoryBarrier, 2> pre_blit_barriers = {
+            offscreen_color_to_transfer_src,
+            swapchain_to_transfer_dst,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(pre_blit_barriers.size()),
+            pre_blit_barriers.data());
+
+        VkImageBlit blit_region{};
+        blit_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit_region.srcSubresource.mipLevel = 0;
+        blit_region.srcSubresource.baseArrayLayer = 0;
+        blit_region.srcSubresource.layerCount = 1;
+        blit_region.srcOffsets[0] = {0, 0, 0};
+        blit_region.srcOffsets[1] = {
+            static_cast<std::int32_t>(swap_chain_extent_.width),
+            static_cast<std::int32_t>(swap_chain_extent_.height),
+            1};
+        blit_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit_region.dstSubresource.mipLevel = 0;
+        blit_region.dstSubresource.baseArrayLayer = 0;
+        blit_region.dstSubresource.layerCount = 1;
+        blit_region.dstOffsets[0] = {0, 0, 0};
+        blit_region.dstOffsets[1] = {
+            static_cast<std::int32_t>(swap_chain_extent_.width),
+            static_cast<std::int32_t>(swap_chain_extent_.height),
+            1};
+
+        vkCmdBlitImage(
+            command_buffers_[image_index],
+            offscreen_color_image_,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            swap_chain_images_[image_index],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &blit_region,
+            VK_FILTER_LINEAR);
+
+        VkImageMemoryBarrier swapchain_to_present{};
+        swapchain_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapchain_to_present.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        swapchain_to_present.dstAccessMask = 0;
+        swapchain_to_present.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        swapchain_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        swapchain_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.image = swap_chain_images_[image_index];
+        swapchain_to_present.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapchain_to_present.subresourceRange.baseMipLevel = 0;
+        swapchain_to_present.subresourceRange.levelCount = 1;
+        swapchain_to_present.subresourceRange.baseArrayLayer = 0;
+        swapchain_to_present.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier offscreen_color_to_shader_read{};
+        offscreen_color_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_color_to_shader_read.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        offscreen_color_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        offscreen_color_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        offscreen_color_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        offscreen_color_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_color_to_shader_read.image = offscreen_color_image_;
+        offscreen_color_to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreen_color_to_shader_read.subresourceRange.baseMipLevel = 0;
+        offscreen_color_to_shader_read.subresourceRange.levelCount = 1;
+        offscreen_color_to_shader_read.subresourceRange.baseArrayLayer = 0;
+        offscreen_color_to_shader_read.subresourceRange.layerCount = 1;
+
+        std::array<VkImageMemoryBarrier, 2> post_blit_barriers = {
+            swapchain_to_present,
+            offscreen_color_to_shader_read,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(post_blit_barriers.size()),
+            post_blit_barriers.data());
+    } else {
+        VkImageMemoryBarrier swapchain_to_present{};
+        swapchain_to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapchain_to_present.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        swapchain_to_present.dstAccessMask = 0;
+        swapchain_to_present.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        swapchain_to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        swapchain_to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapchain_to_present.image = swap_chain_images_[image_index];
+        swapchain_to_present.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapchain_to_present.subresourceRange.baseMipLevel = 0;
+        swapchain_to_present.subresourceRange.levelCount = 1;
+        swapchain_to_present.subresourceRange.baseArrayLayer = 0;
+        swapchain_to_present.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &swapchain_to_present);
+    }
+
     VK_CHECK(vkEndCommandBuffer(command_buffers_[image_index]));
 }
 
@@ -874,7 +1203,8 @@ void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     VkSemaphore wait_semaphores[] = {image_available_semaphores_[current_frame_]};
-    VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkPipelineStageFlags wait_stages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT};
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = wait_semaphores;
     submit_info.pWaitDstStageMask = wait_stages;
@@ -910,6 +1240,8 @@ void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {
 }
 
 void VulkanRenderer::CleanupSwapChain() {
+    DestroyOffscreenResources();
+
     for (VkFramebuffer framebuffer : swap_chain_framebuffers_) {
         vkDestroyFramebuffer(device_, framebuffer, nullptr);
     }
@@ -963,7 +1295,36 @@ void VulkanRenderer::RecreateSwapChain() {
     CreateRenderPass();
     CreateGraphicsPipeline();
     CreateFramebuffers();
+    CreateOffscreenResources();
     CreateCommandBuffers();
+}
+
+std::uint32_t VulkanRenderer::FindMemoryType(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const {
+    VkPhysicalDeviceMemoryProperties memory_properties{};
+    vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
+    for (std::uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+        if ((type_filter & (1U << i)) != 0U &&
+            (memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    throw std::runtime_error("Failed to find suitable memory type.");
+}
+
+VkFormat VulkanRenderer::FindSupportedDepthFormat() const {
+    constexpr std::array<VkFormat, 3> depth_formats = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+    };
+    for (VkFormat format : depth_formats) {
+        VkFormatProperties properties{};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, format, &properties);
+        if ((properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0U) {
+            return format;
+        }
+    }
+    throw std::runtime_error("Failed to find supported depth format.");
 }
 
 bool VulkanRenderer::ValidationLayersSupported() const {
