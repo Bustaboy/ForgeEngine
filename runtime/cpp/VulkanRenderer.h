@@ -31,6 +31,9 @@ public:
     struct CombineTonemapPushConstants {
         glm::vec4 params{0.15F, 1.0F, 0.0F, 0.0F};
     };
+    struct GaussianBlurPushConstants {
+        glm::vec4 direction{1.0F, 0.0F, 0.0F, 0.0F};
+    };
 
     VulkanRenderer() = default;
     ~VulkanRenderer() = default;
@@ -132,13 +135,19 @@ private:
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
     VkRenderPass bloom_extract_render_pass_ = VK_NULL_HANDLE;
+    VkRenderPass blur_render_pass_ = VK_NULL_HANDLE;
     VkRenderPass combine_render_pass_ = VK_NULL_HANDLE;
     VkPipeline bloom_extract_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline blur_pipeline_ = VK_NULL_HANDLE;
     VkPipeline combine_pipeline_ = VK_NULL_HANDLE;
     VkImage bloom_extract_image_ = VK_NULL_HANDLE;
     VkDeviceMemory bloom_extract_image_memory_ = VK_NULL_HANDLE;
     VkImageView bloom_extract_image_view_ = VK_NULL_HANDLE;
     VkFramebuffer bloom_extract_framebuffer_ = VK_NULL_HANDLE;
+    VkImage blur_ping_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory blur_ping_image_memory_ = VK_NULL_HANDLE;
+    VkImageView blur_ping_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer blur_ping_framebuffer_ = VK_NULL_HANDLE;
     VkImage combine_image_ = VK_NULL_HANDLE;
     VkDeviceMemory combine_image_memory_ = VK_NULL_HANDLE;
     VkImageView combine_image_view_ = VK_NULL_HANDLE;
