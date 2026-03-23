@@ -162,6 +162,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsSingleSelection));
             OnPropertyChanged(nameof(SelectedEntitiesCount));
             OnPropertyChanged(nameof(HierarchySelectionBadge));
+            OnPropertyChanged(nameof(IsSelectionHighlightActive));
+            OnPropertyChanged(nameof(IsSelectionHighlightInactive));
+            OnPropertyChanged(nameof(SelectionHighlightBadge));
         };
         EnforceHistoryLimit();
     }
@@ -752,6 +755,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool IsSingleSelection => _selectedViewportEntities.Count == 1;
 
     public int SelectedEntitiesCount => _selectedViewportEntities.Count;
+
+    public bool IsSelectionHighlightActive => _selectedViewportEntities.Count > 0;
+
+    public bool IsSelectionHighlightInactive => !IsSelectionHighlightActive;
+
+    public string SelectionHighlightBadge => _selectedViewportEntities.Count switch
+    {
+        0 => "◌ No selection",
+        1 => $"✦ {_selectedViewportEntities[0].DisplayName}",
+        _ => $"✦ {_selectedViewportEntities.Count} markers selected",
+    };
 
     public string SelectedEntitySummary
     {
