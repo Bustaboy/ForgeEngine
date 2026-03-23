@@ -69,6 +69,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _selectedEntityAssetPreviewPath = string.Empty;
     private string _selectedEntityAssetKind = "n/a";
     private ImportedAsset? _selectedImportedAsset;
+    private readonly ObservableCollection<ImportedAsset> _filteredImportedAssets = new();
+    private readonly ReadOnlyObservableCollection<ImportedAsset> _readonlyFilteredImportedAssets;
+    private string _assetSearchText = string.Empty;
+    private string _assetDragGhostTitle = string.Empty;
+    private string _assetDragGhostPreviewPath = string.Empty;
+    private string _assetDragGhostKind = string.Empty;
+    private float _assetDragGhostWorldX;
+    private float _assetDragGhostWorldY;
+    private bool _isAssetDragGhostVisible;
     private readonly Dictionary<string, EntityAnimationTrack> _animationTracks = new(StringComparer.Ordinal);
     private readonly ObservableCollection<TimelineMarker> _timelineMarkers = new();
     private readonly ReadOnlyObservableCollection<TimelineMarker> _readonlyTimelineMarkers;
@@ -128,6 +137,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
         _readonlyTimelineMarkers = new ReadOnlyObservableCollection<TimelineMarker>(_timelineMarkers);
         _readonlyExportChecklistItems = new ReadOnlyObservableCollection<ExportChecklistItem>(_exportChecklistItems);
+        _readonlyFilteredImportedAssets = new ReadOnlyObservableCollection<ImportedAsset>(_filteredImportedAssets);
         ResetExportChecklistItems();
         _timelinePlaybackTimer = new DispatcherTimer
         {
@@ -149,6 +159,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
+        ImportedAssets.CollectionChanged += OnImportedAssetsCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasSelection));
@@ -164,6 +175,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<ViewportEntity> ViewportEntities { get; } = new();
 
     public ObservableCollection<ImportedAsset> ImportedAssets { get; } = new();
+    public ReadOnlyObservableCollection<ImportedAsset> FilteredImportedAssets => _readonlyFilteredImportedAssets;
 
     public ReadOnlyObservableCollection<HierarchyNode> HierarchyRoots => _readonlyHierarchyRoots;
 
@@ -834,6 +846,60 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string SelectedImportedAssetKind => SelectedImportedAsset?.Kind ?? "n/a";
 
+    public string AssetSearchText
+    {
+        get => _assetSearchText;
+        set
+        {
+            if (!SetField(ref _assetSearchText, value))
+            {
+                return;
+            }
+
+            ApplyAssetFilter();
+        }
+    }
+
+    public bool HasAssetResults => FilteredImportedAssets.Count > 0;
+
+    public bool HasNoAssetResults => !HasAssetResults;
+
+    public bool IsAssetDragGhostVisible
+    {
+        get => _isAssetDragGhostVisible;
+        private set => SetField(ref _isAssetDragGhostVisible, value);
+    }
+
+    public string AssetDragGhostTitle
+    {
+        get => _assetDragGhostTitle;
+        private set => SetField(ref _assetDragGhostTitle, value);
+    }
+
+    public string AssetDragGhostPreviewPath
+    {
+        get => _assetDragGhostPreviewPath;
+        private set => SetField(ref _assetDragGhostPreviewPath, value);
+    }
+
+    public string AssetDragGhostKind
+    {
+        get => _assetDragGhostKind;
+        private set => SetField(ref _assetDragGhostKind, value);
+    }
+
+    public float AssetDragGhostWorldX
+    {
+        get => _assetDragGhostWorldX;
+        private set => SetField(ref _assetDragGhostWorldX, value);
+    }
+
+    public float AssetDragGhostWorldY
+    {
+        get => _assetDragGhostWorldY;
+        private set => SetField(ref _assetDragGhostWorldY, value);
+    }
+
     public string SelectedEntityAssetName
     {
         get => _selectedEntityAssetName;
@@ -867,6 +933,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ViewportEntities.Clear();
         _hierarchyRoots.Clear();
         ImportedAssets.Clear();
+        _filteredImportedAssets.Clear();
         _animationTracks.Clear();
         _timelineMarkers.Clear();
         PauseTimelinePlayback();
@@ -1936,6 +2003,68 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ShowToast(value);
     }
 
+    public async Task RefreshImportedAssetsAsync(CancellationToken cancellationToken = default)
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null)
+        {
+            StatusMessage = "Generate a prototype before refreshing assets.";
+            ShowToast("Generate prototype first.");
+            return;
+        }
+
+        try
+        {
+            var content = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            using var document = JsonDocument.Parse(content);
+            ImportedAssets.Clear();
+            LoadImportedAssets(document.RootElement);
+            StatusMessage = $"Assets refreshed ({ImportedAssets.Count} loaded).";
+            ShowToast("Asset browser refreshed.");
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to refresh assets: {ex.Message}";
+            ShowToast("Asset refresh failed.");
+        }
+    }
+
+    public bool SetAssetDragGhost(string assetId, float worldX, float worldY)
+    {
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            return false;
+        }
+
+        var asset = ImportedAssets.FirstOrDefault(item => string.Equals(item.Id, assetId, StringComparison.Ordinal));
+        if (asset is null)
+        {
+            return false;
+        }
+
+        SelectedImportedAsset = asset;
+        AssetDragGhostTitle = asset.DisplayName;
+        AssetDragGhostPreviewPath = asset.PreviewPath;
+        AssetDragGhostKind = asset.Kind;
+        AssetDragGhostWorldX = worldX;
+        AssetDragGhostWorldY = worldY;
+        IsAssetDragGhostVisible = true;
+        return true;
+    }
+
+    public void ClearAssetDragGhost()
+    {
+        if (!IsAssetDragGhostVisible)
+        {
+            return;
+        }
+
+        IsAssetDragGhostVisible = false;
+        AssetDragGhostTitle = string.Empty;
+        AssetDragGhostPreviewPath = string.Empty;
+        AssetDragGhostKind = string.Empty;
+    }
+
     public EditorPreferences GetPreferencesSnapshot() => _preferences.Clone();
 
     public async Task ApplyAndSavePreferencesAsync(EditorPreferences updatedPreferences, CancellationToken cancellationToken = default)
@@ -2285,6 +2414,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StopTimelinePlayback();
         ViewportEntities.Clear();
         ImportedAssets.Clear();
+        _filteredImportedAssets.Clear();
         _animationTracks.Clear();
         _timelineMarkers.Clear();
         PauseTimelinePlayback();
@@ -4198,7 +4328,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                 SanitizeColorHex(color ?? string.Empty) ?? "#7FD1FF"));
         }
 
-        SelectedImportedAsset = ImportedAssets.FirstOrDefault();
+        ApplyAssetFilter();
+        SelectedImportedAsset = FilteredImportedAssets.FirstOrDefault() ?? ImportedAssets.FirstOrDefault();
+    }
+
+    private void OnImportedAssetsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        ApplyAssetFilter();
+    }
+
+    private void ApplyAssetFilter()
+    {
+        var query = AssetSearchText.Trim();
+        var next = string.IsNullOrWhiteSpace(query)
+            ? ImportedAssets.ToList()
+            : ImportedAssets
+                .Where(asset =>
+                    asset.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    asset.Kind.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    asset.Id.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        _filteredImportedAssets.Clear();
+        foreach (var asset in next)
+        {
+            _filteredImportedAssets.Add(asset);
+        }
+
+        OnPropertyChanged(nameof(HasAssetResults));
+        OnPropertyChanged(nameof(HasNoAssetResults));
     }
 
     private async Task StopPreviousRuntimeIfRunningAsync(CancellationToken cancellationToken)
@@ -4762,6 +4920,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         public string PreviewPath => string.Equals(Kind, ImportedAssetKind.Texture, StringComparison.OrdinalIgnoreCase)
             ? SourcePath
             : string.Empty;
+
+        public bool HasPreviewImage => !string.IsNullOrWhiteSpace(PreviewPath);
+
+        public bool HasNoPreviewImage => !HasPreviewImage;
+
+        public string ThumbnailGlyph => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase)
+            ? "🧊"
+            : "🖼";
+
+        public string KindLabel => string.Equals(Kind, ImportedAssetKind.Model, StringComparison.OrdinalIgnoreCase)
+            ? "OBJ Model"
+            : "PNG Texture";
     }
 
     private static class ImportedAssetKind
