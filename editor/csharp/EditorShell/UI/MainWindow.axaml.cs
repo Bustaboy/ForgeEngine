@@ -705,6 +705,7 @@ public partial class MainWindow : Window
         var data = new DataObject();
         data.Set(AssetDragFormat, assetId);
         data.Set(DataFormats.Text, assetId);
+
         await DragDrop.DoDragDrop(e, data, DragDropEffects.Copy);
         _viewModel.ClearAssetDragGhost();
         RefreshViewportVisuals();
