@@ -754,6 +754,16 @@ public partial class MainWindow : Window
         await _viewModel.RunSteamUploadStubAsync();
     }
 
+    private async void OnBuildInstallerClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunInstallerBuildAsync();
+    }
+
+    private void OnOpenInstallerOutputClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenInstallerOutputPath();
+    }
+
     private async Task<bool> ShowPublishDryRunConfirmationAsync()
     {
         var decision = false;
