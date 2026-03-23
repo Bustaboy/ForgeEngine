@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -99,6 +100,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private int _steamUploadProgressPercent;
     private string _steamUploadStatus = "Steam upload stub not started.";
     private string _steamUploadAuditPath = "No upload audit log yet.";
+    private bool _isInstallerBuildInProgress;
+    private int _installerBuildProgressPercent;
+    private string _installerBuildStatus = "Installer build not started.";
+    private string _installerOutputPath = "No installer artifact yet.";
+    private string _installerBuildLog = "Installer logs will appear here.";
 
     public MainWindowViewModel()
         : this(new OrchestratorGateway(), new RuntimeSupervisor())
@@ -481,6 +487,58 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     public bool CanRunSteamUploadStub => !IsExporting && !IsSteamUploadInProgress;
+
+    public bool IsInstallerBuildInProgress
+    {
+        get => _isInstallerBuildInProgress;
+        private set
+        {
+            if (!SetField(ref _isInstallerBuildInProgress, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(CanRunInstallerBuild));
+        }
+    }
+
+    public bool CanRunInstallerBuild => !IsExporting && !IsSteamUploadInProgress && !IsInstallerBuildInProgress;
+
+    public int InstallerBuildProgressPercent
+    {
+        get => _installerBuildProgressPercent;
+        private set => SetField(ref _installerBuildProgressPercent, Math.Clamp(value, 0, 100));
+    }
+
+    public string InstallerBuildStatus
+    {
+        get => _installerBuildStatus;
+        private set => SetField(ref _installerBuildStatus, value);
+    }
+
+    public string InstallerOutputPath
+    {
+        get => _installerOutputPath;
+        private set
+        {
+            if (!SetField(ref _installerOutputPath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasInstallerOutput));
+        }
+    }
+
+    public bool HasInstallerOutput => InstallerOutputPath
+        .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Any(path => File.Exists(path));
+
+    public string InstallerBuildLog
+    {
+        get => _installerBuildLog;
+        private set => SetField(ref _installerBuildLog, value);
+    }
 
     public string PipelineProgress
     {
@@ -1095,6 +1153,69 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task RunInstallerBuildAsync(CancellationToken cancellationToken = default)
+    {
+        if (IsInstallerBuildInProgress)
+        {
+            return;
+        }
+
+        OpenExportChecklist();
+        IsInstallerBuildInProgress = true;
+        InstallerBuildProgressPercent = 3;
+        InstallerBuildStatus = "Preparing installer build metadata...";
+        ExportStatus = InstallerBuildStatus;
+        PipelineProgress = "Installer build started";
+        var logLines = new List<string>
+        {
+            $"[{DateTimeOffset.UtcNow:O}] Installer build triggered from editor shell.",
+        };
+
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var releaseNotesPath = WriteInstallerReleaseNotes(repositoryRoot);
+            var auditPath = WriteInstallerAuditTrail(repositoryRoot);
+            logLines.Add($"Staged release notes at {releaseNotesPath}");
+            logLines.Add($"Staged installer audit at {auditPath}");
+
+            var invocation = ResolvePackagingInvocation(repositoryRoot);
+            InstallerBuildStatus = $"Running {invocation.Label} packaging script...";
+            ExportStatus = InstallerBuildStatus;
+            InstallerBuildProgressPercent = 8;
+            await RunPackagingProcessAsync(invocation, logLines, cancellationToken);
+
+            var outputPaths = ResolveInstallerOutputPaths(repositoryRoot, invocation);
+            if (outputPaths.Count == 0)
+            {
+                throw new FileNotFoundException("Packaging script completed but no installer artifact was found.");
+            }
+
+            InstallerOutputPath = string.Join(Environment.NewLine, outputPaths);
+            InstallerBuildProgressPercent = 100;
+            InstallerBuildStatus = $"Installer build complete: {outputPaths.Count} artifact(s) ready.";
+            ExportStatus = InstallerBuildStatus;
+            StatusMessage = $"{InstallerBuildStatus} Primary: {outputPaths[0]}";
+            PipelineProgress = "Installer build complete";
+            ShowToast("Installer build complete.");
+        }
+        catch (Exception ex)
+        {
+            InstallerBuildProgressPercent = 0;
+            InstallerBuildStatus = $"Installer build failed: {ex.Message}";
+            ExportStatus = InstallerBuildStatus;
+            StatusMessage = InstallerBuildStatus;
+            PipelineProgress = "Installer build failed";
+            ShowToast("Installer build failed.");
+            logLines.Add($"ERROR: {ex.Message}");
+        }
+        finally
+        {
+            InstallerBuildLog = string.Join(Environment.NewLine, logLines.TakeLast(140));
+            IsInstallerBuildInProgress = false;
+        }
+    }
+
     public void OpenExportPackagePath()
     {
         if (!HasExportPackageOutput)
@@ -1117,6 +1238,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         OpenPath(ExportFolderPath, "Unable to open export folder.");
+    }
+
+    public void OpenInstallerOutputPath()
+    {
+        var outputPaths = InstallerOutputPath
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var firstOutput = outputPaths.FirstOrDefault(File.Exists);
+        if (string.IsNullOrWhiteSpace(firstOutput))
+        {
+            StatusMessage = "No installer artifact available yet.";
+            ShowToast("Build installer first.");
+            return;
+        }
+
+        OpenPath(firstOutput, "Unable to open installer artifact output.");
     }
 
     private void OpenPath(string path, string failureToast)
@@ -1301,6 +1437,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SteamUploadProgressPercent = 0;
         SteamUploadStatus = "Steam upload stub not started.";
         SteamUploadAuditPath = "No upload audit log yet.";
+        InstallerBuildProgressPercent = 0;
+        InstallerBuildStatus = "Installer build not started.";
+        InstallerOutputPath = "No installer artifact yet.";
+        InstallerBuildLog = "Installer logs will appear here.";
         SteamReadinessSummary = "Steam readiness not evaluated yet.";
         SteamReadinessWarnings = "No readiness warnings.";
         _lastSteamReadinessReport = null;
@@ -1308,6 +1448,192 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ExportChecklistCompletedCount));
         OnPropertyChanged(nameof(ExportChecklistTotalCount));
         OnPropertyChanged(nameof(ExportChecklistProgressPercent));
+    }
+
+    private sealed record PackagingInvocation(
+        string Label,
+        string ScriptPath,
+        string ShellFileName,
+        string ShellArguments,
+        string RuntimeIdentifier,
+        string[] ExpectedExtensions);
+
+    private static PackagingInvocation ResolvePackagingInvocation(string repositoryRoot)
+    {
+        var scriptsRoot = Path.Combine(repositoryRoot, "scripts");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var script = Path.Combine(scriptsRoot, "package_windows.ps1");
+            return new PackagingInvocation(
+                "Windows",
+                script,
+                "powershell",
+                $"-NoProfile -ExecutionPolicy Bypass -File \"{script}\"",
+                "win-x64",
+                [".msi"]);
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            var script = Path.Combine(scriptsRoot, "package_ubuntu.sh");
+            return new PackagingInvocation(
+                "Ubuntu",
+                script,
+                "bash",
+                $"\"{script}\"",
+                "linux-x64",
+                [".deb", ".AppImage"]);
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            var script = Path.Combine(scriptsRoot, "package_macos.sh");
+            return new PackagingInvocation(
+                "macOS",
+                script,
+                "bash",
+                $"\"{script}\"",
+                "osx-arm64",
+                [".dmg"]);
+        }
+
+        throw new PlatformNotSupportedException("Installer packaging is supported on Windows, Ubuntu, and macOS hosts only.");
+    }
+
+    private static string ResolveRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Unable to resolve repository root.");
+    }
+
+    private string WriteInstallerReleaseNotes(string repositoryRoot)
+    {
+        var installerPayloadRoot = Path.Combine(repositoryRoot, "app", "release");
+        Directory.CreateDirectory(installerPayloadRoot);
+        var releaseNotesPath = Path.Combine(installerPayloadRoot, "installer_release_notes.txt");
+        var notes = string.IsNullOrWhiteSpace(SteamReleaseNotes)
+            ? "No release notes provided."
+            : SteamReleaseNotes.Trim();
+        File.WriteAllText(releaseNotesPath, notes, Encoding.UTF8);
+        return releaseNotesPath;
+    }
+
+    private string WriteInstallerAuditTrail(string repositoryRoot)
+    {
+        var installerPayloadRoot = Path.Combine(repositoryRoot, "app", "release");
+        Directory.CreateDirectory(installerPayloadRoot);
+        var auditPath = Path.Combine(installerPayloadRoot, "installer_build_audit.json");
+        var payload = new JsonObject
+        {
+            ["generatedAtUtc"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+            ["mode"] = "installer-build",
+            ["source"] = "editor-shell",
+            ["prototypeRoot"] = PrototypeRoot,
+            ["exportPackagePath"] = ExportPackagePath,
+            ["exportFolderPath"] = ExportFolderPath,
+            ["steamReadinessSummary"] = SteamReadinessSummary,
+            ["steamReadinessWarnings"] = SteamReadinessWarnings,
+            ["steamUploadAuditPath"] = SteamUploadAuditPath,
+        };
+        File.WriteAllText(auditPath, payload.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+        return auditPath;
+    }
+
+    private async Task RunPackagingProcessAsync(PackagingInvocation invocation, List<string> logLines, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(invocation.ScriptPath))
+        {
+            throw new FileNotFoundException("Packaging script not found.", invocation.ScriptPath);
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = invocation.ShellFileName,
+            Arguments = invocation.ShellArguments,
+            WorkingDirectory = Path.GetDirectoryName(invocation.ScriptPath) ?? AppContext.BaseDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var stdoutTask = StreamProcessLinesAsync(process.StandardOutput, logLines, cancellationToken);
+        var stderrTask = StreamProcessLinesAsync(process.StandardError, logLines, cancellationToken);
+        await Task.WhenAll(stdoutTask, stderrTask, process.WaitForExitAsync(cancellationToken));
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException($"{invocation.Label} packaging script failed with exit code {process.ExitCode}.");
+        }
+    }
+
+    private async Task StreamProcessLinesAsync(StreamReader reader, List<string> logLines, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            logLines.Add(line);
+            InstallerBuildStatus = line;
+            ExportStatus = $"Installer: {line}";
+            UpdateInstallerProgressFromLine(line);
+        }
+    }
+
+    private void UpdateInstallerProgressFromLine(string line)
+    {
+        var match = Regex.Match(line, "\\[(\\d+)\\/(\\d+)\\]");
+        if (!match.Success)
+        {
+            return;
+        }
+
+        var current = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+        var total = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        if (total <= 0)
+        {
+            return;
+        }
+
+        var normalized = (int)Math.Round((double)current / total * 90d, MidpointRounding.AwayFromZero);
+        InstallerBuildProgressPercent = Math.Clamp(normalized + 8, 8, 98);
+    }
+
+    private static List<string> ResolveInstallerOutputPaths(string repositoryRoot, PackagingInvocation invocation)
+    {
+        var releaseRoot = Path.Combine(repositoryRoot, "build", "release", invocation.RuntimeIdentifier);
+        if (!Directory.Exists(releaseRoot))
+        {
+            return [];
+        }
+
+        return Directory
+            .EnumerateFiles(releaseRoot, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => invocation.ExpectedExtensions.Any(ext => path.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void StartExportChecklistItem(string id, string status)

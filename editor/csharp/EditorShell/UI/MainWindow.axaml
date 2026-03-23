@@ -113,6 +113,7 @@
             <TextBlock Text="EXPORT" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Classes="ribbon-icon" Content="📦" Click="OnOpenExportChecklistClick" ToolTip.Tip="Open Export + Publish Checklist" />
+              <Button Classes="ribbon-icon" Content="🛠" Click="OnBuildInstallerClick" ToolTip.Tip="Build native installer (MSI / DEB / AppImage / DMG)" IsEnabled="{Binding CanRunInstallerBuild}" />
             </StackPanel>
           </StackPanel>
         </StackPanel>
@@ -350,7 +351,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-              <Grid Grid.Row="6" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+              <Grid Grid.Row="6" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                   <TextBlock Text="Progress:" Foreground="#9FC2E5" FontSize="11" />
                   <TextBlock Text="{Binding ExportChecklistCompletedCount}" Foreground="#9FC2E5" FontSize="11" />
@@ -407,6 +408,46 @@
                            Foreground="#8EA5C7"
                            FontSize="11"
                            TextWrapping="Wrap" />
+                <Border Grid.Row="9"
+                        Grid.ColumnSpan="3"
+                        BorderBrush="#264566"
+                        BorderThickness="1"
+                        Background="#0B1524"
+                        CornerRadius="6"
+                        Padding="8">
+                  <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                      <TextBlock Text="🛠" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="Installer Builder" Foreground="#D6E9FF" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      <Button Grid.Column="2" Content="Build Installer" Click="OnBuildInstallerClick" IsEnabled="{Binding CanRunInstallerBuild}" />
+                      <Button Grid.Column="3" Content="Open Installer" Click="OnOpenInstallerOutputClick" IsEnabled="{Binding HasInstallerOutput}" />
+                    </Grid>
+                    <ProgressBar Grid.Row="1"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="{Binding InstallerBuildProgressPercent}"
+                                 Height="7"
+                                 Background="#09111D"
+                                 Foreground="#4AA3FF" />
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding InstallerBuildStatus}"
+                               Foreground="#9FC2E5"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="3"
+                               Text="{Binding InstallerOutputPath, StringFormat=Installer output: {0}}"
+                               Foreground="#8EA5C7"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <ScrollViewer Grid.Row="4" MaxHeight="72" VerticalScrollBarVisibility="Auto">
+                      <TextBlock Text="{Binding InstallerBuildLog}"
+                                 Foreground="#7FA6CF"
+                                 FontSize="10"
+                                 FontFamily="Consolas, Menlo, Monospace"
+                                 TextWrapping="Wrap" />
+                    </ScrollViewer>
+                  </Grid>
+                </Border>
               </Grid>
             </Grid>
           </Border>
