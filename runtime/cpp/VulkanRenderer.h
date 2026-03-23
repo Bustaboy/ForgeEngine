@@ -25,6 +25,9 @@ public:
         glm::mat4 model{1.0F};
         glm::vec4 color{1.0F, 1.0F, 1.0F, 1.0F};
     };
+    struct BloomExtractPushConstants {
+        glm::vec4 threshold{1.0F, 0.0F, 0.0F, 0.0F};
+    };
 
     VulkanRenderer() = default;
     ~VulkanRenderer() = default;
@@ -125,6 +128,16 @@ private:
     VkRenderPass render_pass_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline graphics_pipeline_ = VK_NULL_HANDLE;
+    VkRenderPass bloom_extract_render_pass_ = VK_NULL_HANDLE;
+    VkPipeline bloom_extract_pipeline_ = VK_NULL_HANDLE;
+    VkImage bloom_extract_image_ = VK_NULL_HANDLE;
+    VkDeviceMemory bloom_extract_image_memory_ = VK_NULL_HANDLE;
+    VkImageView bloom_extract_image_view_ = VK_NULL_HANDLE;
+    VkFramebuffer bloom_extract_framebuffer_ = VK_NULL_HANDLE;
+    VkSampler offscreen_color_sampler_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+    VkDescriptorPool post_process_descriptor_pool_ = VK_NULL_HANDLE;
+    VkDescriptorSet post_process_descriptor_set_ = VK_NULL_HANDLE;
     VkImage offscreen_color_image_ = VK_NULL_HANDLE;
     VkDeviceMemory offscreen_color_image_memory_ = VK_NULL_HANDLE;
     VkImageView offscreen_color_image_view_ = VK_NULL_HANDLE;
