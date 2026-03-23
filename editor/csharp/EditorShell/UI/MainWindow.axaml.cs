@@ -1114,6 +1114,73 @@ public partial class MainWindow : Window
             wizard.Result.ConceptNotes);
     }
 
+    private async void OnOpenProjectClick(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null)
+        {
+            _viewModel.SetStatusMessage("Storage provider unavailable for project open.");
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open GameForge Project",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("GameForge Project")
+                {
+                    Patterns = ["*.gfproj.json", "*.json"],
+                },
+            ],
+        });
+
+        var picked = files.FirstOrDefault();
+        if (picked is null)
+        {
+            return;
+        }
+
+        await _viewModel.OpenProjectStateAsync(picked.Path.LocalPath);
+        RefreshViewportVisuals();
+    }
+
+    private async void OnSaveProjectClick(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null)
+        {
+            _viewModel.SetStatusMessage("Storage provider unavailable for project save.");
+            return;
+        }
+
+        if (_viewModel.HasActiveProjectFilePath)
+        {
+            await _viewModel.SaveProjectStateToActivePathAsync();
+            return;
+        }
+
+        var target = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save GameForge Project",
+            SuggestedFileName = "gameforge-project.gfproj.json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("GameForge Project")
+                {
+                    Patterns = ["*.gfproj.json"],
+                },
+            ],
+            ShowOverwritePrompt = true,
+        });
+
+        if (target is null)
+        {
+            return;
+        }
+
+        await _viewModel.SaveProjectStateAsync(target.Path.LocalPath);
+    }
+
     private async void OnGenerateFromBriefClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.GenerateFromBriefAsync(launchRuntime: false);
@@ -1221,7 +1288,7 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Delete && !IsTextEntryFocused())
         {
-            _viewModel.DeleteSelectedEntityCommand.Execute(null);
+            await _viewModel.HandleDeleteShortcutAsync();
             e.Handled = true;
             return;
         }
@@ -1247,7 +1314,7 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.S)
         {
-            await _viewModel.SaveCodeEditsAsync();
+            OnSaveProjectClick(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }

@@ -165,6 +165,55 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveThenOpenProjectState_PreservesEditorSession()
+    {
+        var prototypeRoot = CreatePrototypeRoot(withEntity: true);
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var settingsPath = Path.Combine(_tempRoot, ".forgeengine", "settings.json");
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot, settingsPath);
+        var projectPath = Path.Combine(_tempRoot, "alpha-project.gfproj.json");
+
+        viewModel.ChatPrompt = "Local-first polished editor";
+        viewModel.IsCodeMode = true;
+
+        var saved = await viewModel.SaveProjectStateAsync(projectPath);
+
+        Assert.True(saved);
+        Assert.True(File.Exists(projectPath));
+        Assert.Equal(projectPath, viewModel.ActiveProjectFilePath);
+
+        var reloaded = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath);
+        var opened = await reloaded.OpenProjectStateAsync(projectPath);
+
+        Assert.True(opened);
+        Assert.Equal(projectPath, reloaded.ActiveProjectFilePath);
+        Assert.Equal(prototypeRoot, reloaded.PrototypeRoot);
+        Assert.Equal("Local-first polished editor", reloaded.ChatPrompt);
+        Assert.True(reloaded.IsCodeMode);
+        Assert.NotEmpty(reloaded.ViewportEntities);
+    }
+
+    [Fact]
+    public async Task DeleteShortcut_RequiresSecondPressBeforeDeleting()
+    {
+        var prototypeRoot = CreatePrototypeRoot(withEntity: true);
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        viewModel.SelectSingleEntity("prop_01");
+
+        await viewModel.HandleDeleteShortcutAsync();
+
+        Assert.Contains(viewModel.ViewportEntities, entity => entity.Id == "prop_01");
+        Assert.Contains("Press Delete again", viewModel.StatusToastMessage);
+
+        await viewModel.HandleDeleteShortcutAsync();
+
+        Assert.DoesNotContain(viewModel.ViewportEntities, entity => entity.Id == "prop_01");
+    }
+
+    [Fact]
     public async Task CommitDrag_UpdatesSceneAndTriggersRelaunch()
     {
         var prototypeRoot = CreatePrototypeRoot(withEntity: true);
@@ -467,9 +516,10 @@ public sealed class MainWindowViewModelTests : IDisposable
     private MainWindowViewModel CreateGeneratedViewModel(
         Mock<MainWindowViewModel.IOrchestratorGateway> orchestrator,
         Mock<MainWindowViewModel.IRuntimeSupervisor> runtime,
-        string prototypeRoot)
+        string prototypeRoot,
+        string? settingsPath = null)
     {
-        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object)
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath)
         {
             ChatPrompt = "test prompt",
         };
