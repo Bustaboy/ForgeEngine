@@ -151,7 +151,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StopTimelinePlaybackCommand = new AsyncRelayCommand(() => StopTimelinePlaybackAsync(resetTime: true));
         SetTimelineModeCommand = new AsyncRelayCommand<object?>(SetTimelineModeAsync);
         SetLeftPanelTabCommand = new AsyncRelayCommand<object?>(SetLeftPanelTabAsync);
-        CreateHierarchyGroupCommand = new AsyncRelayCommand(CreateHierarchyGroupAsync);
+        CreateHierarchyGroupCommand = new AsyncRelayCommand(() => CreateHierarchyGroupAsync());
         ViewportEntities.CollectionChanged += OnViewportEntitiesCollectionChanged;
         ImportedAssets.CollectionChanged += OnImportedAssetsCollectionChanged;
         _selectedViewportEntities.CollectionChanged += (_, _) =>
