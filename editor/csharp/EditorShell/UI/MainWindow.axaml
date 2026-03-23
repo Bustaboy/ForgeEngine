@@ -248,12 +248,27 @@
                   Padding="8,6"
                   Margin="0,0,0,8"
                   VerticalAlignment="Top">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <TextBlock Text="🖱 Inspect • 🧲 drag selected entities onto a 🗂 group"
-                         Foreground="#8EA5C7"
-                         FontSize="11"
-                         VerticalAlignment="Center" />
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
+              <StackPanel Spacing="1">
+                <TextBlock Text="🖱 Inspect • 🧲 drag selected entities onto a 🗂 group"
+                           Foreground="#8EA5C7"
+                           FontSize="11"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="{Binding HierarchyTreeSummary}"
+                           Foreground="#6FA8FF"
+                           FontSize="10" />
+              </StackPanel>
               <Button Grid.Column="1"
+                      Classes="panel-tab"
+                      Content="⤢"
+                      Command="{Binding ExpandHierarchyCommand}"
+                      ToolTip.Tip="Expand all hierarchy nodes." />
+              <Button Grid.Column="2"
+                      Classes="panel-tab"
+                      Content="⤡"
+                      Command="{Binding CollapseHierarchyCommand}"
+                      ToolTip.Tip="Collapse all hierarchy nodes." />
+              <Button Grid.Column="3"
                       Classes="panel-tab"
                       Content="🗂 Create Group"
                       Command="{Binding CreateHierarchyGroupCommand}"
