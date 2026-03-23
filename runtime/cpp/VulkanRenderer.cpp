@@ -616,6 +616,44 @@ void VulkanRenderer::CreateRenderPass() {
     bloom_render_pass_info.pDependencies = &bloom_dependency;
 
     VK_CHECK(vkCreateRenderPass(device_, &bloom_render_pass_info, nullptr, &bloom_extract_render_pass_));
+
+    VkAttachmentDescription combine_color_attachment{};
+    combine_color_attachment.format = swap_chain_image_format_;
+    combine_color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    combine_color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    combine_color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    combine_color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    combine_color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    combine_color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    combine_color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference combine_color_attachment_ref{};
+    combine_color_attachment_ref.attachment = 0;
+    combine_color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription combine_subpass{};
+    combine_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    combine_subpass.colorAttachmentCount = 1;
+    combine_subpass.pColorAttachments = &combine_color_attachment_ref;
+
+    VkSubpassDependency combine_dependency{};
+    combine_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    combine_dependency.dstSubpass = 0;
+    combine_dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    combine_dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    combine_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    combine_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo combine_render_pass_info{};
+    combine_render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    combine_render_pass_info.attachmentCount = 1;
+    combine_render_pass_info.pAttachments = &combine_color_attachment;
+    combine_render_pass_info.subpassCount = 1;
+    combine_render_pass_info.pSubpasses = &combine_subpass;
+    combine_render_pass_info.dependencyCount = 1;
+    combine_render_pass_info.pDependencies = &combine_dependency;
+
+    VK_CHECK(vkCreateRenderPass(device_, &combine_render_pass_info, nullptr, &combine_render_pass_));
 }
 
 void VulkanRenderer::CreateGraphicsPipeline() {
@@ -638,10 +676,19 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         cwd / "../shaders/fragment.frag.spv",
         cwd / "../../shaders/fragment.frag.spv",
     });
+    const std::vector<char> combine_tonemap_frag_shader_code = ReadBinaryFile({
+        cwd / "shaders/combine_tonemap.frag.spv",
+        cwd / "../shaders/combine_tonemap.frag.spv",
+        cwd / "../../shaders/combine_tonemap.frag.spv",
+        cwd / "shaders/fragment.frag.spv",
+        cwd / "../shaders/fragment.frag.spv",
+        cwd / "../../shaders/fragment.frag.spv",
+    });
 
     const VkShaderModule vert_shader_module = CreateShaderModule(device_, vert_shader_code);
     const VkShaderModule frag_shader_module = CreateShaderModule(device_, frag_shader_code);
     const VkShaderModule bloom_extract_frag_shader_module = CreateShaderModule(device_, bloom_extract_frag_shader_code);
+    const VkShaderModule combine_tonemap_frag_shader_module = CreateShaderModule(device_, combine_tonemap_frag_shader_code);
 
     VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
     vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -728,10 +775,16 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     bloom_extract_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     bloom_extract_push_constant_range.offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
     bloom_extract_push_constant_range.size = sizeof(BloomExtractPushConstants);
-    std::array<VkPushConstantRange, 3> all_push_constant_ranges = {
+    VkPushConstantRange combine_tonemap_push_constant_range{};
+    combine_tonemap_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    combine_tonemap_push_constant_range.offset =
+        sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants) + sizeof(BloomExtractPushConstants);
+    combine_tonemap_push_constant_range.size = sizeof(CombineTonemapPushConstants);
+    std::array<VkPushConstantRange, 4> all_push_constant_ranges = {
         push_constant_ranges[0],
         push_constant_ranges[1],
         bloom_extract_push_constant_range,
+        combine_tonemap_push_constant_range,
     };
 
     VkDescriptorSetLayoutBinding post_process_sampler_binding{};
@@ -749,6 +802,40 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         &post_process_descriptor_set_layout_info,
         nullptr,
         &post_process_descriptor_set_layout_));
+    VkDescriptorSetLayoutBinding combine_scene_sampler_binding{};
+    combine_scene_sampler_binding.binding = 0;
+    combine_scene_sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_scene_sampler_binding.descriptorCount = 1;
+    combine_scene_sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    combine_scene_sampler_binding.pImmutableSamplers = nullptr;
+    VkDescriptorSetLayoutBinding combine_bloom_sampler_binding{};
+    combine_bloom_sampler_binding.binding = 1;
+    combine_bloom_sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_bloom_sampler_binding.descriptorCount = 1;
+    combine_bloom_sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    combine_bloom_sampler_binding.pImmutableSamplers = nullptr;
+    std::array<VkDescriptorSetLayoutBinding, 2> combine_sampler_bindings = {
+        combine_scene_sampler_binding,
+        combine_bloom_sampler_binding,
+    };
+    VkDescriptorSetLayoutCreateInfo combine_descriptor_set_layout_info{};
+    combine_descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    combine_descriptor_set_layout_info.bindingCount = static_cast<std::uint32_t>(combine_sampler_bindings.size());
+    combine_descriptor_set_layout_info.pBindings = combine_sampler_bindings.data();
+    const VkResult combine_descriptor_set_layout_result = vkCreateDescriptorSetLayout(
+        device_,
+        &combine_descriptor_set_layout_info,
+        nullptr,
+        &combine_descriptor_set_layout_);
+    if (combine_descriptor_set_layout_result != VK_SUCCESS) {
+        vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
+        post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+        VK_CHECK(combine_descriptor_set_layout_result);
+    }
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -756,15 +843,22 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     pipeline_layout_info.pSetLayouts = nullptr;
     pipeline_layout_info.pushConstantRangeCount = 2;
     pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-    pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &post_process_descriptor_set_layout_;
+    VkDescriptorSetLayout pipeline_descriptor_set_layouts[] = {
+        post_process_descriptor_set_layout_,
+        combine_descriptor_set_layout_,
+    };
+    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.pSetLayouts = pipeline_descriptor_set_layouts;
     pipeline_layout_info.pushConstantRangeCount = static_cast<std::uint32_t>(all_push_constant_ranges.size());
     pipeline_layout_info.pPushConstantRanges = all_push_constant_ranges.data();
 
     const VkResult pipeline_layout_result = vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr, &pipeline_layout_);
     if (pipeline_layout_result != VK_SUCCESS) {
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, vert_shader_module, nullptr);
@@ -792,8 +886,11 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     if (graphics_pipeline_result != VK_SUCCESS) {
         vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
         pipeline_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, vert_shader_module, nullptr);
@@ -823,14 +920,53 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         graphics_pipeline_ = VK_NULL_HANDLE;
         vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
         pipeline_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, frag_shader_module, nullptr);
         vkDestroyShaderModule(device_, vert_shader_module, nullptr);
         VK_CHECK(bloom_extract_pipeline_result);
     }
+    VkPipelineShaderStageCreateInfo combine_tonemap_frag_shader_stage_info{};
+    combine_tonemap_frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    combine_tonemap_frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    combine_tonemap_frag_shader_stage_info.module = combine_tonemap_frag_shader_module;
+    combine_tonemap_frag_shader_stage_info.pName = "main";
+    VkPipelineShaderStageCreateInfo combine_tonemap_shader_stages[] = {
+        vert_shader_stage_info,
+        combine_tonemap_frag_shader_stage_info};
+    VkGraphicsPipelineCreateInfo combine_tonemap_pipeline_info = pipeline_info;
+    combine_tonemap_pipeline_info.pStages = combine_tonemap_shader_stages;
+    combine_tonemap_pipeline_info.renderPass = combine_render_pass_;
+    const VkResult combine_pipeline_result = vkCreateGraphicsPipelines(
+        device_,
+        VK_NULL_HANDLE,
+        1,
+        &combine_tonemap_pipeline_info,
+        nullptr,
+        &combine_pipeline_);
+    if (combine_pipeline_result != VK_SUCCESS) {
+        vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
+        bloom_extract_pipeline_ = VK_NULL_HANDLE;
+        vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
+        graphics_pipeline_ = VK_NULL_HANDLE;
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
+        post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+        VK_CHECK(combine_pipeline_result);
+    }
 
+    vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
@@ -1002,6 +1138,53 @@ void VulkanRenderer::CreateOffscreenResources() {
     bloom_extract_framebuffer_info.layers = 1;
     VK_CHECK(vkCreateFramebuffer(device_, &bloom_extract_framebuffer_info, nullptr, &bloom_extract_framebuffer_));
 
+    VkImageCreateInfo combine_image_info{};
+    combine_image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    combine_image_info.imageType = VK_IMAGE_TYPE_2D;
+    combine_image_info.extent.width = swap_chain_extent_.width;
+    combine_image_info.extent.height = swap_chain_extent_.height;
+    combine_image_info.extent.depth = 1;
+    combine_image_info.mipLevels = 1;
+    combine_image_info.arrayLayers = 1;
+    combine_image_info.format = swap_chain_image_format_;
+    combine_image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    combine_image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    combine_image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    combine_image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    combine_image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateImage(device_, &combine_image_info, nullptr, &combine_image_));
+    VkMemoryRequirements combine_memory_requirements{};
+    vkGetImageMemoryRequirements(device_, combine_image_, &combine_memory_requirements);
+    VkMemoryAllocateInfo combine_allocate_info{};
+    combine_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    combine_allocate_info.allocationSize = combine_memory_requirements.size;
+    combine_allocate_info.memoryTypeIndex = FindMemoryType(
+        combine_memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_CHECK(vkAllocateMemory(device_, &combine_allocate_info, nullptr, &combine_image_memory_));
+    VK_CHECK(vkBindImageMemory(device_, combine_image_, combine_image_memory_, 0));
+    VkImageViewCreateInfo combine_image_view_info{};
+    combine_image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    combine_image_view_info.image = combine_image_;
+    combine_image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    combine_image_view_info.format = swap_chain_image_format_;
+    combine_image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    combine_image_view_info.subresourceRange.baseMipLevel = 0;
+    combine_image_view_info.subresourceRange.levelCount = 1;
+    combine_image_view_info.subresourceRange.baseArrayLayer = 0;
+    combine_image_view_info.subresourceRange.layerCount = 1;
+    VK_CHECK(vkCreateImageView(device_, &combine_image_view_info, nullptr, &combine_image_view_));
+    VkImageView combine_attachments[] = {combine_image_view_};
+    VkFramebufferCreateInfo combine_framebuffer_info{};
+    combine_framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    combine_framebuffer_info.renderPass = combine_render_pass_;
+    combine_framebuffer_info.attachmentCount = 1;
+    combine_framebuffer_info.pAttachments = combine_attachments;
+    combine_framebuffer_info.width = swap_chain_extent_.width;
+    combine_framebuffer_info.height = swap_chain_extent_.height;
+    combine_framebuffer_info.layers = 1;
+    VK_CHECK(vkCreateFramebuffer(device_, &combine_framebuffer_info, nullptr, &combine_framebuffer_));
+
     VkSamplerCreateInfo offscreen_color_sampler_info{};
     offscreen_color_sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     offscreen_color_sampler_info.magFilter = VK_FILTER_LINEAR;
@@ -1051,9 +1234,61 @@ void VulkanRenderer::CreateOffscreenResources() {
     post_process_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     post_process_descriptor_write.pImageInfo = &offscreen_color_descriptor_image_info;
     vkUpdateDescriptorSets(device_, 1, &post_process_descriptor_write, 0, nullptr);
+
+    std::array<VkDescriptorPoolSize, 2> combine_descriptor_pool_sizes{};
+    combine_descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_descriptor_pool_sizes[0].descriptorCount = 1;
+    combine_descriptor_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_descriptor_pool_sizes[1].descriptorCount = 1;
+    VkDescriptorPoolCreateInfo combine_descriptor_pool_info{};
+    combine_descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    combine_descriptor_pool_info.maxSets = 1;
+    combine_descriptor_pool_info.poolSizeCount = static_cast<std::uint32_t>(combine_descriptor_pool_sizes.size());
+    combine_descriptor_pool_info.pPoolSizes = combine_descriptor_pool_sizes.data();
+    VK_CHECK(vkCreateDescriptorPool(device_, &combine_descriptor_pool_info, nullptr, &combine_descriptor_pool_));
+    VkDescriptorSetAllocateInfo combine_descriptor_set_allocate_info{};
+    combine_descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    combine_descriptor_set_allocate_info.descriptorPool = combine_descriptor_pool_;
+    combine_descriptor_set_allocate_info.descriptorSetCount = 1;
+    combine_descriptor_set_allocate_info.pSetLayouts = &combine_descriptor_set_layout_;
+    VK_CHECK(vkAllocateDescriptorSets(device_, &combine_descriptor_set_allocate_info, &combine_descriptor_set_));
+    VkDescriptorImageInfo combine_scene_descriptor_image_info{};
+    combine_scene_descriptor_image_info.sampler = offscreen_color_sampler_;
+    combine_scene_descriptor_image_info.imageView = offscreen_color_image_view_;
+    combine_scene_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkDescriptorImageInfo combine_bloom_descriptor_image_info{};
+    combine_bloom_descriptor_image_info.sampler = offscreen_color_sampler_;
+    combine_bloom_descriptor_image_info.imageView = bloom_extract_image_view_;
+    combine_bloom_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    std::array<VkWriteDescriptorSet, 2> combine_descriptor_writes{};
+    combine_descriptor_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    combine_descriptor_writes[0].dstSet = combine_descriptor_set_;
+    combine_descriptor_writes[0].dstBinding = 0;
+    combine_descriptor_writes[0].dstArrayElement = 0;
+    combine_descriptor_writes[0].descriptorCount = 1;
+    combine_descriptor_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_descriptor_writes[0].pImageInfo = &combine_scene_descriptor_image_info;
+    combine_descriptor_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    combine_descriptor_writes[1].dstSet = combine_descriptor_set_;
+    combine_descriptor_writes[1].dstBinding = 1;
+    combine_descriptor_writes[1].dstArrayElement = 0;
+    combine_descriptor_writes[1].descriptorCount = 1;
+    combine_descriptor_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    combine_descriptor_writes[1].pImageInfo = &combine_bloom_descriptor_image_info;
+    vkUpdateDescriptorSets(
+        device_,
+        static_cast<std::uint32_t>(combine_descriptor_writes.size()),
+        combine_descriptor_writes.data(),
+        0,
+        nullptr);
 }
 
 void VulkanRenderer::DestroyOffscreenResources() {
+    if (combine_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, combine_descriptor_pool_, nullptr);
+        combine_descriptor_pool_ = VK_NULL_HANDLE;
+        combine_descriptor_set_ = VK_NULL_HANDLE;
+    }
     if (post_process_descriptor_pool_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device_, post_process_descriptor_pool_, nullptr);
         post_process_descriptor_pool_ = VK_NULL_HANDLE;
@@ -1078,6 +1313,22 @@ void VulkanRenderer::DestroyOffscreenResources() {
     if (bloom_extract_image_memory_ != VK_NULL_HANDLE) {
         vkFreeMemory(device_, bloom_extract_image_memory_, nullptr);
         bloom_extract_image_memory_ = VK_NULL_HANDLE;
+    }
+    if (combine_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, combine_framebuffer_, nullptr);
+        combine_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (combine_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, combine_image_view_, nullptr);
+        combine_image_view_ = VK_NULL_HANDLE;
+    }
+    if (combine_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, combine_image_, nullptr);
+        combine_image_ = VK_NULL_HANDLE;
+    }
+    if (combine_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, combine_image_memory_, nullptr);
+        combine_image_memory_ = VK_NULL_HANDLE;
     }
     if (offscreen_framebuffer_ != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(device_, offscreen_framebuffer_, nullptr);
@@ -1360,6 +1611,200 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
         vkCmdEndRenderPass(command_buffers_[image_index]);
 
+        VkImageMemoryBarrier bloom_extract_to_shader_read{};
+        bloom_extract_to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        bloom_extract_to_shader_read.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        bloom_extract_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        bloom_extract_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        bloom_extract_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        bloom_extract_to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_extract_to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bloom_extract_to_shader_read.image = bloom_extract_image_;
+        bloom_extract_to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        bloom_extract_to_shader_read.subresourceRange.baseMipLevel = 0;
+        bloom_extract_to_shader_read.subresourceRange.levelCount = 1;
+        bloom_extract_to_shader_read.subresourceRange.baseArrayLayer = 0;
+        bloom_extract_to_shader_read.subresourceRange.layerCount = 1;
+        VkImageMemoryBarrier combine_to_attachment{};
+        combine_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        combine_to_attachment.srcAccessMask = 0;
+        combine_to_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        combine_to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        combine_to_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        combine_to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        combine_to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        combine_to_attachment.image = combine_image_;
+        combine_to_attachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        combine_to_attachment.subresourceRange.baseMipLevel = 0;
+        combine_to_attachment.subresourceRange.levelCount = 1;
+        combine_to_attachment.subresourceRange.baseArrayLayer = 0;
+        combine_to_attachment.subresourceRange.layerCount = 1;
+        std::array<VkImageMemoryBarrier, 2> combine_pre_pass_barriers = {
+            bloom_extract_to_shader_read,
+            combine_to_attachment,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(combine_pre_pass_barriers.size()),
+            combine_pre_pass_barriers.data());
+        VkRenderPassBeginInfo combine_render_pass_begin_info{};
+        combine_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        combine_render_pass_begin_info.renderPass = combine_render_pass_;
+        combine_render_pass_begin_info.framebuffer = combine_framebuffer_;
+        combine_render_pass_begin_info.renderArea.offset = {0, 0};
+        combine_render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+        VkClearValue combine_clear_color = {{{0.0F, 0.0F, 0.0F, 1.0F}}};
+        combine_render_pass_begin_info.clearValueCount = 1;
+        combine_render_pass_begin_info.pClearValues = &combine_clear_color;
+        vkCmdBeginRenderPass(
+            command_buffers_[image_index],
+            &combine_render_pass_begin_info,
+            VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, combine_pipeline_);
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline_layout_,
+            1,
+            1,
+            &combine_descriptor_set_,
+            0,
+            nullptr);
+        CombineTonemapPushConstants combine_push_constants{};
+        combine_push_constants.params = glm::vec4(0.20F, 1.0F, 0.0F, 0.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants) + sizeof(BloomExtractPushConstants),
+            sizeof(CombineTonemapPushConstants),
+            &combine_push_constants);
+        PerFramePushConstants combine_per_frame_push{};
+        combine_per_frame_push.view_proj = glm::mat4(1.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(PerFramePushConstants),
+            &combine_per_frame_push);
+        PerDrawPushConstants combine_per_draw_push{};
+        combine_per_draw_push.model = glm::scale(glm::mat4(1.0F), glm::vec3(2.0F, 2.0F, 1.0F));
+        combine_per_draw_push.color = glm::vec4(1.0F);
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &combine_per_draw_push);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        vkCmdEndRenderPass(command_buffers_[image_index]);
+
+        VkImageMemoryBarrier combine_to_transfer_src{};
+        combine_to_transfer_src.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        combine_to_transfer_src.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        combine_to_transfer_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        combine_to_transfer_src.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        combine_to_transfer_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        combine_to_transfer_src.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        combine_to_transfer_src.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        combine_to_transfer_src.image = combine_image_;
+        combine_to_transfer_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        combine_to_transfer_src.subresourceRange.baseMipLevel = 0;
+        combine_to_transfer_src.subresourceRange.levelCount = 1;
+        combine_to_transfer_src.subresourceRange.baseArrayLayer = 0;
+        combine_to_transfer_src.subresourceRange.layerCount = 1;
+        VkImageMemoryBarrier offscreen_to_transfer_dst_for_combine{};
+        offscreen_to_transfer_dst_for_combine.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_to_transfer_dst_for_combine.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        offscreen_to_transfer_dst_for_combine.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        offscreen_to_transfer_dst_for_combine.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        offscreen_to_transfer_dst_for_combine.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        offscreen_to_transfer_dst_for_combine.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_to_transfer_dst_for_combine.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_to_transfer_dst_for_combine.image = offscreen_color_image_;
+        offscreen_to_transfer_dst_for_combine.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreen_to_transfer_dst_for_combine.subresourceRange.baseMipLevel = 0;
+        offscreen_to_transfer_dst_for_combine.subresourceRange.levelCount = 1;
+        offscreen_to_transfer_dst_for_combine.subresourceRange.baseArrayLayer = 0;
+        offscreen_to_transfer_dst_for_combine.subresourceRange.layerCount = 1;
+        std::array<VkImageMemoryBarrier, 2> combine_copy_pre_barriers = {
+            combine_to_transfer_src,
+            offscreen_to_transfer_dst_for_combine,
+        };
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            static_cast<std::uint32_t>(combine_copy_pre_barriers.size()),
+            combine_copy_pre_barriers.data());
+        VkImageBlit combine_to_offscreen_blit{};
+        combine_to_offscreen_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        combine_to_offscreen_blit.srcSubresource.mipLevel = 0;
+        combine_to_offscreen_blit.srcSubresource.baseArrayLayer = 0;
+        combine_to_offscreen_blit.srcSubresource.layerCount = 1;
+        combine_to_offscreen_blit.srcOffsets[0] = {0, 0, 0};
+        combine_to_offscreen_blit.srcOffsets[1] = {
+            static_cast<std::int32_t>(swap_chain_extent_.width),
+            static_cast<std::int32_t>(swap_chain_extent_.height),
+            1};
+        combine_to_offscreen_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        combine_to_offscreen_blit.dstSubresource.mipLevel = 0;
+        combine_to_offscreen_blit.dstSubresource.baseArrayLayer = 0;
+        combine_to_offscreen_blit.dstSubresource.layerCount = 1;
+        combine_to_offscreen_blit.dstOffsets[0] = {0, 0, 0};
+        combine_to_offscreen_blit.dstOffsets[1] = {
+            static_cast<std::int32_t>(swap_chain_extent_.width),
+            static_cast<std::int32_t>(swap_chain_extent_.height),
+            1};
+        vkCmdBlitImage(
+            command_buffers_[image_index],
+            combine_image_,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            offscreen_color_image_,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &combine_to_offscreen_blit,
+            VK_FILTER_LINEAR);
+        VkImageMemoryBarrier offscreen_back_to_shader_read_after_combine{};
+        offscreen_back_to_shader_read_after_combine.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreen_back_to_shader_read_after_combine.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        offscreen_back_to_shader_read_after_combine.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        offscreen_back_to_shader_read_after_combine.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        offscreen_back_to_shader_read_after_combine.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        offscreen_back_to_shader_read_after_combine.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_back_to_shader_read_after_combine.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreen_back_to_shader_read_after_combine.image = offscreen_color_image_;
+        offscreen_back_to_shader_read_after_combine.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreen_back_to_shader_read_after_combine.subresourceRange.baseMipLevel = 0;
+        offscreen_back_to_shader_read_after_combine.subresourceRange.levelCount = 1;
+        offscreen_back_to_shader_read_after_combine.subresourceRange.baseArrayLayer = 0;
+        offscreen_back_to_shader_read_after_combine.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(
+            command_buffers_[image_index],
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &offscreen_back_to_shader_read_after_combine);
+
         VkImageMemoryBarrier offscreen_color_to_transfer_src{};
         offscreen_color_to_transfer_src.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         offscreen_color_to_transfer_src.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -1596,6 +2041,10 @@ void VulkanRenderer::CleanupSwapChain() {
         vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
         graphics_pipeline_ = VK_NULL_HANDLE;
     }
+    if (combine_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, combine_pipeline_, nullptr);
+        combine_pipeline_ = VK_NULL_HANDLE;
+    }
     if (bloom_extract_pipeline_ != VK_NULL_HANDLE) {
         vkDestroyPipeline(device_, bloom_extract_pipeline_, nullptr);
         bloom_extract_pipeline_ = VK_NULL_HANDLE;
@@ -1609,6 +2058,10 @@ void VulkanRenderer::CleanupSwapChain() {
         vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
         post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
     }
+    if (combine_descriptor_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
 
     if (render_pass_ != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device_, render_pass_, nullptr);
@@ -1617,6 +2070,10 @@ void VulkanRenderer::CleanupSwapChain() {
     if (bloom_extract_render_pass_ != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device_, bloom_extract_render_pass_, nullptr);
         bloom_extract_render_pass_ = VK_NULL_HANDLE;
+    }
+    if (combine_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, combine_render_pass_, nullptr);
+        combine_render_pass_ = VK_NULL_HANDLE;
     }
 
     for (VkImageView image_view : swap_chain_image_views_) {
