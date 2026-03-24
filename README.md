@@ -7,36 +7,44 @@ ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation 
 
 ## Quick Start
 
-The fastest path for alpha testers is the new one-command setup scripts. They install dependencies (including Vulkan SDK), run bootstrap, prepare Python env, and run AI model prep/benchmark.
+For alpha testers on Windows, this is now the **#1 recommended setup path**.
 
-### Option 1 (Recommended): One-command setup
+### 1) Windows 10/11 (Recommended)
+Run one command in PowerShell from the repo root:
 
-#### Linux (Ubuntu/Debian) + macOS
+```powershell
+pwsh -f scripts/Setup-Alpha.ps1
+```
+
+What it does automatically:
+- Installs .NET 8 SDK, CMake, Ninja, Python, Vulkan SDK, and MSYS2/MinGW g++.
+- Runs `scripts/bootstrap.ps1`.
+- Creates or reuses `./.venv`.
+- Writes `forge.pth` so `ai-orchestration\python` is always importable.
+- Installs `ai-orchestration\python\requirements.txt` (if present).
+- Runs model prep + benchmark only on a fresh venv.
+
+Force a full clean Python/model reset:
+
+```powershell
+pwsh -f scripts/Setup-Alpha.ps1 -Fresh
+```
+
+### 2) Linux/macOS (One-command setup)
+
 ```bash
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
 
-To force a clean Python environment and rerun model preparation/benchmark:
+Force a clean venv + model prep on Linux/macOS:
+
 ```bash
 ./scripts/setup.sh --fresh
 ```
 
-#### Windows 10/11 (PowerShell)
-```powershell
-pwsh -f scripts/Setup-Alpha.ps1
-```
-
-To force a clean Python environment and rerun model preparation/benchmark:
-```powershell
-pwsh -f scripts/Setup-Alpha.ps1 -Fresh
-# or
-pwsh -f scripts/Setup-Alpha.ps1 /Fresh
-```
-
-### Option 2: Packaged installers (secondary)
-
-If you prefer installable artifacts instead of local bootstrap scripts:
+### 3) Packaged installers (secondary option)
+If you prefer installable artifacts over local setup scripts:
 
 #### Ubuntu (DEB + AppImage)
 ```bash
