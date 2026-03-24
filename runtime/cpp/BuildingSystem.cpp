@@ -16,6 +16,8 @@ constexpr float kGroundY = 0.0F;
 constexpr float kRayParallelEpsilon = 1e-5F;
 constexpr float kMaxPlacementRayDistance = 1000.0F;
 constexpr float kGhostAlpha = 0.4F;
+constexpr glm::vec4 kGhostValidColor{0.35F, 0.95F, 0.45F, kGhostAlpha};
+constexpr glm::vec4 kGhostBlockedColor{0.95F, 0.25F, 0.25F, kGhostAlpha};
 
 std::optional<Entity> BuildCandidateFromRay(const Scene& scene, const glm::vec3& ray_origin, const glm::vec3& ray_direction) {
     if (std::abs(ray_direction.y) < kRayParallelEpsilon) {
@@ -52,6 +54,15 @@ std::string RequiredInventoryItem(const BuildTemplate& build_template) {
         return "FarmPlotItem";
     }
     return std::string(build_template.type) + "Item";
+}
+
+bool IsPlacementBlockedByOverlap(const Scene& scene, const Entity& candidate) {
+    for (const Entity& existing : scene.entities) {
+        if (OverlapsOnGroundXZ(candidate, existing)) {
+            return true;
+        }
+    }
+    return false;
 }
 }  // namespace
 
@@ -109,7 +120,10 @@ std::optional<Entity> GetGhostPreview(const Scene& scene, const glm::vec3& ray_o
         return std::nullopt;
     }
 
-    candidate->renderable.color.a = kGhostAlpha;
+    std::string faction_build_reason;
+    const bool blocked_by_faction = !FactionSystem::CanBuildInCurrentBiome(scene, faction_build_reason);
+    const bool blocked_by_overlap = IsPlacementBlockedByOverlap(scene, candidate.value());
+    candidate->renderable.color = (blocked_by_faction || blocked_by_overlap) ? kGhostBlockedColor : kGhostValidColor;
     return candidate;
 }
 
@@ -133,22 +147,20 @@ bool TryPlaceBuildingFromRay(Scene& scene, const glm::vec3& ray_origin, const gl
         return false;
     }
 
-    for (const Entity& existing : scene.entities) {
-        if (OverlapsOnGroundXZ(candidate.value(), existing)) {
-            return false;
-        }
+    if (IsPlacementBlockedByOverlap(scene, candidate.value())) {
+        return false;
     }
 
     const BuildTemplate build_template = SelectBuildTemplate(scene);
     const std::string item_name = RequiredInventoryItem(build_template);
-    const int dynamic_cost = EconomySystem::AdjustedBuildItemCost(scene, item_name, 1);
-    if (!InventorySystem::RemoveItem(scene.player_inventory, item_name, dynamic_cost)) {
-        GF_LOG_INFO("Not enough " + item_name + " to build (needs " + std::to_string(dynamic_cost) + ").");
+    constexpr int kPlacementCost = 1;
+    if (!InventorySystem::RemoveItem(scene.player_inventory, item_name, kPlacementCost)) {
+        GF_LOG_INFO("Not enough resources");
         return false;
     }
 
-    EconomySystem::RegisterConsumption(scene, item_name, dynamic_cost);
-    GF_LOG_INFO("Consumed " + item_name + " x" + std::to_string(dynamic_cost));
+    EconomySystem::RegisterConsumption(scene, item_name, kPlacementCost);
+    GF_LOG_INFO("Consumed " + item_name + " x" + std::to_string(kPlacementCost));
     scene.entities.push_back(candidate.value());
     scene.MarkNavmeshDirty();
     return true;
