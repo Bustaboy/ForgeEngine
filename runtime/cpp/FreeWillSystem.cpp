@@ -18,6 +18,8 @@ namespace {
 constexpr std::uint32_t kMaxSparksPerNpcPerDay = 3U;
 constexpr float kGlobalSparkCooldownSeconds = 1.0F;
 constexpr float kBaseSparkChancePerSecond = 0.0015F;
+constexpr std::size_t kPendingSparkCap = 256U;
+constexpr std::size_t kSparkMapCap = 512U;
 
 struct SparkDirective {
     std::string line{};
@@ -57,6 +59,12 @@ bool TryEnqueue(Scene& scene, std::uint64_t npc_id, bool forced_by_console) {
         return true;
     }
 
+    if (scene.free_will.pending_sparks.size() >= kPendingSparkCap) {
+        if (!forced_by_console) {
+            return false;
+        }
+        scene.free_will.pending_sparks.pop_front();
+    }
     scene.free_will.pending_sparks.push_back(FreeWillSparkRequest{npc_id, forced_by_console});
     return true;
 }
@@ -202,6 +210,22 @@ void FreeWillSystem::EnsureDefaults(Scene& scene) {
         scene.free_will.daily_spark_count.clear();
         scene.free_will.pending_sparks.clear();
     }
+
+    if (scene.free_will.daily_spark_count.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.daily_spark_count.size() - kSparkMapCap;
+        for (auto it = scene.free_will.daily_spark_count.begin(); it != scene.free_will.daily_spark_count.end() && to_remove > 0;) {
+            it = scene.free_will.daily_spark_count.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.last_spark_line_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_line_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.last_spark_line_by_npc.begin();
+             it != scene.free_will.last_spark_line_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.last_spark_line_by_npc.erase(it);
+            --to_remove;
+        }
+    }
 }
 
 void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
@@ -221,6 +245,8 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
     const float chance = std::clamp(scene.free_will.spark_chance_per_second * safe_dt, 0.0F, 0.2F);
     std::uniform_real_distribution<float> roll(0.0F, 1.0F);
 
+    std::uint32_t queued_this_frame = 0U;
+    const std::uint32_t max_queues_per_frame = std::min<std::uint32_t>(8U, 1U + static_cast<std::uint32_t>(scene.entities.size() / 40U));
     for (const Entity& entity : scene.entities) {
         if (entity.buildable.IsValid()) {
             continue;
@@ -229,7 +255,12 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
             continue;
         }
         if (roll(rng) <= chance) {
-            TryEnqueue(scene, entity.id, false);
+            if (TryEnqueue(scene, entity.id, false)) {
+                ++queued_this_frame;
+            }
+            if (queued_this_frame >= max_queues_per_frame) {
+                break;
+            }
         }
     }
 

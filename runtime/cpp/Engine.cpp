@@ -26,12 +26,18 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <thread>
 
 namespace {
+constexpr std::size_t kRecentActionsCap = 160U;
+constexpr std::size_t kCombatHistoryCap = 48U;
+constexpr std::size_t kFreeWillCounterCap = 512U;
+
 bool TryComputeCursorRay(GLFWwindow* window, const Camera& camera, glm::vec3& out_ray_direction) {
     int framebuffer_width = 0;
     int framebuffer_height = 0;
@@ -74,13 +80,18 @@ void SetOverlayStatusMessage(std::string& overlay_status_message, const std::str
 void LogConsoleHelp() {
     GF_LOG_INFO("Console commands:");
     GF_LOG_INFO("  Core: /help | /debug_overlay [on|off|toggle] | /inventory | /recipes");
+    GF_LOG_INFO("  Perf: /perf_stats | /low_power [on|off|toggle]");
     GF_LOG_INFO("  Build/Craft: /give <item> <amount> | /craft <recipe> | /trade ... | /settlement");
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
 }
 
-void ProcessConsoleCommands(Scene& scene, bool& debug_overlay_enabled, std::string& overlay_status_message) {
+void ProcessConsoleCommands(
+    Scene& scene,
+    bool& debug_overlay_enabled,
+    std::string& overlay_status_message,
+    Engine::PerfGuardrailsState& perf_state) {
     std::streambuf* input_buffer = std::cin.rdbuf();
     if (input_buffer == nullptr || input_buffer->in_avail() <= 0) {
         return;
@@ -114,6 +125,44 @@ void ProcessConsoleCommands(Scene& scene, bool& debug_overlay_enabled, std::stri
         const std::string state = std::string("Debug Overlay: ") + (debug_overlay_enabled ? "ON" : "OFF");
         GF_LOG_INFO(state);
         SetOverlayStatusMessage(overlay_status_message, state);
+        return;
+    }
+
+    if (command == "/low_power") {
+        std::string arg;
+        parser >> arg;
+        if (arg == "on") {
+            perf_state.low_power_mode = true;
+        } else if (arg == "off") {
+            perf_state.low_power_mode = false;
+        } else {
+            perf_state.low_power_mode = !perf_state.low_power_mode;
+        }
+
+        const std::string mode = std::string("Low-power mode: ") + (perf_state.low_power_mode ? "ON" : "OFF");
+        GF_LOG_INFO(mode);
+        SetOverlayStatusMessage(overlay_status_message, mode);
+        return;
+    }
+
+    if (command == "/perf_stats") {
+        std::ostringstream stats;
+        stats << std::fixed << std::setprecision(2)
+              << "PerfStats budget_ms=" << (perf_state.frame_budget_seconds * 1000.0)
+              << " fixed_dt_ms=" << (perf_state.current_fixed_dt_seconds * 1000.0)
+              << " smoothed_frame_ms=" << (perf_state.smoothed_frame_seconds * 1000.0)
+              << " steps_last_frame=" << perf_state.simulation_steps_last_frame
+              << " dropped_steps=" << perf_state.dropped_simulation_steps
+              << " throttled_frames=" << perf_state.throttled_frames
+              << " low_power=" << (perf_state.low_power_mode ? "on" : "off");
+        GF_LOG_INFO(stats.str());
+
+        std::ostringstream memory;
+        memory << "MemoryGuardrails recent_actions=" << scene.recent_actions.size() << "/" << kRecentActionsCap
+               << " spark_counters=" << scene.free_will.daily_spark_count.size() << "/" << kFreeWillCounterCap
+               << " combat_units=" << scene.combat.units.size() << "/" << kCombatHistoryCap;
+        GF_LOG_INFO(memory.str());
+        SetOverlayStatusMessage(overlay_status_message, "Perf stats logged");
         return;
     }
 
@@ -490,7 +539,6 @@ void Engine::Run() {
     InputManager input{};
     input.AttachWindow(renderer_.GetWindow());
 
-    constexpr double fixed_dt = 1.0 / 60.0;
     double accumulator = 0.0;
     auto previous_time = std::chrono::steady_clock::now();
 
@@ -512,12 +560,41 @@ void Engine::Run() {
         const auto now = std::chrono::steady_clock::now();
         const std::chrono::duration<double> frame_delta = now - previous_time;
         previous_time = now;
-        accumulator += frame_delta.count();
+        const double raw_frame_seconds = std::clamp(frame_delta.count(), 0.0, 0.25);
+        const double smoothing_alpha = 0.12;
+        perf_state_.smoothed_frame_seconds +=
+            (raw_frame_seconds - perf_state_.smoothed_frame_seconds) * smoothing_alpha;
 
-        while (accumulator >= fixed_dt) {
-            Update(static_cast<float>(fixed_dt), input);
-            accumulator -= fixed_dt;
+        const double base_budget = perf_state_.low_power_mode ? (1.0 / 30.0) : (1.0 / 60.0);
+        perf_state_.frame_budget_seconds = std::max(base_budget, perf_state_.smoothed_frame_seconds * 0.92);
+        perf_state_.current_fixed_dt_seconds = std::clamp(
+            perf_state_.smoothed_frame_seconds * (perf_state_.low_power_mode ? 1.05 : 0.95),
+            1.0 / 120.0,
+            perf_state_.low_power_mode ? (1.0 / 30.0) : (1.0 / 45.0));
+
+        accumulator += raw_frame_seconds;
+        const std::uint64_t max_steps = perf_state_.low_power_mode ? 2U : 4U;
+        const double max_accumulator = perf_state_.frame_budget_seconds * static_cast<double>(max_steps);
+        if (accumulator > max_accumulator) {
+            perf_state_.throttled_frames += 1U;
+            accumulator = max_accumulator;
         }
+
+        std::uint64_t steps_this_frame = 0;
+        while (accumulator >= perf_state_.current_fixed_dt_seconds && steps_this_frame < max_steps) {
+            Update(static_cast<float>(perf_state_.current_fixed_dt_seconds), input);
+            accumulator -= perf_state_.current_fixed_dt_seconds;
+            steps_this_frame += 1U;
+        }
+
+        if (accumulator >= perf_state_.current_fixed_dt_seconds) {
+            const std::uint64_t dropped = static_cast<std::uint64_t>(
+                std::floor(accumulator / perf_state_.current_fixed_dt_seconds));
+            perf_state_.dropped_simulation_steps += dropped;
+            accumulator = std::fmod(accumulator, perf_state_.current_fixed_dt_seconds);
+        }
+        perf_state_.simulation_steps_last_frame = steps_this_frame;
+        perf_state_.total_frames += 1U;
 
         renderer_.RenderFrame(scene_, camera_);
 
@@ -534,7 +611,13 @@ void Engine::Run() {
             GF_LOG_INFO("Day time: " + std::to_string(scene_.day_progress));
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        const auto post_render = std::chrono::steady_clock::now();
+        const std::chrono::duration<double> work_duration = post_render - now;
+        const double sleep_seconds =
+            std::max(0.0, perf_state_.frame_budget_seconds - work_duration.count()) * (perf_state_.low_power_mode ? 1.0 : 0.65);
+        if (sleep_seconds > 0.0) {
+            std::this_thread::sleep_for(std::chrono::duration<double>(sleep_seconds));
+        }
     }
 
     Shutdown();
@@ -653,7 +736,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
         was_dialog_choice_pressed_[i] = choice_pressed;
     }
 
-    ProcessConsoleCommands(scene_, debug_overlay_enabled_, overlay_status_message_);
+    ProcessConsoleCommands(scene_, debug_overlay_enabled_, overlay_status_message_, perf_state_);
     scene_.Update(dt_seconds);
     CoCreatorSystem::TrimHistory(scene_);
     if (!scene_.recent_actions.empty()) {

@@ -44,20 +44,28 @@ float DistanceSq(const glm::vec3& a, const glm::vec3& b) {
     return glm::dot(delta, delta);
 }
 
+std::size_t CountNpcEntities(const Scene& scene) {
+    return static_cast<std::size_t>(std::count_if(scene.entities.begin(), scene.entities.end(), [](const Entity& entity) {
+        return !entity.buildable.IsValid();
+    }));
+}
+
 float OffscreenFastForwardSeconds(const Scene& scene, const Entity& entity, float safe_dt) {
     if (entity.id == scene.active_dialog_npc_id) {
         return safe_dt;
     }
 
+    const std::size_t npc_count = CountNpcEntities(scene);
+    const float load_scale = npc_count >= 250U ? 0.45F : (npc_count >= 120U ? 0.65F : 1.0F);
     const float distance_sq = DistanceSq(entity.transform.pos, scene.player_proxy_position);
     if (distance_sq > (100.0F * 100.0F)) {
-        return std::max(safe_dt, 6.0F * 3600.0F);
+        return std::clamp(std::max(safe_dt, 3600.0F * load_scale), safe_dt, 2.0F * 3600.0F);
     }
     if (distance_sq > (60.0F * 60.0F)) {
-        return std::max(safe_dt, 3.0F * 3600.0F);
+        return std::clamp(std::max(safe_dt, 1800.0F * load_scale), safe_dt, 3600.0F);
     }
     if (distance_sq > (35.0F * 35.0F)) {
-        return std::max(safe_dt, 1.5F * 3600.0F);
+        return std::clamp(std::max(safe_dt, 900.0F * load_scale), safe_dt, 1800.0F);
     }
     return safe_dt;
 }

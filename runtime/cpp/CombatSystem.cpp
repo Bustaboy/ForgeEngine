@@ -10,6 +10,7 @@
 #include <sstream>
 
 namespace {
+constexpr std::size_t kCombatStateCap = 48U;
 
 Entity* FindEntity(Scene& scene, std::uint64_t entity_id) {
     for (Entity& entity : scene.entities) {
@@ -220,6 +221,17 @@ namespace CombatSystem {
 void EnsureDefaults(Scene& scene) {
     scene.combat.grid_width = std::max(4U, scene.combat.grid_width);
     scene.combat.grid_height = std::max(4U, scene.combat.grid_height);
+    if (scene.combat.units.size() > kCombatStateCap) {
+        scene.combat.units.resize(kCombatStateCap);
+    }
+    if (scene.combat.turn_order.size() > kCombatStateCap) {
+        scene.combat.turn_order.resize(kCombatStateCap);
+    }
+    scene.combat.turn_order.erase(
+        std::remove_if(scene.combat.turn_order.begin(), scene.combat.turn_order.end(), [&](std::uint64_t entity_id) {
+            return FindUnit(scene, entity_id) == nullptr;
+        }),
+        scene.combat.turn_order.end());
     scene.combat.active_turn_index = std::min(scene.combat.active_turn_index, scene.combat.turn_order.empty() ? 0U : scene.combat.turn_order.size() - 1U);
 }
 
