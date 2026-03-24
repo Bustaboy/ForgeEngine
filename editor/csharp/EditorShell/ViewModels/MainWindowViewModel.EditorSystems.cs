@@ -16,6 +16,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabCoCreator = "CoCreator";
     private const string SystemTabStory = "Story";
     private const string SystemTabWeather = "Weather";
+    private const string SystemTabLivingNpcs = "LivingNpcs";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -24,6 +25,7 @@ public sealed partial class MainWindowViewModel
     private DialogPanelState _dialogs = new();
     private StoryPanelState _storyPanel = new();
     private WeatherPanelState _weather = new();
+    private LivingNpcsPanelState _livingNpcs = new();
     private readonly List<string> _aiCommandLog = [];
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
@@ -94,6 +96,7 @@ public sealed partial class MainWindowViewModel
     private float _characterVoiceVolumeEditor = 1f;
     private string _storyNarratorLineEditor = "";
     private string _storyStatus = "Story tools ready.";
+    private string _livingNpcsStatus = "Living NPC settings ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
     private readonly IReadOnlyList<string> _voiceBuildOptions = ["average", "light", "heavy"];
@@ -122,6 +125,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsCoCreatorTabActive));
             OnPropertyChanged(nameof(IsStoryTabActive));
             OnPropertyChanged(nameof(IsWeatherTabActive));
+            OnPropertyChanged(nameof(IsLivingNpcsTabActive));
         }
     }
 
@@ -133,6 +137,7 @@ public sealed partial class MainWindowViewModel
     public bool IsCoCreatorTabActive => string.Equals(ActiveSystemTab, SystemTabCoCreator, StringComparison.Ordinal);
     public bool IsStoryTabActive => string.Equals(ActiveSystemTab, SystemTabStory, StringComparison.Ordinal);
     public bool IsWeatherTabActive => string.Equals(ActiveSystemTab, SystemTabWeather, StringComparison.Ordinal);
+    public bool IsLivingNpcsTabActive => string.Equals(ActiveSystemTab, SystemTabLivingNpcs, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -401,6 +406,14 @@ public sealed partial class MainWindowViewModel
     public float WeatherIntensityEditor { get => _weather.Intensity; set { _weather.Intensity = Math.Clamp(value, 0f, 1f); OnPropertyChanged(); } }
     public float WeatherTransitionSecondsEditor { get => _weather.TransitionSeconds; set { _weather.TransitionSeconds = Math.Max(2f, value); OnPropertyChanged(); } }
     public float WeatherNextTransitionSecondsEditor { get => _weather.NextTransitionSeconds; set { _weather.NextTransitionSeconds = Math.Max(5f, value); OnPropertyChanged(); } }
+    public bool LivingNpcsFreeWillEnabledEditor { get => _livingNpcs.FreeWillEnabled; set { _livingNpcs.FreeWillEnabled = value; OnPropertyChanged(); } }
+    public bool LivingNpcsLlmEnabledEditor { get => _livingNpcs.LlmEnabled; set { _livingNpcs.LlmEnabled = value; OnPropertyChanged(); } }
+    public float LivingNpcsSparkChancePerSecondEditor { get => _livingNpcs.SparkChancePerSecond; set { _livingNpcs.SparkChancePerSecond = Math.Max(0f, value); OnPropertyChanged(); } }
+    public int LivingNpcsMaxSparksPerNpcPerDayEditor { get => _livingNpcs.MaxSparksPerNpcPerDay; set { _livingNpcs.MaxSparksPerNpcPerDay = Math.Max(1, value); OnPropertyChanged(); } }
+    public string LivingNpcsModelPathEditor { get => _livingNpcs.ModelPath; set { _livingNpcs.ModelPath = value; OnPropertyChanged(); } }
+    public int LivingNpcsSparksToday => _livingNpcs.SparksToday;
+    public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
+    public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
@@ -513,6 +526,88 @@ public sealed partial class MainWindowViewModel
             {
                 _weather.ApplyToScene(root);
                 return true;
+            },
+            cancellationToken);
+
+    public async Task SaveLivingNpcsSettingsAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Living NPC settings updated",
+            root =>
+            {
+                _livingNpcs.ApplyToScene(root);
+                LivingNpcsStatus = "Living NPC settings saved to scene.";
+                return true;
+            },
+            cancellationToken);
+
+    public async Task ReseedLivingNpcDefaultsAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Living NPC defaults re-seeded",
+            root =>
+            {
+                if (root["entities"] is not JsonArray entities)
+                {
+                    return false;
+                }
+
+                var selectedNpcIds = _selectedViewportEntities
+                    .Where(entity => string.Equals(entity.Type, "npc", StringComparison.OrdinalIgnoreCase))
+                    .Select(entity => TryParseEntityId(entity.Id))
+                    .Where(id => id > 0UL)
+                    .ToHashSet();
+                if (SelectedDialogEntityId > 0)
+                {
+                    selectedNpcIds.Add(SelectedDialogEntityId);
+                }
+
+                var updatedCount = 0;
+                foreach (var entity in entities.OfType<JsonObject>())
+                {
+                    var entityType = entity["type"]?.GetValue<string>() ?? string.Empty;
+                    if (!string.Equals(entityType, "npc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var npcId = ReadUlong(entity["id"], 0);
+                    if (selectedNpcIds.Count > 0 && !selectedNpcIds.Contains(npcId))
+                    {
+                        continue;
+                    }
+
+                    var baseX = ReadSingle(entity["x"], 0f);
+                    var baseY = ReadSingle(entity["y"], 0f);
+
+                    var schedule = entity["schedule"] as JsonObject ?? new JsonObject();
+                    entity["schedule"] = schedule;
+                    schedule["home_entity_id"] = ReadUlong(schedule["home_entity_id"], 0);
+                    schedule["workplace_entity_id"] = ReadUlong(schedule["workplace_entity_id"], 0);
+                    schedule["home_position"] = schedule["home_position"] as JsonObject ?? CreatePosition(baseX, baseY);
+                    schedule["workplace_position"] = schedule["workplace_position"] as JsonObject ?? CreatePosition(baseX + 0.8f, baseY + 0.6f);
+                    schedule["job_id"] = string.IsNullOrWhiteSpace(schedule["job_id"]?.GetValue<string>())
+                        ? "unassigned"
+                        : schedule["job_id"]?.GetValue<string>();
+                    schedule["current_activity"] = string.IsNullOrWhiteSpace(schedule["current_activity"]?.GetValue<string>())
+                        ? "idle"
+                        : schedule["current_activity"]?.GetValue<string>();
+                    schedule["current_location"] = string.IsNullOrWhiteSpace(schedule["current_location"]?.GetValue<string>())
+                        ? "anywhere"
+                        : schedule["current_location"]?.GetValue<string>();
+
+                    var needs = entity["needs"] as JsonObject ?? new JsonObject();
+                    entity["needs"] = needs;
+                    needs["hunger"] = ClampPercent(ReadSingle(needs["hunger"], 20f));
+                    needs["energy"] = ClampPercent(ReadSingle(needs["energy"], 80f));
+                    needs["social"] = ClampPercent(ReadSingle(needs["social"], 60f));
+                    needs["fun"] = ClampPercent(ReadSingle(needs["fun"], 55f));
+
+                    updatedCount++;
+                }
+
+                LivingNpcsStatus = updatedCount == 0
+                    ? "No NPCs matched the current selection for re-seed."
+                    : $"Re-seeded living defaults for {updatedCount} NPC(s).";
+                return updatedCount > 0;
             },
             cancellationToken);
 
@@ -1164,6 +1259,11 @@ public sealed partial class MainWindowViewModel
                     });
                     return true;
                 }
+                if (string.Equals(mutationType, "living_npc_adjustment", StringComparison.Ordinal) ||
+                    string.Equals(mutationType, "living_npc_tweak", StringComparison.Ordinal))
+                {
+                    return ApplyLivingNpcAdjustment(root, selected.Mutation);
+                }
                 return false;
             },
             cancellationToken);
@@ -1254,6 +1354,7 @@ public sealed partial class MainWindowViewModel
             _dialogs = DialogPanelState.FromScene(root);
             _storyPanel = StoryPanelState.FromScene(root);
             _weather = WeatherPanelState.FromScene(root);
+            _livingNpcs = LivingNpcsPanelState.FromScene(root);
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)
@@ -1402,6 +1503,13 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(WeatherIntensityEditor));
             OnPropertyChanged(nameof(WeatherTransitionSecondsEditor));
             OnPropertyChanged(nameof(WeatherNextTransitionSecondsEditor));
+            OnPropertyChanged(nameof(LivingNpcsFreeWillEnabledEditor));
+            OnPropertyChanged(nameof(LivingNpcsLlmEnabledEditor));
+            OnPropertyChanged(nameof(LivingNpcsSparkChancePerSecondEditor));
+            OnPropertyChanged(nameof(LivingNpcsMaxSparksPerNpcPerDayEditor));
+            OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
+            OnPropertyChanged(nameof(LivingNpcsSparksToday));
+            OnPropertyChanged(nameof(LivingNpcsRecentSparks));
             SyncStoryBeatSuggestions();
             OnPropertyChanged(nameof(FactionStatusSummary));
             OnPropertyChanged(nameof(RelationshipStatusSummary));
@@ -1440,6 +1548,126 @@ public sealed partial class MainWindowViewModel
                 return TryAppendDialogBranch(root, npcId, branchText, choiceText, "editor_evolve_button", factionId, tone == "guarded" ? -10f : -100f, 1f, string.Empty, -100f);
             },
             cancellationToken);
+
+    private static bool ApplyLivingNpcAdjustment(JsonObject root, JsonObject mutation)
+    {
+        if (root["entities"] is not JsonArray entities)
+        {
+            return false;
+        }
+
+        var npcId = ReadUlong(mutation["npc_id"], 0);
+        if (npcId == 0)
+        {
+            return false;
+        }
+
+        foreach (var entity in entities.OfType<JsonObject>())
+        {
+            if (ReadUlong(entity["id"], 0) != npcId)
+            {
+                continue;
+            }
+
+            var schedule = entity["schedule"] as JsonObject ?? new JsonObject();
+            entity["schedule"] = schedule;
+            var needs = entity["needs"] as JsonObject ?? new JsonObject();
+            entity["needs"] = needs;
+
+            if (mutation["home"] is JsonObject home && home["x"] is not null && home["y"] is not null)
+            {
+                schedule["home_position"] = CreatePosition(ReadSingle(home["x"], 0f), ReadSingle(home["y"], 0f));
+            }
+
+            if (mutation["work"] is JsonObject work && work["x"] is not null && work["y"] is not null)
+            {
+                schedule["workplace_position"] = CreatePosition(ReadSingle(work["x"], 0f), ReadSingle(work["y"], 0f));
+            }
+
+            if (mutation["needs_modifiers"] is JsonObject needsModifiers)
+            {
+                foreach (var need in new[] { "hunger", "energy", "social", "fun" })
+                {
+                    if (needsModifiers[need] is null)
+                    {
+                        continue;
+                    }
+
+                    var current = ReadSingle(needs[need], DefaultNeedValue(need));
+                    needs[need] = ClampPercent(current + ReadSingle(needsModifiers[need], 0f));
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static JsonObject CreatePosition(float x, float y)
+        => new()
+        {
+            ["x"] = x,
+            ["y"] = 0f,
+            ["z"] = y,
+        };
+
+    private static ulong TryParseEntityId(string? entityId)
+        => ulong.TryParse(entityId, out var parsed) ? parsed : 0UL;
+
+    private static float ClampPercent(float value)
+        => Math.Clamp(value, 0f, 100f);
+
+    private static float DefaultNeedValue(string needKey)
+        => needKey switch
+        {
+            "hunger" => 20f,
+            "energy" => 80f,
+            "social" => 60f,
+            "fun" => 55f,
+            _ => 50f,
+        };
+
+    private static float ReadSingle(JsonNode? value, float fallback)
+    {
+        if (value is JsonValue jsonValue)
+        {
+            if (jsonValue.TryGetValue<float>(out var floatValue))
+            {
+                return floatValue;
+            }
+
+            if (jsonValue.TryGetValue<double>(out var doubleValue))
+            {
+                return (float)doubleValue;
+            }
+
+            if (jsonValue.TryGetValue<int>(out var intValue))
+            {
+                return intValue;
+            }
+        }
+
+        return fallback;
+    }
+
+    private static ulong ReadUlong(JsonNode? value, ulong fallback)
+    {
+        if (value is JsonValue jsonValue)
+        {
+            if (jsonValue.TryGetValue<ulong>(out var ulongValue))
+            {
+                return ulongValue;
+            }
+
+            if (jsonValue.TryGetValue<int>(out var intValue) && intValue >= 0)
+            {
+                return (ulong)intValue;
+            }
+        }
+
+        return fallback;
+    }
 
     private static JsonArray ParseSimpleBibleEntries(string rawText, string idPrefix)
     {
