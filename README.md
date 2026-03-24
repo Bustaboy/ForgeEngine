@@ -7,16 +7,50 @@ ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation 
 
 ## Quick Start
 
-Bootstrap scripts now auto-install the runtime JSON header dependency.
+The fastest path for alpha testers is the new one-command setup scripts. They install dependencies (including Vulkan SDK), run bootstrap, prepare Python env, and run AI model prep/benchmark.
 
-### Ubuntu/Linux
+### Option 1 (Recommended): One-command setup
+
+#### Linux (Ubuntu/Debian) + macOS
 ```bash
-./scripts/bootstrap.sh
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
-### Windows (PowerShell)
+To force a clean Python environment and rerun model preparation/benchmark:
+```bash
+./scripts/setup.sh --fresh
+```
+
+#### Windows 10/11 (PowerShell)
 ```powershell
-pwsh -f scripts/bootstrap.ps1
+pwsh -f scripts/Setup-Alpha.ps1
+```
+
+To force a clean Python environment and rerun model preparation/benchmark:
+```powershell
+pwsh -f scripts/Setup-Alpha.ps1 -Fresh
+# or
+pwsh -f scripts/Setup-Alpha.ps1 /Fresh
+```
+
+### Option 2: Packaged installers (secondary)
+
+If you prefer installable artifacts instead of local bootstrap scripts:
+
+#### Ubuntu (DEB + AppImage)
+```bash
+./scripts/package_ubuntu.sh
+```
+
+#### Windows (MSI)
+```powershell
+pwsh -f scripts/package_windows.ps1 -Version 0.1.0
+```
+
+#### macOS (DMG)
+```bash
+./scripts/package_macos.sh
 ```
 
 ## Optional Runtime-Only Verification
