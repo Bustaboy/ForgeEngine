@@ -1201,6 +1201,11 @@ public partial class MainWindow : Window
         await _viewModel.SaveStoryBibleAsync();
     }
 
+    private async void OnSaveNarratorSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveNarratorSettingsAsync();
+    }
+
     private async void OnUpsertStoryBeatClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.UpsertStoryBeatAsync();

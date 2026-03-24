@@ -6,6 +6,7 @@
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
 #include "RelationshipSystem.h"
+#include "NarratorSystem.h"
 #include "SceneLoader.h"
 #include "StorySystem.h"
 #include "templates/generated_gameplay.h"
@@ -121,6 +122,7 @@ void Scene::Update(float dt_seconds) {
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);
+    NarratorSystem::Update(*this, safe_dt);
     EconomySystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
 }
