@@ -9,11 +9,12 @@ layout(push_constant, std430) uniform PushConstants {
 } pc;
 
 layout(location = 0) in vec4 inColor;
+layout(location = 1) in vec3 inNormal;
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    vec3 normal = vec3(0.0, 1.0, 0.0);
     vec3 lightDir = normalize(pc.lightDir.xyz);
+    vec3 normal = normalize(inNormal);
     float diffuse = max(0.0, dot(normal, lightDir));
     float ambient = 0.2;
     vec3 lit = inColor.rgb * (ambient + diffuse * pc.lightColor.rgb);
