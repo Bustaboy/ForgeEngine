@@ -13,7 +13,7 @@ For alpha testers on Windows, this is now the **#1 recommended setup path**.
 Run one command in PowerShell from the repo root:
 
 ```powershell
-pwsh -f scripts/Setup-Alpha.ps1
+pwsh -f ./scripts/Setup-Alpha.ps1
 ```
 
 What it does automatically:

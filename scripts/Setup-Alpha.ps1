@@ -24,12 +24,12 @@ trap {
     exit 1
 }
 
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$VenvPath = Join-Path $RepoRoot '.venv'
-$OrchestratorPath = Join-Path $RepoRoot 'ai-orchestration\python'
-$OrchestratorScript = Join-Path $OrchestratorPath 'orchestrator.py'
-$RequirementsFile = Join-Path $OrchestratorPath 'requirements.txt'
-$BootstrapScript = Join-Path $RepoRoot 'scripts\bootstrap.ps1'
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path.TrimEnd(' ', '\')
+$VenvPath = (Join-Path $RepoRoot '.venv').TrimEnd(' ')
+$OrchestratorPath = (Join-Path $RepoRoot 'ai-orchestration\python').TrimEnd(' ')
+$OrchestratorScript = (Join-Path $OrchestratorPath 'orchestrator.py').TrimEnd(' ')
+$RequirementsFile = (Join-Path $OrchestratorPath 'requirements.txt').TrimEnd(' ')
+$BootstrapScript = (Join-Path $RepoRoot 'scripts\bootstrap.ps1').TrimEnd(' ')
 
 # ------------------------------------------------------------
 # Utility helpers for reliable idempotent installs.
@@ -148,7 +148,7 @@ Next steps:
 "@
     }
 
-    $msysBash = Join-Path $msysRoot 'usr\bin\bash.exe'
+    $msysBash = (Join-Path $msysRoot 'usr\bin\bash.exe').TrimEnd(' ')
     Write-Step "Using MSYS2 root: $msysRoot"
 
     Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman --noconfirm -Sy') -FailureMessage 'MSYS2 package index sync failed'
@@ -243,7 +243,7 @@ function Ensure-Venv {
         $createdFresh = $true
     }
 
-    $activateScript = Join-Path $VenvPath 'Scripts\Activate.ps1'
+    $activateScript = (Join-Path $VenvPath 'Scripts\Activate.ps1').TrimEnd(' ')
     if (-not (Test-Path $activateScript)) {
         throw "Could not find venv activation script at $activateScript"
     }
@@ -251,7 +251,7 @@ function Ensure-Venv {
     Write-Step 'Activating virtual environment'
     . $activateScript
 
-    $venvPython = Join-Path $VenvPath 'Scripts\python.exe'
+    $venvPython = (Join-Path $VenvPath 'Scripts\python.exe').TrimEnd(' ')
     if (-not (Test-Path $venvPython)) {
         throw "Virtual environment python not found at $venvPython"
     }
@@ -262,7 +262,7 @@ function Ensure-Venv {
         throw 'Failed to discover site-packages path in the virtual environment.'
     }
 
-    $pthFile = Join-Path $sitePackages 'forge.pth'
+    $pthFile = (Join-Path $sitePackages 'forge.pth').TrimEnd(' ')
     Set-Content -Path $pthFile -Value $OrchestratorPath -Encoding utf8
     Write-Ok "forge.pth written: $pthFile"
 
