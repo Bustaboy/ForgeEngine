@@ -96,6 +96,83 @@ DialogEffect DialogEffectFromJson(const json& node, const DialogEffect& fallback
     return effect;
 }
 
+json ScheduleEntryToJson(const ScheduleEntry& entry) {
+    return json{
+        {"start_minute", entry.start_minute},
+        {"end_minute", entry.end_minute},
+        {"activity", entry.activity},
+        {"location", entry.location},
+    };
+}
+
+ScheduleEntry ScheduleEntryFromJson(const json& node, const ScheduleEntry& fallback) {
+    ScheduleEntry entry = fallback;
+    entry.start_minute = node.value("start_minute", entry.start_minute);
+    entry.end_minute = node.value("end_minute", entry.end_minute);
+    entry.activity = node.value("activity", entry.activity);
+    entry.location = node.value("location", entry.location);
+    return entry;
+}
+
+json ScheduleComponentToJson(const ScheduleComponent& schedule) {
+    json node = json{
+        {"home_entity_id", schedule.home_entity_id},
+        {"workplace_entity_id", schedule.workplace_entity_id},
+        {"home_position", Vec3ToJson(schedule.home_position)},
+        {"workplace_position", Vec3ToJson(schedule.workplace_position)},
+        {"job_id", schedule.job_id},
+        {"current_activity", schedule.current_activity},
+        {"current_location", schedule.current_location},
+        {"daily_schedule", json::array()},
+    };
+    for (const ScheduleEntry& entry : schedule.daily_schedule) {
+        node["daily_schedule"].push_back(ScheduleEntryToJson(entry));
+    }
+    return node;
+}
+
+ScheduleComponent ScheduleComponentFromJson(const json& node, const ScheduleComponent& fallback) {
+    ScheduleComponent schedule = fallback;
+    schedule.home_entity_id = node.value("home_entity_id", schedule.home_entity_id);
+    schedule.workplace_entity_id = node.value("workplace_entity_id", schedule.workplace_entity_id);
+    if (node.contains("home_position") && node["home_position"].is_object()) {
+        schedule.home_position = Vec3FromJson(node["home_position"], schedule.home_position);
+    }
+    if (node.contains("workplace_position") && node["workplace_position"].is_object()) {
+        schedule.workplace_position = Vec3FromJson(node["workplace_position"], schedule.workplace_position);
+    }
+    schedule.job_id = node.value("job_id", schedule.job_id);
+    schedule.current_activity = node.value("current_activity", schedule.current_activity);
+    schedule.current_location = node.value("current_location", schedule.current_location);
+    schedule.daily_schedule.clear();
+    if (node.contains("daily_schedule") && node["daily_schedule"].is_array()) {
+        for (const json& entry_node : node["daily_schedule"]) {
+            if (entry_node.is_object()) {
+                schedule.daily_schedule.push_back(ScheduleEntryFromJson(entry_node, ScheduleEntry{}));
+            }
+        }
+    }
+    return schedule;
+}
+
+json NeedsToJson(const NeedsComponent& needs) {
+    return json{
+        {"hunger", needs.hunger},
+        {"energy", needs.energy},
+        {"social", needs.social},
+        {"fun", needs.fun},
+    };
+}
+
+NeedsComponent NeedsFromJson(const json& node, const NeedsComponent& fallback) {
+    NeedsComponent needs = fallback;
+    needs.hunger = Clamp01(node.value("hunger", needs.hunger) / 100.0F) * 100.0F;
+    needs.energy = Clamp01(node.value("energy", needs.energy) / 100.0F) * 100.0F;
+    needs.social = Clamp01(node.value("social", needs.social) / 100.0F) * 100.0F;
+    needs.fun = Clamp01(node.value("fun", needs.fun) / 100.0F) * 100.0F;
+    return needs;
+}
+
 json DialogChoiceToJson(const DialogChoice& choice) {
     json node = json{
         {"text", choice.text},
@@ -327,6 +404,8 @@ json EntityToJson(const Entity& entity) {
         node["dialog"] = DialogComponentToJson(entity.dialog);
     }
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
+    node["schedule"] = ScheduleComponentToJson(entity.schedule);
+    node["needs"] = NeedsToJson(entity.needs);
 
     return node;
 }
@@ -403,6 +482,12 @@ Entity EntityFromJson(const json& node) {
     if (node.contains("voice_profile") && node["voice_profile"].is_object()) {
         entity.voice_profile = VoiceProfileFromJson(node["voice_profile"], entity.voice_profile);
     }
+    if (node.contains("schedule") && node["schedule"].is_object()) {
+        entity.schedule = ScheduleComponentFromJson(node["schedule"], entity.schedule);
+    }
+    if (node.contains("needs") && node["needs"].is_object()) {
+        entity.needs = NeedsFromJson(node["needs"], entity.needs);
+    }
 
     return entity;
 }
@@ -431,6 +516,26 @@ json WeatherStateToJson(const WeatherState& weather) {
         {"dialog_tone", weather.dialog_tone},
         {"last_relationship_day_applied", weather.last_relationship_day_applied},
     };
+}
+
+json WorldTimeToJson(const WorldTime& world_time) {
+    return json{
+        {"elapsed_seconds", world_time.elapsed_seconds},
+        {"day_progress", world_time.day_progress},
+        {"day_cycle_speed", world_time.day_cycle_speed},
+        {"day_count", world_time.day_count},
+        {"minutes_per_day", world_time.minutes_per_day},
+    };
+}
+
+WorldTime WorldTimeFromJson(const json& node, const WorldTime& fallback) {
+    WorldTime world_time = fallback;
+    world_time.elapsed_seconds = std::max(0.0F, node.value("elapsed_seconds", world_time.elapsed_seconds));
+    world_time.day_progress = Clamp01(node.value("day_progress", world_time.day_progress));
+    world_time.day_cycle_speed = std::max(0.0F, node.value("day_cycle_speed", world_time.day_cycle_speed));
+    world_time.day_count = std::max(1U, node.value("day_count", world_time.day_count));
+    world_time.minutes_per_day = std::max(60U, node.value("minutes_per_day", world_time.minutes_per_day));
+    return world_time;
 }
 
 WeatherState WeatherStateFromJson(const json& node, const WeatherState& fallback) {
@@ -944,6 +1049,17 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+    scene.world_time.elapsed_seconds = scene.elapsed_seconds;
+    scene.world_time.day_progress = scene.day_progress;
+    scene.world_time.day_cycle_speed = scene.day_cycle_speed;
+    scene.world_time.day_count = scene.day_count;
+    if (document.contains("world_time") && document["world_time"].is_object()) {
+        scene.world_time = WorldTimeFromJson(document["world_time"], scene.world_time);
+        scene.elapsed_seconds = scene.world_time.elapsed_seconds;
+        scene.day_progress = scene.world_time.day_progress;
+        scene.day_cycle_speed = scene.world_time.day_cycle_speed;
+        scene.day_count = scene.world_time.day_count;
+    }
     scene.biome = document.value("biome", scene.biome);
     scene.world_style_guide = document.value("world_style_guide", scene.world_style_guide);
     if (document.contains("weather") && document["weather"].is_object()) {
@@ -1176,6 +1292,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_progress"] = scene.day_progress;
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
+    document["world_time"] = WorldTimeToJson(scene.world_time);
     document["biome"] = scene.biome;
     document["world_style_guide"] = scene.world_style_guide;
     document["weather"] = WeatherStateToJson(scene.weather);

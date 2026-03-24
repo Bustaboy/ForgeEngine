@@ -111,6 +111,31 @@ struct VoiceProfileComponent {
     float volume = 1.0F;
 };
 
+struct ScheduleEntry {
+    std::uint32_t start_minute = 0;
+    std::uint32_t end_minute = 0;
+    std::string activity = "idle";
+    std::string location = "anywhere";
+};
+
+struct ScheduleComponent {
+    std::uint64_t home_entity_id = 0;
+    std::uint64_t workplace_entity_id = 0;
+    glm::vec3 home_position{0.0F, 0.0F, 0.0F};
+    glm::vec3 workplace_position{0.0F, 0.0F, 0.0F};
+    std::string job_id = "unassigned";
+    std::vector<ScheduleEntry> daily_schedule{};
+    std::string current_activity = "idle";
+    std::string current_location = "anywhere";
+};
+
+struct NeedsComponent {
+    float hunger = 20.0F;
+    float energy = 80.0F;
+    float social = 60.0F;
+    float fun = 55.0F;
+};
+
 
 struct ProceduralAnimationComponent {
     float motion_phase = 0.0F;
@@ -129,6 +154,8 @@ struct Entity {
     RelationshipComponent relationship{};
     DialogComponent dialog{};
     VoiceProfileComponent voice_profile{};
+    ScheduleComponent schedule{};
+    NeedsComponent needs{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
 };

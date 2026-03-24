@@ -294,7 +294,57 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate");
+    if (command == "/npc_schedule") {
+        std::string mode;
+        parser >> mode;
+        if (mode == "list") {
+            for (const Entity& entity : scene.entities) {
+                if (entity.buildable.IsValid()) {
+                    continue;
+                }
+                GF_LOG_INFO(
+                    "NPC " + std::to_string(entity.id) + " job=" + entity.schedule.job_id + " activity=" +
+                    entity.schedule.current_activity + " location=" + entity.schedule.current_location + " home=(" +
+                    std::to_string(entity.schedule.home_position.x) + "," + std::to_string(entity.schedule.home_position.z) +
+                    ") work=(" + std::to_string(entity.schedule.workplace_position.x) + "," +
+                    std::to_string(entity.schedule.workplace_position.z) + ")");
+            }
+            return;
+        }
+
+        std::uint64_t npc_id = 0;
+        try {
+            npc_id = mode.empty() ? 0ULL : std::stoull(mode);
+        } catch (const std::exception&) {
+            npc_id = 0;
+        }
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /npc_schedule list | /npc_schedule <npc_id>");
+            return;
+        }
+
+        const auto npc_it = std::find_if(scene.entities.begin(), scene.entities.end(), [&](const Entity& entity) {
+            return entity.id == npc_id;
+        });
+        if (npc_it == scene.entities.end()) {
+            GF_LOG_INFO("NPC not found: " + std::to_string(npc_id));
+            return;
+        }
+
+        GF_LOG_INFO(
+            "NPC " + std::to_string(npc_it->id) + " needs[hunger=" + std::to_string(static_cast<int>(npc_it->needs.hunger)) +
+            ", energy=" + std::to_string(static_cast<int>(npc_it->needs.energy)) + ", social=" +
+            std::to_string(static_cast<int>(npc_it->needs.social)) + ", fun=" +
+            std::to_string(static_cast<int>(npc_it->needs.fun)) + "]");
+        for (const ScheduleEntry& entry : npc_it->schedule.daily_schedule) {
+            GF_LOG_INFO(
+                "  " + std::to_string(entry.start_minute) + "-" + std::to_string(entry.end_minute) + " " +
+                entry.activity + " @ " + entry.location);
+        }
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule");
 }
 }  // namespace
 
@@ -467,6 +517,7 @@ void Engine::SeedFallbackScene() {
     scene_.day_progress = 0.25F;
     scene_.day_cycle_speed = 0.01F;
     scene_.day_count = 1;
+    scene_.world_time = WorldTime{};
     scene_.npc_relationships.clear();
     scene_.relationships.clear();
     scene_.factions.clear();
@@ -517,7 +568,12 @@ void Engine::SeedFallbackScene() {
             entity.dialog.nodes = {greeting, farewell};
             entity.faction.faction_id = "guild_builders";
             entity.faction.role = "quartermaster";
+            entity.schedule.job_id = "quartermaster";
+        } else {
+            entity.schedule.job_id = "laborer";
         }
+        entity.schedule.home_position = entity.transform.pos;
+        entity.schedule.workplace_position = entity.transform.pos + glm::vec3(0.8F, 0.0F, 0.6F);
         scene_.entities.push_back(entity);
     }
     EconomySystem::EnsureDefaults(scene_);
