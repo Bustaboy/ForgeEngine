@@ -89,6 +89,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/CoCreatorSystem.cpp
     runtime/cpp/RelationshipSystem.cpp
     runtime/cpp/StorySystem.cpp
+    runtime/cpp/NarratorSystem.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
