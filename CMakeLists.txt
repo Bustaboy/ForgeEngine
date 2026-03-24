@@ -90,6 +90,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/RelationshipSystem.cpp
     runtime/cpp/StorySystem.cpp
     runtime/cpp/WeatherSystem.cpp
+    runtime/cpp/CombatSystem.cpp
     runtime/cpp/NarratorSystem.cpp
 )
 
