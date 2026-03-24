@@ -1,6 +1,7 @@
 #include "FactionSystem.h"
 
 #include "Logger.h"
+#include "RelationshipSystem.h"
 #include "Scene.h"
 
 #include <algorithm>
@@ -109,6 +110,7 @@ float AddPlayerReputation(Scene& scene, const std::string& faction_id, float del
         }
     }
 
+    RelationshipSystem::OnFactionReputationChanged(scene, faction_id, delta);
     return value;
 }
 

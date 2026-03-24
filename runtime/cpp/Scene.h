@@ -33,6 +33,28 @@ struct FactionDefinition {
     std::map<std::string, float> relationships{};
 };
 
+struct RelationshipMemory {
+    std::string event_id{};
+    std::string summary{};
+    float trust_delta = 0.0F;
+    float respect_delta = 0.0F;
+    float grudge_delta = 0.0F;
+    float debt_delta = 0.0F;
+    float loyalty_delta = 0.0F;
+    std::uint32_t day_recorded = 0;
+    float decay_per_day = 0.04F;
+};
+
+struct RelationshipProfile {
+    float trust = 0.0F;
+    float respect = 0.0F;
+    float grudge = 0.0F;
+    float debt = 0.0F;
+    float loyalty = 0.0F;
+    std::uint32_t last_interaction_day = 0;
+    std::vector<RelationshipMemory> memories{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -46,6 +68,7 @@ struct Scene {
     std::string world_style_guide = "grounded stylized frontier";
     std::map<std::string, FactionDefinition> factions{};
     std::map<std::string, float> player_reputation{};
+    std::map<std::uint64_t, RelationshipProfile> relationships{};
     EconomyState economy{};
     NavmeshData navmesh{};
     std::vector<std::uint64_t> active_npc_ids{};

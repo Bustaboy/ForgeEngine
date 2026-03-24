@@ -5,6 +5,7 @@
 #include "FactionSystem.h"
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
+#include "RelationshipSystem.h"
 #include "SceneLoader.h"
 #include "templates/generated_gameplay.h"
 
@@ -53,6 +54,7 @@ glm::vec3 SampleSkyColor(float day_progress) {
 void Scene::Update(float dt_seconds) {
     FactionSystem::EnsureSceneFactions(*this);
     EconomySystem::EnsureDefaults(*this);
+    RelationshipSystem::EnsureSceneRelationships(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     elapsed_seconds += safe_dt;
@@ -118,6 +120,7 @@ void Scene::Update(float dt_seconds) {
 
     UpdateGameplay(*this, safe_dt);
     EconomySystem::Update(*this, safe_dt);
+    RelationshipSystem::Update(*this, safe_dt);
 }
 
 bool Scene::ToggleBuildMode() {

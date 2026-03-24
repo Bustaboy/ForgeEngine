@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include <fstream>
 #include <algorithm>
+#include <cmath>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -107,6 +108,10 @@ json DialogChoiceToJson(const DialogChoice& choice) {
         node["required_faction_id"] = choice.required_faction_id;
         node["min_required_reputation"] = choice.min_required_reputation;
     }
+    if (!choice.required_relationship_dimension.empty()) {
+        node["required_relationship_dimension"] = choice.required_relationship_dimension;
+        node["min_required_relationship"] = choice.min_required_relationship;
+    }
     return node;
 }
 
@@ -116,6 +121,8 @@ DialogChoice DialogChoiceFromJson(const json& node, const DialogChoice& fallback
     choice.next_node_id = node.value("next_node_id", choice.next_node_id);
     choice.required_faction_id = node.value("required_faction_id", choice.required_faction_id);
     choice.min_required_reputation = node.value("min_required_reputation", choice.min_required_reputation);
+    choice.required_relationship_dimension = node.value("required_relationship_dimension", choice.required_relationship_dimension);
+    choice.min_required_relationship = node.value("min_required_relationship", choice.min_required_relationship);
     if (node.contains("effect") && node["effect"].is_object()) {
         choice.effect = DialogEffectFromJson(node["effect"], choice.effect);
     }
@@ -275,6 +282,19 @@ json EntityToJson(const Entity& entity) {
         }
         node["reputation"] = reputation;
     }
+    if (std::abs(entity.relationship.trust_bias) > 0.0001F ||
+        std::abs(entity.relationship.respect_bias) > 0.0001F ||
+        std::abs(entity.relationship.loyalty_bias) > 0.0001F ||
+        std::abs(entity.relationship.grudge_sensitivity - 1.0F) > 0.0001F ||
+        std::abs(entity.relationship.debt_sensitivity - 1.0F) > 0.0001F) {
+        node["relationship"] = json{
+            {"trust_bias", entity.relationship.trust_bias},
+            {"respect_bias", entity.relationship.respect_bias},
+            {"loyalty_bias", entity.relationship.loyalty_bias},
+            {"grudge_sensitivity", entity.relationship.grudge_sensitivity},
+            {"debt_sensitivity", entity.relationship.debt_sensitivity},
+        };
+    }
     if (entity.dialog.IsValid()) {
         node["dialog"] = DialogComponentToJson(entity.dialog);
     }
@@ -339,6 +359,14 @@ Entity EntityFromJson(const json& node) {
             }
             entity.reputation.values[faction_id] = value_node.get<float>();
         }
+    }
+    if (node.contains("relationship") && node["relationship"].is_object()) {
+        const json& relationship = node["relationship"];
+        entity.relationship.trust_bias = relationship.value("trust_bias", entity.relationship.trust_bias);
+        entity.relationship.respect_bias = relationship.value("respect_bias", entity.relationship.respect_bias);
+        entity.relationship.loyalty_bias = relationship.value("loyalty_bias", entity.relationship.loyalty_bias);
+        entity.relationship.grudge_sensitivity = relationship.value("grudge_sensitivity", entity.relationship.grudge_sensitivity);
+        entity.relationship.debt_sensitivity = relationship.value("debt_sensitivity", entity.relationship.debt_sensitivity);
     }
     if (node.contains("dialog") && node["dialog"].is_object()) {
         entity.dialog = DialogComponentFromJson(node["dialog"], entity.dialog);
@@ -446,6 +474,68 @@ json FloatMapToJson(const std::map<std::string, float>& values) {
         node[key] = value;
     }
     return node;
+}
+
+json RelationshipMemoryToJson(const RelationshipMemory& memory) {
+    return json{
+        {"event_id", memory.event_id},
+        {"summary", memory.summary},
+        {"trust_delta", memory.trust_delta},
+        {"respect_delta", memory.respect_delta},
+        {"grudge_delta", memory.grudge_delta},
+        {"debt_delta", memory.debt_delta},
+        {"loyalty_delta", memory.loyalty_delta},
+        {"day_recorded", memory.day_recorded},
+        {"decay_per_day", memory.decay_per_day},
+    };
+}
+
+RelationshipMemory RelationshipMemoryFromJson(const json& node) {
+    RelationshipMemory memory{};
+    memory.event_id = node.value("event_id", memory.event_id);
+    memory.summary = node.value("summary", memory.summary);
+    memory.trust_delta = node.value("trust_delta", memory.trust_delta);
+    memory.respect_delta = node.value("respect_delta", memory.respect_delta);
+    memory.grudge_delta = node.value("grudge_delta", memory.grudge_delta);
+    memory.debt_delta = node.value("debt_delta", memory.debt_delta);
+    memory.loyalty_delta = node.value("loyalty_delta", memory.loyalty_delta);
+    memory.day_recorded = node.value("day_recorded", memory.day_recorded);
+    memory.decay_per_day = node.value("decay_per_day", memory.decay_per_day);
+    return memory;
+}
+
+json RelationshipProfileToJson(const RelationshipProfile& profile) {
+    json node = json{
+        {"trust", profile.trust},
+        {"respect", profile.respect},
+        {"grudge", profile.grudge},
+        {"debt", profile.debt},
+        {"loyalty", profile.loyalty},
+        {"last_interaction_day", profile.last_interaction_day},
+        {"memories", json::array()},
+    };
+    for (const RelationshipMemory& memory : profile.memories) {
+        node["memories"].push_back(RelationshipMemoryToJson(memory));
+    }
+    return node;
+}
+
+RelationshipProfile RelationshipProfileFromJson(const json& node) {
+    RelationshipProfile profile{};
+    profile.trust = node.value("trust", profile.trust);
+    profile.respect = node.value("respect", profile.respect);
+    profile.grudge = node.value("grudge", profile.grudge);
+    profile.debt = node.value("debt", profile.debt);
+    profile.loyalty = node.value("loyalty", profile.loyalty);
+    profile.last_interaction_day = node.value("last_interaction_day", profile.last_interaction_day);
+    if (node.contains("memories") && node["memories"].is_array()) {
+        for (const json& memory_node : node["memories"]) {
+            if (memory_node.is_object()) {
+                profile.memories.push_back(RelationshipMemoryFromJson(memory_node));
+            }
+        }
+    }
+    return profile;
 }
 
 
@@ -598,6 +688,30 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             }
         }
     }
+    scene.relationships.clear();
+    if (document.contains("relationships") && document["relationships"].is_object()) {
+        for (const auto& [npc_id_key, profile_node] : document["relationships"].items()) {
+            if (!profile_node.is_object()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                scene.relationships[npc_id] = RelationshipProfileFromJson(profile_node);
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+    if (scene.relationships.empty()) {
+        for (const auto& [npc_id, legacy] : scene.npc_relationships) {
+            RelationshipProfile profile{};
+            profile.trust = legacy;
+            profile.respect = legacy * 0.75F;
+            profile.loyalty = legacy * 0.60F;
+            profile.grudge = std::max(0.0F, -legacy);
+            scene.relationships[npc_id] = profile;
+        }
+    }
     scene.factions.clear();
     if (document.contains("factions") && document["factions"].is_object()) {
         for (const auto& [faction_id, faction_node] : document["factions"].items()) {
@@ -730,6 +844,11 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         relationships[std::to_string(npc_id)] = relationship;
     }
     document["npc_relationships"] = relationships;
+    json multidim_relationships = json::object();
+    for (const auto& [npc_id, profile] : scene.relationships) {
+        multidim_relationships[std::to_string(npc_id)] = RelationshipProfileToJson(profile);
+    }
+    document["relationships"] = multidim_relationships;
     json factions = json::object();
     for (const auto& [faction_id, faction] : scene.factions) {
         factions[faction_id] = FactionDefinitionToJson(faction);

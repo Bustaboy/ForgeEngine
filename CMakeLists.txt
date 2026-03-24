@@ -87,6 +87,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/VulkanRenderer.cpp
     runtime/cpp/SceneLoader.cpp
     runtime/cpp/CoCreatorSystem.cpp
+    runtime/cpp/RelationshipSystem.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})

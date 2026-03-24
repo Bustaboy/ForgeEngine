@@ -91,6 +91,8 @@ set(FORGE_RUNTIME_SOURCES
     DialogEvolutionSystem.cpp
     FactionSystem.h
     FactionSystem.cpp
+    RelationshipSystem.h
+    RelationshipSystem.cpp
     Timer.cpp
     Scene.cpp
     Scene.h

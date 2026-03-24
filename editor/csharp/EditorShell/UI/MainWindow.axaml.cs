@@ -1170,6 +1170,11 @@ public partial class MainWindow : Window
         _viewModel.SetCoCreatorLive(!_viewModel.CoCreatorLiveEnabled);
     }
 
+    private async void OnApplyRelationshipClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApplyRelationshipEditsAsync();
+    }
+
     private async void OnAcceptCoCreatorSuggestionClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.AcceptCoCreatorSuggestionAsync();
