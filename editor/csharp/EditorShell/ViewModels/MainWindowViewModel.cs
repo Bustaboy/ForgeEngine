@@ -18,7 +18,7 @@ using Avalonia.Media;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
-public sealed class MainWindowViewModel : INotifyPropertyChanged
+public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 {
     private static readonly JsonSerializerOptions JsonSerializerOptionsIndented = new()
     {
@@ -2933,6 +2933,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             {
                 ReplaceSelection(new[] { ViewportEntities[0] });
             }
+
+            ReloadSystemPanelsFromScene();
         }
         catch (Exception ex)
         {

@@ -1099,6 +1099,51 @@ public partial class MainWindow : Window
         return result;
     }
 
+
+    private void OnSystemTabClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control control && control.Tag is string tab)
+        {
+            _viewModel.SetSystemTab(tab);
+        }
+    }
+
+    private async void OnApplyDayNightClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApplyDayNightAsync();
+    }
+
+    private async void OnApplyBuildableClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApplyBuildableSelectionAsync();
+    }
+
+    private async void OnAddRecipeClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.UpsertRecipeAsync();
+    }
+
+    private async void OnApplyDialogDraftClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApplyDialogDraftAsync();
+    }
+
+    private async void OnGenerateNpcClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunAiHookAsync("add-npc", "Generated NPC", "villager");
+    }
+
+    private async void OnAdd3HousesClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiPromptEditor = "Add 3 Houses";
+        await _viewModel.RunAiHookAsync("modify-scene");
+    }
+
+    private async void OnModifyScenePromptClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunAiHookAsync("modify-scene");
+    }
+
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
         var wizard = new NewProjectWizardWindow(_viewModel.EditorDefaultTemplateId);

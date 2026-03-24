@@ -708,7 +708,7 @@
       </Grid>
 
       <Border Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
           <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
           <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
 
@@ -903,6 +903,106 @@
                   </Grid>
                 </Border>
               </Grid>
+            </Grid>
+          </Border>
+
+
+          <Border Grid.Row="8" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
+            <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+              <TextBlock Text="🧠 Scene Systems + AI" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+                <Button Classes="panel-tab" Content="🌗" Click="OnSystemTabClick" Tag="DayNight" />
+                <Button Classes="panel-tab" Content="🏠" Click="OnSystemTabClick" Tag="Buildings" />
+                <Button Classes="panel-tab" Content="🎒" Click="OnSystemTabClick" Tag="InventoryRecipes" />
+                <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
+                <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
+                <TextBlock Text="Day/Night Cycle" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Speed" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding DayCycleSpeedEditor}" />
+                  <TextBlock Grid.Column="2" Text="Progress" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding DayProgressEditor}" />
+                  <TextBlock Grid.Column="4" Text="Day" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="5" Text="{Binding DayCountEditor}" />
+                </Grid>
+                <Button Content="Apply Day/Night" Click="OnApplyDayNightClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">
+                <TextBlock Text="Buildable Entities" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding BuildableEntities}" SelectedItem="{Binding SelectedBuildableEntity}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Type" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding SelectedBuildableType}" />
+                  <TextBlock Grid.Column="2" Text="Grid X" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding SelectedBuildableGridX}" />
+                  <TextBlock Grid.Column="4" Text="Grid Y" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="5" Text="{Binding SelectedBuildableGridY}" />
+                </Grid>
+                <Button Content="Apply Buildable" Click="OnApplyBuildableClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsInventoryRecipesTabActive}">
+                <TextBlock Text="Inventory + Recipes" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding PlayerInventorySummary, StringFormat=Player: {0}}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Watermark="Recipe Name" Text="{Binding RecipeNameEditor}" />
+                  <TextBox Grid.Column="1" Watermark="inputs csv (wood:2,stone:1)" Text="{Binding RecipeInputsEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                  <TextBox Watermark="Output Item" Text="{Binding RecipeOutputEditor}" />
+                  <TextBox Grid.Column="1" Width="70" Text="{Binding RecipeQuantityEditor}" />
+                  <Button Grid.Column="2" Content="Add/Update" Click="OnAddRecipeClick" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Recipes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding Name}" Foreground="#AFC2DF" />
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDialogsTabActive}">
+                <TextBlock Text="NPC Dialog Draft" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding DialogNpcs}" SelectedItem="{Binding SelectedDialogNpc}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBox Watermark="Start Node" Text="{Binding DialogStartNodeEditor}" />
+                <TextBox Watermark="Node Id" Text="{Binding DialogNodeIdEditor}" />
+                <TextBox Watermark="Node Text" Text="{Binding DialogNodeTextEditor}" />
+                <TextBox Watermark="Choice Text" Text="{Binding DialogChoiceTextEditor}" />
+                <TextBox Watermark="Choice Next Node" Text="{Binding DialogChoiceNextNodeEditor}" />
+                <Button Content="Apply Dialog Draft" Click="OnApplyDialogDraftClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsAiTabActive}">
+                <TextBlock Text="Python AI Orchestration" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBox Text="{Binding AiPromptEditor}" Watermark="Modify Scene with Prompt" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <Button Content="Generate NPC" Click="OnGenerateNpcClick" />
+                  <Button Grid.Column="1" Content="Add 3 Houses" Click="OnAdd3HousesClick" />
+                  <Button Grid.Column="2" Content="Modify Scene" Click="OnModifyScenePromptClick" />
+                </Grid>
+                <ScrollViewer MaxHeight="84">
+                  <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />
+                </ScrollViewer>
+              </StackPanel>
             </Grid>
           </Border>
 

@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
 set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp")
 if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
     message(FATAL_ERROR
@@ -72,6 +74,12 @@ if(NOT glfw3_FOUND)
     )
 endif()
 
+FetchContent_Declare(
+    glm
+    URL https://github.com/g-truc/glm/releases/download/1.0.1/glm-1.0.1-light.zip
+)
+FetchContent_MakeAvailable(glm)
+
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
     runtime/cpp/Engine.cpp
@@ -86,6 +94,7 @@ target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
         runtime/cpp/external/nlohmann_json/single_include
+        ${glm_SOURCE_DIR}
 )
 
 target_link_libraries(forge_runtime
@@ -140,3 +149,15 @@ endif()
 set_target_properties(forge_runtime PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+
+set(FORGE_EDITOR_CS_SOURCES
+    editor/csharp/EditorShell/EditorSystems/DayNightPanel.cs
+    editor/csharp/EditorShell/EditorSystems/BuildingPanel.cs
+    editor/csharp/EditorShell/EditorSystems/InventoryRecipesPanel.cs
+    editor/csharp/EditorShell/EditorSystems/DialogPanel.cs
+    editor/csharp/EditorShell/EditorSystems/AiOrchestrationPanel.cs
+    editor/csharp/EditorShell/ViewModels/MainWindowViewModel.EditorSystems.cs
+)
+
+add_custom_target(forge_editor_cs_sources SOURCES ${FORGE_EDITOR_CS_SOURCES})
