@@ -933,7 +933,7 @@
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">
                 <TextBlock Text="Buildable Entities" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding BuildableEntities}" SelectedValuePath="EntityId" SelectedValue="{Binding SelectedBuildableEntityId}">
+                <ComboBox ItemsSource="{Binding BuildableEntities}" SelectedItem="{Binding SelectedBuildableEntity}">
                   <ComboBox.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Text="{Binding Label}" />
@@ -976,7 +976,7 @@
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDialogsTabActive}">
                 <TextBlock Text="NPC Dialog Draft" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding DialogNpcs}" SelectedValuePath="EntityId" SelectedValue="{Binding SelectedDialogEntityId}">
+                <ComboBox ItemsSource="{Binding DialogNpcs}" SelectedItem="{Binding SelectedDialogNpc}">
                   <ComboBox.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Text="{Binding Label}" />

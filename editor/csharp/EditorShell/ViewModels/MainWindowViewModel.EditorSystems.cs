@@ -28,6 +28,8 @@ public sealed partial class MainWindowViewModel
     private int _selectedBuildableGridX = 2;
     private int _selectedBuildableGridY = 2;
     private ulong _selectedDialogEntityId;
+    private BuildableEntityRow? _selectedBuildableEntity;
+    private DialogNpcRow? _selectedDialogNpc;
     private string _dialogStartNodeEditor = "intro";
     private string _dialogNodeIdEditor = "intro";
     private string _dialogNodeTextEditor = "Hello there.";
@@ -195,15 +197,36 @@ public sealed partial class MainWindowViewModel
             var selected = _buildings.Buildables.FirstOrDefault(item => item.EntityId == value);
             if (selected is not null)
             {
+                _selectedBuildableEntity = selected;
                 _selectedBuildableType = selected.Type;
                 _selectedBuildableGridX = selected.GridX;
                 _selectedBuildableGridY = selected.GridY;
+                OnPropertyChanged(nameof(SelectedBuildableEntity));
                 OnPropertyChanged(nameof(SelectedBuildableType));
                 OnPropertyChanged(nameof(SelectedBuildableGridX));
                 OnPropertyChanged(nameof(SelectedBuildableGridY));
             }
 
             OnPropertyChanged();
+        }
+    }
+
+    public BuildableEntityRow? SelectedBuildableEntity
+    {
+        get => _selectedBuildableEntity;
+        set
+        {
+            if (EqualityComparer<BuildableEntityRow?>.Default.Equals(_selectedBuildableEntity, value))
+            {
+                return;
+            }
+
+            _selectedBuildableEntity = value;
+            OnPropertyChanged();
+            if (value is not null)
+            {
+                SelectedBuildableEntityId = value.EntityId;
+            }
         }
     }
 
@@ -265,7 +288,28 @@ public sealed partial class MainWindowViewModel
             }
 
             _selectedDialogEntityId = value;
+            _selectedDialogNpc = _dialogs.Npcs.FirstOrDefault(item => item.EntityId == value);
+            OnPropertyChanged(nameof(SelectedDialogNpc));
             OnPropertyChanged();
+        }
+    }
+
+    public DialogNpcRow? SelectedDialogNpc
+    {
+        get => _selectedDialogNpc;
+        set
+        {
+            if (EqualityComparer<DialogNpcRow?>.Default.Equals(_selectedDialogNpc, value))
+            {
+                return;
+            }
+
+            _selectedDialogNpc = value;
+            OnPropertyChanged();
+            if (value is not null)
+            {
+                SelectedDialogEntityId = value.EntityId;
+            }
         }
     }
 
@@ -473,10 +517,20 @@ public sealed partial class MainWindowViewModel
             {
                 SelectedBuildableEntityId = _buildings.Buildables[0].EntityId;
             }
+            else
+            {
+                _selectedBuildableEntity = _buildings.Buildables.FirstOrDefault(item => item.EntityId == SelectedBuildableEntityId);
+                OnPropertyChanged(nameof(SelectedBuildableEntity));
+            }
 
             if (SelectedDialogEntityId == 0 && _dialogs.Npcs.Count > 0)
             {
                 SelectedDialogEntityId = _dialogs.Npcs[0].EntityId;
+            }
+            else
+            {
+                _selectedDialogNpc = _dialogs.Npcs.FirstOrDefault(item => item.EntityId == SelectedDialogEntityId);
+                OnPropertyChanged(nameof(SelectedDialogNpc));
             }
 
             OnPropertyChanged(nameof(DayCycleSpeedEditor));
