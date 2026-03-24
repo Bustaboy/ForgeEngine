@@ -102,6 +102,7 @@ struct StoryState {
 struct NarratorState {
     bool enabled = true;
     std::string voice_id = "default";
+    VoiceProfileComponent voice_profile{};
     std::deque<std::string> pending_lines{};
     std::vector<std::string> spoken_history{};
 };

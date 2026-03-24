@@ -5,6 +5,7 @@
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
+#include "VoiceSystem.h"
 #include "RelationshipSystem.h"
 #include "Scene.h"
 
@@ -32,8 +33,9 @@ const DialogNode* FindNodeById(const DialogComponent& dialog, const std::string&
     return nullptr;
 }
 
-void LogNode(const DialogNode& node) {
+void LogNode(Scene& scene, std::uint64_t npc_id, const DialogNode& node) {
     GF_LOG_INFO("NPC: " + node.text);
+    VoiceSystem::QueueNpcLine(scene, npc_id, node.text, "dialog_node");
     for (std::size_t i = 0; i < node.choices.size(); ++i) {
         GF_LOG_INFO(std::to_string(i + 1U) + ") " + node.choices[i].text);
     }
@@ -94,7 +96,7 @@ bool StartDialogWithNpc(Scene& scene, Entity& npc) {
         const float reputation = FactionSystem::GetReputation(scene, npc.faction.faction_id);
         GF_LOG_INFO("Faction tone: " + tone + " (reputation: " + std::to_string(reputation) + ").");
     }
-    LogNode(*start_node);
+    LogNode(scene, npc.id, *start_node);
     return true;
 }
 
@@ -118,7 +120,7 @@ bool TryStartDialog(Scene& scene, const glm::vec3& player_position, float max_in
             if (glm::dot(delta, delta) <= (max_interaction_distance * max_interaction_distance)) {
                 const DialogNode* current = FindNodeById(active_npc->dialog, active_npc->dialog.active_node_id);
                 if (current != nullptr) {
-                    LogNode(*current);
+                    LogNode(scene, active_npc->id, *current);
                 }
                 return true;
             }
@@ -168,7 +170,7 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
 
     if (choice_index >= static_cast<int>(current_node->choices.size())) {
         GF_LOG_INFO("Invalid dialog choice.");
-        LogNode(*current_node);
+        LogNode(scene, npc->id, *current_node);
         return false;
     }
 
@@ -179,14 +181,14 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
             GF_LOG_INFO(
                 "Choice locked. Requires faction reputation " + std::to_string(choice.min_required_reputation) +
                 " with " + choice.required_faction_id + ".");
-            LogNode(*current_node);
+            LogNode(scene, npc->id, *current_node);
             return false;
         }
     }
     std::string relationship_reason;
     if (!RelationshipSystem::ChoicePassesRelationshipGate(scene, npc->id, choice, relationship_reason)) {
         GF_LOG_INFO(relationship_reason);
-        LogNode(*current_node);
+        LogNode(scene, npc->id, *current_node);
         return false;
     }
 
@@ -224,11 +226,12 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     npc->dialog.active_node_id = next_node->id;
     if (next_node->choices.empty()) {
         GF_LOG_INFO("NPC: " + next_node->text);
+        VoiceSystem::QueueNpcLine(scene, npc->id, next_node->text, "dialog_terminal");
         EndDialog(scene, *npc);
         return true;
     }
 
-    LogNode(*next_node);
+    LogNode(scene, npc->id, *next_node);
     return true;
 }
 

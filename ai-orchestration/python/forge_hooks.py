@@ -151,6 +151,18 @@ def generate_npc_with_dialog(name: str, role: str) -> dict[str, Any]:
     display_name = name.strip() or "Generated NPC"
     role_label = role.strip() or "villager"
     color = _vec4(0.65, 0.75, 0.9, 1.0) if role_label.lower() == "healer" else _vec4(0.8, 0.7, 0.5, 1.0)
+    lowered_role = role_label.lower()
+    voice_profile = {
+        "profile_id": f"{_slug(display_name)}_voice",
+        "gender": "neutral",
+        "build": "average",
+        "personality": "warm" if lowered_role in {"healer", "merchant"} else "stoic",
+        "style": "calm" if lowered_role in {"healer", "elder"} else "confident",
+        "base_voice_id": "auto",
+        "pitch": 4.0 if lowered_role in {"healer", "child"} else -3.0 if lowered_role in {"guard", "blacksmith"} else 0.0,
+        "rate": -6.0 if lowered_role in {"elder"} else 3.0 if lowered_role in {"scout", "messenger"} else 0.0,
+        "volume": 0.95 if lowered_role in {"healer", "merchant"} else 1.05,
+    }
 
     return {
         "id": 0,
@@ -162,6 +174,7 @@ def generate_npc_with_dialog(name: str, role: str) -> dict[str, Any]:
         "velocity": _vec3(0.0, 0.0, 0.0),
         "inventory": {"herb": 2} if role_label.lower() == "healer" else {"coin": 1},
         "dialog": generate_dialog_tree(display_name, role_label, "village life"),
+        "voice_profile": voice_profile,
     }
 
 

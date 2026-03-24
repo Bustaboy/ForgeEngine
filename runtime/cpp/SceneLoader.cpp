@@ -198,6 +198,34 @@ json DialogComponentToJson(const DialogComponent& dialog) {
     return node;
 }
 
+json VoiceProfileToJson(const VoiceProfileComponent& voice_profile) {
+    return json{
+        {"profile_id", voice_profile.profile_id},
+        {"gender", voice_profile.gender},
+        {"build", voice_profile.build},
+        {"personality", voice_profile.personality},
+        {"style", voice_profile.style},
+        {"base_voice_id", voice_profile.base_voice_id},
+        {"pitch", voice_profile.pitch},
+        {"rate", voice_profile.rate},
+        {"volume", voice_profile.volume},
+    };
+}
+
+VoiceProfileComponent VoiceProfileFromJson(const json& node, const VoiceProfileComponent& fallback) {
+    VoiceProfileComponent profile = fallback;
+    profile.profile_id = node.value("profile_id", profile.profile_id);
+    profile.gender = node.value("gender", profile.gender);
+    profile.build = node.value("build", profile.build);
+    profile.personality = node.value("personality", profile.personality);
+    profile.style = node.value("style", profile.style);
+    profile.base_voice_id = node.value("base_voice_id", profile.base_voice_id);
+    profile.pitch = node.value("pitch", profile.pitch);
+    profile.rate = node.value("rate", profile.rate);
+    profile.volume = node.value("volume", profile.volume);
+    return profile;
+}
+
 DialogComponent DialogComponentFromJson(const json& node, const DialogComponent& fallback) {
     DialogComponent dialog = fallback;
     dialog.nodes.clear();
@@ -298,6 +326,7 @@ json EntityToJson(const Entity& entity) {
     if (entity.dialog.IsValid()) {
         node["dialog"] = DialogComponentToJson(entity.dialog);
     }
+    node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
 
     return node;
 }
@@ -370,6 +399,9 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("dialog") && node["dialog"].is_object()) {
         entity.dialog = DialogComponentFromJson(node["dialog"], entity.dialog);
+    }
+    if (node.contains("voice_profile") && node["voice_profile"].is_object()) {
+        entity.voice_profile = VoiceProfileFromJson(node["voice_profile"], entity.voice_profile);
     }
 
     return entity;
@@ -704,6 +736,7 @@ json NarratorStateToJson(const NarratorState& narrator) {
     json node = json{
         {"enabled", narrator.enabled},
         {"voice_id", narrator.voice_id},
+        {"voice_profile", VoiceProfileToJson(narrator.voice_profile)},
         {"pending_lines", json::array()},
         {"spoken_history", json::array()},
     };
@@ -720,6 +753,11 @@ NarratorState NarratorStateFromJson(const json& node) {
     NarratorState narrator{};
     narrator.enabled = node.value("enabled", narrator.enabled);
     narrator.voice_id = node.value("voice_id", narrator.voice_id);
+    if (node.contains("voice_profile") && node["voice_profile"].is_object()) {
+        narrator.voice_profile = VoiceProfileFromJson(node["voice_profile"], narrator.voice_profile);
+    } else {
+        narrator.voice_profile.base_voice_id = narrator.voice_id;
+    }
     if (node.contains("pending_lines") && node["pending_lines"].is_array()) {
         for (const json& line_node : node["pending_lines"]) {
             if (line_node.is_string()) {
