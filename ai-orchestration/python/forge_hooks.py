@@ -156,6 +156,7 @@ def generate_npc_with_dialog(name: str, role: str) -> dict[str, Any]:
         "id": 0,
         "name": display_name,
         "role": role_label,
+        "faction": {"faction_id": "guild_builders", "role": role_label},
         "transform": {"pos": _vec3(0.0, 0.0, 0.0), "rot": _vec3(0.0, 0.0, 0.0), "scale": _vec3(0.8, 1.6, 0.8)},
         "renderable": {"color": color},
         "velocity": _vec3(0.0, 0.0, 0.0),
@@ -253,6 +254,19 @@ def co_creator_tick(
     recent_text = " ".join(item.strip().lower() for item in recent_actions if item.strip())
     style_lower = style_label.lower()
     biome_lower = biome_label.lower()
+    factions_raw = scene_json.get("factions")
+    factions = factions_raw if isinstance(factions_raw, dict) else {}
+    reputation_raw = scene_json.get("player_reputation")
+    player_reputation = reputation_raw if isinstance(reputation_raw, dict) else {}
+    dominant_faction_id = ""
+    dominant_faction_name = "local communities"
+    dominant_reputation = 0.0
+    for faction_id, value in player_reputation.items():
+        if isinstance(value, (int, float)) and (not dominant_faction_id or value > dominant_reputation):
+            dominant_faction_id = str(faction_id)
+            dominant_reputation = float(value)
+    if dominant_faction_id and isinstance(factions.get(dominant_faction_id), dict):
+        dominant_faction_name = str(factions[dominant_faction_id].get("display_name") or dominant_faction_id)
 
     anchor_x = 0.0
     anchor_z = 0.0
@@ -312,10 +326,12 @@ def co_creator_tick(
                 "title": "Add a shaded oasis outpost near your current path",
                 "why_this_fits": (
                     "Your biome is desert, so shade and water access feel practical. "
-                    "This placement sits near existing structures so travel loops stay tight and believable."
+                    "This placement sits near existing structures so travel loops stay tight and believable. "
+                    f"It aligns with the current tone around {dominant_faction_name}."
                 ),
                 "mutation": {
                     "type": "add_entity",
+                    "faction_id": dominant_faction_id,
                     "entity": _buildable_entity(
                         next_id,
                         "DesertOasisOutpost",
@@ -339,6 +355,7 @@ def co_creator_tick(
                 ),
                 "mutation": {
                     "type": "add_entity",
+                    "faction_id": dominant_faction_id,
                     "entity": _buildable_entity(
                         next_id,
                         "WindbreakHut",
@@ -362,6 +379,7 @@ def co_creator_tick(
                 ),
                 "mutation": {
                     "type": "add_entity",
+                    "faction_id": dominant_faction_id,
                     "entity": _buildable_entity(
                         next_id,
                         "Waystation",
@@ -417,7 +435,19 @@ def co_creator_tick(
             }
         )
 
-    return suggestions[:3]
+    filtered: list[dict[str, Any]] = []
+    for suggestion in suggestions:
+        mutation = suggestion.get("mutation")
+        if not isinstance(mutation, dict):
+            continue
+        faction_id = mutation.get("faction_id")
+        if isinstance(faction_id, str) and faction_id:
+            rep = player_reputation.get(faction_id, 0.0)
+            if isinstance(rep, (int, float)) and float(rep) < -25.0:
+                continue
+        filtered.append(suggestion)
+
+    return filtered[:3]
 
 
 def apply_to_scene_file(scene_path: str, instruction: str) -> dict[str, Any]:

@@ -19,6 +19,18 @@ struct CoCreatorQueuedMutation {
     std::string mutation_json{};
 };
 
+struct FactionDefinition {
+    std::string id{};
+    std::string display_name{};
+    std::string category{};
+    std::string biome_hint{};
+    std::string style_hint{};
+    float min_reputation_to_build = -100.0F;
+    float dialog_gate_reputation = 0.0F;
+    float trade_bonus_threshold = 50.0F;
+    std::map<std::string, float> relationships{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -30,6 +42,8 @@ struct Scene {
     std::uint32_t day_count = 1;
     std::string biome = "temperate";
     std::string world_style_guide = "grounded stylized frontier";
+    std::map<std::string, FactionDefinition> factions{};
+    std::map<std::string, float> player_reputation{};
     bool build_mode_enabled = false;
     std::optional<Entity> build_ghost_preview{};
     DirectionalLight directional_light{};

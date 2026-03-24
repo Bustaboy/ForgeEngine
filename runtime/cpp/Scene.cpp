@@ -1,6 +1,7 @@
 #include "Scene.h"
 
 #include "BuildingSystem.h"
+#include "FactionSystem.h"
 #include "SceneLoader.h"
 #include "templates/generated_gameplay.h"
 
@@ -47,6 +48,7 @@ glm::vec3 SampleSkyColor(float day_progress) {
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
+    FactionSystem::EnsureSceneFactions(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     elapsed_seconds += safe_dt;

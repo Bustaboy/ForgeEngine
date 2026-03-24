@@ -7,6 +7,17 @@ void CoCreatorSystem::QueueMutations(Scene& scene, const std::vector<CoCreatorQu
         if (mutation.mutation_json.empty()) {
             continue;
         }
+        bool blocked_by_faction = false;
+        for (const auto& [faction_id, reputation] : scene.player_reputation) {
+            const std::string token = "\"faction_id\":\"" + faction_id + "\"";
+            if (mutation.mutation_json.find(token) != std::string::npos && reputation < -20.0F) {
+                blocked_by_faction = true;
+                break;
+            }
+        }
+        if (blocked_by_faction) {
+            continue;
+        }
         scene.co_creator_queue.push_back(mutation);
     }
 }

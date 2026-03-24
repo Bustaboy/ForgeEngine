@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include "DialogSystem.h"
+#include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "CoCreatorSystem.h"
@@ -113,7 +114,31 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes");
+    if (command == "/factions") {
+        FactionSystem::EnsureSceneFactions(scene);
+        for (const auto& [faction_id, faction] : scene.factions) {
+            const float reputation = FactionSystem::GetReputation(scene, faction_id);
+            GF_LOG_INFO(
+                faction.display_name + " [" + faction.category + "] rep=" + std::to_string(static_cast<int>(reputation)) +
+                " build>=" + std::to_string(static_cast<int>(faction.min_reputation_to_build)));
+        }
+        return;
+    }
+
+    if (command == "/rep") {
+        std::string faction_id;
+        float delta = 0.0F;
+        parser >> faction_id >> delta;
+        if (!faction_id.empty() && std::abs(delta) > 0.0001F) {
+            FactionSystem::EnsureSceneFactions(scene);
+            FactionSystem::AddPlayerReputation(scene, faction_id, delta, "console");
+        } else {
+            GF_LOG_INFO("Usage: /rep <faction_id> <delta>");
+        }
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep");
 }
 }  // namespace
 
@@ -286,6 +311,8 @@ void Engine::SeedFallbackScene() {
     scene_.day_cycle_speed = 0.01F;
     scene_.day_count = 1;
     scene_.npc_relationships.clear();
+    scene_.factions.clear();
+    scene_.player_reputation.clear();
     scene_.active_dialog_npc_id = 0;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
@@ -325,6 +352,8 @@ void Engine::SeedFallbackScene() {
 
             entity.dialog.start_node_id = greeting.id;
             entity.dialog.nodes = {greeting, farewell};
+            entity.faction.faction_id = "guild_builders";
+            entity.faction.role = "quartermaster";
         }
         scene_.entities.push_back(entity);
     }

@@ -103,6 +103,10 @@ json DialogChoiceToJson(const DialogChoice& choice) {
     if (!choice.next_node_id.empty()) {
         node["next_node_id"] = choice.next_node_id;
     }
+    if (!choice.required_faction_id.empty()) {
+        node["required_faction_id"] = choice.required_faction_id;
+        node["min_required_reputation"] = choice.min_required_reputation;
+    }
     return node;
 }
 
@@ -110,6 +114,8 @@ DialogChoice DialogChoiceFromJson(const json& node, const DialogChoice& fallback
     DialogChoice choice = fallback;
     choice.text = node.value("text", choice.text);
     choice.next_node_id = node.value("next_node_id", choice.next_node_id);
+    choice.required_faction_id = node.value("required_faction_id", choice.required_faction_id);
+    choice.min_required_reputation = node.value("min_required_reputation", choice.min_required_reputation);
     if (node.contains("effect") && node["effect"].is_object()) {
         choice.effect = DialogEffectFromJson(node["effect"], choice.effect);
     }
@@ -211,6 +217,19 @@ json EntityToJson(const Entity& entity) {
     if (!entity.inventory.items.empty()) {
         node["inventory"] = InventoryToJson(entity.inventory);
     }
+    if (!entity.faction.faction_id.empty() || !entity.faction.role.empty()) {
+        node["faction"] = json{
+            {"faction_id", entity.faction.faction_id},
+            {"role", entity.faction.role},
+        };
+    }
+    if (!entity.reputation.values.empty()) {
+        json reputation = json::object();
+        for (const auto& [faction_id, value] : entity.reputation.values) {
+            reputation[faction_id] = value;
+        }
+        node["reputation"] = reputation;
+    }
     if (entity.dialog.IsValid()) {
         node["dialog"] = DialogComponentToJson(entity.dialog);
     }
@@ -256,6 +275,20 @@ Entity EntityFromJson(const json& node) {
     if (node.contains("inventory")) {
         entity.inventory = InventoryFromJson(node["inventory"], entity.inventory);
     }
+    if (node.contains("faction") && node["faction"].is_object()) {
+        const json& faction = node["faction"];
+        entity.faction.faction_id = faction.value("faction_id", entity.faction.faction_id);
+        entity.faction.role = faction.value("role", entity.faction.role);
+    }
+    if (node.contains("reputation") && node["reputation"].is_object()) {
+        entity.reputation.values.clear();
+        for (const auto& [faction_id, value_node] : node["reputation"].items()) {
+            if (!value_node.is_number()) {
+                continue;
+            }
+            entity.reputation.values[faction_id] = value_node.get<float>();
+        }
+    }
     if (node.contains("dialog") && node["dialog"].is_object()) {
         entity.dialog = DialogComponentFromJson(node["dialog"], entity.dialog);
     }
@@ -287,6 +320,45 @@ CoCreatorQueuedMutation CoCreatorMutationFromJson(const json& node) {
     mutation.why_this_fits = node.value("why_this_fits", mutation.why_this_fits);
     mutation.mutation_json = node.value("mutation_json", mutation.mutation_json);
     return mutation;
+}
+
+json FactionDefinitionToJson(const FactionDefinition& faction) {
+    json relationships = json::object();
+    for (const auto& [other_faction, value] : faction.relationships) {
+        relationships[other_faction] = value;
+    }
+    return json{
+        {"id", faction.id},
+        {"display_name", faction.display_name},
+        {"category", faction.category},
+        {"biome_hint", faction.biome_hint},
+        {"style_hint", faction.style_hint},
+        {"min_reputation_to_build", faction.min_reputation_to_build},
+        {"dialog_gate_reputation", faction.dialog_gate_reputation},
+        {"trade_bonus_threshold", faction.trade_bonus_threshold},
+        {"relationships", relationships},
+    };
+}
+
+FactionDefinition FactionDefinitionFromJson(const json& node, const std::string& fallback_id) {
+    FactionDefinition faction{};
+    faction.id = node.value("id", fallback_id);
+    faction.display_name = node.value("display_name", faction.id);
+    faction.category = node.value("category", faction.category);
+    faction.biome_hint = node.value("biome_hint", faction.biome_hint);
+    faction.style_hint = node.value("style_hint", faction.style_hint);
+    faction.min_reputation_to_build = node.value("min_reputation_to_build", faction.min_reputation_to_build);
+    faction.dialog_gate_reputation = node.value("dialog_gate_reputation", faction.dialog_gate_reputation);
+    faction.trade_bonus_threshold = node.value("trade_bonus_threshold", faction.trade_bonus_threshold);
+    if (node.contains("relationships") && node["relationships"].is_object()) {
+        for (const auto& [other_faction, value_node] : node["relationships"].items()) {
+            if (!value_node.is_number()) {
+                continue;
+            }
+            faction.relationships[other_faction] = value_node.get<float>();
+        }
+    }
+    return faction;
 }
 }  // namespace
 
@@ -340,6 +412,24 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             } catch (const std::exception&) {
                 continue;
             }
+        }
+    }
+    scene.factions.clear();
+    if (document.contains("factions") && document["factions"].is_object()) {
+        for (const auto& [faction_id, faction_node] : document["factions"].items()) {
+            if (!faction_node.is_object()) {
+                continue;
+            }
+            scene.factions[faction_id] = FactionDefinitionFromJson(faction_node, faction_id);
+        }
+    }
+    scene.player_reputation.clear();
+    if (document.contains("player_reputation") && document["player_reputation"].is_object()) {
+        for (const auto& [faction_id, reputation_node] : document["player_reputation"].items()) {
+            if (!reputation_node.is_number()) {
+                continue;
+            }
+            scene.player_reputation[faction_id] = reputation_node.get<float>();
         }
     }
 
@@ -399,6 +489,16 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         relationships[std::to_string(npc_id)] = relationship;
     }
     document["npc_relationships"] = relationships;
+    json factions = json::object();
+    for (const auto& [faction_id, faction] : scene.factions) {
+        factions[faction_id] = FactionDefinitionToJson(faction);
+    }
+    document["factions"] = factions;
+    json player_reputation = json::object();
+    for (const auto& [faction_id, value] : scene.player_reputation) {
+        player_reputation[faction_id] = value;
+    }
+    document["player_reputation"] = player_reputation;
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
     document["recent_actions"] = json::array();
     for (const std::string& action : scene.recent_actions) {
