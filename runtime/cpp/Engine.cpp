@@ -13,6 +13,7 @@
 #include "BuildingSystem.h"
 #include "NarratorSystem.h"
 #include "NPCController.h"
+#include "FreeWillSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -311,6 +312,20 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
+
+    if (command == "/npc_freewill") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /npc_freewill <npc_id>");
+            return;
+        }
+
+        const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
+        GF_LOG_INFO(queued ? "Free-will spark queued." : "Unable to queue free-will spark.");
+        return;
+    }
+
     if (command == "/npc_schedule") {
         std::string mode;
         parser >> mode;
@@ -361,7 +376,7 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule /npc_activity");
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule /npc_activity /npc_freewill");
 }
 }  // namespace
 
