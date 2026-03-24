@@ -30,6 +30,7 @@ from forge_hooks import (
 )
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
+from art_bible import ArtBible, enhance_prompt, write_default_art_bible
 
 
 UNCERTAINTY_CUES = {
@@ -2648,6 +2649,40 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raw_args[7] if len(raw_args) >= 8 else "sunny",
         )
         print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "create-art-bible":
+        destination = Path(raw_args[1]) if len(raw_args) >= 2 else Path.cwd() / "art_bible.json"
+        project_name = raw_args[2] if len(raw_args) >= 3 else destination.parent.name or "GameForge Project"
+        art_bible = write_default_art_bible(destination, project_name=project_name)
+        print(
+            json.dumps(
+                {
+                    "created": True,
+                    "path": str(destination),
+                    "art_bible": art_bible.to_dict(),
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if command == "enhance-prompt":
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py enhance-prompt <raw_prompt> [art_bible_json_path]")
+        art_bible_path = Path(raw_args[2]) if len(raw_args) >= 3 else Path.cwd() / "art_bible.json"
+        art_bible = ArtBible.from_json_file(art_bible_path)
+        enhanced = enhance_prompt(raw_args[1], art_bible)
+        print(
+            json.dumps(
+                {
+                    "art_bible_path": str(art_bible_path),
+                    "raw_prompt": raw_args[1],
+                    "enhanced_prompt": enhanced,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     return None
