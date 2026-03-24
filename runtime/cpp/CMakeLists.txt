@@ -74,6 +74,8 @@ endif()
 set(FORGE_RUNTIME_SOURCES
     main.cpp
     Engine.cpp
+    BuildingSystem.h
+    BuildingSystem.cpp
     Timer.cpp
     Scene.cpp
     VulkanRenderer.cpp

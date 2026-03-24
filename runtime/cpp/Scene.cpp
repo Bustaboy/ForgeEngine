@@ -1,5 +1,6 @@
 #include "Scene.h"
 
+#include "BuildingSystem.h"
 #include "SceneLoader.h"
 #include "templates/generated_gameplay.h"
 
@@ -42,6 +43,7 @@ glm::vec3 SampleSkyColor(float day_progress) {
     }
     return Lerp(kSunsetSky, kNightSky, SegmentT(day_progress, 0.75F, 1.0F));
 }
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
@@ -69,6 +71,9 @@ void Scene::Update(float dt_seconds) {
 
     for (std::size_t i = 0; i < entities.size(); ++i) {
         Entity& entity = entities[i];
+        if (entity.buildable.IsValid()) {
+            continue;
+        }
 
         entity.transform.pos += entity.velocity * safe_dt;
         entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * safe_dt;
@@ -89,6 +94,52 @@ void Scene::Update(float dt_seconds) {
     }
 
     UpdateGameplay(*this, safe_dt);
+}
+
+bool Scene::ToggleBuildMode() {
+    build_mode_enabled = !build_mode_enabled;
+    return build_mode_enabled;
+}
+
+bool Scene::TryPlaceBuildingFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction) {
+    if (!build_mode_enabled) {
+        return false;
+    }
+
+    constexpr float kGroundY = 0.0F;
+    constexpr float kEpsilon = 1e-5F;
+    if (std::abs(ray_direction.y) < kEpsilon) {
+        return false;
+    }
+
+    const float t = (kGroundY - ray_origin.y) / ray_direction.y;
+    if (t <= 0.0F || t > 1000.0F || !std::isfinite(t)) {
+        return false;
+    }
+
+    const glm::vec3 hit_point = ray_origin + ray_direction * t;
+    Entity candidate{};
+    const BuildTemplate build_template = SelectBuildTemplate(*this);
+    candidate.id = NextEntityId(*this);
+    candidate.transform.pos = {
+        std::round(hit_point.x),
+        kGroundY,
+        std::round(hit_point.z),
+    };
+    candidate.transform.scale = build_template.world_scale;
+    candidate.renderable.color = build_template.color;
+    candidate.velocity = {0.0F, 0.0F, 0.0F};
+    candidate.buildable.type = build_template.type;
+    candidate.buildable.grid_size = build_template.grid_size;
+
+    for (const Entity& existing : entities) {
+        if (OverlapsOnGroundXZ(candidate, existing)) {
+            return false;
+        }
+    }
+
+    entities.push_back(candidate);
+    return true;
 }
 
 bool Scene::Save(const std::string& path) const {
