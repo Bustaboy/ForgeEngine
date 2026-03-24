@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace GameForge.Editor.EditorShell.EditorSystems;
 
-public sealed record StoryBeatRow(string Id, string Title, bool Completed)
+public sealed record StoryBeatRow(string Id, string Title, string Summary, bool Completed)
 {
     public string Label => $"{(Completed ? "✓" : "•")} {Title} ({Id})";
 }
@@ -21,12 +21,17 @@ public sealed class StoryPanelState
             {
                 var id = node["id"]?.GetValue<string>() ?? string.Empty;
                 var title = node["title"]?.GetValue<string>() ?? id;
+                var summary = node["summary"]?.GetValue<string>() ?? string.Empty;
                 var completed = node["completed"]?.GetValue<bool>() ?? false;
                 if (string.IsNullOrWhiteSpace(id))
                 {
                     continue;
                 }
-                beats.Add(new StoryBeatRow(id, string.IsNullOrWhiteSpace(title) ? id : title, completed));
+                beats.Add(new StoryBeatRow(
+                    id,
+                    string.IsNullOrWhiteSpace(title) ? id : title,
+                    summary,
+                    completed));
             }
         }
         return new StoryPanelState { Beats = beats };

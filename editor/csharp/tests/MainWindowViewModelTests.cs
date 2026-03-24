@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using GameForge.Editor.EditorShell.EditorSystems;
 using GameForge.Editor.EditorShell.Services;
 using GameForge.Editor.EditorShell.ViewModels;
 using Moq;
@@ -447,6 +449,79 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.True(File.Exists(viewModel.ExportPackagePath));
         Assert.True(Directory.Exists(viewModel.ExportFolderPath));
         Assert.Contains(".zip", viewModel.ExportOutputPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SelectStoryBeatForEditing_LoadsBeatIntoStoryEditors()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"),
+            """
+            {
+              "player_spawn": { "x": 0, "y": 0 },
+              "entities": [],
+              "story": {
+                "campaign_beats": [
+                  { "id": "beat_intro", "title": "Arrival", "summary": "The caravan reaches town.", "completed": true }
+                ]
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        var beat = Assert.Single(viewModel.StoryBeats);
+        viewModel.SelectStoryBeatForEditing(beat);
+
+        Assert.Equal("beat_intro", viewModel.StoryBeatIdEditor);
+        Assert.Equal("Arrival", viewModel.StoryBeatTitleEditor);
+        Assert.Equal("The caravan reaches town.", viewModel.StoryBeatSummaryEditor);
+        Assert.True(viewModel.StoryBeatCompletedEditor);
+    }
+
+    [Fact]
+    public async Task AcceptStoryBeatSuggestion_RequiresSignOffAndPersistsBeat()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        var suggestion = new CoCreatorSuggestion(
+            "sg_story_1",
+            "Bridge Ambush",
+            "Escalates faction tension.",
+            new JsonObject
+            {
+                ["type"] = "story_add_beat",
+                ["beat_id"] = "beat_bridge_ambush",
+                ["title"] = "Bridge Ambush",
+                ["summary"] = "Raiders block the crossing and demand tribute.",
+            });
+
+        var suggestionsField = typeof(MainWindowViewModel).GetField("_coCreatorSuggestions", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Field _coCreatorSuggestions not found.");
+        var suggestions = (System.Collections.ObjectModel.ObservableCollection<CoCreatorSuggestion>)suggestionsField.GetValue(viewModel)!;
+        suggestions.Add(suggestion);
+        viewModel.ReloadSystemPanelsFromScene();
+        viewModel.SelectedStoryBeatSuggestion = suggestion;
+
+        viewModel.StageSelectedStorySuggestionForEdit();
+        viewModel.StoryBeatTitleEditor = "Bridge Ambush (Player Revised)";
+        await viewModel.AcceptStoryBeatSuggestionAsync();
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var savedBeat = document.RootElement.GetProperty("story").GetProperty("campaign_beats")
+            .EnumerateArray()
+            .Single(node => node.GetProperty("id").GetString() == "beat_bridge_ambush");
+        Assert.Equal("Bridge Ambush (Player Revised)", savedBeat.GetProperty("title").GetString());
+        Assert.Equal("Raiders block the crossing and demand tribute.", savedBeat.GetProperty("summary").GetString());
     }
 
     [Fact]

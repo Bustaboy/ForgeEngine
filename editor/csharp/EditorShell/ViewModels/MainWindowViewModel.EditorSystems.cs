@@ -70,6 +70,7 @@ public sealed partial class MainWindowViewModel
     private string _storyBeatIdEditor = "beat_new";
     private string _storyBeatTitleEditor = "New Beat";
     private string _storyBeatSummaryEditor = "Summary";
+    private bool _storyBeatCompletedEditor;
     private string _storyEventIdEditor = "event_new";
     private string _storyEventTitleEditor = "New Story Event";
     private string _storyEventBeatIdEditor = "beat_new";
@@ -78,6 +79,8 @@ public sealed partial class MainWindowViewModel
     private string _storyRippleDimensionEditor = "";
     private float _storyRippleValueEditor = 5f;
     private string _storyStatus = "Story tools ready.";
+    private readonly ObservableCollection<CoCreatorSuggestion> _storyBeatSuggestions = [];
+    private CoCreatorSuggestion? _selectedStoryBeatSuggestion;
 
     public string ActiveSystemTab
     {
@@ -411,6 +414,7 @@ public sealed partial class MainWindowViewModel
     public string StoryBeatIdEditor { get => _storyBeatIdEditor; set { _storyBeatIdEditor = value; OnPropertyChanged(); } }
     public string StoryBeatTitleEditor { get => _storyBeatTitleEditor; set { _storyBeatTitleEditor = value; OnPropertyChanged(); } }
     public string StoryBeatSummaryEditor { get => _storyBeatSummaryEditor; set { _storyBeatSummaryEditor = value; OnPropertyChanged(); } }
+    public bool StoryBeatCompletedEditor { get => _storyBeatCompletedEditor; set { _storyBeatCompletedEditor = value; OnPropertyChanged(); } }
     public string StoryEventIdEditor { get => _storyEventIdEditor; set { _storyEventIdEditor = value; OnPropertyChanged(); } }
     public string StoryEventTitleEditor { get => _storyEventTitleEditor; set { _storyEventTitleEditor = value; OnPropertyChanged(); } }
     public string StoryEventBeatIdEditor { get => _storyEventBeatIdEditor; set { _storyEventBeatIdEditor = value; OnPropertyChanged(); } }
@@ -420,6 +424,21 @@ public sealed partial class MainWindowViewModel
     public float StoryRippleValueEditor { get => _storyRippleValueEditor; set { _storyRippleValueEditor = value; OnPropertyChanged(); } }
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
+    public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
+    public CoCreatorSuggestion? SelectedStoryBeatSuggestion
+    {
+        get => _selectedStoryBeatSuggestion;
+        set
+        {
+            if (_selectedStoryBeatSuggestion == value)
+            {
+                return;
+            }
+
+            _selectedStoryBeatSuggestion = value;
+            OnPropertyChanged();
+        }
+    }
 
     public void SetSystemTab(string tab)
     {
@@ -737,12 +756,76 @@ public sealed partial class MainWindowViewModel
                 existing["id"] = beatId;
                 existing["title"] = string.IsNullOrWhiteSpace(StoryBeatTitleEditor) ? beatId : StoryBeatTitleEditor.Trim();
                 existing["summary"] = StoryBeatSummaryEditor.Trim();
-                existing["completed"] = existing["completed"]?.GetValue<bool>() ?? false;
+                existing["completed"] = StoryBeatCompletedEditor;
                 existing["next_ids"] = existing["next_ids"] as JsonArray ?? new JsonArray();
                 StoryStatus = $"Beat '{beatId}' saved.";
                 return true;
             },
             cancellationToken);
+
+    public void SelectStoryBeatForEditing(StoryBeatRow? beat)
+    {
+        if (beat is null)
+        {
+            return;
+        }
+
+        StoryBeatIdEditor = beat.Id;
+        StoryBeatTitleEditor = beat.Title;
+        StoryBeatSummaryEditor = beat.Summary;
+        StoryBeatCompletedEditor = beat.Completed;
+        StoryStatus = $"Loaded beat '{beat.Id}' for editing.";
+    }
+
+    public void StageSelectedStorySuggestionForEdit()
+    {
+        var selected = SelectedStoryBeatSuggestion;
+        if (selected is null)
+        {
+            StoryStatus = "Select an AI beat suggestion first.";
+            return;
+        }
+
+        StoryBeatIdEditor = selected.Mutation["beat_id"]?.GetValue<string>() ?? $"beat_{Guid.NewGuid():N}";
+        StoryBeatTitleEditor = selected.Mutation["title"]?.GetValue<string>() ?? "AI Suggested Beat";
+        StoryBeatSummaryEditor = selected.Mutation["summary"]?.GetValue<string>() ?? "Suggested by AI co-creator.";
+        StoryBeatCompletedEditor = false;
+        StoryStatus = "AI suggestion staged in beat editor. Edit if needed, then explicitly approve.";
+    }
+
+    public async Task AcceptStoryBeatSuggestionAsync(CancellationToken cancellationToken = default)
+    {
+        var selected = SelectedStoryBeatSuggestion;
+        if (selected is null)
+        {
+            StoryStatus = "Select an AI beat suggestion first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(StoryBeatIdEditor))
+        {
+            StoryStatus = "Beat id is required before approval.";
+            return;
+        }
+
+        await UpsertStoryBeatAsync(cancellationToken);
+        RemoveStorySuggestionById(selected.Id);
+        CoCreatorStatus = "AI story beat approved by user and applied.";
+        StoryStatus = $"Approved AI beat '{StoryBeatIdEditor.Trim()}' and saved to scene.";
+    }
+
+    public void RejectStoryBeatSuggestion()
+    {
+        var selected = SelectedStoryBeatSuggestion;
+        if (selected is null)
+        {
+            StoryStatus = "Select an AI beat suggestion first.";
+            return;
+        }
+
+        RemoveStorySuggestionById(selected.Id);
+        StoryStatus = "AI beat suggestion rejected.";
+    }
 
     public async Task QueueStoryEventAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
@@ -828,6 +911,7 @@ public sealed partial class MainWindowViewModel
         {
             _coCreatorSuggestions.Add(suggestion);
         }
+        SyncStoryBeatSuggestions();
         OnPropertyChanged(nameof(CoCreatorSuggestions));
         SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
         CoCreatorStatus = _coCreatorSuggestions.Count == 0
@@ -844,11 +928,18 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
+        var mutationType = selected.Mutation["type"]?.GetValue<string>() ?? string.Empty;
+        if (string.Equals(mutationType, "story_add_beat", StringComparison.Ordinal))
+        {
+            StageStorySuggestionForReview(selected);
+            CoCreatorStatus = "Story beat suggestion staged. Review and explicitly approve in Story tab.";
+            return;
+        }
+
         await ApplySceneMutationAsync(
             $"AI Co-Creator accepted: {selected.Label}",
             root =>
             {
-                var mutationType = selected.Mutation["type"]?.GetValue<string>() ?? string.Empty;
                 if (string.Equals(mutationType, "add_entity", StringComparison.Ordinal))
                 {
                     var entity = selected.Mutation["entity"] as JsonObject;
@@ -893,22 +984,6 @@ public sealed partial class MainWindowViewModel
                         requiredRelationshipDimension,
                         minRequiredRelationship);
                 }
-                if (string.Equals(mutationType, "story_add_beat", StringComparison.Ordinal))
-                {
-                    var story = root["story"] as JsonObject ?? new JsonObject();
-                    root["story"] = story;
-                    var beats = story["campaign_beats"] as JsonArray ?? new JsonArray();
-                    story["campaign_beats"] = beats;
-                    beats.Add(new JsonObject
-                    {
-                        ["id"] = selected.Mutation["beat_id"]?.GetValue<string>() ?? $"beat_{Guid.NewGuid():N}",
-                        ["title"] = selected.Mutation["title"]?.GetValue<string>() ?? "AI Suggested Beat",
-                        ["summary"] = selected.Mutation["summary"]?.GetValue<string>() ?? "Suggested by AI co-creator.",
-                        ["completed"] = false,
-                        ["next_ids"] = new JsonArray(),
-                    });
-                    return true;
-                }
                 if (string.Equals(mutationType, "story_add_event", StringComparison.Ordinal))
                 {
                     var story = root["story"] as JsonObject ?? new JsonObject();
@@ -944,6 +1019,7 @@ public sealed partial class MainWindowViewModel
             cancellationToken);
 
         _coCreatorSuggestions.Remove(selected);
+        SyncStoryBeatSuggestions();
         OnPropertyChanged(nameof(CoCreatorSuggestions));
         SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
         CoCreatorStatus = "Suggestion accepted and applied to scene.";
@@ -959,6 +1035,7 @@ public sealed partial class MainWindowViewModel
         }
 
         _coCreatorSuggestions.Remove(selected);
+        SyncStoryBeatSuggestions();
         OnPropertyChanged(nameof(CoCreatorSuggestions));
         SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
         CoCreatorStatus = "Suggestion removed.";
@@ -1153,6 +1230,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
             OnPropertyChanged(nameof(StoryBeats));
+            SyncStoryBeatSuggestions();
             OnPropertyChanged(nameof(FactionStatusSummary));
             OnPropertyChanged(nameof(RelationshipStatusSummary));
             OnPropertyChanged(nameof(EconomySummary));
@@ -1223,6 +1301,51 @@ public sealed partial class MainWindowViewModel
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToArray();
         return lines.Length == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
+    }
+
+    private void SyncStoryBeatSuggestions()
+    {
+        _storyBeatSuggestions.Clear();
+        foreach (var suggestion in _coCreatorSuggestions.Where(IsStoryAddBeatSuggestion))
+        {
+            _storyBeatSuggestions.Add(suggestion);
+        }
+
+        SelectedStoryBeatSuggestion = _storyBeatSuggestions.FirstOrDefault();
+        OnPropertyChanged(nameof(StoryBeatSuggestions));
+    }
+
+    private static bool IsStoryAddBeatSuggestion(CoCreatorSuggestion suggestion)
+        => string.Equals(suggestion.Mutation["type"]?.GetValue<string>(), "story_add_beat", StringComparison.Ordinal);
+
+    private void StageStorySuggestionForReview(CoCreatorSuggestion suggestion)
+    {
+        if (_coCreatorSuggestions.Any(existing => string.Equals(existing.Id, suggestion.Id, StringComparison.Ordinal)))
+        {
+            SyncStoryBeatSuggestions();
+            StoryStatus = "AI beat suggestion requires explicit review in Story tab (Edit / Accept / Reject).";
+            return;
+        }
+
+        _coCreatorSuggestions.Add(suggestion);
+        OnPropertyChanged(nameof(CoCreatorSuggestions));
+        SyncStoryBeatSuggestions();
+        StoryStatus = "AI beat suggestion requires explicit review in Story tab (Edit / Accept / Reject).";
+    }
+
+    private void RemoveStorySuggestionById(string suggestionId)
+    {
+        for (var index = _coCreatorSuggestions.Count - 1; index >= 0; index--)
+        {
+            if (string.Equals(_coCreatorSuggestions[index].Id, suggestionId, StringComparison.Ordinal))
+            {
+                _coCreatorSuggestions.RemoveAt(index);
+            }
+        }
+
+        OnPropertyChanged(nameof(CoCreatorSuggestions));
+        SyncStoryBeatSuggestions();
+        SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
     }
 
     private static bool TryAppendDialogBranch(
