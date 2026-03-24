@@ -48,6 +48,9 @@ public sealed partial class MainWindowViewModel
     private string _aiPromptEditor = "Add 3 Houses";
     private string _biomeEditor = "temperate";
     private string _worldStyleGuideEditor = "grounded stylized frontier";
+    private string _selectedFactionIdEditor = "guild_builders";
+    private float _reputationDeltaEditor = 5f;
+    private string _factionStatusSummary = "No faction data in scene.";
     private string _coCreatorStatus = "Live suggestions idle.";
 
     public string ActiveSystemTab
@@ -338,6 +341,9 @@ public sealed partial class MainWindowViewModel
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
+    public string SelectedFactionIdEditor { get => _selectedFactionIdEditor; set { _selectedFactionIdEditor = value; OnPropertyChanged(); } }
+    public float ReputationDeltaEditor { get => _reputationDeltaEditor; set { _reputationDeltaEditor = value; OnPropertyChanged(); } }
+    public string FactionStatusSummary { get => _factionStatusSummary; private set { _factionStatusSummary = value; OnPropertyChanged(); } }
     public string CoCreatorStatus { get => _coCreatorStatus; private set { _coCreatorStatus = value; OnPropertyChanged(); } }
     public bool CoCreatorLiveEnabled { get => _coCreatorLiveEnabled; private set { _coCreatorLiveEnabled = value; OnPropertyChanged(); } }
     public IReadOnlyList<CoCreatorSuggestion> CoCreatorSuggestions => _coCreatorSuggestions;
@@ -532,6 +538,54 @@ public sealed partial class MainWindowViewModel
             {
                 root["biome"] = string.IsNullOrWhiteSpace(BiomeEditor) ? "temperate" : BiomeEditor.Trim();
                 root["world_style_guide"] = string.IsNullOrWhiteSpace(WorldStyleGuideEditor) ? "grounded stylized frontier" : WorldStyleGuideEditor.Trim();
+                if (root["factions"] is not JsonObject factions)
+                {
+                    factions = new JsonObject
+                    {
+                        ["guild_builders"] = new JsonObject
+                        {
+                            ["id"] = "guild_builders",
+                            ["display_name"] = "Guild Builders",
+                            ["category"] = "profession",
+                            ["biome_hint"] = "temperate",
+                        },
+                        ["river_clans"] = new JsonObject
+                        {
+                            ["id"] = "river_clans",
+                            ["display_name"] = "River Clans",
+                            ["category"] = "culture",
+                            ["biome_hint"] = "temperate",
+                        },
+                    };
+                    root["factions"] = factions;
+                }
+                var reputation = root["player_reputation"] as JsonObject ?? new JsonObject();
+                root["player_reputation"] = reputation;
+                foreach (var factionEntry in factions)
+                {
+                    reputation.TryAdd(factionEntry.Key, 0f);
+                }
+                return true;
+            },
+            cancellationToken);
+
+    public async Task AdjustFactionReputationAsync(float direction, CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Faction reputation updated",
+            root =>
+            {
+                if (string.IsNullOrWhiteSpace(SelectedFactionIdEditor))
+                {
+                    return false;
+                }
+
+                var reputation = root["player_reputation"] as JsonObject ?? new JsonObject();
+                root["player_reputation"] = reputation;
+                var key = SelectedFactionIdEditor.Trim();
+                var current = reputation[key]?.GetValue<float>() ?? 0f;
+                var delta = Math.Clamp(ReputationDeltaEditor, 0.5f, 50f) * direction;
+                var updated = Math.Clamp(current + delta, -100f, 100f);
+                reputation[key] = updated;
                 return true;
             },
             cancellationToken);
@@ -707,6 +761,21 @@ public sealed partial class MainWindowViewModel
             _dialogs = DialogPanelState.FromScene(root);
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
+            if (root["player_reputation"] is JsonObject reputation)
+            {
+                var lines = reputation
+                    .Select(entry => $"{entry.Key}: {(entry.Value?.GetValue<float>() ?? 0f):0}")
+                    .ToArray();
+                FactionStatusSummary = lines.Length == 0 ? "No faction reputation yet." : string.Join(Environment.NewLine, lines);
+                if (lines.Length > 0 && string.IsNullOrWhiteSpace(SelectedFactionIdEditor))
+                {
+                    SelectedFactionIdEditor = reputation.First().Key;
+                }
+            }
+            else
+            {
+                FactionStatusSummary = "No faction reputation yet.";
+            }
 
             if (SelectedBuildableEntityId == 0 && _buildings.Buildables.Count > 0)
             {
@@ -735,6 +804,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(PlayerInventorySummary));
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
+            OnPropertyChanged(nameof(FactionStatusSummary));
         }
         catch
         {

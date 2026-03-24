@@ -1,6 +1,7 @@
 #include "BuildingSystem.h"
 
 #include "InventorySystem.h"
+#include "FactionSystem.h"
 #include "Logger.h"
 #include "Scene.h"
 
@@ -122,6 +123,12 @@ bool TryPlaceBuildingFromRay(Scene& scene, const glm::vec3& ray_origin, const gl
 
     std::optional<Entity> candidate = BuildCandidateFromRay(scene, ray_origin, ray_direction);
     if (!candidate.has_value()) {
+        return false;
+    }
+
+    std::string faction_build_reason;
+    if (!FactionSystem::CanBuildInCurrentBiome(scene, faction_build_reason)) {
+        GF_LOG_INFO(faction_build_reason);
         return false;
     }
 

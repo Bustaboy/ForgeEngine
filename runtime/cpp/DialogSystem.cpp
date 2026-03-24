@@ -1,5 +1,6 @@
 #include "DialogSystem.h"
 
+#include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "Scene.h"
@@ -89,6 +90,11 @@ bool StartDialogWithNpc(Scene& scene, Entity& npc) {
     scene.npc_relationships.try_emplace(npc.id, 0.0F);
 
     GF_LOG_INFO("Started dialog with NPC #" + std::to_string(npc.id) + ".");
+    if (!npc.faction.faction_id.empty()) {
+        const std::string tone = FactionSystem::DialogToneForEntity(scene, npc);
+        const float reputation = FactionSystem::GetReputation(scene, npc.faction.faction_id);
+        GF_LOG_INFO("Faction tone: " + tone + " (reputation: " + std::to_string(reputation) + ").");
+    }
     LogNode(*start_node);
     return true;
 }
@@ -168,8 +174,26 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     }
 
     const DialogChoice& choice = current_node->choices[choice_index];
+    if (!choice.required_faction_id.empty()) {
+        const float reputation = FactionSystem::GetReputation(scene, choice.required_faction_id);
+        if (reputation < choice.min_required_reputation) {
+            GF_LOG_INFO(
+                "Choice locked. Requires faction reputation " + std::to_string(choice.min_required_reputation) +
+                " with " + choice.required_faction_id + ".");
+            LogNode(*current_node);
+            return false;
+        }
+    }
+
     GF_LOG_INFO("Player: " + choice.text);
-    ApplyEffect(scene, npc->id, choice.effect);
+    DialogEffect adjusted_effect = choice.effect;
+    if (adjusted_effect.inventory_delta > 0) {
+        adjusted_effect.inventory_delta = FactionSystem::ApplyTradeAdjustmentForEntity(scene, *npc, adjusted_effect.inventory_delta);
+    }
+    ApplyEffect(scene, npc->id, adjusted_effect);
+    if (!npc->faction.faction_id.empty() && adjusted_effect.relationship_delta != 0.0F) {
+        FactionSystem::AddPlayerReputation(scene, npc->faction.faction_id, adjusted_effect.relationship_delta, "dialog");
+    }
 
     if (choice.next_node_id.empty()) {
         EndDialog(scene, *npc);

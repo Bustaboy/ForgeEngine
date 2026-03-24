@@ -34,6 +34,15 @@ struct InventoryComponent {
 
 using Inventory = InventoryComponent;
 
+struct FactionComponent {
+    std::string faction_id{};
+    std::string role{};
+};
+
+struct ReputationComponent {
+    std::map<std::string, float> values{};
+};
+
 struct DialogEffect {
     std::string inventory_item{};
     int inventory_delta = 0;
@@ -44,6 +53,8 @@ struct DialogChoice {
     std::string text{};
     std::string next_node_id{};
     DialogEffect effect{};
+    std::string required_faction_id{};
+    float min_required_reputation = -100.0F;
 };
 
 struct DialogNode {
@@ -81,6 +92,8 @@ struct Entity {
     Renderable renderable{};
     BuildableComponent buildable{};
     InventoryComponent inventory{};
+    FactionComponent faction{};
+    ReputationComponent reputation{};
     DialogComponent dialog{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
 };

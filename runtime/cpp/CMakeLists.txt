@@ -81,6 +81,8 @@ set(FORGE_RUNTIME_SOURCES
     InventorySystem.cpp
     DialogSystem.h
     DialogSystem.cpp
+    FactionSystem.h
+    FactionSystem.cpp
     Timer.cpp
     Scene.cpp
     Scene.h

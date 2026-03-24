@@ -1169,6 +1169,16 @@ public partial class MainWindow : Window
         _viewModel.RejectCoCreatorSuggestion();
     }
 
+    private async void OnFactionRepIncreaseClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.AdjustFactionReputationAsync(1f);
+    }
+
+    private async void OnFactionRepDecreaseClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.AdjustFactionReputationAsync(-1f);
+    }
+
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
         var wizard = new NewProjectWizardWindow(_viewModel.EditorDefaultTemplateId);

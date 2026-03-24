@@ -1014,6 +1014,16 @@
                   <Button Grid.Column="1" Content="Refresh Suggestions" Click="OnRefreshCoCreatorClick" />
                   <Button Grid.Column="2" Content="Toggle Live" Click="OnToggleCoCreatorLiveClick" />
                 </Grid>
+                <TextBlock Text="Faction Reputation" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <Grid ColumnDefinitions="*,80,80" ColumnSpacing="6">
+                  <TextBox Text="{Binding SelectedFactionIdEditor}" Watermark="Faction id (e.g., guild_builders)" />
+                  <Button Grid.Column="1" Content="+ Rep" Click="OnFactionRepIncreaseClick" />
+                  <Button Grid.Column="2" Content="- Rep" Click="OnFactionRepDecreaseClick" />
+                </Grid>
+                <TextBox Text="{Binding ReputationDeltaEditor}" Watermark="Rep delta (default 5)" />
+                <ScrollViewer MaxHeight="70">
+                  <TextBlock Text="{Binding FactionStatusSummary}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                </ScrollViewer>
                 <TextBlock Text="{Binding CoCreatorStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                 <ComboBox ItemsSource="{Binding CoCreatorSuggestions}" SelectedItem="{Binding SelectedCoCreatorSuggestion}">
                   <ComboBox.ItemTemplate>
