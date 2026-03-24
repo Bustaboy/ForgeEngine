@@ -11,6 +11,7 @@
 #include "StorySystem.h"
 #include "CutsceneSystem.h"
 #include "VoiceSystem.h"
+#include "WeatherSystem.h"
 #include "templates/generated_gameplay.h"
 
 #include <algorithm>
@@ -59,6 +60,7 @@ void Scene::Update(float dt_seconds) {
     FactionSystem::EnsureSceneFactions(*this);
     EconomySystem::EnsureDefaults(*this);
     RelationshipSystem::EnsureSceneRelationships(*this);
+    WeatherSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     elapsed_seconds += safe_dt;
@@ -71,6 +73,7 @@ void Scene::Update(float dt_seconds) {
     }
     day_progress = Clamp01(day_progress);
     day_count = std::max(1U, day_count);
+    WeatherSystem::Update(*this, safe_dt);
 
     if (active_dialog_npc_id != 0) {
         const auto active_it = std::find_if(entities.begin(), entities.end(), [&](const Entity& entity) {
@@ -88,7 +91,7 @@ void Scene::Update(float dt_seconds) {
 
     directional_light.direction = sun_direction;
     directional_light.color = sky_color;
-    directional_light.intensity = 0.15F + daylight * 1.15F;
+    directional_light.intensity = (0.15F + daylight * 1.15F) * std::clamp(weather.light_multiplier, 0.55F, 1.05F);
 
     NavmeshSystem::Update(*this, safe_dt);
 

@@ -8,6 +8,7 @@
 #include "VoiceSystem.h"
 #include "RelationshipSystem.h"
 #include "Scene.h"
+#include "WeatherSystem.h"
 
 #include <glm/geometric.hpp>
 #include <algorithm>
@@ -34,8 +35,9 @@ const DialogNode* FindNodeById(const DialogComponent& dialog, const std::string&
 }
 
 void LogNode(Scene& scene, std::uint64_t npc_id, const DialogNode& node) {
-    GF_LOG_INFO("NPC: " + node.text);
-    VoiceSystem::QueueNpcLine(scene, npc_id, node.text, "dialog_node");
+    const std::string toned_line = WeatherSystem::ApplyDialogTone(scene, node.text);
+    GF_LOG_INFO("NPC: " + toned_line);
+    VoiceSystem::QueueNpcLine(scene, npc_id, toned_line, "dialog_node");
     for (std::size_t i = 0; i < node.choices.size(); ++i) {
         GF_LOG_INFO(std::to_string(i + 1U) + ") " + node.choices[i].text);
     }
@@ -96,6 +98,7 @@ bool StartDialogWithNpc(Scene& scene, Entity& npc) {
         const float reputation = FactionSystem::GetReputation(scene, npc.faction.faction_id);
         GF_LOG_INFO("Faction tone: " + tone + " (reputation: " + std::to_string(reputation) + ").");
     }
+    GF_LOG_INFO("Weather tone: " + WeatherSystem::DialogTone(scene) + " (" + scene.weather.current_weather + ").");
     LogNode(scene, npc.id, *start_node);
     return true;
 }

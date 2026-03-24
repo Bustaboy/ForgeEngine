@@ -918,6 +918,7 @@
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
                 <Button Classes="panel-tab" Content="📖" Click="OnSystemTabClick" Tag="Story" />
+                <Button Classes="panel-tab" Content="🌦" Click="OnSystemTabClick" Tag="Weather" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -931,6 +932,25 @@
                   <TextBox Grid.Column="5" Text="{Binding DayCountEditor}" />
                 </Grid>
                 <Button Content="Apply Day/Night" Click="OnApplyDayNightClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsWeatherTabActive}">
+                <TextBlock Text="Dynamic Weather" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Current" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding WeatherCurrentEditor}" Watermark="sunny/rain/storm/snow/sandstorm" />
+                  <TextBlock Grid.Column="2" Text="Target" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding WeatherTargetEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Intensity" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding WeatherIntensityEditor}" />
+                  <TextBlock Grid.Column="2" Text="Transition(s)" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding WeatherTransitionSecondsEditor}" />
+                  <TextBlock Grid.Column="4" Text="Next change(s)" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="5" Text="{Binding WeatherNextTransitionSecondsEditor}" />
+                </Grid>
+                <Button Content="Apply Weather" Click="OnApplyWeatherClick" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">

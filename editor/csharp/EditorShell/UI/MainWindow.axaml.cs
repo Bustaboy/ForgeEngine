@@ -1114,6 +1114,11 @@ public partial class MainWindow : Window
         await _viewModel.ApplyDayNightAsync();
     }
 
+    private async void OnApplyWeatherClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApplyWeatherAsync();
+    }
+
     private async void OnApplyBuildableClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.ApplyBuildableSelectionAsync();

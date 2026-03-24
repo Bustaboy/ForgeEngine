@@ -415,6 +415,42 @@ json DirectionalLightToJson(const DirectionalLight& light) {
     };
 }
 
+json WeatherStateToJson(const WeatherState& weather) {
+    return json{
+        {"current_weather", weather.current_weather},
+        {"target_weather", weather.target_weather},
+        {"transition_progress", weather.transition_progress},
+        {"intensity", weather.intensity},
+        {"seconds_until_next_transition", weather.seconds_until_next_transition},
+        {"transition_duration_seconds", weather.transition_duration_seconds},
+        {"movement_speed_multiplier", weather.movement_speed_multiplier},
+        {"economy_supply_multiplier", weather.economy_supply_multiplier},
+        {"economy_demand_multiplier", weather.economy_demand_multiplier},
+        {"relationship_delta_per_day", weather.relationship_delta_per_day},
+        {"light_multiplier", weather.light_multiplier},
+        {"dialog_tone", weather.dialog_tone},
+        {"last_relationship_day_applied", weather.last_relationship_day_applied},
+    };
+}
+
+WeatherState WeatherStateFromJson(const json& node, const WeatherState& fallback) {
+    WeatherState weather = fallback;
+    weather.current_weather = node.value("current_weather", weather.current_weather);
+    weather.target_weather = node.value("target_weather", weather.target_weather);
+    weather.transition_progress = Clamp01(node.value("transition_progress", weather.transition_progress));
+    weather.intensity = Clamp01(node.value("intensity", weather.intensity));
+    weather.seconds_until_next_transition = std::max(5.0F, node.value("seconds_until_next_transition", weather.seconds_until_next_transition));
+    weather.transition_duration_seconds = std::max(2.0F, node.value("transition_duration_seconds", weather.transition_duration_seconds));
+    weather.movement_speed_multiplier = node.value("movement_speed_multiplier", weather.movement_speed_multiplier);
+    weather.economy_supply_multiplier = node.value("economy_supply_multiplier", weather.economy_supply_multiplier);
+    weather.economy_demand_multiplier = node.value("economy_demand_multiplier", weather.economy_demand_multiplier);
+    weather.relationship_delta_per_day = node.value("relationship_delta_per_day", weather.relationship_delta_per_day);
+    weather.light_multiplier = node.value("light_multiplier", weather.light_multiplier);
+    weather.dialog_tone = node.value("dialog_tone", weather.dialog_tone);
+    weather.last_relationship_day_applied = std::max(1U, node.value("last_relationship_day_applied", weather.last_relationship_day_applied));
+    return weather;
+}
+
 json CoCreatorMutationToJson(const CoCreatorQueuedMutation& mutation) {
     return json{
         {"suggestion_id", mutation.suggestion_id},
@@ -910,6 +946,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
     scene.biome = document.value("biome", scene.biome);
     scene.world_style_guide = document.value("world_style_guide", scene.world_style_guide);
+    if (document.contains("weather") && document["weather"].is_object()) {
+        scene.weather = WeatherStateFromJson(document["weather"], scene.weather);
+    }
+    scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
     scene.active_dialog_npc_id = document.value("active_dialog_npc_id", 0ULL);
     if (document.contains("player_inventory")) {
@@ -1138,6 +1178,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_count"] = scene.day_count;
     document["biome"] = scene.biome;
     document["world_style_guide"] = scene.world_style_guide;
+    document["weather"] = WeatherStateToJson(scene.weather);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);

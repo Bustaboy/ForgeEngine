@@ -123,6 +123,22 @@ struct CutsceneState {
     std::vector<std::string> played_cutscene_history{};
 };
 
+struct WeatherState {
+    std::string current_weather = "sunny";
+    std::string target_weather = "sunny";
+    float transition_progress = 1.0F;
+    float intensity = 0.25F;
+    float seconds_until_next_transition = 75.0F;
+    float transition_duration_seconds = 14.0F;
+    float movement_speed_multiplier = 1.0F;
+    float economy_supply_multiplier = 1.0F;
+    float economy_demand_multiplier = 1.0F;
+    float relationship_delta_per_day = 0.0F;
+    float light_multiplier = 1.0F;
+    std::string dialog_tone = "neutral";
+    std::uint32_t last_relationship_day_applied = 1;
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -134,6 +150,7 @@ struct Scene {
     std::uint32_t day_count = 1;
     std::string biome = "temperate";
     std::string world_style_guide = "grounded stylized frontier";
+    WeatherState weather{};
     std::map<std::string, FactionDefinition> factions{};
     std::map<std::string, float> player_reputation{};
     std::map<std::uint64_t, RelationshipProfile> relationships{};

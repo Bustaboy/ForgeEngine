@@ -3,6 +3,7 @@
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "Scene.h"
+#include "WeatherSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -80,15 +81,23 @@ void RunTradeTick(Scene& scene) {
         global_risk = std::max(global_risk, route.risk + route.disruption);
     }
 
+    const float weather_supply = WeatherSystem::EconomySupplyMultiplier(scene);
+    const float weather_demand = WeatherSystem::EconomyDemandMultiplier(scene);
     for (auto& [resource, base_price] : economy.base_prices) {
         const float supply = economy.resource_supply[resource];
         const float demand = economy.resource_demand[resource];
-        const float scarcity_ratio = std::clamp(demand / SafeSupply(supply), 0.35F, 3.2F);
+        const bool crop_resource = resource.find("grain") != std::string::npos || resource.find("food") != std::string::npos ||
+                                   resource.find("herb") != std::string::npos || resource.find("Farm") != std::string::npos;
+        const float supply_weather_scale = crop_resource ? weather_supply : ((weather_supply + 1.0F) * 0.5F);
+        const float demand_weather_scale = crop_resource ? weather_demand : ((weather_demand + 1.0F) * 0.5F);
+        const float weather_adjusted_supply = std::max(0.5F, supply * supply_weather_scale);
+        const float weather_adjusted_demand = std::max(0.5F, demand * demand_weather_scale);
+        const float scarcity_ratio = std::clamp(weather_adjusted_demand / SafeSupply(weather_adjusted_supply), 0.35F, 3.2F);
         const float risk_markup = 1.0F + std::clamp(global_risk, 0.0F, 1.4F);
         economy.price_table[resource] = ClampPrice(base_price * scarcity_ratio * risk_markup);
 
-        economy.resource_supply[resource] = std::max(0.0F, supply * 0.997F);
-        economy.resource_demand[resource] = std::max(0.0F, demand * 0.999F);
+        economy.resource_supply[resource] = std::max(0.0F, weather_adjusted_supply * 0.997F);
+        economy.resource_demand[resource] = std::max(0.0F, weather_adjusted_demand * 0.999F);
     }
 }
 

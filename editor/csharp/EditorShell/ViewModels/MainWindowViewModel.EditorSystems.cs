@@ -15,6 +15,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabAi = "AI";
     private const string SystemTabCoCreator = "CoCreator";
     private const string SystemTabStory = "Story";
+    private const string SystemTabWeather = "Weather";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -22,6 +23,7 @@ public sealed partial class MainWindowViewModel
     private InventoryRecipesPanelState _inventoryRecipes = new();
     private DialogPanelState _dialogs = new();
     private StoryPanelState _storyPanel = new();
+    private WeatherPanelState _weather = new();
     private readonly List<string> _aiCommandLog = [];
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
@@ -119,6 +121,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsAiTabActive));
             OnPropertyChanged(nameof(IsCoCreatorTabActive));
             OnPropertyChanged(nameof(IsStoryTabActive));
+            OnPropertyChanged(nameof(IsWeatherTabActive));
         }
     }
 
@@ -129,6 +132,7 @@ public sealed partial class MainWindowViewModel
     public bool IsAiTabActive => string.Equals(ActiveSystemTab, SystemTabAi, StringComparison.Ordinal);
     public bool IsCoCreatorTabActive => string.Equals(ActiveSystemTab, SystemTabCoCreator, StringComparison.Ordinal);
     public bool IsStoryTabActive => string.Equals(ActiveSystemTab, SystemTabStory, StringComparison.Ordinal);
+    public bool IsWeatherTabActive => string.Equals(ActiveSystemTab, SystemTabWeather, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -392,6 +396,11 @@ public sealed partial class MainWindowViewModel
     public float DialogEffectRelationshipDelta { get => _dialogEffectRelationshipDelta; set { _dialogEffectRelationshipDelta = value; OnPropertyChanged(); } }
 
     public string AiPromptEditor { get => _aiPromptEditor; set { _aiPromptEditor = value; OnPropertyChanged(); } }
+    public string WeatherCurrentEditor { get => _weather.CurrentWeather; set { _weather.CurrentWeather = value; OnPropertyChanged(); } }
+    public string WeatherTargetEditor { get => _weather.TargetWeather; set { _weather.TargetWeather = value; OnPropertyChanged(); } }
+    public float WeatherIntensityEditor { get => _weather.Intensity; set { _weather.Intensity = Math.Clamp(value, 0f, 1f); OnPropertyChanged(); } }
+    public float WeatherTransitionSecondsEditor { get => _weather.TransitionSeconds; set { _weather.TransitionSeconds = Math.Max(2f, value); OnPropertyChanged(); } }
+    public float WeatherNextTransitionSecondsEditor { get => _weather.NextTransitionSeconds; set { _weather.NextTransitionSeconds = Math.Max(5f, value); OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
@@ -493,6 +502,16 @@ public sealed partial class MainWindowViewModel
             root =>
             {
                 _dayNight.ApplyToScene(root);
+                return true;
+            },
+            cancellationToken);
+
+    public async Task ApplyWeatherAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Weather updated",
+            root =>
+            {
+                _weather.ApplyToScene(root);
                 return true;
             },
             cancellationToken);
@@ -1005,6 +1024,7 @@ public sealed partial class MainWindowViewModel
 
         var root = JsonNode.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken)) as JsonObject;
         var dayProgress = root?["day_progress"]?.GetValue<float>() ?? 0.25f;
+        var currentWeather = root?["weather"]?["current_weather"]?.GetValue<string>() ?? "sunny";
         var projectRoot = ResolveRepositoryRoot();
         var recentActionsJson = JsonSerializer.Serialize(_coCreatorRecentActions.TakeLast(8).ToArray());
         var economyPayload = root?["economy"]?.ToJsonString() ?? "{}";
@@ -1016,7 +1036,8 @@ public sealed partial class MainWindowViewModel
             string.IsNullOrWhiteSpace(WorldStyleGuideEditor) ? "grounded stylized frontier" : WorldStyleGuideEditor.Trim(),
             dayProgress.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
             recentActionsJson,
-            economyPayload);
+            economyPayload,
+            currentWeather);
 
         using var process = Process.Start(startInfo);
         if (process is null)
@@ -1232,6 +1253,7 @@ public sealed partial class MainWindowViewModel
             _inventoryRecipes = InventoryRecipesPanelState.FromScene(root);
             _dialogs = DialogPanelState.FromScene(root);
             _storyPanel = StoryPanelState.FromScene(root);
+            _weather = WeatherPanelState.FromScene(root);
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)
@@ -1375,6 +1397,11 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
             OnPropertyChanged(nameof(StoryBeats));
+            OnPropertyChanged(nameof(WeatherCurrentEditor));
+            OnPropertyChanged(nameof(WeatherTargetEditor));
+            OnPropertyChanged(nameof(WeatherIntensityEditor));
+            OnPropertyChanged(nameof(WeatherTransitionSecondsEditor));
+            OnPropertyChanged(nameof(WeatherNextTransitionSecondsEditor));
             SyncStoryBeatSuggestions();
             OnPropertyChanged(nameof(FactionStatusSummary));
             OnPropertyChanged(nameof(RelationshipStatusSummary));
