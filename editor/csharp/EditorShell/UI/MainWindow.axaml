@@ -1095,6 +1095,7 @@
                 </Grid>
                 <TextBox Text="{Binding StoryBeatSummaryEditor}" Watermark="Beat summary" />
                 <CheckBox Content="Beat Completed" IsChecked="{Binding StoryBeatCompletedEditor}" />
+                <CheckBox Content="Generate cutscene on this beat" IsChecked="{Binding StoryBeatCutsceneTriggerEditor}" />
                 <Button Content="Add / Update Beat" Click="OnUpsertStoryBeatClick" />
                 <TextBlock Text="Campaign Beats (click to load into editor)" Foreground="#AFC2DF" FontSize="11" />
                 <ComboBox ItemsSource="{Binding StoryBeats}" SelectionChanged="OnStoryBeatSelectionChanged">

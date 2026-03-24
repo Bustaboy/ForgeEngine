@@ -566,6 +566,40 @@ def co_creator_tick(
 
     story_payload = scene_json.get("story") if isinstance(scene_json.get("story"), dict) else {}
     campaign_beats = story_payload.get("campaign_beats") if isinstance(story_payload.get("campaign_beats"), list) else []
+    incomplete_beats: list[dict[str, Any]] = []
+    for beat in campaign_beats:
+        if not isinstance(beat, dict):
+            continue
+        if bool(beat.get("completed", False)):
+            continue
+        if bool(beat.get("cutscene_trigger", False)):
+            continue
+        beat_id_value = beat.get("id")
+        if isinstance(beat_id_value, str) and beat_id_value.strip():
+            incomplete_beats.append(beat)
+
+    if incomplete_beats:
+        candidate = incomplete_beats[0]
+        candidate_id = str(candidate.get("id", "beat_new"))
+        candidate_title = str(candidate.get("title", candidate_id))
+        suggestions.append(
+            {
+                "id": f"cutscene_mark_{candidate_id}",
+                "title": f"Suggest auto-cutscene for beat: {candidate_title}",
+                "why_this_fits": (
+                    "This beat is still pending and lacks a cutscene trigger. "
+                    "Marking it for automatic cutscene generation can improve pacing at a key narrative moment, "
+                    "but it still requires your explicit sign-off in the Story tab."
+                ),
+                "mutation": {
+                    "type": "story_mark_cutscene",
+                    "beat_id": candidate_id,
+                    "title": candidate_title,
+                    "cutscene_trigger": True,
+                },
+            }
+        )
+
     if len(campaign_beats) <= 8:
         next_index = len(campaign_beats) + 1
         beat_id = f"ai_beat_{next_index}"
