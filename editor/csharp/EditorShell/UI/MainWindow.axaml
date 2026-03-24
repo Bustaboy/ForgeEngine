@@ -916,6 +916,7 @@
                 <Button Classes="panel-tab" Content="🎒" Click="OnSystemTabClick" Tag="InventoryRecipes" />
                 <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
+                <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -1002,6 +1003,35 @@
                 <ScrollViewer MaxHeight="84">
                   <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />
                 </ScrollViewer>
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsCoCreatorTabActive}">
+                <TextBlock Text="AI Co-Creator Live" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBox Text="{Binding BiomeEditor}" Watermark="Biome (e.g., desert, tundra, temperate)" />
+                <TextBox Text="{Binding WorldStyleGuideEditor}" Watermark="World style guide for narrative + visual tone" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <Button Content="Save Context" Click="OnSaveCoCreatorContextClick" />
+                  <Button Grid.Column="1" Content="Refresh Suggestions" Click="OnRefreshCoCreatorClick" />
+                  <Button Grid.Column="2" Content="Toggle Live" Click="OnToggleCoCreatorLiveClick" />
+                </Grid>
+                <TextBlock Text="{Binding CoCreatorStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding CoCreatorSuggestions}" SelectedItem="{Binding SelectedCoCreatorSuggestion}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Why this fits your world right now" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding CoCreatorWhyThisFits}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <Button Content="Accept Suggestion" Click="OnAcceptCoCreatorSuggestionClick" />
+                  <Button Grid.Column="1" Content="Reject Suggestion" Click="OnRejectCoCreatorSuggestionClick" />
+                </Grid>
               </StackPanel>
             </Grid>
           </Border>

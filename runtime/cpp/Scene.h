@@ -7,9 +7,17 @@
 
 #include <string>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <vector>
+
+struct CoCreatorQueuedMutation {
+    std::string suggestion_id{};
+    std::string title{};
+    std::string why_this_fits{};
+    std::string mutation_json{};
+};
 
 struct Scene {
     std::vector<Entity> entities{};
@@ -20,9 +28,13 @@ struct Scene {
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;
     std::uint32_t day_count = 1;
+    std::string biome = "temperate";
+    std::string world_style_guide = "grounded stylized frontier";
     bool build_mode_enabled = false;
     std::optional<Entity> build_ghost_preview{};
     DirectionalLight directional_light{};
+    std::vector<std::string> recent_actions{};
+    std::deque<CoCreatorQueuedMutation> co_creator_queue{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

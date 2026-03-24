@@ -84,6 +84,8 @@ set(FORGE_RUNTIME_SOURCES
     Timer.cpp
     Scene.cpp
     Scene.h
+    CoCreatorSystem.h
+    CoCreatorSystem.cpp
     VulkanRenderer.cpp
     VulkanRenderer.h
     SceneLoader.cpp

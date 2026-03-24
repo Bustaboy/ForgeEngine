@@ -270,6 +270,24 @@ json DirectionalLightToJson(const DirectionalLight& light) {
         {"intensity", light.intensity},
     };
 }
+
+json CoCreatorMutationToJson(const CoCreatorQueuedMutation& mutation) {
+    return json{
+        {"suggestion_id", mutation.suggestion_id},
+        {"title", mutation.title},
+        {"why_this_fits", mutation.why_this_fits},
+        {"mutation_json", mutation.mutation_json},
+    };
+}
+
+CoCreatorQueuedMutation CoCreatorMutationFromJson(const json& node) {
+    CoCreatorQueuedMutation mutation{};
+    mutation.suggestion_id = node.value("suggestion_id", mutation.suggestion_id);
+    mutation.title = node.value("title", mutation.title);
+    mutation.why_this_fits = node.value("why_this_fits", mutation.why_this_fits);
+    mutation.mutation_json = node.value("mutation_json", mutation.mutation_json);
+    return mutation;
+}
 }  // namespace
 
 bool SceneLoader::Load(const std::string& path, Scene& scene) {
@@ -303,6 +321,8 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+    scene.biome = document.value("biome", scene.biome);
+    scene.world_style_guide = document.value("world_style_guide", scene.world_style_guide);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
     scene.active_dialog_npc_id = document.value("active_dialog_npc_id", 0ULL);
     if (document.contains("player_inventory")) {
@@ -334,6 +354,25 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         scene.directional_light.intensity = light.value("intensity", scene.directional_light.intensity);
     }
 
+    scene.recent_actions.clear();
+    if (document.contains("recent_actions") && document["recent_actions"].is_array()) {
+        for (const json& action_node : document["recent_actions"]) {
+            if (action_node.is_string()) {
+                scene.recent_actions.push_back(action_node.get<std::string>());
+            }
+        }
+    }
+
+    scene.co_creator_queue.clear();
+    if (document.contains("co_creator_queue") && document["co_creator_queue"].is_array()) {
+        for (const json& mutation_node : document["co_creator_queue"]) {
+            if (!mutation_node.is_object()) {
+                continue;
+            }
+            scene.co_creator_queue.push_back(CoCreatorMutationFromJson(mutation_node));
+        }
+    }
+
     scene.Update(0.0F);
     return true;
 }
@@ -350,6 +389,8 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_progress"] = scene.day_progress;
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
+    document["biome"] = scene.biome;
+    document["world_style_guide"] = scene.world_style_guide;
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);
@@ -359,6 +400,14 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     }
     document["npc_relationships"] = relationships;
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
+    document["recent_actions"] = json::array();
+    for (const std::string& action : scene.recent_actions) {
+        document["recent_actions"].push_back(action);
+    }
+    document["co_creator_queue"] = json::array();
+    for (const CoCreatorQueuedMutation& mutation : scene.co_creator_queue) {
+        document["co_creator_queue"].push_back(CoCreatorMutationToJson(mutation));
+    }
 
     std::ofstream file(path);
     if (!file.is_open()) {

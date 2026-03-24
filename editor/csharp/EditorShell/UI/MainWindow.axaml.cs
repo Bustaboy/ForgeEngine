@@ -1144,6 +1144,31 @@ public partial class MainWindow : Window
         await _viewModel.RunAiHookAsync("modify-scene");
     }
 
+    private async void OnSaveCoCreatorContextClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveCoCreatorSettingsAsync();
+    }
+
+    private async void OnRefreshCoCreatorClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RefreshCoCreatorSuggestionsAsync();
+    }
+
+    private void OnToggleCoCreatorLiveClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.SetCoCreatorLive(!_viewModel.CoCreatorLiveEnabled);
+    }
+
+    private async void OnAcceptCoCreatorSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.AcceptCoCreatorSuggestionAsync();
+    }
+
+    private void OnRejectCoCreatorSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.RejectCoCreatorSuggestion();
+    }
+
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
         var wizard = new NewProjectWizardWindow(_viewModel.EditorDefaultTemplateId);
