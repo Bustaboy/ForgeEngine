@@ -75,6 +75,7 @@ set(FORGE_RUNTIME_SOURCES
     main.cpp
     Engine.cpp
     Timer.cpp
+    Scene.cpp
     VulkanRenderer.cpp
     SceneLoader.cpp
     src/input/InputManager.cpp

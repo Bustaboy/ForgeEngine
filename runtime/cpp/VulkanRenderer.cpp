@@ -14,6 +14,7 @@
 #include <string>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/common.hpp>
 
 namespace {
 constexpr std::uint32_t kWindowWidth = 1280;
@@ -195,8 +196,8 @@ void VulkanRenderer::SetWindowTitle(const std::string& title) const {
     }
 }
 
-void VulkanRenderer::DrawFPSOverlay(float fps) {
-    GF_LOG_INFO("FPS: " + std::to_string(fps));
+void VulkanRenderer::DrawFPSOverlay(float fps, const std::string& day_night_text) {
+    GF_LOG_INFO("FPS: " + std::to_string(fps) + " | " + day_night_text);
 }
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
@@ -1589,7 +1590,8 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     render_pass_begin_info.renderArea.offset = {0, 0};
     render_pass_begin_info.renderArea.extent = swap_chain_extent_;
 
-    VkClearValue clear_color = {{{0.05F, 0.06F, 0.10F, 1.0F}}};
+    const glm::vec3 normalized_sky = glm::clamp(scene.directional_light.color, glm::vec3(0.0F), glm::vec3(1.0F));
+    VkClearValue clear_color = {{{normalized_sky.r, normalized_sky.g, normalized_sky.b, 1.0F}}};
     render_pass_begin_info.clearValueCount = 1;
     render_pass_begin_info.pClearValues = &clear_color;
 
@@ -1599,8 +1601,9 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
     PerFramePushConstants per_frame_push{};
     per_frame_push.view_proj = view_proj;
-    per_frame_push.light_dir = glm::vec4(glm::normalize(glm::vec3(0.8F, 0.45F, 0.2F)), 0.0F);
-    per_frame_push.light_color = glm::vec4(1.0F, 0.98F, 0.92F, 1.0F);
+    per_frame_push.light_dir = glm::vec4(glm::normalize(scene.directional_light.direction), 0.0F);
+    const glm::vec3 light_color = scene.directional_light.color * scene.directional_light.intensity;
+    per_frame_push.light_color = glm::vec4(light_color, 1.0F);
 
     vkCmdPushConstants(
         command_buffers_[image_index],

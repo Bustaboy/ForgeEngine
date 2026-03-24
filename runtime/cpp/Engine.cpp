@@ -24,7 +24,6 @@ void Engine::Run() {
 
     while (!renderer_.ShouldClose()) {
         timer_.BeginFrame();
-        renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()));
         renderer_.PollEvents();
         input.BeginFrame();
 
@@ -51,9 +50,12 @@ void Engine::Run() {
         renderer_.RenderFrame(scene_, camera_);
 
         if (timer_.ShouldUpdateFps()) {
+            const std::string day_clock = timer_.DayClockText(scene_.day_progress, scene_.day_count);
+            renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()), day_clock);
             renderer_.SetWindowTitle(
                 "ForgeEngine Runtime (Vulkan-first) | FPS: " + std::to_string(timer_.Fps()) +
-                " | Frame: " + timer_.FrameTimeMsText() + "ms");
+                " | Frame: " + timer_.FrameTimeMsText() + "ms | " + day_clock);
+            GF_LOG_INFO("Day time: " + std::to_string(scene_.day_progress));
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -133,6 +135,9 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
 void Engine::SeedFallbackScene() {
     scene_.entities.clear();
     scene_.elapsed_seconds = 0.0F;
+    scene_.day_progress = 0.25F;
+    scene_.day_cycle_speed = 0.01F;
+    scene_.day_count = 1;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
     constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};

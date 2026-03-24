@@ -9,6 +9,7 @@ layout(push_constant, std430) uniform PushConstants {
 } pc;
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec3 outNormal;
 
 vec2 kQuadVertices[6] = vec2[](
     vec2(-0.5, -0.5),
@@ -24,4 +25,6 @@ void main() {
     vec4 worldPos = pc.model * vec4(localPos, 0.0, 1.0);
     gl_Position = pc.viewProj * worldPos;
     outColor = pc.color;
+    mat3 normalMatrix = mat3(transpose(inverse(pc.model)));
+    outNormal = normalize(normalMatrix * vec3(0.0, 1.0, 0.0));
 }

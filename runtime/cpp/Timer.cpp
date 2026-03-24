@@ -1,6 +1,8 @@
 #include "Timer.h"
 
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -37,4 +39,17 @@ int Timer::Fps() const {
 
 const std::string& Timer::FrameTimeMsText() const {
     return frame_time_ms_;
+}
+
+std::string Timer::DayClockText(float day_progress, std::uint32_t day_count) const {
+    constexpr int kMinutesPerDay = 24 * 60;
+    const float wrapped_day_progress = day_progress - std::floor(day_progress);
+    const int total_minutes = static_cast<int>(std::floor(wrapped_day_progress * static_cast<float>(kMinutesPerDay)));
+    const int hours = (total_minutes / 60) % 24;
+    const int minutes = total_minutes % 60;
+
+    std::ostringstream stream;
+    stream << "Day " << std::max(1U, day_count) << " - " << std::setw(2) << std::setfill('0') << hours
+           << ":" << std::setw(2) << std::setfill('0') << minutes;
+    return stream.str();
 }

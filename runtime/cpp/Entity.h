@@ -21,3 +21,9 @@ struct Entity {
     Renderable renderable{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
 };
+
+struct DirectionalLight {
+    glm::vec3 direction{0.0F, -1.0F, 0.0F};
+    glm::vec3 color{1.0F, 1.0F, 1.0F};
+    float intensity = 1.0F;
+};

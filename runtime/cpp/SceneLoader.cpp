@@ -1,12 +1,8 @@
 #include "SceneLoader.h"
 
 #include "Logger.h"
-#include "templates/generated_gameplay.h"
-
-#include <cmath>
-#include <cstddef>
 #include <fstream>
-
+#include <algorithm>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -35,6 +31,10 @@ glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
     value.z = node.value("z", fallback.z);
     value.w = node.value("w", fallback.w);
     return value;
+}
+
+float Clamp01(float value) {
+    return std::clamp(value, 0.0F, 1.0F);
 }
 
 json EntityToJson(const Entity& entity) {
@@ -79,6 +79,14 @@ Entity EntityFromJson(const json& node) {
 
     return entity;
 }
+
+json DirectionalLightToJson(const DirectionalLight& light) {
+    return json{
+        {"direction", Vec3ToJson(light.direction)},
+        {"color", Vec3ToJson(light.color)},
+        {"intensity", light.intensity},
+    };
+}
 }  // namespace
 
 bool SceneLoader::Load(const std::string& path, Scene& scene) {
@@ -108,7 +116,23 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
-    scene.elapsed_seconds = 0.0F;
+    scene.elapsed_seconds = document.value("elapsed_seconds", 0.0F);
+    scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
+    scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
+    scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+
+    if (document.contains("directional_light") && document["directional_light"].is_object()) {
+        const json& light = document["directional_light"];
+        if (light.contains("direction") && light["direction"].is_object()) {
+            scene.directional_light.direction = Vec3FromJson(light["direction"], scene.directional_light.direction);
+        }
+        if (light.contains("color") && light["color"].is_object()) {
+            scene.directional_light.color = Vec3FromJson(light["color"], scene.directional_light.color);
+        }
+        scene.directional_light.intensity = light.value("intensity", scene.directional_light.intensity);
+    }
+
+    scene.Update(0.0F);
     return true;
 }
 
@@ -120,6 +144,11 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     for (const Entity& entity : scene.entities) {
         document["entities"].push_back(EntityToJson(entity));
     }
+    document["elapsed_seconds"] = scene.elapsed_seconds;
+    document["day_progress"] = scene.day_progress;
+    document["day_cycle_speed"] = scene.day_cycle_speed;
+    document["day_count"] = scene.day_count;
+    document["directional_light"] = DirectionalLightToJson(scene.directional_light);
 
     std::ofstream file(path);
     if (!file.is_open()) {
@@ -128,39 +157,4 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
 
     file << document.dump(4) << '\n';
     return true;
-}
-
-void Scene::Update(float dt_seconds) {
-    elapsed_seconds += dt_seconds;
-
-    for (std::size_t i = 0; i < entities.size(); ++i) {
-        Entity& entity = entities[i];
-
-        entity.transform.pos += entity.velocity * dt_seconds;
-        entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * dt_seconds;
-        entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
-
-        if (entity.transform.pos.x > 1.2F) {
-            entity.transform.pos.x = -1.2F;
-        }
-
-        const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
-        const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.1F + static_cast<float>(i) * 0.07F));
-        const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.3F + static_cast<float>(i) * 0.05F));
-
-        entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
-        entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
-        entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
-        entity.renderable.color.a = 1.0F;
-    }
-
-    UpdateGameplay(*this, dt_seconds);
-}
-
-bool Scene::Save(const std::string& path) const {
-    return SceneLoader::Save(path, *this);
-}
-
-bool Scene::Load(const std::string& path) {
-    return SceneLoader::Load(path, *this);
 }

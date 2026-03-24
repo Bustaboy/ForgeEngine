@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
 class Timer {
 public:
@@ -8,6 +9,7 @@ public:
     [[nodiscard]] bool ShouldUpdateFps() const;
     [[nodiscard]] int Fps() const;
     [[nodiscard]] const std::string& FrameTimeMsText() const;
+    [[nodiscard]] std::string DayClockText(float day_progress, std::uint32_t day_count) const;
 
 private:
     double second_accumulator_ = 0.0;
