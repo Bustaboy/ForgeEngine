@@ -4,6 +4,7 @@
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "SceneLoader.h"
+#include "BuildingSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -19,6 +20,38 @@
 #include <thread>
 
 namespace {
+bool TryComputeCursorRay(GLFWwindow* window, const Camera& camera, glm::vec3& out_ray_direction) {
+    int framebuffer_width = 0;
+    int framebuffer_height = 0;
+    glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+    if (framebuffer_width <= 0 || framebuffer_height <= 0) {
+        return false;
+    }
+
+    double cursor_x = 0.0;
+    double cursor_y = 0.0;
+    glfwGetCursorPos(window, &cursor_x, &cursor_y);
+
+    const float ndc_x = (2.0F * static_cast<float>(cursor_x)) / static_cast<float>(framebuffer_width) - 1.0F;
+    const float ndc_y = 1.0F - (2.0F * static_cast<float>(cursor_y)) / static_cast<float>(framebuffer_height);
+    const glm::mat4 inverse_view_projection = glm::inverse(camera.GetProjectionMatrix() * camera.GetViewMatrix());
+    const glm::vec4 near_world = inverse_view_projection * glm::vec4(ndc_x, ndc_y, 0.0F, 1.0F);
+    const glm::vec4 far_world = inverse_view_projection * glm::vec4(ndc_x, ndc_y, 1.0F, 1.0F);
+    if (near_world.w == 0.0F || far_world.w == 0.0F) {
+        return false;
+    }
+
+    const glm::vec3 near_point = glm::vec3(near_world) / near_world.w;
+    const glm::vec3 far_point = glm::vec3(far_world) / far_world.w;
+    glm::vec3 ray_direction = far_point - near_point;
+    if (glm::dot(ray_direction, ray_direction) <= 0.0F) {
+        return false;
+    }
+
+    out_ray_direction = glm::normalize(ray_direction);
+    return true;
+}
+
 void ProcessConsoleCommands(Scene& scene) {
     std::streambuf* input_buffer = std::cin.rdbuf();
     if (input_buffer == nullptr || input_buffer->in_avail() <= 0) {
@@ -208,33 +241,18 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     was_build_toggle_pressed_ = build_toggle_pressed;
 
     const bool left_mouse_pressed = glfwGetMouseButton(renderer_.GetWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    glm::vec3 build_ray_direction{0.0F, 0.0F, 0.0F};
+    const bool has_build_ray = scene_.build_mode_enabled && TryComputeCursorRay(renderer_.GetWindow(), camera_, build_ray_direction);
+    if (has_build_ray) {
+        UpdateGhostPreview(scene_, camera_.position, build_ray_direction);
+    } else {
+        scene_.build_ghost_preview.reset();
+    }
+
     if (left_mouse_pressed && !was_left_mouse_pressed_ && scene_.build_mode_enabled) {
-        int framebuffer_width = 0;
-        int framebuffer_height = 0;
-        glfwGetFramebufferSize(renderer_.GetWindow(), &framebuffer_width, &framebuffer_height);
-
-        if (framebuffer_width > 0 && framebuffer_height > 0) {
-            double cursor_x = 0.0;
-            double cursor_y = 0.0;
-            glfwGetCursorPos(renderer_.GetWindow(), &cursor_x, &cursor_y);
-
-            const float ndc_x = (2.0F * static_cast<float>(cursor_x)) / static_cast<float>(framebuffer_width) - 1.0F;
-            const float ndc_y = 1.0F - (2.0F * static_cast<float>(cursor_y)) / static_cast<float>(framebuffer_height);
-
-            const glm::mat4 inverse_view_projection = glm::inverse(camera_.GetProjectionMatrix() * camera_.GetViewMatrix());
-            const glm::vec4 near_world = inverse_view_projection * glm::vec4(ndc_x, ndc_y, 0.0F, 1.0F);
-            const glm::vec4 far_world = inverse_view_projection * glm::vec4(ndc_x, ndc_y, 1.0F, 1.0F);
-
-            if (near_world.w != 0.0F && far_world.w != 0.0F) {
-                const glm::vec3 near_point = glm::vec3(near_world) / near_world.w;
-                const glm::vec3 far_point = glm::vec3(far_world) / far_world.w;
-                glm::vec3 ray_direction = far_point - near_point;
-                if (glm::dot(ray_direction, ray_direction) > 0.0F) {
-                    ray_direction = glm::normalize(ray_direction);
-                    const bool placed = scene_.TryPlaceBuildingFromRay(camera_.position, ray_direction);
-                    GF_LOG_INFO(placed ? "Placed building." : "Building placement blocked.");
-                }
-            }
+        if (has_build_ray) {
+            const bool placed = scene_.TryPlaceBuildingFromRay(camera_.position, build_ray_direction);
+            GF_LOG_INFO(placed ? "Placed building." : "Building placement blocked.");
         }
     }
     was_left_mouse_pressed_ = left_mouse_pressed;

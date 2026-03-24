@@ -107,48 +107,18 @@ void Scene::Update(float dt_seconds) {
 
 bool Scene::ToggleBuildMode() {
     build_mode_enabled = !build_mode_enabled;
+    if (!build_mode_enabled) {
+        build_ghost_preview.reset();
+    }
     return build_mode_enabled;
 }
 
+std::optional<Entity> Scene::GetBuildGhostPreviewFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction) const {
+    return GetGhostPreview(*this, ray_origin, ray_direction);
+}
+
 bool Scene::TryPlaceBuildingFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction) {
-    if (!build_mode_enabled) {
-        return false;
-    }
-
-    constexpr float kGroundY = 0.0F;
-    constexpr float kEpsilon = 1e-5F;
-    if (std::abs(ray_direction.y) < kEpsilon) {
-        return false;
-    }
-
-    const float t = (kGroundY - ray_origin.y) / ray_direction.y;
-    if (t <= 0.0F || t > 1000.0F || !std::isfinite(t)) {
-        return false;
-    }
-
-    const glm::vec3 hit_point = ray_origin + ray_direction * t;
-    Entity candidate{};
-    const BuildTemplate build_template = SelectBuildTemplate(*this);
-    candidate.id = NextEntityId(*this);
-    candidate.transform.pos = {
-        std::round(hit_point.x),
-        kGroundY,
-        std::round(hit_point.z),
-    };
-    candidate.transform.scale = build_template.world_scale;
-    candidate.renderable.color = build_template.color;
-    candidate.velocity = {0.0F, 0.0F, 0.0F};
-    candidate.buildable.type = build_template.type;
-    candidate.buildable.grid_size = build_template.grid_size;
-
-    for (const Entity& existing : entities) {
-        if (OverlapsOnGroundXZ(candidate, existing)) {
-            return false;
-        }
-    }
-
-    entities.push_back(candidate);
-    return true;
+    return ::TryPlaceBuildingFromRay(*this, ray_origin, ray_direction);
 }
 
 bool Scene::Save(const std::string& path) const {
