@@ -7,11 +7,14 @@
 
 #include <string>
 #include <cstdint>
+#include <map>
 #include <vector>
 
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
+    std::map<std::uint64_t, float> npc_relationships{};
+    std::uint64_t active_dialog_npc_id = 0;
     float elapsed_seconds = 0.0F;
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;
