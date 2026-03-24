@@ -14,12 +14,14 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabDialogs = "Dialogs";
     private const string SystemTabAi = "AI";
     private const string SystemTabCoCreator = "CoCreator";
+    private const string SystemTabStory = "Story";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
     private BuildingPanelState _buildings = new();
     private InventoryRecipesPanelState _inventoryRecipes = new();
     private DialogPanelState _dialogs = new();
+    private StoryPanelState _storyPanel = new();
     private readonly List<string> _aiCommandLog = [];
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
@@ -61,6 +63,21 @@ public sealed partial class MainWindowViewModel
     private string _coCreatorStatus = "Live suggestions idle.";
     private string _economySummary = "Economy unavailable.";
     private string _tradeRouteSummary = "No trade routes loaded.";
+    private string _storyLoreEditor = "";
+    private string _storyNpcEditor = "";
+    private string _storyEventsEditor = "";
+    private string _storyFactionNotesEditor = "";
+    private string _storyBeatIdEditor = "beat_new";
+    private string _storyBeatTitleEditor = "New Beat";
+    private string _storyBeatSummaryEditor = "Summary";
+    private string _storyEventIdEditor = "event_new";
+    private string _storyEventTitleEditor = "New Story Event";
+    private string _storyEventBeatIdEditor = "beat_new";
+    private string _storyRippleTypeEditor = "faction_reputation";
+    private string _storyRippleTargetEditor = "guild_builders";
+    private string _storyRippleDimensionEditor = "";
+    private float _storyRippleValueEditor = 5f;
+    private string _storyStatus = "Story tools ready.";
 
     public string ActiveSystemTab
     {
@@ -80,6 +97,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsDialogsTabActive));
             OnPropertyChanged(nameof(IsAiTabActive));
             OnPropertyChanged(nameof(IsCoCreatorTabActive));
+            OnPropertyChanged(nameof(IsStoryTabActive));
         }
     }
 
@@ -89,6 +107,7 @@ public sealed partial class MainWindowViewModel
     public bool IsDialogsTabActive => string.Equals(ActiveSystemTab, SystemTabDialogs, StringComparison.Ordinal);
     public bool IsAiTabActive => string.Equals(ActiveSystemTab, SystemTabAi, StringComparison.Ordinal);
     public bool IsCoCreatorTabActive => string.Equals(ActiveSystemTab, SystemTabCoCreator, StringComparison.Ordinal);
+    public bool IsStoryTabActive => string.Equals(ActiveSystemTab, SystemTabStory, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -385,6 +404,22 @@ public sealed partial class MainWindowViewModel
     public string CoCreatorWhyThisFits => SelectedCoCreatorSuggestion?.WhyThisFits ?? "Pick a suggestion to see the rationale.";
     public string EconomySummary { get => _economySummary; private set { _economySummary = value; OnPropertyChanged(); } }
     public string TradeRouteSummary { get => _tradeRouteSummary; private set { _tradeRouteSummary = value; OnPropertyChanged(); } }
+    public string StoryLoreEditor { get => _storyLoreEditor; set { _storyLoreEditor = value; OnPropertyChanged(); } }
+    public string StoryNpcEditor { get => _storyNpcEditor; set { _storyNpcEditor = value; OnPropertyChanged(); } }
+    public string StoryEventsEditor { get => _storyEventsEditor; set { _storyEventsEditor = value; OnPropertyChanged(); } }
+    public string StoryFactionNotesEditor { get => _storyFactionNotesEditor; set { _storyFactionNotesEditor = value; OnPropertyChanged(); } }
+    public string StoryBeatIdEditor { get => _storyBeatIdEditor; set { _storyBeatIdEditor = value; OnPropertyChanged(); } }
+    public string StoryBeatTitleEditor { get => _storyBeatTitleEditor; set { _storyBeatTitleEditor = value; OnPropertyChanged(); } }
+    public string StoryBeatSummaryEditor { get => _storyBeatSummaryEditor; set { _storyBeatSummaryEditor = value; OnPropertyChanged(); } }
+    public string StoryEventIdEditor { get => _storyEventIdEditor; set { _storyEventIdEditor = value; OnPropertyChanged(); } }
+    public string StoryEventTitleEditor { get => _storyEventTitleEditor; set { _storyEventTitleEditor = value; OnPropertyChanged(); } }
+    public string StoryEventBeatIdEditor { get => _storyEventBeatIdEditor; set { _storyEventBeatIdEditor = value; OnPropertyChanged(); } }
+    public string StoryRippleTypeEditor { get => _storyRippleTypeEditor; set { _storyRippleTypeEditor = value; OnPropertyChanged(); } }
+    public string StoryRippleTargetEditor { get => _storyRippleTargetEditor; set { _storyRippleTargetEditor = value; OnPropertyChanged(); } }
+    public string StoryRippleDimensionEditor { get => _storyRippleDimensionEditor; set { _storyRippleDimensionEditor = value; OnPropertyChanged(); } }
+    public float StoryRippleValueEditor { get => _storyRippleValueEditor; set { _storyRippleValueEditor = value; OnPropertyChanged(); } }
+    public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
+    public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
 
     public void SetSystemTab(string tab)
     {
@@ -662,6 +697,91 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task SaveStoryBibleAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Story Bible updated",
+            root =>
+            {
+                var story = root["story"] as JsonObject ?? new JsonObject();
+                root["story"] = story;
+                story["lore_entries"] = ParseSimpleBibleEntries(StoryLoreEditor, "lore");
+                story["major_npcs"] = ParseSimpleBibleEntries(StoryNpcEditor, "npc");
+                story["key_events"] = ParseSimpleBibleEntries(StoryEventsEditor, "event");
+                story["faction_notes"] = ParseSimpleBibleEntries(StoryFactionNotesEditor, "faction");
+                StoryStatus = "Story Bible saved to scene.";
+                return true;
+            },
+            cancellationToken);
+
+    public async Task UpsertStoryBeatAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Story beat updated",
+            root =>
+            {
+                if (string.IsNullOrWhiteSpace(StoryBeatIdEditor))
+                {
+                    return false;
+                }
+                var story = root["story"] as JsonObject ?? new JsonObject();
+                root["story"] = story;
+                var beats = story["campaign_beats"] as JsonArray ?? new JsonArray();
+                story["campaign_beats"] = beats;
+                var beatId = StoryBeatIdEditor.Trim();
+                var existing = beats.OfType<JsonObject>()
+                    .FirstOrDefault(node => string.Equals(node["id"]?.GetValue<string>(), beatId, StringComparison.Ordinal));
+                if (existing is null)
+                {
+                    existing = new JsonObject();
+                    beats.Add(existing);
+                }
+                existing["id"] = beatId;
+                existing["title"] = string.IsNullOrWhiteSpace(StoryBeatTitleEditor) ? beatId : StoryBeatTitleEditor.Trim();
+                existing["summary"] = StoryBeatSummaryEditor.Trim();
+                existing["completed"] = existing["completed"]?.GetValue<bool>() ?? false;
+                existing["next_ids"] = existing["next_ids"] as JsonArray ?? new JsonArray();
+                StoryStatus = $"Beat '{beatId}' saved.";
+                return true;
+            },
+            cancellationToken);
+
+    public async Task QueueStoryEventAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Story event queued",
+            root =>
+            {
+                if (string.IsNullOrWhiteSpace(StoryEventIdEditor))
+                {
+                    return false;
+                }
+                var story = root["story"] as JsonObject ?? new JsonObject();
+                root["story"] = story;
+                var pending = story["pending_events"] as JsonArray ?? new JsonArray();
+                story["pending_events"] = pending;
+                var eventNode = new JsonObject
+                {
+                    ["event_id"] = StoryEventIdEditor.Trim(),
+                    ["beat_id"] = StoryEventBeatIdEditor.Trim(),
+                    ["title"] = string.IsNullOrWhiteSpace(StoryEventTitleEditor) ? StoryEventIdEditor.Trim() : StoryEventTitleEditor.Trim(),
+                    ["summary"] = StoryEventTitleEditor.Trim(),
+                    ["applied"] = false,
+                    ["ripples"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = StoryRippleTypeEditor.Trim(),
+                            ["target_id"] = StoryRippleTargetEditor.Trim(),
+                            ["dimension"] = StoryRippleDimensionEditor.Trim(),
+                            ["value"] = StoryRippleValueEditor,
+                            ["reason"] = "story_event",
+                        },
+                    },
+                };
+                pending.Add(eventNode);
+                StoryStatus = $"Queued story event '{StoryEventIdEditor.Trim()}' with ripple.";
+                return true;
+            },
+            cancellationToken);
+
     public async Task RefreshCoCreatorSuggestionsAsync(CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
@@ -773,6 +893,52 @@ public sealed partial class MainWindowViewModel
                         requiredRelationshipDimension,
                         minRequiredRelationship);
                 }
+                if (string.Equals(mutationType, "story_add_beat", StringComparison.Ordinal))
+                {
+                    var story = root["story"] as JsonObject ?? new JsonObject();
+                    root["story"] = story;
+                    var beats = story["campaign_beats"] as JsonArray ?? new JsonArray();
+                    story["campaign_beats"] = beats;
+                    beats.Add(new JsonObject
+                    {
+                        ["id"] = selected.Mutation["beat_id"]?.GetValue<string>() ?? $"beat_{Guid.NewGuid():N}",
+                        ["title"] = selected.Mutation["title"]?.GetValue<string>() ?? "AI Suggested Beat",
+                        ["summary"] = selected.Mutation["summary"]?.GetValue<string>() ?? "Suggested by AI co-creator.",
+                        ["completed"] = false,
+                        ["next_ids"] = new JsonArray(),
+                    });
+                    return true;
+                }
+                if (string.Equals(mutationType, "story_add_event", StringComparison.Ordinal))
+                {
+                    var story = root["story"] as JsonObject ?? new JsonObject();
+                    root["story"] = story;
+                    var pending = story["pending_events"] as JsonArray ?? new JsonArray();
+                    story["pending_events"] = pending;
+                    var rippleType = selected.Mutation["ripple_type"]?.GetValue<string>() ?? "faction_reputation";
+                    var rippleTarget = selected.Mutation["ripple_target"]?.GetValue<string>() ?? "guild_builders";
+                    var rippleValue = selected.Mutation["ripple_value"]?.GetValue<float>() ?? 4f;
+                    pending.Add(new JsonObject
+                    {
+                        ["event_id"] = selected.Mutation["event_id"]?.GetValue<string>() ?? $"event_{Guid.NewGuid():N}",
+                        ["beat_id"] = selected.Mutation["beat_id"]?.GetValue<string>() ?? string.Empty,
+                        ["title"] = selected.Mutation["title"]?.GetValue<string>() ?? "AI Story Event",
+                        ["summary"] = selected.Mutation["summary"]?.GetValue<string>() ?? "AI suggested event pending user approval.",
+                        ["applied"] = false,
+                        ["ripples"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["type"] = rippleType,
+                                ["target_id"] = rippleTarget,
+                                ["dimension"] = selected.Mutation["ripple_dimension"]?.GetValue<string>() ?? string.Empty,
+                                ["value"] = rippleValue,
+                                ["reason"] = "ai_story_suggestion",
+                            },
+                        },
+                    });
+                    return true;
+                }
                 return false;
             },
             cancellationToken);
@@ -859,8 +1025,16 @@ public sealed partial class MainWindowViewModel
             _buildings = BuildingPanelState.FromScene(root);
             _inventoryRecipes = InventoryRecipesPanelState.FromScene(root);
             _dialogs = DialogPanelState.FromScene(root);
+            _storyPanel = StoryPanelState.FromScene(root);
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
+            if (root["story"] is JsonObject story)
+            {
+                StoryLoreEditor = FlattenBibleEntries(story["lore_entries"] as JsonArray);
+                StoryNpcEditor = FlattenBibleEntries(story["major_npcs"] as JsonArray);
+                StoryEventsEditor = FlattenBibleEntries(story["key_events"] as JsonArray);
+                StoryFactionNotesEditor = FlattenBibleEntries(story["faction_notes"] as JsonArray);
+            }
             if (root["player_reputation"] is JsonObject reputation)
             {
                 var lines = reputation
@@ -978,6 +1152,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(PlayerInventorySummary));
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
+            OnPropertyChanged(nameof(StoryBeats));
             OnPropertyChanged(nameof(FactionStatusSummary));
             OnPropertyChanged(nameof(RelationshipStatusSummary));
             OnPropertyChanged(nameof(EconomySummary));
@@ -1015,6 +1190,40 @@ public sealed partial class MainWindowViewModel
                 return TryAppendDialogBranch(root, npcId, branchText, choiceText, "editor_evolve_button", factionId, tone == "guarded" ? -10f : -100f, 1f, string.Empty, -100f);
             },
             cancellationToken);
+
+    private static JsonArray ParseSimpleBibleEntries(string rawText, string idPrefix)
+    {
+        var output = new JsonArray();
+        var lines = rawText
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            output.Add(new JsonObject
+            {
+                ["id"] = $"{idPrefix}_{index + 1}",
+                ["title"] = line,
+                ["summary"] = line,
+                ["tags"] = new JsonArray(),
+            });
+        }
+        return output;
+    }
+
+    private static string FlattenBibleEntries(JsonArray? entries)
+    {
+        if (entries is null)
+        {
+            return string.Empty;
+        }
+        var lines = entries.OfType<JsonObject>()
+            .Select(node => node["title"]?.GetValue<string>() ?? node["summary"]?.GetValue<string>() ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+        return lines.Length == 0 ? string.Empty : string.Join(Environment.NewLine, lines);
+    }
 
     private static bool TryAppendDialogBranch(
         JsonObject root,

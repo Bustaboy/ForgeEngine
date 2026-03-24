@@ -27,6 +27,7 @@
     <Compile Update="EditorShell/EditorSystems/DialogPanel.cs" />
     <Compile Update="EditorShell/EditorSystems/AiOrchestrationPanel.cs" />
     <Compile Update="EditorShell/EditorSystems/CoCreatorPanel.cs" />
+    <Compile Update="EditorShell/EditorSystems/StoryPanel.cs" />
     <Compile Update="EditorShell/ViewModels/MainWindowViewModel.EditorSystems.cs" />
   </ItemGroup>
 </Project>

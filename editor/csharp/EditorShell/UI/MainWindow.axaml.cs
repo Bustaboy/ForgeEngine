@@ -1195,6 +1195,21 @@ public partial class MainWindow : Window
         await _viewModel.AdjustFactionReputationAsync(-1f);
     }
 
+    private async void OnSaveStoryBibleClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveStoryBibleAsync();
+    }
+
+    private async void OnUpsertStoryBeatClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.UpsertStoryBeatAsync();
+    }
+
+    private async void OnQueueStoryEventClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.QueueStoryEventAsync();
+    }
+
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
     {
         var wizard = new NewProjectWizardWindow(_viewModel.EditorDefaultTemplateId);

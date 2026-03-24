@@ -88,6 +88,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/SceneLoader.cpp
     runtime/cpp/CoCreatorSystem.cpp
     runtime/cpp/RelationshipSystem.cpp
+    runtime/cpp/StorySystem.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
@@ -160,6 +161,7 @@ set(FORGE_EDITOR_CS_SOURCES
     editor/csharp/EditorShell/EditorSystems/DialogPanel.cs
     editor/csharp/EditorShell/EditorSystems/AiOrchestrationPanel.cs
     editor/csharp/EditorShell/EditorSystems/CoCreatorPanel.cs
+    editor/csharp/EditorShell/EditorSystems/StoryPanel.cs
     editor/csharp/EditorShell/ViewModels/MainWindowViewModel.EditorSystems.cs
 )
 

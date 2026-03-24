@@ -586,6 +586,116 @@ NpcNavigationState NpcNavigationStateFromJson(const json& node) {
     return navigation;
 }
 
+json StoryBibleEntryToJson(const StoryBibleEntry& entry) {
+    json node = json{
+        {"id", entry.id},
+        {"title", entry.title},
+        {"summary", entry.summary},
+        {"tags", json::array()},
+    };
+    for (const std::string& tag : entry.tags) {
+        node["tags"].push_back(tag);
+    }
+    return node;
+}
+
+StoryBibleEntry StoryBibleEntryFromJson(const json& node) {
+    StoryBibleEntry entry{};
+    entry.id = node.value("id", entry.id);
+    entry.title = node.value("title", entry.title);
+    entry.summary = node.value("summary", entry.summary);
+    if (node.contains("tags") && node["tags"].is_array()) {
+        for (const json& tag_node : node["tags"]) {
+            if (tag_node.is_string()) {
+                entry.tags.push_back(tag_node.get<std::string>());
+            }
+        }
+    }
+    return entry;
+}
+
+json StoryBeatToJson(const StoryBeat& beat) {
+    json node = json{
+        {"id", beat.id},
+        {"title", beat.title},
+        {"summary", beat.summary},
+        {"completed", beat.completed},
+        {"next_ids", json::array()},
+    };
+    for (const std::string& next_id : beat.next_ids) {
+        node["next_ids"].push_back(next_id);
+    }
+    return node;
+}
+
+StoryBeat StoryBeatFromJson(const json& node) {
+    StoryBeat beat{};
+    beat.id = node.value("id", beat.id);
+    beat.title = node.value("title", beat.title);
+    beat.summary = node.value("summary", beat.summary);
+    beat.completed = node.value("completed", beat.completed);
+    if (node.contains("next_ids") && node["next_ids"].is_array()) {
+        for (const json& next_id_node : node["next_ids"]) {
+            if (next_id_node.is_string()) {
+                beat.next_ids.push_back(next_id_node.get<std::string>());
+            }
+        }
+    }
+    return beat;
+}
+
+json StoryRippleToJson(const StoryRipple& ripple) {
+    return json{
+        {"type", ripple.type},
+        {"target_id", ripple.target_id},
+        {"dimension", ripple.dimension},
+        {"value", ripple.value},
+        {"reason", ripple.reason},
+    };
+}
+
+StoryRipple StoryRippleFromJson(const json& node) {
+    StoryRipple ripple{};
+    ripple.type = node.value("type", ripple.type);
+    ripple.target_id = node.value("target_id", ripple.target_id);
+    ripple.dimension = node.value("dimension", ripple.dimension);
+    ripple.value = node.value("value", ripple.value);
+    ripple.reason = node.value("reason", ripple.reason);
+    return ripple;
+}
+
+json StoryEventToJson(const StoryEvent& event) {
+    json node = json{
+        {"event_id", event.event_id},
+        {"beat_id", event.beat_id},
+        {"title", event.title},
+        {"summary", event.summary},
+        {"applied", event.applied},
+        {"ripples", json::array()},
+    };
+    for (const StoryRipple& ripple : event.ripples) {
+        node["ripples"].push_back(StoryRippleToJson(ripple));
+    }
+    return node;
+}
+
+StoryEvent StoryEventFromJson(const json& node) {
+    StoryEvent event{};
+    event.event_id = node.value("event_id", event.event_id);
+    event.beat_id = node.value("beat_id", event.beat_id);
+    event.title = node.value("title", event.title);
+    event.summary = node.value("summary", event.summary);
+    event.applied = node.value("applied", event.applied);
+    if (node.contains("ripples") && node["ripples"].is_array()) {
+        for (const json& ripple_node : node["ripples"]) {
+            if (ripple_node.is_object()) {
+                event.ripples.push_back(StoryRippleFromJson(ripple_node));
+            }
+        }
+    }
+    return event;
+}
+
 json NavmeshToJson(const NavmeshData& navmesh) {
     return json{
         {"cell_size", navmesh.cell_size},
@@ -817,6 +927,59 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             scene.co_creator_queue.push_back(CoCreatorMutationFromJson(mutation_node));
         }
     }
+    scene.story = StoryState{};
+    if (document.contains("story") && document["story"].is_object()) {
+        const json& story = document["story"];
+        if (story.contains("lore_entries") && story["lore_entries"].is_array()) {
+            for (const json& node : story["lore_entries"]) {
+                if (node.is_object()) {
+                    scene.story.lore_entries.push_back(StoryBibleEntryFromJson(node));
+                }
+            }
+        }
+        if (story.contains("major_npcs") && story["major_npcs"].is_array()) {
+            for (const json& node : story["major_npcs"]) {
+                if (node.is_object()) {
+                    scene.story.major_npcs.push_back(StoryBibleEntryFromJson(node));
+                }
+            }
+        }
+        if (story.contains("key_events") && story["key_events"].is_array()) {
+            for (const json& node : story["key_events"]) {
+                if (node.is_object()) {
+                    scene.story.key_events.push_back(StoryBibleEntryFromJson(node));
+                }
+            }
+        }
+        if (story.contains("faction_notes") && story["faction_notes"].is_array()) {
+            for (const json& node : story["faction_notes"]) {
+                if (node.is_object()) {
+                    scene.story.faction_notes.push_back(StoryBibleEntryFromJson(node));
+                }
+            }
+        }
+        if (story.contains("campaign_beats") && story["campaign_beats"].is_array()) {
+            for (const json& node : story["campaign_beats"]) {
+                if (node.is_object()) {
+                    scene.story.campaign_beats.push_back(StoryBeatFromJson(node));
+                }
+            }
+        }
+        if (story.contains("pending_events") && story["pending_events"].is_array()) {
+            for (const json& node : story["pending_events"]) {
+                if (node.is_object()) {
+                    scene.story.pending_events.push_back(StoryEventFromJson(node));
+                }
+            }
+        }
+        if (story.contains("event_history") && story["event_history"].is_array()) {
+            for (const json& node : story["event_history"]) {
+                if (node.is_string()) {
+                    scene.story.event_history.push_back(node.get<std::string>());
+                }
+            }
+        }
+    }
 
     scene.Update(0.0F);
     return true;
@@ -891,6 +1054,36 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     for (const CoCreatorQueuedMutation& mutation : scene.co_creator_queue) {
         document["co_creator_queue"].push_back(CoCreatorMutationToJson(mutation));
     }
+    json story = json::object();
+    story["lore_entries"] = json::array();
+    for (const StoryBibleEntry& entry : scene.story.lore_entries) {
+        story["lore_entries"].push_back(StoryBibleEntryToJson(entry));
+    }
+    story["major_npcs"] = json::array();
+    for (const StoryBibleEntry& entry : scene.story.major_npcs) {
+        story["major_npcs"].push_back(StoryBibleEntryToJson(entry));
+    }
+    story["key_events"] = json::array();
+    for (const StoryBibleEntry& entry : scene.story.key_events) {
+        story["key_events"].push_back(StoryBibleEntryToJson(entry));
+    }
+    story["faction_notes"] = json::array();
+    for (const StoryBibleEntry& entry : scene.story.faction_notes) {
+        story["faction_notes"].push_back(StoryBibleEntryToJson(entry));
+    }
+    story["campaign_beats"] = json::array();
+    for (const StoryBeat& beat : scene.story.campaign_beats) {
+        story["campaign_beats"].push_back(StoryBeatToJson(beat));
+    }
+    story["pending_events"] = json::array();
+    for (const StoryEvent& event : scene.story.pending_events) {
+        story["pending_events"].push_back(StoryEventToJson(event));
+    }
+    story["event_history"] = json::array();
+    for (const std::string& event_id : scene.story.event_history) {
+        story["event_history"].push_back(event_id);
+    }
+    document["story"] = story;
 
     std::ofstream file(path);
     if (!file.is_open()) {

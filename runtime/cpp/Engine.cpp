@@ -9,6 +9,7 @@
 #include "CoCreatorSystem.h"
 #include "RelationshipSystem.h"
 #include "SceneLoader.h"
+#include "StorySystem.h"
 #include "BuildingSystem.h"
 
 #include <GLFW/glfw3.h>
@@ -265,7 +266,19 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade");
+    if (command == "/story_event") {
+        std::string event_id;
+        parser >> event_id;
+        if (event_id.empty()) {
+            GF_LOG_INFO("Usage: /story_event <event_id>");
+            return;
+        }
+        const bool applied = StorySystem::TriggerEventById(scene, event_id.c_str());
+        GF_LOG_INFO(applied ? ("Story event triggered: " + event_id) : ("Story event not found/applied: " + event_id));
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event");
 }
 }  // namespace
 
