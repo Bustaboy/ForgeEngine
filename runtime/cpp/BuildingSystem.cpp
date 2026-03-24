@@ -150,5 +150,6 @@ bool TryPlaceBuildingFromRay(Scene& scene, const glm::vec3& ray_origin, const gl
     EconomySystem::RegisterConsumption(scene, item_name, dynamic_cost);
     GF_LOG_INFO("Consumed " + item_name + " x" + std::to_string(dynamic_cost));
     scene.entities.push_back(candidate.value());
+    scene.MarkNavmeshDirty();
     return true;
 }

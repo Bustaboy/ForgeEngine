@@ -1009,10 +1009,11 @@
                 <TextBlock Text="AI Co-Creator Live" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <TextBox Text="{Binding BiomeEditor}" Watermark="Biome (e.g., desert, tundra, temperate)" />
                 <TextBox Text="{Binding WorldStyleGuideEditor}" Watermark="World style guide for narrative + visual tone" />
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
                   <Button Content="Save Context" Click="OnSaveCoCreatorContextClick" />
                   <Button Grid.Column="1" Content="Refresh Suggestions" Click="OnRefreshCoCreatorClick" />
-                  <Button Grid.Column="2" Content="Toggle Live" Click="OnToggleCoCreatorLiveClick" />
+                  <Button Grid.Column="2" Content="Rebuild Navmesh" Click="OnRebuildNavmeshClick" />
+                  <Button Grid.Column="3" Content="Toggle Live" Click="OnToggleCoCreatorLiveClick" />
                 </Grid>
                 <Button Content="Evolve Selected NPC Dialog" Click="OnEvolveSelectedNpcDialogClick" />
                 <TextBlock Text="Faction Reputation" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />

@@ -573,6 +573,21 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task RebuildNavmeshAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Navmesh rebuild requested",
+            root =>
+            {
+                var navmesh = root["navmesh"] as JsonObject ?? new JsonObject();
+                root["navmesh"] = navmesh;
+                navmesh["dirty"] = true;
+                var revision = navmesh["revision"]?.GetValue<long>() ?? 0L;
+                navmesh["revision"] = revision + 1L;
+                CoCreatorStatus = "Navmesh marked dirty. Runtime will rebuild paths on next update.";
+                return true;
+            },
+            cancellationToken);
+
     public async Task AdjustFactionReputationAsync(float direction, CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
             "Faction reputation updated",
@@ -671,6 +686,9 @@ public sealed partial class MainWindowViewModel
                     var entities = root["entities"] as JsonArray ?? new JsonArray();
                     root["entities"] = entities;
                     entities.Add(entity.DeepClone());
+                    var navmesh = root["navmesh"] as JsonObject ?? new JsonObject();
+                    root["navmesh"] = navmesh;
+                    navmesh["dirty"] = true;
                     return true;
                 }
                 if (string.Equals(mutationType, "set_day_progress", StringComparison.Ordinal))

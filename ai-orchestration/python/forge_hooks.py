@@ -338,6 +338,11 @@ def co_creator_tick(
             "renderable": {"color": _vec4(color[0], color[1], color[2], 1.0)},
             "velocity": _vec3(0.0, 0.0, 0.0),
             "buildable": {"type": entity_type, "grid_size": _ivec2(grid_size[0], grid_size[1])},
+            "navmesh_hint": {
+                "respect_dynamic_blockers": True,
+                "prefer_trade_route_access": True,
+                "route_id": riskiest_route_id or "route_timber_north",
+            },
         }
 
     is_evening = 0.60 <= safe_day_progress <= 0.90
@@ -353,6 +358,7 @@ def co_creator_tick(
                 "why_this_fits": (
                     "Your biome is desert, so shade and water access feel practical. "
                     "This placement sits near existing structures so travel loops stay tight and believable. "
+                    "The co-creator marks it navmesh-aware so pathing can adapt after build edits. "
                     f"It aligns with the current tone around {dominant_faction_name}."
                 ),
                 "mutation": {

@@ -89,6 +89,13 @@ struct DialogComponent {
     }
 };
 
+
+struct ProceduralAnimationComponent {
+    float motion_phase = 0.0F;
+    float left_foot_offset = 0.0F;
+    float right_foot_offset = 0.0F;
+};
+
 struct Entity {
     std::uint64_t id = 0;
     Transform transform{};
@@ -99,6 +106,7 @@ struct Entity {
     ReputationComponent reputation{};
     DialogComponent dialog{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
+    ProceduralAnimationComponent animation{};
 };
 
 struct DirectionalLight {

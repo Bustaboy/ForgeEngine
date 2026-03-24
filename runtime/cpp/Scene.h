@@ -3,6 +3,7 @@
 #include "BuildingSystem.h"
 #include "EconomySystem.h"
 #include "Entity.h"
+#include "NavmeshSystem.h"
 
 #include <glm/vec3.hpp>
 
@@ -46,6 +47,10 @@ struct Scene {
     std::map<std::string, FactionDefinition> factions{};
     std::map<std::string, float> player_reputation{};
     EconomyState economy{};
+    NavmeshData navmesh{};
+    std::vector<std::uint64_t> active_npc_ids{};
+    std::map<std::uint64_t, NpcNavigationState> npc_navigation{};
+    glm::vec3 player_proxy_position{0.0F, 0.0F, 0.0F};
     bool build_mode_enabled = false;
     std::optional<Entity> build_ghost_preview{};
     DirectionalLight directional_light{};
@@ -60,4 +65,5 @@ struct Scene {
     [[nodiscard]] bool TryPlaceBuildingFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction);
     bool Save(const std::string& path) const;
     bool Load(const std::string& path);
+    void MarkNavmeshDirty();
 };

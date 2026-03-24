@@ -1154,6 +1154,12 @@ public partial class MainWindow : Window
         await _viewModel.RefreshCoCreatorSuggestionsAsync();
     }
 
+
+    private async void OnRebuildNavmeshClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RebuildNavmeshAsync();
+    }
+
     private async void OnEvolveSelectedNpcDialogClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.EvolveSelectedNpcDialogAsync();
