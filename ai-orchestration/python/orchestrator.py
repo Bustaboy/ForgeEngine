@@ -21,6 +21,7 @@ if str(PYTHON_ROOT) not in sys.path:
 from benchmark import run_benchmark_as_dict
 from forge_hooks import (
     apply_to_scene_file,
+    co_creator_tick,
     generate_building_templates,
     generate_dialog_tree,
     generate_npc_with_dialog,
@@ -2624,6 +2625,27 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         if not isinstance(scene_payload, dict):
             raise ValueError("Scene payload must be a JSON object")
         payload = modify_scene(scene_payload, raw_args[2])
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "co-creator-tick":
+        if len(raw_args) < 6:
+            raise ValueError(
+                "Usage: orchestrator.py co-creator-tick <scene_json_path> <biome> <world_style_guide> <day_progress> <recent_actions_json>"
+            )
+        scene_payload = json.loads(Path(raw_args[1]).read_text(encoding="utf-8"))
+        if not isinstance(scene_payload, dict):
+            raise ValueError("Scene payload must be a JSON object")
+        recent_actions_payload = json.loads(raw_args[5])
+        if not isinstance(recent_actions_payload, list):
+            raise ValueError("recent_actions_json must be a JSON list")
+        payload = co_creator_tick(
+            scene_payload,
+            raw_args[2],
+            raw_args[3],
+            [str(item) for item in recent_actions_payload],
+            float(raw_args[4]),
+        )
         print(json.dumps(payload, indent=2))
         return 0
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using GameForge.Editor.EditorShell.EditorSystems;
@@ -12,6 +13,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabInventoryRecipes = "InventoryRecipes";
     private const string SystemTabDialogs = "Dialogs";
     private const string SystemTabAi = "AI";
+    private const string SystemTabCoCreator = "CoCreator";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -19,6 +21,11 @@ public sealed partial class MainWindowViewModel
     private InventoryRecipesPanelState _inventoryRecipes = new();
     private DialogPanelState _dialogs = new();
     private readonly List<string> _aiCommandLog = [];
+    private readonly List<string> _coCreatorRecentActions = [];
+    private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
+    private CoCreatorSuggestion? _selectedCoCreatorSuggestion;
+    private bool _coCreatorLiveEnabled;
+    private CancellationTokenSource? _coCreatorLiveCts;
     private string _recipeNameEditor = "NewRecipe";
     private string _recipeInputsEditor = "wood:2,stone:1";
     private string _recipeOutputEditor = "crafted_item";
@@ -39,6 +46,9 @@ public sealed partial class MainWindowViewModel
     private int _dialogEffectInventoryDelta;
     private float _dialogEffectRelationshipDelta;
     private string _aiPromptEditor = "Add 3 Houses";
+    private string _biomeEditor = "temperate";
+    private string _worldStyleGuideEditor = "grounded stylized frontier";
+    private string _coCreatorStatus = "Live suggestions idle.";
 
     public string ActiveSystemTab
     {
@@ -57,6 +67,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsInventoryRecipesTabActive));
             OnPropertyChanged(nameof(IsDialogsTabActive));
             OnPropertyChanged(nameof(IsAiTabActive));
+            OnPropertyChanged(nameof(IsCoCreatorTabActive));
         }
     }
 
@@ -65,6 +76,7 @@ public sealed partial class MainWindowViewModel
     public bool IsInventoryRecipesTabActive => string.Equals(ActiveSystemTab, SystemTabInventoryRecipes, StringComparison.Ordinal);
     public bool IsDialogsTabActive => string.Equals(ActiveSystemTab, SystemTabDialogs, StringComparison.Ordinal);
     public bool IsAiTabActive => string.Equals(ActiveSystemTab, SystemTabAi, StringComparison.Ordinal);
+    public bool IsCoCreatorTabActive => string.Equals(ActiveSystemTab, SystemTabCoCreator, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -324,6 +336,27 @@ public sealed partial class MainWindowViewModel
 
     public string AiPromptEditor { get => _aiPromptEditor; set { _aiPromptEditor = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
+    public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
+    public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
+    public string CoCreatorStatus { get => _coCreatorStatus; private set { _coCreatorStatus = value; OnPropertyChanged(); } }
+    public bool CoCreatorLiveEnabled { get => _coCreatorLiveEnabled; private set { _coCreatorLiveEnabled = value; OnPropertyChanged(); } }
+    public IReadOnlyList<CoCreatorSuggestion> CoCreatorSuggestions => _coCreatorSuggestions;
+    public CoCreatorSuggestion? SelectedCoCreatorSuggestion
+    {
+        get => _selectedCoCreatorSuggestion;
+        set
+        {
+            if (_selectedCoCreatorSuggestion == value)
+            {
+                return;
+            }
+            _selectedCoCreatorSuggestion = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CoCreatorWhyThisFits));
+        }
+    }
+
+    public string CoCreatorWhyThisFits => SelectedCoCreatorSuggestion?.WhyThisFits ?? "Pick a suggestion to see the rationale.";
 
     public void SetSystemTab(string tab)
     {
@@ -492,6 +525,166 @@ public sealed partial class MainWindowViewModel
             : $"AI hook complete with warnings: {stderr.Trim()}";
     }
 
+    public async Task SaveCoCreatorSettingsAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Co-creator world context updated",
+            root =>
+            {
+                root["biome"] = string.IsNullOrWhiteSpace(BiomeEditor) ? "temperate" : BiomeEditor.Trim();
+                root["world_style_guide"] = string.IsNullOrWhiteSpace(WorldStyleGuideEditor) ? "grounded stylized frontier" : WorldStyleGuideEditor.Trim();
+                return true;
+            },
+            cancellationToken);
+
+    public async Task RefreshCoCreatorSuggestionsAsync(CancellationToken cancellationToken = default)
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null || !File.Exists(scenePath))
+        {
+            CoCreatorStatus = "Generate a prototype before requesting live suggestions.";
+            return;
+        }
+
+        var root = JsonNode.Parse(await File.ReadAllTextAsync(scenePath, cancellationToken)) as JsonObject;
+        var dayProgress = root?["day_progress"]?.GetValue<float>() ?? 0.25f;
+        var projectRoot = ResolveRepositoryRoot();
+        var recentActionsJson = JsonSerializer.Serialize(_coCreatorRecentActions.TakeLast(8).ToArray());
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(
+            projectRoot,
+            "co-creator-tick",
+            scenePath,
+            string.IsNullOrWhiteSpace(BiomeEditor) ? "temperate" : BiomeEditor.Trim(),
+            string.IsNullOrWhiteSpace(WorldStyleGuideEditor) ? "grounded stylized frontier" : WorldStyleGuideEditor.Trim(),
+            dayProgress.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+            recentActionsJson);
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            CoCreatorStatus = "Failed to launch co-creator tick.";
+            return;
+        }
+
+        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        if (process.ExitCode != 0)
+        {
+            CoCreatorStatus = $"Co-creator tick failed: {stderr.Trim()}";
+            return;
+        }
+
+        var parsed = CoCreatorSuggestion.ParseSuggestions(stdout);
+        _coCreatorSuggestions.Clear();
+        foreach (var suggestion in parsed)
+        {
+            _coCreatorSuggestions.Add(suggestion);
+        }
+        OnPropertyChanged(nameof(CoCreatorSuggestions));
+        SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
+        CoCreatorStatus = _coCreatorSuggestions.Count == 0
+            ? "No suggestions right now. Try editing world context."
+            : $"Generated {_coCreatorSuggestions.Count} context-aware suggestions.";
+    }
+
+    public async Task AcceptCoCreatorSuggestionAsync(CancellationToken cancellationToken = default)
+    {
+        var selected = SelectedCoCreatorSuggestion;
+        if (selected is null)
+        {
+            CoCreatorStatus = "Select a suggestion first.";
+            return;
+        }
+
+        await ApplySceneMutationAsync(
+            $"AI Co-Creator accepted: {selected.Label}",
+            root =>
+            {
+                var mutationType = selected.Mutation["type"]?.GetValue<string>() ?? string.Empty;
+                if (string.Equals(mutationType, "add_entity", StringComparison.Ordinal))
+                {
+                    var entity = selected.Mutation["entity"] as JsonObject;
+                    if (entity is null)
+                    {
+                        return false;
+                    }
+                    var entities = root["entities"] as JsonArray ?? new JsonArray();
+                    root["entities"] = entities;
+                    entities.Add(entity.DeepClone());
+                    return true;
+                }
+                if (string.Equals(mutationType, "set_day_progress", StringComparison.Ordinal))
+                {
+                    var value = selected.Mutation["value"]?.GetValue<float>() ?? 0.25f;
+                    root["day_progress"] = Math.Clamp(value, 0f, 1f);
+                    return true;
+                }
+                return false;
+            },
+            cancellationToken);
+
+        _coCreatorSuggestions.Remove(selected);
+        OnPropertyChanged(nameof(CoCreatorSuggestions));
+        SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
+        CoCreatorStatus = "Suggestion accepted and applied to scene.";
+    }
+
+    public void RejectCoCreatorSuggestion()
+    {
+        var selected = SelectedCoCreatorSuggestion;
+        if (selected is null)
+        {
+            CoCreatorStatus = "Select a suggestion first.";
+            return;
+        }
+
+        _coCreatorSuggestions.Remove(selected);
+        OnPropertyChanged(nameof(CoCreatorSuggestions));
+        SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
+        CoCreatorStatus = "Suggestion removed.";
+    }
+
+    public void SetCoCreatorLive(bool enabled)
+    {
+        if (enabled == CoCreatorLiveEnabled)
+        {
+            return;
+        }
+
+        CoCreatorLiveEnabled = enabled;
+        _coCreatorLiveCts?.Cancel();
+        _coCreatorLiveCts?.Dispose();
+        _coCreatorLiveCts = null;
+        if (!enabled)
+        {
+            CoCreatorStatus = "Live mode paused.";
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _coCreatorLiveCts = cts;
+        _ = Task.Run(async () =>
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                try
+                {
+                    await RefreshCoCreatorSuggestionsAsync(cts.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(6), cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    CoCreatorStatus = $"Live tick warning: {ex.Message}";
+                    break;
+                }
+            }
+        }, cts.Token);
+    }
+
     public void ReloadSystemPanelsFromScene()
     {
         var scenePath = GetScenePath();
@@ -512,6 +705,8 @@ public sealed partial class MainWindowViewModel
             _buildings = BuildingPanelState.FromScene(root);
             _inventoryRecipes = InventoryRecipesPanelState.FromScene(root);
             _dialogs = DialogPanelState.FromScene(root);
+            BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
+            WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
 
             if (SelectedBuildableEntityId == 0 && _buildings.Buildables.Count > 0)
             {
@@ -577,6 +772,11 @@ public sealed partial class MainWindowViewModel
 
         var afterContent = JsonSerializer.Serialize(root, JsonSerializerOptionsIndented);
         await WriteSceneAndRelaunchAsync(scenePath, beforeContent, afterContent, label, cancellationToken);
+        _coCreatorRecentActions.Add(label);
+        if (_coCreatorRecentActions.Count > 24)
+        {
+            _coCreatorRecentActions.RemoveRange(0, _coCreatorRecentActions.Count - 24);
+        }
         ReloadSystemPanelsFromScene();
     }
 

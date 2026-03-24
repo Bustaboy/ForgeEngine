@@ -226,6 +226,200 @@ def modify_scene(scene_json: dict[str, Any], instruction: str) -> dict[str, Any]
     return updated
 
 
+def co_creator_tick(
+    scene_json: dict[str, Any],
+    biome: str,
+    world_style_guide: str,
+    recent_actions: list[str],
+    day_progress: float,
+) -> list[dict[str, Any]]:
+    """Produce small, coherent scene mutations for the live co-creator panel.
+
+    Each suggestion returns:
+    - id/title
+    - why_this_fits (human-facing rationale)
+    - mutation (small runtime-compatible change payload)
+    """
+    if not isinstance(scene_json, dict):
+        raise ValueError("scene_json must be a dict")
+
+    entities = scene_json.get("entities")
+    if not isinstance(entities, list):
+        entities = []
+
+    biome_label = (biome or scene_json.get("biome") or "temperate").strip()
+    style_label = (world_style_guide or scene_json.get("world_style_guide") or "grounded stylized frontier").strip()
+    safe_day_progress = min(1.0, max(0.0, float(day_progress)))
+    recent_text = " ".join(item.strip().lower() for item in recent_actions if item.strip())
+    style_lower = style_label.lower()
+    biome_lower = biome_label.lower()
+
+    anchor_x = 0.0
+    anchor_z = 0.0
+    anchor_count = 0
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        transform = entity.get("transform")
+        if not isinstance(transform, dict):
+            continue
+        pos = transform.get("pos")
+        if not isinstance(pos, dict):
+            continue
+        x = pos.get("x")
+        z = pos.get("z")
+        if isinstance(x, (int, float)) and isinstance(z, (int, float)):
+            anchor_x += float(x)
+            anchor_z += float(z)
+            anchor_count += 1
+    if anchor_count > 0:
+        anchor_x /= anchor_count
+        anchor_z /= anchor_count
+
+    next_id = _safe_entity_id(scene_json)
+    spacing = 2.2 + min(2.8, anchor_count * 0.12)
+
+    def _buildable_entity(
+        entity_id: int,
+        entity_type: str,
+        color: tuple[float, float, float],
+        grid_size: tuple[int, int],
+        offset_x: float,
+        offset_z: float,
+        scale: tuple[float, float, float],
+    ) -> dict[str, Any]:
+        return {
+            "id": entity_id,
+            "transform": {
+                "pos": _vec3(anchor_x + offset_x, 0.0, anchor_z + offset_z),
+                "rot": _vec3(0.0, 0.0, 0.0),
+                "scale": _vec3(scale[0], scale[1], scale[2]),
+            },
+            "renderable": {"color": _vec4(color[0], color[1], color[2], 1.0)},
+            "velocity": _vec3(0.0, 0.0, 0.0),
+            "buildable": {"type": entity_type, "grid_size": _ivec2(grid_size[0], grid_size[1])},
+        }
+
+    is_evening = 0.60 <= safe_day_progress <= 0.90
+    is_night = safe_day_progress >= 0.85 or safe_day_progress <= 0.15
+
+    suggestions: list[dict[str, Any]] = []
+
+    if "desert" in biome_lower:
+        suggestions.append(
+            {
+                "id": "desert_oasis_outpost",
+                "title": "Add a shaded oasis outpost near your current path",
+                "why_this_fits": (
+                    "Your biome is desert, so shade and water access feel practical. "
+                    "This placement sits near existing structures so travel loops stay tight and believable."
+                ),
+                "mutation": {
+                    "type": "add_entity",
+                    "entity": _buildable_entity(
+                        next_id,
+                        "DesertOasisOutpost",
+                        (0.77, 0.68, 0.46),
+                        (3, 2),
+                        spacing,
+                        0.8,
+                        (2.4, 1.1, 1.9),
+                    ),
+                },
+            }
+        )
+    elif "snow" in biome_lower or "tundra" in biome_lower or "arctic" in biome_lower:
+        suggestions.append(
+            {
+                "id": "snow_windbreak_hut",
+                "title": "Add a windbreak hut on the exposed edge",
+                "why_this_fits": (
+                    "In cold biomes, shelter placement matters more than decoration. "
+                    "A compact windbreak extends survival space without breaking your established layout rhythm."
+                ),
+                "mutation": {
+                    "type": "add_entity",
+                    "entity": _buildable_entity(
+                        next_id,
+                        "WindbreakHut",
+                        (0.70, 0.78, 0.85),
+                        (2, 2),
+                        -spacing,
+                        1.2,
+                        (1.7, 1.0, 1.7),
+                    ),
+                },
+            }
+        )
+    else:
+        suggestions.append(
+            {
+                "id": "temperate_waystation",
+                "title": "Add a waystation that supports your existing route",
+                "why_this_fits": (
+                    "Your current world reads as a lived-in route network, so a waystation improves pacing and story continuity. "
+                    "It is placed close enough to feel useful but not crowded."
+                ),
+                "mutation": {
+                    "type": "add_entity",
+                    "entity": _buildable_entity(
+                        next_id,
+                        "Waystation",
+                        (0.58, 0.66, 0.54),
+                        (2, 2),
+                        spacing * 0.8,
+                        -1.1,
+                        (1.9, 1.0, 1.9),
+                    ),
+                },
+            }
+        )
+
+    lighting_note = "lantern" if is_night else "sunset focal lighting" if is_evening else "daylight readability"
+    lighting_target = 0.82 if is_evening else 0.90 if is_night else 0.40
+    suggestions.append(
+        {
+            "id": "tone_match_lighting",
+            "title": f"Tune the scene clock for stronger {lighting_note}",
+            "why_this_fits": (
+                "Small lighting shifts keep emotional tone coherent with what players are likely doing at this time slice. "
+                "This improves visual harmony without changing your core layout."
+            ),
+            "mutation": {
+                "type": "set_day_progress",
+                "value": lighting_target,
+            },
+        }
+    )
+
+    if "build" in recent_text or "house" in recent_text or "outpost" in recent_text:
+        followup_type = "SupplyDepot" if "realistic" in style_lower or "grounded" in style_lower else "CraftNook"
+        suggestions.append(
+            {
+                "id": "progression_followup_support",
+                "title": "Add support infrastructure for your recent expansion",
+                "why_this_fits": (
+                    "You recently expanded structures, so adding nearby support space keeps cause-and-effect progression believable. "
+                    "It turns construction into a lived gameplay loop instead of isolated props."
+                ),
+                "mutation": {
+                    "type": "add_entity",
+                    "entity": _buildable_entity(
+                        next_id + 1,
+                        followup_type,
+                        (0.62, 0.57, 0.48),
+                        (2, 1),
+                        spacing * 0.55,
+                        2.0,
+                        (1.6, 0.9, 1.2),
+                    ),
+                },
+            }
+        )
+
+    return suggestions[:3]
+
+
 def apply_to_scene_file(scene_path: str, instruction: str) -> dict[str, Any]:
     """Load, modify, and save a scene JSON file in place."""
     path = Path(scene_path)

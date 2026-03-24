@@ -3,6 +3,7 @@
 #include "DialogSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
+#include "CoCreatorSystem.h"
 #include "SceneLoader.h"
 #include "BuildingSystem.h"
 
@@ -275,6 +276,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
 
     ProcessConsoleCommands(scene_);
     scene_.Update(dt_seconds);
+    CoCreatorSystem::TrimHistory(scene_);
 }
 
 void Engine::SeedFallbackScene() {
