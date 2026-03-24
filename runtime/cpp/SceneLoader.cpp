@@ -1092,6 +1092,96 @@ void FloatMapFromJson(const json& node, std::map<std::string, float>& values) {
     }
 }
 
+
+json CombatUnitStateToJson(const CombatUnitState& unit) {
+    return json{
+        {"entity_id", unit.entity_id},
+        {"team_id", unit.team_id},
+        {"grid_x", unit.grid_x},
+        {"grid_y", unit.grid_y},
+        {"health", unit.health},
+        {"max_health", unit.max_health},
+        {"ap", unit.ap},
+        {"max_ap", unit.max_ap},
+        {"initiative", unit.initiative},
+        {"alive", unit.alive},
+    };
+}
+
+CombatUnitState CombatUnitStateFromJson(const json& node, const CombatUnitState& fallback) {
+    CombatUnitState unit = fallback;
+    unit.entity_id = node.value("entity_id", unit.entity_id);
+    unit.team_id = node.value("team_id", unit.team_id);
+    unit.grid_x = node.value("grid_x", unit.grid_x);
+    unit.grid_y = node.value("grid_y", unit.grid_y);
+    unit.health = std::max(0.0F, node.value("health", unit.health));
+    unit.max_health = std::max(unit.health, node.value("max_health", unit.max_health));
+    unit.ap = node.value("ap", unit.ap);
+    unit.max_ap = std::max(1U, node.value("max_ap", unit.max_ap));
+    unit.initiative = node.value("initiative", unit.initiative);
+    unit.alive = node.value("alive", unit.alive) && unit.health > 0.0F;
+    return unit;
+}
+
+json CombatStateToJson(const CombatState& combat) {
+    json node = json{
+        {"active", combat.active},
+        {"grid_width", combat.grid_width},
+        {"grid_height", combat.grid_height},
+        {"active_turn_index", combat.active_turn_index},
+        {"round_index", combat.round_index},
+        {"trigger_source", combat.trigger_source},
+        {"last_resolution", combat.last_resolution},
+        {"units", json::array()},
+        {"turn_order", json::array()},
+    };
+    for (const CombatUnitState& unit : combat.units) {
+        node["units"].push_back(CombatUnitStateToJson(unit));
+    }
+    for (const std::uint64_t entity_id : combat.turn_order) {
+        node["turn_order"].push_back(entity_id);
+    }
+    return node;
+}
+
+CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
+    CombatState combat = fallback;
+    combat.active = node.value("active", combat.active);
+    combat.grid_width = std::max(4U, node.value("grid_width", combat.grid_width));
+    combat.grid_height = std::max(4U, node.value("grid_height", combat.grid_height));
+    combat.active_turn_index = node.value("active_turn_index", combat.active_turn_index);
+    combat.round_index = std::max(0U, node.value("round_index", combat.round_index));
+    combat.trigger_source = node.value("trigger_source", combat.trigger_source);
+    combat.last_resolution = node.value("last_resolution", combat.last_resolution);
+    combat.units.clear();
+    if (node.contains("units") && node["units"].is_array()) {
+        for (const json& unit_node : node["units"]) {
+            if (unit_node.is_object()) {
+                combat.units.push_back(CombatUnitStateFromJson(unit_node, CombatUnitState{}));
+            }
+        }
+    }
+    combat.turn_order.clear();
+    if (node.contains("turn_order") && node["turn_order"].is_array()) {
+        for (const json& id_node : node["turn_order"]) {
+            if (id_node.is_number_unsigned()) {
+                combat.turn_order.push_back(id_node.get<std::uint64_t>());
+            }
+        }
+    }
+    if (combat.turn_order.empty()) {
+        for (const CombatUnitState& unit : combat.units) {
+            combat.turn_order.push_back(unit.entity_id);
+        }
+    }
+    if (combat.turn_order.empty()) {
+        combat.active_turn_index = 0;
+    } else {
+        combat.active_turn_index = std::min(combat.active_turn_index, combat.turn_order.size() - 1U);
+    }
+    return combat;
+}
+
 json SettlementStateToJson(const SettlementState& settlement) {
     return json{
         {"village_name", settlement.village_name},
@@ -1170,6 +1260,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.settlement = SettlementState{};
     if (document.contains("settlement") && document["settlement"].is_object()) {
         scene.settlement = SettlementStateFromJson(document["settlement"], scene.settlement);
+    }
+    scene.combat = CombatState{};
+    if (document.contains("combat") && document["combat"].is_object()) {
+        scene.combat = CombatStateFromJson(document["combat"], scene.combat);
     }
     scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
@@ -1407,6 +1501,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["world_style_guide"] = scene.world_style_guide;
     document["weather"] = WeatherStateToJson(scene.weather);
     document["settlement"] = SettlementStateToJson(scene.settlement);
+    document["combat"] = CombatStateToJson(scene.combat);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);

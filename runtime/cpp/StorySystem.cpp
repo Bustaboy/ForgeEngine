@@ -6,12 +6,14 @@
 #include "NarratorSystem.h"
 #include "CutsceneSystem.h"
 #include "RelationshipSystem.h"
+#include "CombatSystem.h"
 #include "Scene.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
 #include <exception>
+#include <vector>
 
 namespace {
 float Clamp100(float value) {
@@ -50,6 +52,27 @@ bool ApplyRipple(Scene& scene, const StoryRipple& ripple) {
         }
         EconomySystem::RegisterConsumption(scene, ripple.target_id, static_cast<int>(std::round(std::max(0.0F, ripple.value))));
         return true;
+    }
+    if (ripple.type == "combat_start") {
+        std::vector<std::uint64_t> participants{};
+        if (!ripple.target_id.empty()) {
+            try {
+                participants.push_back(std::stoull(ripple.target_id));
+            } catch (const std::exception&) {
+            }
+        }
+        for (const Entity& entity : scene.entities) {
+            if (entity.buildable.IsValid()) {
+                continue;
+            }
+            if (participants.empty()) {
+                participants.push_back(entity.id);
+            } else if (entity.id != participants.front()) {
+                participants.insert(participants.begin(), entity.id);
+                break;
+            }
+        }
+        return CombatSystem::StartEncounter(scene, participants, 8U, 8U, "story_event");
     }
     if (ripple.type == "economy_route_raid") {
         if (ripple.target_id.empty()) {

@@ -1156,6 +1156,10 @@
                   <TextBox Grid.Column="1" Text="{Binding StoryFactionNotesEditor}" AcceptsReturn="True" MinHeight="54" />
                 </Grid>
                 <Button Content="Save Story Bible" Click="OnSaveStoryBibleClick" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <Button Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
+                  <TextBlock Grid.Column="1" Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                </Grid>
                 <TextBlock Text="Narrator (tutorial + key moments)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <CheckBox Content="Narrator Enabled" IsChecked="{Binding NarratorEnabledEditor}" />
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
