@@ -29,7 +29,7 @@ public:
     static void Write(const char* level, const std::string& message) {
         std::lock_guard<std::mutex> lock(Mutex());
         const std::string line = TimeStamp() + " [" + level + "] " + message;
-        std::cout << line << '\n';
+        std::cout << ColorForLevel(level) << line << "\033[0m" << '\n';
         if (File().is_open()) {
             File() << line << '\n';
             File().flush();
@@ -60,6 +60,22 @@ private:
     static std::mutex& Mutex() {
         static std::mutex mutex;
         return mutex;
+    }
+
+    static const char* ColorForLevel(const char* level) {
+        if (level == nullptr) {
+            return "\033[0m";
+        }
+        if (std::string(level) == "ERROR") {
+            return "\033[1;31m";
+        }
+        if (std::string(level) == "WARN") {
+            return "\033[1;33m";
+        }
+        if (std::string(level) == "INFO") {
+            return "\033[1;32m";
+        }
+        return "\033[0m";
     }
 };
 
