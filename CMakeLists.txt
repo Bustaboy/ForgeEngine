@@ -72,6 +72,21 @@ if(NOT glfw3_FOUND)
     )
 endif()
 
+find_package(glm CONFIG QUIET)
+if(TARGET glm::glm)
+    set(FORGE_GLM_TARGET glm::glm)
+else()
+    find_path(GLM_INCLUDE_DIR glm/vec3.hpp
+        HINTS
+            $ENV{GLM_DIR}/include
+            /usr/include
+            /usr/local/include
+    )
+    if(NOT GLM_INCLUDE_DIR)
+        message(FATAL_ERROR "GLM headers not found. Install GLM dev package or set GLM_DIR.")
+    endif()
+endif()
+
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
     runtime/cpp/Engine.cpp
@@ -86,12 +101,14 @@ target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
         runtime/cpp/external/nlohmann_json/single_include
+        ${GLM_INCLUDE_DIR}
 )
 
 target_link_libraries(forge_runtime
     PRIVATE
         Vulkan::Vulkan
         glfw
+        ${FORGE_GLM_TARGET}
 )
 
 if(MSVC)

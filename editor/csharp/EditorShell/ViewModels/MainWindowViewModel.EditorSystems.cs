@@ -526,20 +526,4 @@ public sealed partial class MainWindowViewModel
         ReloadSystemPanelsFromScene();
     }
 
-    private static string ResolveRepositoryRoot()
-    {
-        var current = new DirectoryInfo(Environment.CurrentDirectory);
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "CMakeLists.txt")) &&
-                Directory.Exists(Path.Combine(current.FullName, "ai-orchestration")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        return Environment.CurrentDirectory;
-    }
 }
