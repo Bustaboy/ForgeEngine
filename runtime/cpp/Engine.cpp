@@ -1,5 +1,6 @@
 #include "Engine.h"
 
+#include "DialogSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "SceneLoader.h"
@@ -238,6 +239,22 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     }
     was_left_mouse_pressed_ = left_mouse_pressed;
 
+    const bool interact_pressed = input.IsKeyPressed(GLFW_KEY_E);
+    if (interact_pressed && !was_interact_pressed_) {
+        constexpr float kDialogInteractionDistance = 2.5F;
+        DialogSystem::TryStartDialog(scene_, camera_.position, kDialogInteractionDistance);
+    }
+    was_interact_pressed_ = interact_pressed;
+
+    constexpr std::array<int, 3> kChoiceKeys = {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3};
+    for (std::size_t i = 0; i < kChoiceKeys.size(); ++i) {
+        const bool choice_pressed = input.IsKeyPressed(kChoiceKeys[i]);
+        if (choice_pressed && !was_dialog_choice_pressed_[i]) {
+            DialogSystem::HandleChoiceInput(scene_, static_cast<int>(i));
+        }
+        was_dialog_choice_pressed_[i] = choice_pressed;
+    }
+
     ProcessConsoleCommands(scene_);
     scene_.Update(dt_seconds);
 }
@@ -248,6 +265,8 @@ void Engine::SeedFallbackScene() {
     scene_.day_progress = 0.25F;
     scene_.day_cycle_speed = 0.01F;
     scene_.day_count = 1;
+    scene_.npc_relationships.clear();
+    scene_.active_dialog_npc_id = 0;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
     constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};
@@ -267,6 +286,26 @@ void Engine::SeedFallbackScene() {
         entity.transform.scale = {kScale[i], kScale[i], 1.0F};
         entity.renderable.color = kBaseColors[i];
         entity.velocity = {kVelocityX[i], 0.0F, 0.0F};
+        if (i == 0U) {
+            DialogNode greeting{};
+            greeting.id = "greeting";
+            greeting.text = "Hello traveler. Need supplies or advice?";
+            greeting.choices = {
+                DialogChoice{"I need supplies.", "farewell", DialogEffect{"wood", 2, 2.5F}},
+                DialogChoice{"Any advice?", "farewell", DialogEffect{"", 0, 1.0F}},
+                DialogChoice{"Goodbye.", "", DialogEffect{"", 0, -0.5F}},
+            };
+
+            DialogNode farewell{};
+            farewell.id = "farewell";
+            farewell.text = "Stay safe out there.";
+            farewell.choices = {
+                DialogChoice{"Thanks.", "", DialogEffect{"", 0, 1.0F}},
+            };
+
+            entity.dialog.start_node_id = greeting.id;
+            entity.dialog.nodes = {greeting, farewell};
+        }
         scene_.entities.push_back(entity);
     }
 }

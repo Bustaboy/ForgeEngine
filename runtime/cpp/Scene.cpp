@@ -60,6 +60,15 @@ void Scene::Update(float dt_seconds) {
     day_progress = Clamp01(day_progress);
     day_count = std::max(1U, day_count);
 
+    if (active_dialog_npc_id != 0) {
+        const auto active_it = std::find_if(entities.begin(), entities.end(), [&](const Entity& entity) {
+            return entity.id == active_dialog_npc_id;
+        });
+        if (active_it == entities.end() || !active_it->dialog.in_progress) {
+            active_dialog_npc_id = 0;
+        }
+    }
+
     const float sun_angle = day_progress * glm::two_pi<float>();
     const glm::vec3 sun_direction = glm::normalize(glm::vec3(std::cos(sun_angle), std::sin(sun_angle), 0.25F));
     const float daylight = std::max(0.0F, sun_direction.y);

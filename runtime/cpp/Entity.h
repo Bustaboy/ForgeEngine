@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 struct Transform {
     glm::vec3 pos{0.0F, 0.0F, 0.0F};
@@ -33,12 +34,54 @@ struct InventoryComponent {
 
 using Inventory = InventoryComponent;
 
+struct DialogEffect {
+    std::string inventory_item{};
+    int inventory_delta = 0;
+    float relationship_delta = 0.0F;
+};
+
+struct DialogChoice {
+    std::string text{};
+    std::string next_node_id{};
+    DialogEffect effect{};
+};
+
+struct DialogNode {
+    std::string id{};
+    std::string text{};
+    std::vector<DialogChoice> choices{};
+
+    [[nodiscard]] bool IsValid() const {
+        return !id.empty() && !text.empty();
+    }
+};
+
+struct DialogComponent {
+    std::vector<DialogNode> nodes{};
+    std::string start_node_id{};
+    std::string active_node_id{};
+    bool in_progress = false;
+
+    [[nodiscard]] bool IsValid() const {
+        if (nodes.empty()) {
+            return false;
+        }
+        for (const DialogNode& node : nodes) {
+            if (!node.IsValid()) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
 struct Entity {
     std::uint64_t id = 0;
     Transform transform{};
     Renderable renderable{};
     BuildableComponent buildable{};
     InventoryComponent inventory{};
+    DialogComponent dialog{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
 };
 

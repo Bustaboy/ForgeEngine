@@ -76,6 +76,121 @@ Inventory InventoryFromJson(const json& node, const Inventory& fallback) {
     return inventory;
 }
 
+json DialogEffectToJson(const DialogEffect& effect) {
+    json node = json{
+        {"inventory_delta", effect.inventory_delta},
+        {"relationship_delta", effect.relationship_delta},
+    };
+    if (!effect.inventory_item.empty()) {
+        node["inventory_item"] = effect.inventory_item;
+    }
+    return node;
+}
+
+DialogEffect DialogEffectFromJson(const json& node, const DialogEffect& fallback) {
+    DialogEffect effect = fallback;
+    effect.inventory_item = node.value("inventory_item", effect.inventory_item);
+    effect.inventory_delta = node.value("inventory_delta", effect.inventory_delta);
+    effect.relationship_delta = node.value("relationship_delta", effect.relationship_delta);
+    return effect;
+}
+
+json DialogChoiceToJson(const DialogChoice& choice) {
+    json node = json{
+        {"text", choice.text},
+        {"effect", DialogEffectToJson(choice.effect)},
+    };
+    if (!choice.next_node_id.empty()) {
+        node["next_node_id"] = choice.next_node_id;
+    }
+    return node;
+}
+
+DialogChoice DialogChoiceFromJson(const json& node, const DialogChoice& fallback) {
+    DialogChoice choice = fallback;
+    choice.text = node.value("text", choice.text);
+    choice.next_node_id = node.value("next_node_id", choice.next_node_id);
+    if (node.contains("effect") && node["effect"].is_object()) {
+        choice.effect = DialogEffectFromJson(node["effect"], choice.effect);
+    }
+    return choice;
+}
+
+json DialogNodeToJson(const DialogNode& dialog_node) {
+    json node = json{
+        {"id", dialog_node.id},
+        {"text", dialog_node.text},
+        {"choices", json::array()},
+    };
+    node["choices"].reserve(dialog_node.choices.size());
+    for (const DialogChoice& choice : dialog_node.choices) {
+        node["choices"].push_back(DialogChoiceToJson(choice));
+    }
+    return node;
+}
+
+DialogNode DialogNodeFromJson(const json& node, const DialogNode& fallback) {
+    DialogNode dialog_node = fallback;
+    dialog_node.id = node.value("id", dialog_node.id);
+    dialog_node.text = node.value("text", dialog_node.text);
+    dialog_node.choices.clear();
+    if (node.contains("choices") && node["choices"].is_array()) {
+        dialog_node.choices.reserve(node["choices"].size());
+        for (const json& choice_node : node["choices"]) {
+            if (choice_node.is_object()) {
+                dialog_node.choices.push_back(DialogChoiceFromJson(choice_node, DialogChoice{}));
+            }
+        }
+    }
+    return dialog_node;
+}
+
+json DialogComponentToJson(const DialogComponent& dialog) {
+    json node = json{
+        {"nodes", json::array()},
+        {"in_progress", dialog.in_progress},
+    };
+
+    node["nodes"].reserve(dialog.nodes.size());
+    for (const DialogNode& dialog_node : dialog.nodes) {
+        node["nodes"].push_back(DialogNodeToJson(dialog_node));
+    }
+
+    if (!dialog.start_node_id.empty()) {
+        node["start_node_id"] = dialog.start_node_id;
+    }
+    if (!dialog.active_node_id.empty()) {
+        node["active_node_id"] = dialog.active_node_id;
+    }
+
+    return node;
+}
+
+DialogComponent DialogComponentFromJson(const json& node, const DialogComponent& fallback) {
+    DialogComponent dialog = fallback;
+    dialog.nodes.clear();
+    dialog.start_node_id = node.value("start_node_id", dialog.start_node_id);
+    dialog.active_node_id = node.value("active_node_id", dialog.active_node_id);
+    dialog.in_progress = node.value("in_progress", false);
+
+    if (node.contains("nodes") && node["nodes"].is_array()) {
+        dialog.nodes.reserve(node["nodes"].size());
+        for (const json& dialog_node : node["nodes"]) {
+            if (dialog_node.is_object()) {
+                DialogNode parsed = DialogNodeFromJson(dialog_node, DialogNode{});
+                if (parsed.IsValid()) {
+                    dialog.nodes.push_back(parsed);
+                }
+            }
+        }
+    }
+
+    if (!dialog.IsValid()) {
+        return DialogComponent{};
+    }
+    return dialog;
+}
+
 json EntityToJson(const Entity& entity) {
     json node = json{
         {"id", entity.id},
@@ -95,6 +210,9 @@ json EntityToJson(const Entity& entity) {
     }
     if (!entity.inventory.items.empty()) {
         node["inventory"] = InventoryToJson(entity.inventory);
+    }
+    if (entity.dialog.IsValid()) {
+        node["dialog"] = DialogComponentToJson(entity.dialog);
     }
 
     return node;
@@ -137,6 +255,9 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("inventory")) {
         entity.inventory = InventoryFromJson(node["inventory"], entity.inventory);
+    }
+    if (node.contains("dialog") && node["dialog"].is_object()) {
+        entity.dialog = DialogComponentFromJson(node["dialog"], entity.dialog);
     }
 
     return entity;
@@ -183,8 +304,23 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
+    scene.active_dialog_npc_id = document.value("active_dialog_npc_id", 0ULL);
     if (document.contains("player_inventory")) {
         scene.player_inventory = InventoryFromJson(document["player_inventory"], scene.player_inventory);
+    }
+    scene.npc_relationships.clear();
+    if (document.contains("npc_relationships") && document["npc_relationships"].is_object()) {
+        for (const auto& [npc_id_key, relationship_node] : document["npc_relationships"].items()) {
+            if (!relationship_node.is_number()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                scene.npc_relationships[npc_id] = relationship_node.get<float>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
     }
 
     if (document.contains("directional_light") && document["directional_light"].is_object()) {
@@ -215,7 +351,13 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
     document["build_mode_enabled"] = scene.build_mode_enabled;
+    document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);
+    json relationships = json::object();
+    for (const auto& [npc_id, relationship] : scene.npc_relationships) {
+        relationships[std::to_string(npc_id)] = relationship;
+    }
+    document["npc_relationships"] = relationships;
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
 
     std::ofstream file(path);
