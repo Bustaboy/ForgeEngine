@@ -917,6 +917,7 @@
                 <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
+                <Button Classes="panel-tab" Content="📖" Click="OnSystemTabClick" Tag="Story" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -1066,6 +1067,48 @@
                   <Button Content="Accept Suggestion" Click="OnAcceptCoCreatorSuggestionClick" />
                   <Button Grid.Column="1" Content="Reject Suggestion" Click="OnRejectCoCreatorSuggestionClick" />
                 </Grid>
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsStoryTabActive}">
+                <TextBlock Text="Story Bible + Campaign" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBlock Text="Lore (one line per item)" Foreground="#AFC2DF" FontSize="11" />
+                <TextBox Text="{Binding StoryLoreEditor}" AcceptsReturn="True" MinHeight="54" />
+                <TextBlock Text="Major NPCs (one line per item)" Foreground="#AFC2DF" FontSize="11" />
+                <TextBox Text="{Binding StoryNpcEditor}" AcceptsReturn="True" MinHeight="54" />
+                <TextBlock Text="Key Events + Faction Notes" Foreground="#AFC2DF" FontSize="11" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Text="{Binding StoryEventsEditor}" AcceptsReturn="True" MinHeight="54" />
+                  <TextBox Grid.Column="1" Text="{Binding StoryFactionNotesEditor}" AcceptsReturn="True" MinHeight="54" />
+                </Grid>
+                <Button Content="Save Story Bible" Click="OnSaveStoryBibleClick" />
+                <TextBlock Text="Campaign Beat" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Text="{Binding StoryBeatIdEditor}" Watermark="beat_id" />
+                  <TextBox Grid.Column="1" Text="{Binding StoryBeatTitleEditor}" Watermark="Beat title" />
+                </Grid>
+                <TextBox Text="{Binding StoryBeatSummaryEditor}" Watermark="Beat summary" />
+                <Button Content="Add / Update Beat" Click="OnUpsertStoryBeatClick" />
+                <TextBlock Text="Queue Story Event (with one ripple)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Text="{Binding StoryEventIdEditor}" Watermark="event_id" />
+                  <TextBox Grid.Column="1" Text="{Binding StoryEventBeatIdEditor}" Watermark="beat_id" />
+                </Grid>
+                <TextBox Text="{Binding StoryEventTitleEditor}" Watermark="Event title" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <TextBox Text="{Binding StoryRippleTypeEditor}" Watermark="ripple type" />
+                  <TextBox Grid.Column="1" Text="{Binding StoryRippleTargetEditor}" Watermark="target id" />
+                  <TextBox Grid.Column="2" Text="{Binding StoryRippleValueEditor}" Watermark="value" />
+                </Grid>
+                <TextBox Text="{Binding StoryRippleDimensionEditor}" Watermark="dimension (relationship only)" />
+                <Button Content="Queue Story Event" Click="OnQueueStoryEventClick" />
+                <TextBlock Text="{Binding StoryStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding StoryBeats}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding Label}" Foreground="#AFC2DF" FontSize="11" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
             </Grid>
           </Border>

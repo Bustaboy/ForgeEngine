@@ -55,6 +55,48 @@ struct RelationshipProfile {
     std::vector<RelationshipMemory> memories{};
 };
 
+struct StoryBibleEntry {
+    std::string id{};
+    std::string title{};
+    std::string summary{};
+    std::vector<std::string> tags{};
+};
+
+struct StoryBeat {
+    std::string id{};
+    std::string title{};
+    std::string summary{};
+    std::vector<std::string> next_ids{};
+    bool completed = false;
+};
+
+struct StoryRipple {
+    std::string type{};
+    std::string target_id{};
+    std::string dimension{};
+    float value = 0.0F;
+    std::string reason{};
+};
+
+struct StoryEvent {
+    std::string event_id{};
+    std::string beat_id{};
+    std::string title{};
+    std::string summary{};
+    std::vector<StoryRipple> ripples{};
+    bool applied = false;
+};
+
+struct StoryState {
+    std::vector<StoryBibleEntry> lore_entries{};
+    std::vector<StoryBibleEntry> major_npcs{};
+    std::vector<StoryBibleEntry> key_events{};
+    std::vector<StoryBibleEntry> faction_notes{};
+    std::vector<StoryBeat> campaign_beats{};
+    std::vector<StoryEvent> pending_events{};
+    std::vector<std::string> event_history{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -79,6 +121,7 @@ struct Scene {
     DirectionalLight directional_light{};
     std::vector<std::string> recent_actions{};
     std::deque<CoCreatorQueuedMutation> co_creator_queue{};
+    StoryState story{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

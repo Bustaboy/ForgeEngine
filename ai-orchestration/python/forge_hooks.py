@@ -564,6 +564,52 @@ def co_creator_tick(
                 }
             )
 
+    story_payload = scene_json.get("story") if isinstance(scene_json.get("story"), dict) else {}
+    campaign_beats = story_payload.get("campaign_beats") if isinstance(story_payload.get("campaign_beats"), list) else []
+    if len(campaign_beats) <= 8:
+        next_index = len(campaign_beats) + 1
+        beat_id = f"ai_beat_{next_index}"
+        beat_title = f"AI Beat {next_index}: {dominant_faction_name} response"
+        suggestions.append(
+            {
+                "id": f"story_beat_{next_index}",
+                "title": "Suggest a new story beat for your campaign",
+                "why_this_fits": (
+                    "This adds a lightweight campaign beat only after your explicit approval. "
+                    "It keeps authored flow intact while opening room for emergent arcs."
+                ),
+                "mutation": {
+                    "type": "story_add_beat",
+                    "beat_id": beat_id,
+                    "title": beat_title,
+                    "summary": (
+                        f"{dominant_faction_name} reacts to recent actions in {biome_label}, creating a new objective branch."
+                    ),
+                },
+            }
+        )
+        suggestions.append(
+            {
+                "id": f"story_event_{next_index}",
+                "title": "Suggest a ripple-ready story event",
+                "why_this_fits": (
+                    "This proposes an event with one systemic ripple (faction/economy/relationship) "
+                    "so the living world reacts without bypassing user approval."
+                ),
+                "mutation": {
+                    "type": "story_add_event",
+                    "event_id": f"ai_event_{next_index}",
+                    "beat_id": beat_id,
+                    "title": f"Aftermath: {dominant_faction_name} shifts policy",
+                    "summary": "A new policy spreads through settlements and changes daily behavior.",
+                    "ripple_type": "faction_reputation" if dominant_faction_id else "economy_supply",
+                    "ripple_target": dominant_faction_id or (most_expensive_resource or "wood"),
+                    "ripple_value": 4.0 if dominant_faction_id else 3.0,
+                    "ripple_dimension": "",
+                },
+            }
+        )
+
     filtered: list[dict[str, Any]] = []
     for suggestion in suggestions:
         mutation = suggestion.get("mutation")
