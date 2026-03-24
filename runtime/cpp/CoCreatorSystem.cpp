@@ -1,4 +1,5 @@
 #include "CoCreatorSystem.h"
+#include "RelationshipSystem.h"
 
 #include <algorithm>
 
@@ -16,6 +17,20 @@ void CoCreatorSystem::QueueMutations(Scene& scene, const std::vector<CoCreatorQu
             }
         }
         if (blocked_by_faction) {
+            continue;
+        }
+        bool blocked_by_relationship = false;
+        for (const auto& [npc_id, _] : scene.relationships) {
+            const std::string token = "\"npc_id\":" + std::to_string(npc_id);
+            if (mutation.mutation_json.find(token) == std::string::npos) {
+                continue;
+            }
+            if (RelationshipSystem::CompositeScore(scene, npc_id) < -30.0F) {
+                blocked_by_relationship = true;
+                break;
+            }
+        }
+        if (blocked_by_relationship) {
             continue;
         }
         scene.co_creator_queue.push_back(mutation);

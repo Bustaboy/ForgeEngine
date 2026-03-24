@@ -1026,6 +1026,23 @@
                 <ScrollViewer MaxHeight="70">
                   <TextBlock Text="{Binding FactionStatusSummary}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
                 </ScrollViewer>
+                <TextBlock Text="NPC Relationships" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                  <TextBox Text="{Binding SelectedRelationshipNpcId}" Watermark="NPC id" />
+                  <Button Grid.Column="1" Content="Apply Relationship" Click="OnApplyRelationshipClick" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Watermark="Trust" Text="{Binding RelationshipTrustEditor}" />
+                  <TextBox Grid.Column="1" Watermark="Respect" Text="{Binding RelationshipRespectEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <TextBox Watermark="Grudge" Text="{Binding RelationshipGrudgeEditor}" />
+                  <TextBox Grid.Column="1" Watermark="Debt" Text="{Binding RelationshipDebtEditor}" />
+                </Grid>
+                <TextBox Watermark="Loyalty" Text="{Binding RelationshipLoyaltyEditor}" />
+                <ScrollViewer MaxHeight="78">
+                  <TextBlock Text="{Binding RelationshipStatusSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                </ScrollViewer>
                 <TextBlock Text="Economy Snapshot" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <TextBlock Text="{Binding EconomySummary}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
                 <ScrollViewer MaxHeight="76">

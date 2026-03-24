@@ -51,6 +51,13 @@ public sealed partial class MainWindowViewModel
     private string _selectedFactionIdEditor = "guild_builders";
     private float _reputationDeltaEditor = 5f;
     private string _factionStatusSummary = "No faction data in scene.";
+    private string _relationshipStatusSummary = "No relationship data yet.";
+    private ulong _selectedRelationshipNpcId;
+    private float _relationshipTrustEditor;
+    private float _relationshipRespectEditor;
+    private float _relationshipGrudgeEditor;
+    private float _relationshipDebtEditor;
+    private float _relationshipLoyaltyEditor;
     private string _coCreatorStatus = "Live suggestions idle.";
     private string _economySummary = "Economy unavailable.";
     private string _tradeRouteSummary = "No trade routes loaded.";
@@ -306,6 +313,10 @@ public sealed partial class MainWindowViewModel
 
             _selectedDialogEntityId = value;
             _selectedDialogNpc = _dialogs.Npcs.FirstOrDefault(item => item.EntityId == value);
+            if (value != 0)
+            {
+                SelectedRelationshipNpcId = value;
+            }
             OnPropertyChanged(nameof(SelectedDialogNpc));
             OnPropertyChanged();
         }
@@ -346,6 +357,13 @@ public sealed partial class MainWindowViewModel
     public string SelectedFactionIdEditor { get => _selectedFactionIdEditor; set { _selectedFactionIdEditor = value; OnPropertyChanged(); } }
     public float ReputationDeltaEditor { get => _reputationDeltaEditor; set { _reputationDeltaEditor = value; OnPropertyChanged(); } }
     public string FactionStatusSummary { get => _factionStatusSummary; private set { _factionStatusSummary = value; OnPropertyChanged(); } }
+    public string RelationshipStatusSummary { get => _relationshipStatusSummary; private set { _relationshipStatusSummary = value; OnPropertyChanged(); } }
+    public ulong SelectedRelationshipNpcId { get => _selectedRelationshipNpcId; set { _selectedRelationshipNpcId = value; OnPropertyChanged(); } }
+    public float RelationshipTrustEditor { get => _relationshipTrustEditor; set { _relationshipTrustEditor = Math.Clamp(value, -100f, 100f); OnPropertyChanged(); } }
+    public float RelationshipRespectEditor { get => _relationshipRespectEditor; set { _relationshipRespectEditor = Math.Clamp(value, -100f, 100f); OnPropertyChanged(); } }
+    public float RelationshipGrudgeEditor { get => _relationshipGrudgeEditor; set { _relationshipGrudgeEditor = Math.Clamp(value, -100f, 100f); OnPropertyChanged(); } }
+    public float RelationshipDebtEditor { get => _relationshipDebtEditor; set { _relationshipDebtEditor = Math.Clamp(value, -100f, 100f); OnPropertyChanged(); } }
+    public float RelationshipLoyaltyEditor { get => _relationshipLoyaltyEditor; set { _relationshipLoyaltyEditor = Math.Clamp(value, -100f, 100f); OnPropertyChanged(); } }
     public string CoCreatorStatus { get => _coCreatorStatus; private set { _coCreatorStatus = value; OnPropertyChanged(); } }
     public bool CoCreatorLiveEnabled { get => _coCreatorLiveEnabled; private set { _coCreatorLiveEnabled = value; OnPropertyChanged(); } }
     public IReadOnlyList<CoCreatorSuggestion> CoCreatorSuggestions => _coCreatorSuggestions;
@@ -609,6 +627,41 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task ApplyRelationshipEditsAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Relationship profile updated",
+            root =>
+            {
+                if (SelectedRelationshipNpcId == 0)
+                {
+                    return false;
+                }
+
+                var relationships = root["relationships"] as JsonObject ?? new JsonObject();
+                root["relationships"] = relationships;
+                var key = SelectedRelationshipNpcId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var profile = relationships[key] as JsonObject ?? new JsonObject();
+                relationships[key] = profile;
+                profile["trust"] = Math.Clamp(RelationshipTrustEditor, -100f, 100f);
+                profile["respect"] = Math.Clamp(RelationshipRespectEditor, -100f, 100f);
+                profile["grudge"] = Math.Clamp(RelationshipGrudgeEditor, -100f, 100f);
+                profile["debt"] = Math.Clamp(RelationshipDebtEditor, -100f, 100f);
+                profile["loyalty"] = Math.Clamp(RelationshipLoyaltyEditor, -100f, 100f);
+                if (profile["memories"] is not JsonArray)
+                {
+                    profile["memories"] = new JsonArray();
+                }
+
+                var legacy = root["npc_relationships"] as JsonObject ?? new JsonObject();
+                root["npc_relationships"] = legacy;
+                var affinity = (RelationshipTrustEditor * 0.36f) + (RelationshipRespectEditor * 0.26f) +
+                    (RelationshipLoyaltyEditor * 0.30f) - (RelationshipGrudgeEditor * 0.32f) -
+                    Math.Max(0f, RelationshipDebtEditor) * 0.12f;
+                legacy[key] = Math.Clamp(affinity, -100f, 100f);
+                return true;
+            },
+            cancellationToken);
+
     public async Task RefreshCoCreatorSuggestionsAsync(CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
@@ -706,7 +759,19 @@ public sealed partial class MainWindowViewModel
                     var requiredFactionId = selected.Mutation["required_faction_id"]?.GetValue<string>() ?? string.Empty;
                     var minRequiredRep = selected.Mutation["min_required_reputation"]?.GetValue<float>() ?? -100f;
                     var relationshipDelta = selected.Mutation["choice_relationship_delta"]?.GetValue<float>() ?? 0.5f;
-                    return TryAppendDialogBranch(root, npcId, branchText, choiceText, triggerEvent, requiredFactionId, minRequiredRep, relationshipDelta);
+                    var requiredRelationshipDimension = selected.Mutation["required_relationship_dimension"]?.GetValue<string>() ?? string.Empty;
+                    var minRequiredRelationship = selected.Mutation["min_required_relationship"]?.GetValue<float>() ?? -100f;
+                    return TryAppendDialogBranch(
+                        root,
+                        npcId,
+                        branchText,
+                        choiceText,
+                        triggerEvent,
+                        requiredFactionId,
+                        minRequiredRep,
+                        relationshipDelta,
+                        requiredRelationshipDimension,
+                        minRequiredRelationship);
                 }
                 return false;
             },
@@ -811,6 +876,40 @@ public sealed partial class MainWindowViewModel
             {
                 FactionStatusSummary = "No faction reputation yet.";
             }
+            if (root["relationships"] is JsonObject relationships && relationships.Count > 0)
+            {
+                var relationshipLines = relationships.Select(entry =>
+                {
+                    var node = entry.Value as JsonObject;
+                    var trust = node?["trust"]?.GetValue<float>() ?? 0f;
+                    var respect = node?["respect"]?.GetValue<float>() ?? 0f;
+                    var grudge = node?["grudge"]?.GetValue<float>() ?? 0f;
+                    var debt = node?["debt"]?.GetValue<float>() ?? 0f;
+                    var loyalty = node?["loyalty"]?.GetValue<float>() ?? 0f;
+                    var affinity = (trust * 0.36f) + (respect * 0.26f) + (loyalty * 0.30f) - (grudge * 0.32f) - Math.Max(0f, debt) * 0.12f;
+                    return $"NPC {entry.Key}: trust={trust:0} respect={respect:0} grudge={grudge:0} debt={debt:0} loyalty={loyalty:0} affinity={affinity:0}";
+                }).ToArray();
+                RelationshipStatusSummary = string.Join(Environment.NewLine, relationshipLines);
+                var selectedId = SelectedRelationshipNpcId;
+                if ((selectedId == 0 || !relationships.ContainsKey(selectedId.ToString(System.Globalization.CultureInfo.InvariantCulture))) &&
+                    ulong.TryParse(relationships.First().Key, out var parsedId))
+                {
+                    SelectedRelationshipNpcId = parsedId;
+                }
+                var selectedKey = SelectedRelationshipNpcId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (relationships[selectedKey] is JsonObject selectedProfile)
+                {
+                    RelationshipTrustEditor = selectedProfile["trust"]?.GetValue<float>() ?? 0f;
+                    RelationshipRespectEditor = selectedProfile["respect"]?.GetValue<float>() ?? 0f;
+                    RelationshipGrudgeEditor = selectedProfile["grudge"]?.GetValue<float>() ?? 0f;
+                    RelationshipDebtEditor = selectedProfile["debt"]?.GetValue<float>() ?? 0f;
+                    RelationshipLoyaltyEditor = selectedProfile["loyalty"]?.GetValue<float>() ?? 0f;
+                }
+            }
+            else
+            {
+                RelationshipStatusSummary = "No relationship data yet.";
+            }
 
             if (root["economy"] is JsonObject economy)
             {
@@ -867,6 +966,10 @@ public sealed partial class MainWindowViewModel
                 _selectedDialogNpc = _dialogs.Npcs.FirstOrDefault(item => item.EntityId == SelectedDialogEntityId);
                 OnPropertyChanged(nameof(SelectedDialogNpc));
             }
+            if (SelectedRelationshipNpcId == 0 && SelectedDialogEntityId != 0)
+            {
+                SelectedRelationshipNpcId = SelectedDialogEntityId;
+            }
 
             OnPropertyChanged(nameof(DayCycleSpeedEditor));
             OnPropertyChanged(nameof(DayProgressEditor));
@@ -876,6 +979,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
             OnPropertyChanged(nameof(FactionStatusSummary));
+            OnPropertyChanged(nameof(RelationshipStatusSummary));
             OnPropertyChanged(nameof(EconomySummary));
             OnPropertyChanged(nameof(TradeRouteSummary));
         }
@@ -908,7 +1012,7 @@ public sealed partial class MainWindowViewModel
                 var choiceText = tone == "guarded"
                     ? "Can we repair trust?"
                     : "Any new developments from recent events?";
-                return TryAppendDialogBranch(root, npcId, branchText, choiceText, "editor_evolve_button", factionId, tone == "guarded" ? -10f : -100f, 1f);
+                return TryAppendDialogBranch(root, npcId, branchText, choiceText, "editor_evolve_button", factionId, tone == "guarded" ? -10f : -100f, 1f, string.Empty, -100f);
             },
             cancellationToken);
 
@@ -920,7 +1024,9 @@ public sealed partial class MainWindowViewModel
         string triggerEvent,
         string requiredFactionId,
         float minRequiredRep,
-        float relationshipDelta)
+        float relationshipDelta,
+        string requiredRelationshipDimension,
+        float minRequiredRelationship)
     {
         if (root["entities"] is not JsonArray entities)
         {
@@ -981,6 +1087,11 @@ public sealed partial class MainWindowViewModel
                 {
                     branchChoice["required_faction_id"] = requiredFactionId;
                     branchChoice["min_required_reputation"] = minRequiredRep;
+                }
+                if (!string.IsNullOrWhiteSpace(requiredRelationshipDimension))
+                {
+                    branchChoice["required_relationship_dimension"] = requiredRelationshipDimension;
+                    branchChoice["min_required_relationship"] = minRequiredRelationship;
                 }
                 choices.Add(branchChoice);
                 break;

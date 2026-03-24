@@ -43,6 +43,14 @@ struct ReputationComponent {
     std::map<std::string, float> values{};
 };
 
+struct RelationshipComponent {
+    float trust_bias = 0.0F;
+    float respect_bias = 0.0F;
+    float loyalty_bias = 0.0F;
+    float grudge_sensitivity = 1.0F;
+    float debt_sensitivity = 1.0F;
+};
+
 struct DialogEffect {
     std::string inventory_item{};
     int inventory_delta = 0;
@@ -55,6 +63,8 @@ struct DialogChoice {
     DialogEffect effect{};
     std::string required_faction_id{};
     float min_required_reputation = -100.0F;
+    std::string required_relationship_dimension{};
+    float min_required_relationship = -100.0F;
 };
 
 struct DialogNode {
@@ -104,6 +114,7 @@ struct Entity {
     InventoryComponent inventory{};
     FactionComponent faction{};
     ReputationComponent reputation{};
+    RelationshipComponent relationship{};
     DialogComponent dialog{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};

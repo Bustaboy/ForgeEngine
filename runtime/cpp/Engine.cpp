@@ -7,6 +7,7 @@
 #include "InventorySystem.h"
 #include "Logger.h"
 #include "CoCreatorSystem.h"
+#include "RelationshipSystem.h"
 #include "SceneLoader.h"
 #include "BuildingSystem.h"
 
@@ -140,6 +141,50 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
+    if (command == "/relationship") {
+        std::string mode;
+        parser >> mode;
+        if (mode == "list") {
+            RelationshipSystem::EnsureSceneRelationships(scene);
+            if (scene.relationships.empty()) {
+                GF_LOG_INFO("No relationship profiles.");
+                return;
+            }
+            for (const auto& [npc_id, _] : scene.relationships) {
+                (void)_;
+                GF_LOG_INFO(RelationshipSystem::Summary(scene, npc_id));
+            }
+            return;
+        }
+        if (mode == "set" || mode == "add") {
+            std::uint64_t npc_id = 0;
+            std::string dimension;
+            float value = 0.0F;
+            parser >> npc_id >> dimension >> value;
+            if (npc_id == 0 || dimension.empty()) {
+                GF_LOG_INFO("Usage: /relationship list | /relationship <npc_id> | /relationship set|add <npc_id> trust|respect|grudge|debt|loyalty <value>");
+                return;
+            }
+            const bool updated = RelationshipSystem::SetDimension(scene, npc_id, dimension, value, mode == "set");
+            GF_LOG_INFO(updated ? RelationshipSystem::Summary(scene, npc_id) : "Invalid relationship dimension.");
+            return;
+        }
+        std::uint64_t npc_id = 0;
+        if (!mode.empty()) {
+            try {
+                npc_id = std::stoull(mode);
+            } catch (const std::exception&) {
+                npc_id = 0;
+            }
+        }
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /relationship list | /relationship <npc_id> | /relationship set|add <npc_id> trust|respect|grudge|debt|loyalty <value>");
+            return;
+        }
+        GF_LOG_INFO(RelationshipSystem::Summary(scene, npc_id));
+        return;
+    }
+
     if (command == "/evolve_dialog") {
         std::uint64_t npc_id = scene.active_dialog_npc_id;
         parser >> npc_id;
@@ -220,7 +265,7 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /evolve_dialog /economy /trade");
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade");
 }
 }  // namespace
 
@@ -394,6 +439,7 @@ void Engine::SeedFallbackScene() {
     scene_.day_cycle_speed = 0.01F;
     scene_.day_count = 1;
     scene_.npc_relationships.clear();
+    scene_.relationships.clear();
     scene_.factions.clear();
     scene_.player_reputation.clear();
     scene_.economy = EconomyState{};

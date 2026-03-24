@@ -5,6 +5,7 @@
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
+#include "RelationshipSystem.h"
 #include "Scene.h"
 
 #include <glm/geometric.hpp>
@@ -13,9 +14,6 @@
 #include <string>
 
 namespace {
-constexpr float kRelationshipMin = -100.0F;
-constexpr float kRelationshipMax = 100.0F;
-
 Entity* FindEntityById(Scene& scene, std::uint64_t id) {
     for (Entity& entity : scene.entities) {
         if (entity.id == id) {
@@ -61,10 +59,9 @@ bool ApplyEffect(Scene& scene, std::uint64_t npc_id, const DialogEffect& effect)
         }
     }
 
+    RelationshipSystem::ApplyDialogEffect(scene, npc_id, effect, "dialog_effect");
     if (effect.relationship_delta != 0.0F) {
-        float& relationship = scene.npc_relationships[npc_id];
-        relationship = std::clamp(relationship + effect.relationship_delta, kRelationshipMin, kRelationshipMax);
-        GF_LOG_INFO("Relationship changed to " + std::to_string(relationship) + ".");
+        GF_LOG_INFO("Relationship changed. " + RelationshipSystem::Summary(scene, npc_id));
         any_effect_applied = true;
     }
 
@@ -89,7 +86,7 @@ bool StartDialogWithNpc(Scene& scene, Entity& npc) {
     scene.active_dialog_npc_id = npc.id;
     npc.dialog.active_node_id = start_node->id;
     npc.dialog.in_progress = true;
-    scene.npc_relationships.try_emplace(npc.id, 0.0F);
+    RelationshipSystem::EnsureNpcRelationship(scene, npc);
 
     GF_LOG_INFO("Started dialog with NPC #" + std::to_string(npc.id) + ".");
     if (!npc.faction.faction_id.empty()) {
@@ -186,6 +183,12 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
             return false;
         }
     }
+    std::string relationship_reason;
+    if (!RelationshipSystem::ChoicePassesRelationshipGate(scene, npc->id, choice, relationship_reason)) {
+        GF_LOG_INFO(relationship_reason);
+        LogNode(*current_node);
+        return false;
+    }
 
     GF_LOG_INFO("Player: " + choice.text);
     DialogEvolutionSystem::RecordPlayerChoice(scene, *npc, *current_node, choice);
@@ -195,6 +198,7 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     DialogEffect adjusted_effect = choice.effect;
     if (adjusted_effect.inventory_delta > 0) {
         adjusted_effect.inventory_delta = FactionSystem::ApplyTradeAdjustmentForEntity(scene, *npc, adjusted_effect.inventory_delta);
+        adjusted_effect.inventory_delta = RelationshipSystem::ApplyTradeAdjustmentForEntity(scene, *npc, adjusted_effect.inventory_delta);
         if (!adjusted_effect.inventory_item.empty()) {
             const float market_price = EconomySystem::PriceFor(scene, adjusted_effect.inventory_item);
             const float scarcity_scale = std::clamp(6.0F / std::max(0.5F, market_price), 0.45F, 1.8F);

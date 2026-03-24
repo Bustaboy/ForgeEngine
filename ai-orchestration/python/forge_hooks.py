@@ -183,6 +183,14 @@ def modify_scene(scene_json: dict[str, Any], instruction: str) -> dict[str, Any]
         npc["transform"]["pos"] = _vec3(float(len(entities)) * 1.5, 0.0, 0.0)
         entities.append(npc)
         updated.setdefault("npc_relationships", {})[str(npc["id"])] = 0.0
+        updated.setdefault("relationships", {})[str(npc["id"])] = {
+            "trust": 0.0,
+            "respect": 0.0,
+            "grudge": 0.0,
+            "debt": 0.0,
+            "loyalty": 0.0,
+            "memories": [],
+        }
 
     house_count = 0
     number_match = re.search(r"\b(\d+)\b", normalized)
@@ -258,6 +266,8 @@ def co_creator_tick(
     factions = factions_raw if isinstance(factions_raw, dict) else {}
     reputation_raw = scene_json.get("player_reputation")
     player_reputation = reputation_raw if isinstance(reputation_raw, dict) else {}
+    relationships_raw = scene_json.get("relationships")
+    relationships = relationships_raw if isinstance(relationships_raw, dict) else {}
     economy_raw = scene_json.get("economy")
     economy = economy_raw if isinstance(economy_raw, dict) else {}
     price_table = economy.get("price_table") if isinstance(economy.get("price_table"), dict) else {}
@@ -486,8 +496,22 @@ def co_creator_tick(
             break
 
     if dialog_npc_id > 0:
+        relationship_payload = relationships.get(str(dialog_npc_id), {})
+        if not isinstance(relationship_payload, dict):
+            relationship_payload = {}
+        trust = float(relationship_payload.get("trust", 0.0) or 0.0)
+        respect = float(relationship_payload.get("respect", 0.0) or 0.0)
+        grudge = float(relationship_payload.get("grudge", 0.0) or 0.0)
+        loyalty = float(relationship_payload.get("loyalty", 0.0) or 0.0)
+        debt = float(relationship_payload.get("debt", 0.0) or 0.0)
+        social_affinity = (trust * 0.36) + (respect * 0.26) + (loyalty * 0.30) - (grudge * 0.32) - max(0.0, debt) * 0.12
         faction_rep = float(player_reputation.get(dialog_faction_id, 0.0)) if dialog_faction_id else 0.0
-        tone = "warm" if faction_rep >= 45.0 else "guarded" if faction_rep <= -25.0 else "neutral"
+        if social_affinity >= 35.0:
+            tone = "warm"
+        elif grudge >= 35.0 or social_affinity <= -15.0:
+            tone = "guarded"
+        else:
+            tone = "neutral"
         dialog_trigger = "market_whispers" if "trade" in recent_text else "night_watch" if is_night else "camp_rumors"
         suggestions.append(
             {
@@ -495,23 +519,50 @@ def co_creator_tick(
                 "title": "Evolve an NPC conversation branch from recent events",
                 "why_this_fits": (
                     "The world state and reputation trends suggest this NPC should remember what happened. "
-                    "This adds a memory-aware branch tied to biome, style, and current social tone."
+                    "This adds a memory-aware branch tied to biome, style, and current social tone. "
+                    f"Current affinity estimate is {social_affinity:.1f} (trust {trust:.1f}, grudge {grudge:.1f})."
                 ),
                 "mutation": {
                     "type": "dialog_add_branch",
                     "npc_id": dialog_npc_id,
                     "trigger_event": dialog_trigger,
                     "required_faction_id": dialog_faction_id,
-                    "min_required_reputation": -10.0 if tone == "guarded" else -100.0,
+                    "min_required_reputation": max(-10.0, faction_rep - 15.0) if tone == "guarded" else -100.0,
                     "choice_text": "How are people reacting to my recent choices?",
                     "branch_text": (
                         f"({tone}) In this {biome_label} region, word of your actions now shapes how our "
                         f"{style_label} community responds."
                     ),
                     "choice_relationship_delta": 1.0 if tone != "guarded" else 0.4,
+                    "required_relationship_dimension": "trust" if tone != "guarded" else "respect",
+                    "min_required_relationship": 5.0 if tone != "guarded" else -10.0,
                 },
             }
         )
+
+        if grudge >= 30.0:
+            suggestions.append(
+                {
+                    "id": f"relationship_repair_{dialog_npc_id}",
+                    "title": "Offer a relationship repair exchange with a tense NPC",
+                    "why_this_fits": (
+                        "This NPC carries a meaningful grudge, so a repair beat keeps social simulation believable. "
+                        "The branch asks for accountability first, then offers a path back to trade and dialog."
+                    ),
+                    "mutation": {
+                        "type": "dialog_add_branch",
+                        "npc_id": dialog_npc_id,
+                        "trigger_event": "relationship_repair",
+                        "required_faction_id": dialog_faction_id,
+                        "min_required_reputation": -20.0,
+                        "required_relationship_dimension": "respect",
+                        "min_required_relationship": -20.0,
+                        "choice_text": "I want to make things right between us.",
+                        "branch_text": "I remember what happened. Prove your intent with action, not promises.",
+                        "choice_relationship_delta": 1.6,
+                    },
+                }
+            )
 
     filtered: list[dict[str, Any]] = []
     for suggestion in suggestions:
@@ -523,6 +574,13 @@ def co_creator_tick(
             rep = player_reputation.get(faction_id, 0.0)
             if isinstance(rep, (int, float)) and float(rep) < -25.0:
                 continue
+        npc_id = mutation.get("npc_id")
+        if isinstance(npc_id, int):
+            relationship_payload = relationships.get(str(npc_id), {})
+            if isinstance(relationship_payload, dict):
+                grudge = relationship_payload.get("grudge", 0.0)
+                if isinstance(grudge, (int, float)) and float(grudge) > 70.0 and mutation.get("type") == "add_entity":
+                    continue
         filtered.append(suggestion)
 
     return filtered[:3]
