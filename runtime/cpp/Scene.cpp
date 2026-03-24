@@ -25,6 +25,10 @@
 #include <glm/gtc/constants.hpp>
 
 namespace {
+constexpr std::size_t kRecentActionsCap = 160U;
+constexpr std::size_t kFreeWillMapCap = 512U;
+constexpr std::size_t kCombatStateCap = 48U;
+
 float Clamp01(float value) {
     return std::clamp(value, 0.0F, 1.0F);
 }
@@ -70,6 +74,45 @@ void SyncWorldTimeFromLegacyFields(Scene& scene) {
     scene.world_time.day_progress = scene.day_progress;
     scene.world_time.day_cycle_speed = scene.day_cycle_speed;
     scene.world_time.day_count = scene.day_count;
+}
+
+template <typename TContainer>
+void TrimFront(TContainer& container, std::size_t max_size) {
+    if (container.size() <= max_size) {
+        return;
+    }
+    container.erase(container.begin(), container.begin() + static_cast<std::ptrdiff_t>(container.size() - max_size));
+}
+
+void ApplyMemoryGuardrails(Scene& scene) {
+    TrimFront(scene.recent_actions, kRecentActionsCap);
+    TrimFront(scene.narrator.spoken_history, kRecentActionsCap);
+
+    if (scene.free_will.daily_spark_count.size() > kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.daily_spark_count.size() - kFreeWillMapCap;
+        for (auto it = scene.free_will.daily_spark_count.begin();
+             it != scene.free_will.daily_spark_count.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.daily_spark_count.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.last_spark_line_by_npc.size() > kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_line_by_npc.size() - kFreeWillMapCap;
+        for (auto it = scene.free_will.last_spark_line_by_npc.begin();
+             it != scene.free_will.last_spark_line_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.last_spark_line_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+
+    if (scene.combat.units.size() > kCombatStateCap) {
+        scene.combat.units.resize(kCombatStateCap);
+    }
+    if (scene.combat.turn_order.size() > kCombatStateCap) {
+        scene.combat.turn_order.resize(kCombatStateCap);
+    }
 }
 
 }  // namespace
@@ -161,6 +204,7 @@ void Scene::Update(float dt_seconds) {
     SettlementSystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
+    ApplyMemoryGuardrails(*this);
 }
 
 bool Scene::ToggleBuildMode() {
