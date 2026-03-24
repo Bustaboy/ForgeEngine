@@ -12,6 +12,7 @@
 #include "StorySystem.h"
 #include "BuildingSystem.h"
 #include "NarratorSystem.h"
+#include "NPCController.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -294,6 +295,22 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
+    if (command == "/npc_activity") {
+        std::uint64_t npc_id = 0;
+        std::string activity;
+        std::string location;
+        float hours = 0.0F;
+        parser >> npc_id >> activity >> location >> hours;
+        if (npc_id == 0 || activity.empty()) {
+            GF_LOG_INFO("Usage: /npc_activity <npc_id> <activity> [location] [hours]");
+            return;
+        }
+
+        const bool applied = NPCController::ForceActivity(scene, npc_id, activity, location, hours);
+        GF_LOG_INFO(applied ? "NPC activity forced." : "NPC not found or invalid activity.");
+        return;
+    }
+
     if (command == "/npc_schedule") {
         std::string mode;
         parser >> mode;
@@ -344,7 +361,7 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule");
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule /npc_activity");
 }
 }  // namespace
 

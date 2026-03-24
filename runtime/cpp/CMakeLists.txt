@@ -89,6 +89,8 @@ set(FORGE_RUNTIME_SOURCES
     AnimationSystem.cpp
     LivingNpcSystem.h
     LivingNpcSystem.cpp
+    NPCController.h
+    NPCController.cpp
     DialogSystem.h
     DialogSystem.cpp
     DialogEvolutionSystem.h
