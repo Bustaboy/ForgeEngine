@@ -81,9 +81,22 @@ public sealed partial class MainWindowViewModel
     private float _storyRippleValueEditor = 5f;
     private bool _narratorEnabledEditor = true;
     private string _narratorVoiceEditor = "default";
+    private string _characterVoiceProfileIdEditor = "auto";
+    private string _characterVoiceGenderEditor = "neutral";
+    private string _characterVoiceBuildEditor = "average";
+    private string _characterVoicePersonalityEditor = "neutral";
+    private string _characterVoiceStyleEditor = "neutral";
+    private string _characterVoiceBaseVoiceEditor = "auto";
+    private float _characterVoicePitchEditor;
+    private float _characterVoiceRateEditor;
+    private float _characterVoiceVolumeEditor = 1f;
     private string _storyNarratorLineEditor = "";
     private string _storyStatus = "Story tools ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
+    private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
+    private readonly IReadOnlyList<string> _voiceBuildOptions = ["average", "light", "heavy"];
+    private readonly IReadOnlyList<string> _voicePersonalityOptions = ["neutral", "warm", "stoic", "playful", "stern"];
+    private readonly IReadOnlyList<string> _voiceStyleOptions = ["neutral", "calm", "urgent", "confident", "whisper"];
     private readonly ObservableCollection<CoCreatorSuggestion> _storyBeatSuggestions = [];
     private CoCreatorSuggestion? _selectedStoryBeatSuggestion;
 
@@ -346,6 +359,7 @@ public sealed partial class MainWindowViewModel
             }
             OnPropertyChanged(nameof(SelectedDialogNpc));
             OnPropertyChanged();
+            ReloadSelectedNpcVoiceEditorsFromScene();
         }
     }
 
@@ -430,8 +444,21 @@ public sealed partial class MainWindowViewModel
     public float StoryRippleValueEditor { get => _storyRippleValueEditor; set { _storyRippleValueEditor = value; OnPropertyChanged(); } }
     public bool NarratorEnabledEditor { get => _narratorEnabledEditor; set { _narratorEnabledEditor = value; OnPropertyChanged(); } }
     public string NarratorVoiceEditor { get => _narratorVoiceEditor; set { _narratorVoiceEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoiceProfileIdEditor { get => _characterVoiceProfileIdEditor; set { _characterVoiceProfileIdEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoiceGenderEditor { get => _characterVoiceGenderEditor; set { _characterVoiceGenderEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoiceBuildEditor { get => _characterVoiceBuildEditor; set { _characterVoiceBuildEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoicePersonalityEditor { get => _characterVoicePersonalityEditor; set { _characterVoicePersonalityEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoiceStyleEditor { get => _characterVoiceStyleEditor; set { _characterVoiceStyleEditor = value; OnPropertyChanged(); } }
+    public string CharacterVoiceBaseVoiceEditor { get => _characterVoiceBaseVoiceEditor; set { _characterVoiceBaseVoiceEditor = value; OnPropertyChanged(); } }
+    public float CharacterVoicePitchEditor { get => _characterVoicePitchEditor; set { _characterVoicePitchEditor = Math.Clamp(value, -50f, 50f); OnPropertyChanged(); } }
+    public float CharacterVoiceRateEditor { get => _characterVoiceRateEditor; set { _characterVoiceRateEditor = Math.Clamp(value, -40f, 40f); OnPropertyChanged(); } }
+    public float CharacterVoiceVolumeEditor { get => _characterVoiceVolumeEditor; set { _characterVoiceVolumeEditor = Math.Clamp(value, 0.2f, 1.6f); OnPropertyChanged(); } }
     public string StoryNarratorLineEditor { get => _storyNarratorLineEditor; set { _storyNarratorLineEditor = value; OnPropertyChanged(); } }
     public IReadOnlyList<string> NarratorVoiceOptions => _narratorVoiceOptions;
+    public IReadOnlyList<string> VoiceGenderOptions => _voiceGenderOptions;
+    public IReadOnlyList<string> VoiceBuildOptions => _voiceBuildOptions;
+    public IReadOnlyList<string> VoicePersonalityOptions => _voicePersonalityOptions;
+    public IReadOnlyList<string> VoiceStyleOptions => _voiceStyleOptions;
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
@@ -751,9 +778,56 @@ public sealed partial class MainWindowViewModel
                 root["narrator"] = narrator;
                 narrator["enabled"] = NarratorEnabledEditor;
                 narrator["voice_id"] = string.IsNullOrWhiteSpace(NarratorVoiceEditor) ? "default" : NarratorVoiceEditor.Trim();
+                narrator["voice_profile"] = new JsonObject
+                {
+                    ["profile_id"] = "narrator",
+                    ["gender"] = CharacterVoiceGenderEditor.Trim(),
+                    ["build"] = CharacterVoiceBuildEditor.Trim(),
+                    ["personality"] = CharacterVoicePersonalityEditor.Trim(),
+                    ["style"] = CharacterVoiceStyleEditor.Trim(),
+                    ["base_voice_id"] = string.IsNullOrWhiteSpace(NarratorVoiceEditor) ? "default" : NarratorVoiceEditor.Trim(),
+                    ["pitch"] = CharacterVoicePitchEditor,
+                    ["rate"] = CharacterVoiceRateEditor,
+                    ["volume"] = CharacterVoiceVolumeEditor,
+                };
                 narrator["pending_lines"] = narrator["pending_lines"] as JsonArray ?? new JsonArray();
                 narrator["spoken_history"] = narrator["spoken_history"] as JsonArray ?? new JsonArray();
                 StoryStatus = $"Narrator {(NarratorEnabledEditor ? "enabled" : "disabled")} with voice '{NarratorVoiceEditor}'.";
+                return true;
+            },
+            cancellationToken);
+
+    public async Task SaveSelectedCharacterVoiceProfileAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Character voice profile updated",
+            root =>
+            {
+                if (SelectedDialogEntityId == 0 || root["entities"] is not JsonArray entities)
+                {
+                    return false;
+                }
+
+                var target = entities
+                    .OfType<JsonObject>()
+                    .FirstOrDefault(node => node["id"]?.GetValue<ulong>() == SelectedDialogEntityId);
+                if (target is null)
+                {
+                    return false;
+                }
+
+                target["voice_profile"] = new JsonObject
+                {
+                    ["profile_id"] = string.IsNullOrWhiteSpace(CharacterVoiceProfileIdEditor) ? "auto" : CharacterVoiceProfileIdEditor.Trim(),
+                    ["gender"] = CharacterVoiceGenderEditor.Trim(),
+                    ["build"] = CharacterVoiceBuildEditor.Trim(),
+                    ["personality"] = CharacterVoicePersonalityEditor.Trim(),
+                    ["style"] = CharacterVoiceStyleEditor.Trim(),
+                    ["base_voice_id"] = string.IsNullOrWhiteSpace(CharacterVoiceBaseVoiceEditor) ? "auto" : CharacterVoiceBaseVoiceEditor.Trim(),
+                    ["pitch"] = CharacterVoicePitchEditor,
+                    ["rate"] = CharacterVoiceRateEditor,
+                    ["volume"] = CharacterVoiceVolumeEditor,
+                };
+                StoryStatus = $"Saved voice profile for NPC #{SelectedDialogEntityId}.";
                 return true;
             },
             cancellationToken);
@@ -1171,6 +1245,16 @@ public sealed partial class MainWindowViewModel
             {
                 NarratorEnabledEditor = narrator["enabled"]?.GetValue<bool>() ?? true;
                 NarratorVoiceEditor = narrator["voice_id"]?.GetValue<string>() ?? "default";
+                if (narrator["voice_profile"] is JsonObject narratorVoice)
+                {
+                    CharacterVoiceGenderEditor = narratorVoice["gender"]?.GetValue<string>() ?? CharacterVoiceGenderEditor;
+                    CharacterVoiceBuildEditor = narratorVoice["build"]?.GetValue<string>() ?? CharacterVoiceBuildEditor;
+                    CharacterVoicePersonalityEditor = narratorVoice["personality"]?.GetValue<string>() ?? CharacterVoicePersonalityEditor;
+                    CharacterVoiceStyleEditor = narratorVoice["style"]?.GetValue<string>() ?? CharacterVoiceStyleEditor;
+                    CharacterVoicePitchEditor = narratorVoice["pitch"]?.GetValue<float>() ?? CharacterVoicePitchEditor;
+                    CharacterVoiceRateEditor = narratorVoice["rate"]?.GetValue<float>() ?? CharacterVoiceRateEditor;
+                    CharacterVoiceVolumeEditor = narratorVoice["volume"]?.GetValue<float>() ?? CharacterVoiceVolumeEditor;
+                }
             }
             if (root["player_reputation"] is JsonObject reputation)
             {
@@ -1277,6 +1361,7 @@ public sealed partial class MainWindowViewModel
                 _selectedDialogNpc = _dialogs.Npcs.FirstOrDefault(item => item.EntityId == SelectedDialogEntityId);
                 OnPropertyChanged(nameof(SelectedDialogNpc));
             }
+            SyncSelectedNpcVoiceEditors(root);
             if (SelectedRelationshipNpcId == 0 && SelectedDialogEntityId != 0)
             {
                 SelectedRelationshipNpcId = SelectedDialogEntityId;
@@ -1410,6 +1495,59 @@ public sealed partial class MainWindowViewModel
         OnPropertyChanged(nameof(CoCreatorSuggestions));
         SyncStoryBeatSuggestions();
         SelectedCoCreatorSuggestion = _coCreatorSuggestions.FirstOrDefault();
+    }
+
+    private void ReloadSelectedNpcVoiceEditorsFromScene()
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null || !File.Exists(scenePath))
+        {
+            return;
+        }
+
+        var root = JsonNode.Parse(File.ReadAllText(scenePath)) as JsonObject;
+        if (root is null)
+        {
+            return;
+        }
+
+        SyncSelectedNpcVoiceEditors(root);
+    }
+
+    private void SyncSelectedNpcVoiceEditors(JsonObject root)
+    {
+        if (SelectedDialogEntityId == 0 || root["entities"] is not JsonArray entities)
+        {
+            return;
+        }
+
+        var target = entities
+            .OfType<JsonObject>()
+            .FirstOrDefault(node => node["id"]?.GetValue<ulong>() == SelectedDialogEntityId);
+        var voice = target?["voice_profile"] as JsonObject;
+        if (voice is null)
+        {
+            CharacterVoiceProfileIdEditor = "auto";
+            CharacterVoiceGenderEditor = "neutral";
+            CharacterVoiceBuildEditor = "average";
+            CharacterVoicePersonalityEditor = "neutral";
+            CharacterVoiceStyleEditor = "neutral";
+            CharacterVoiceBaseVoiceEditor = "auto";
+            CharacterVoicePitchEditor = 0f;
+            CharacterVoiceRateEditor = 0f;
+            CharacterVoiceVolumeEditor = 1f;
+            return;
+        }
+
+        CharacterVoiceProfileIdEditor = voice["profile_id"]?.GetValue<string>() ?? "auto";
+        CharacterVoiceGenderEditor = voice["gender"]?.GetValue<string>() ?? "neutral";
+        CharacterVoiceBuildEditor = voice["build"]?.GetValue<string>() ?? "average";
+        CharacterVoicePersonalityEditor = voice["personality"]?.GetValue<string>() ?? "neutral";
+        CharacterVoiceStyleEditor = voice["style"]?.GetValue<string>() ?? "neutral";
+        CharacterVoiceBaseVoiceEditor = voice["base_voice_id"]?.GetValue<string>() ?? "auto";
+        CharacterVoicePitchEditor = voice["pitch"]?.GetValue<float>() ?? 0f;
+        CharacterVoiceRateEditor = voice["rate"]?.GetValue<float>() ?? 0f;
+        CharacterVoiceVolumeEditor = voice["volume"]?.GetValue<float>() ?? 1f;
     }
 
     private static bool TryAppendDialogBranch(

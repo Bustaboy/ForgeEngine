@@ -99,6 +99,18 @@ struct DialogComponent {
     }
 };
 
+struct VoiceProfileComponent {
+    std::string profile_id = "auto";
+    std::string gender = "neutral";
+    std::string build = "average";
+    std::string personality = "neutral";
+    std::string style = "neutral";
+    std::string base_voice_id = "default";
+    float pitch = 0.0F;
+    float rate = 0.0F;
+    float volume = 1.0F;
+};
+
 
 struct ProceduralAnimationComponent {
     float motion_phase = 0.0F;
@@ -116,6 +128,7 @@ struct Entity {
     ReputationComponent reputation{};
     RelationshipComponent relationship{};
     DialogComponent dialog{};
+    VoiceProfileComponent voice_profile{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
 };

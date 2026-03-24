@@ -1088,6 +1088,23 @@
                   <ComboBox Grid.Column="1" ItemsSource="{Binding NarratorVoiceOptions}" SelectedItem="{Binding NarratorVoiceEditor}" />
                 </Grid>
                 <Button Content="Save Narrator Settings" Click="OnSaveNarratorSettingsClick" />
+                <TextBlock Text="Character Voice Profile (selected NPC)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <TextBox Text="{Binding CharacterVoiceProfileIdEditor}" Watermark="profile id (e.g., blacksmith_gruff)" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <ComboBox ItemsSource="{Binding VoiceGenderOptions}" SelectedItem="{Binding CharacterVoiceGenderEditor}" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding VoiceBuildOptions}" SelectedItem="{Binding CharacterVoiceBuildEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <ComboBox ItemsSource="{Binding VoicePersonalityOptions}" SelectedItem="{Binding CharacterVoicePersonalityEditor}" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding VoiceStyleOptions}" SelectedItem="{Binding CharacterVoiceStyleEditor}" />
+                </Grid>
+                <TextBox Text="{Binding CharacterVoiceBaseVoiceEditor}" Watermark="base voice id (auto/default/en+f3/...)" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <TextBox Text="{Binding CharacterVoicePitchEditor}" Watermark="pitch (-50..50)" />
+                  <TextBox Grid.Column="1" Text="{Binding CharacterVoiceRateEditor}" Watermark="rate (-40..40)" />
+                  <TextBox Grid.Column="2" Text="{Binding CharacterVoiceVolumeEditor}" Watermark="volume (0.2..1.6)" />
+                </Grid>
+                <Button Content="Save Selected NPC Voice" Click="OnSaveSelectedNpcVoiceClick" />
                 <TextBlock Text="Campaign Beat" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
                   <TextBox Text="{Binding StoryBeatIdEditor}" Watermark="beat_id" />

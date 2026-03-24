@@ -1206,6 +1206,11 @@ public partial class MainWindow : Window
         await _viewModel.SaveNarratorSettingsAsync();
     }
 
+    private async void OnSaveSelectedNpcVoiceClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveSelectedCharacterVoiceProfileAsync();
+    }
+
     private async void OnUpsertStoryBeatClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.UpsertStoryBeatAsync();
