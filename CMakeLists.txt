@@ -89,6 +89,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/CoCreatorSystem.cpp
     runtime/cpp/RelationshipSystem.cpp
     runtime/cpp/StorySystem.cpp
+    runtime/cpp/WeatherSystem.cpp
     runtime/cpp/NarratorSystem.cpp
 )
 
@@ -163,6 +164,7 @@ set(FORGE_EDITOR_CS_SOURCES
     editor/csharp/EditorShell/EditorSystems/AiOrchestrationPanel.cs
     editor/csharp/EditorShell/EditorSystems/CoCreatorPanel.cs
     editor/csharp/EditorShell/EditorSystems/StoryPanel.cs
+    editor/csharp/EditorShell/EditorSystems/WeatherPanel.cs
     editor/csharp/EditorShell/ViewModels/MainWindowViewModel.EditorSystems.cs
 )
 

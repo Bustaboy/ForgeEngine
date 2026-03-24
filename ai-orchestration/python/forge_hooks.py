@@ -254,6 +254,7 @@ def co_creator_tick(
     world_style_guide: str,
     recent_actions: list[str],
     day_progress: float,
+    current_weather: str = "sunny",
 ) -> list[dict[str, Any]]:
     """Produce small, coherent scene mutations for the live co-creator panel.
 
@@ -275,6 +276,7 @@ def co_creator_tick(
     recent_text = " ".join(item.strip().lower() for item in recent_actions if item.strip())
     style_lower = style_label.lower()
     biome_lower = biome_label.lower()
+    weather_label = (current_weather or ((scene_json.get("weather") or {}).get("current_weather") if isinstance(scene_json.get("weather"), dict) else "") or "sunny").strip().lower()
     factions_raw = scene_json.get("factions")
     factions = factions_raw if isinstance(factions_raw, dict) else {}
     reputation_raw = scene_json.get("player_reputation")
@@ -372,6 +374,28 @@ def co_creator_tick(
     is_night = safe_day_progress >= 0.85 or safe_day_progress <= 0.15
 
     suggestions: list[dict[str, Any]] = []
+
+    if weather_label in {"rain", "storm", "snow", "sandstorm"}:
+        suggestions.append(
+            {
+                "id": f"weather_scene_response_{weather_label}",
+                "title": f"React to {weather_label} pressure in local trade + dialog",
+                "why_this_fits": (
+                    f"Current weather is {weather_label}, so this adds grounded living-world adaptation in "
+                    "economy and NPC conversation hooks without forcing visual FX."
+                ),
+                "mutation": {
+                    "type": "dialog_add_branch",
+                    "npc_id": 0,
+                    "branch_text": f"The {weather_label} has everyone adjusting routes and prices.",
+                    "choice_text": "How is the settlement adapting?",
+                    "trigger_event": f"weather_{weather_label}_discussion",
+                    "choice_relationship_delta": 0.6 if weather_label in {"rain", "snow"} else -0.2,
+                    "required_relationship_dimension": "trust",
+                    "min_required_relationship": -20.0,
+                },
+            }
+        )
 
     if "desert" in biome_lower:
         suggestions.append(

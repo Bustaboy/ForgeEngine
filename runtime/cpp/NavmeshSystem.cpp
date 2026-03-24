@@ -2,6 +2,7 @@
 
 #include "EconomySystem.h"
 #include "Scene.h"
+#include "WeatherSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -272,13 +273,14 @@ void Update(Scene& scene, float /*dt_seconds*/) {
         }
 
         NpcNavigationState& nav = scene.npc_navigation[npc_id];
+        const float weather_speed_scale = WeatherSystem::MovementSpeedMultiplier(scene);
+        const std::size_t route_index = static_cast<std::size_t>(npc_id % scene.economy.trade_routes.size());
         if (nav.route_id.empty()) {
-            const std::size_t route_index = static_cast<std::size_t>(npc_id % scene.economy.trade_routes.size());
             nav.route_id = scene.economy.trade_routes[route_index].route_id;
             nav.mode = "trade";
             nav.heading_to_destination = true;
-            nav.desired_speed = 1.25F + (static_cast<float>(route_index) * 0.1F);
         }
+        nav.desired_speed = std::clamp((1.25F + (static_cast<float>(route_index) * 0.1F)) * weather_speed_scale, 0.55F, 2.4F);
 
         auto route_it = std::find_if(scene.economy.trade_routes.begin(), scene.economy.trade_routes.end(), [&](const EconomyTradeRoute& route) {
             return route.route_id == nav.route_id;
