@@ -139,6 +139,27 @@ struct WeatherState {
     std::uint32_t last_relationship_day_applied = 1;
 };
 
+
+struct FreeWillSparkRequest {
+    std::uint64_t npc_id = 0;
+    bool forced_by_console = false;
+};
+
+struct FreeWillState {
+    bool enabled = true;
+    bool llm_enabled = true;
+    std::string model_path = "";
+    std::uint32_t max_sparks_per_npc_per_day = 3;
+    float min_seconds_between_global_sparks = 1.0F;
+    float spark_chance_per_second = 0.0015F;
+    std::uint32_t last_processed_day = 1;
+    float global_cooldown_remaining = 0.0F;
+    std::uint32_t rng_seed = 0xC0FFEEU;
+    std::map<std::uint64_t, std::uint32_t> daily_spark_count{};
+    std::map<std::uint64_t, std::string> last_spark_line_by_npc{};
+    std::deque<FreeWillSparkRequest> pending_sparks{};
+};
+
 struct WorldTime {
     float elapsed_seconds = 0.0F;
     float day_progress = 0.25F;
@@ -176,6 +197,7 @@ struct Scene {
     StoryState story{};
     NarratorState narrator{};
     CutsceneState cutscene{};
+    FreeWillState free_will{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

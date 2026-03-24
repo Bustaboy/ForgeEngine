@@ -968,6 +968,81 @@ CutsceneState CutsceneStateFromJson(const json& node) {
     return cutscene;
 }
 
+
+json FreeWillStateToJson(const FreeWillState& free_will) {
+    json node = json{
+        {"enabled", free_will.enabled},
+        {"llm_enabled", free_will.llm_enabled},
+        {"model_path", free_will.model_path},
+        {"max_sparks_per_npc_per_day", free_will.max_sparks_per_npc_per_day},
+        {"min_seconds_between_global_sparks", free_will.min_seconds_between_global_sparks},
+        {"spark_chance_per_second", free_will.spark_chance_per_second},
+        {"last_processed_day", free_will.last_processed_day},
+        {"global_cooldown_remaining", free_will.global_cooldown_remaining},
+        {"rng_seed", free_will.rng_seed},
+    };
+
+    json daily_counts = json::object();
+    for (const auto& [npc_id, count] : free_will.daily_spark_count) {
+        daily_counts[std::to_string(npc_id)] = count;
+    }
+    node["daily_spark_count"] = daily_counts;
+
+    json last_lines = json::object();
+    for (const auto& [npc_id, line] : free_will.last_spark_line_by_npc) {
+        last_lines[std::to_string(npc_id)] = line;
+    }
+    node["last_spark_line_by_npc"] = last_lines;
+
+    return node;
+}
+
+FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallback) {
+    FreeWillState free_will = fallback;
+    free_will.enabled = node.value("enabled", free_will.enabled);
+    free_will.llm_enabled = node.value("llm_enabled", free_will.llm_enabled);
+    free_will.model_path = node.value("model_path", free_will.model_path);
+    free_will.max_sparks_per_npc_per_day = std::max(1U, node.value("max_sparks_per_npc_per_day", free_will.max_sparks_per_npc_per_day));
+    free_will.min_seconds_between_global_sparks = std::max(0.25F, node.value("min_seconds_between_global_sparks", free_will.min_seconds_between_global_sparks));
+    free_will.spark_chance_per_second = std::max(0.0F, node.value("spark_chance_per_second", free_will.spark_chance_per_second));
+    free_will.last_processed_day = std::max(1U, node.value("last_processed_day", free_will.last_processed_day));
+    free_will.global_cooldown_remaining = std::max(0.0F, node.value("global_cooldown_remaining", free_will.global_cooldown_remaining));
+    free_will.rng_seed = node.value("rng_seed", free_will.rng_seed);
+
+    free_will.daily_spark_count.clear();
+    if (node.contains("daily_spark_count") && node["daily_spark_count"].is_object()) {
+        for (const auto& [npc_id_key, count_node] : node["daily_spark_count"].items()) {
+            if (!count_node.is_number_unsigned()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.daily_spark_count[npc_id] = count_node.get<std::uint32_t>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.last_spark_line_by_npc.clear();
+    if (node.contains("last_spark_line_by_npc") && node["last_spark_line_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, line_node] : node["last_spark_line_by_npc"].items()) {
+            if (!line_node.is_string()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.last_spark_line_by_npc[npc_id] = line_node.get<std::string>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.pending_sparks.clear();
+    return free_will;
+}
+
 json NavmeshToJson(const NavmeshData& navmesh) {
     return json{
         {"cell_size", navmesh.cell_size},
@@ -1275,6 +1350,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     if (document.contains("cutscene") && document["cutscene"].is_object()) {
         scene.cutscene = CutsceneStateFromJson(document["cutscene"]);
     }
+    scene.free_will = FreeWillState{};
+    if (document.contains("free_will") && document["free_will"].is_object()) {
+        scene.free_will = FreeWillStateFromJson(document["free_will"], scene.free_will);
+    }
 
     scene.Update(0.0F);
     return true;
@@ -1383,6 +1462,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["story"] = story;
     document["narrator"] = NarratorStateToJson(scene.narrator);
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
+    document["free_will"] = FreeWillStateToJson(scene.free_will);
 
     std::ofstream file(path);
     if (!file.is_open()) {

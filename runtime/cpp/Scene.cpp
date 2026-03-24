@@ -6,6 +6,7 @@
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
 #include "NPCController.h"
+#include "FreeWillSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
@@ -78,6 +79,7 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::EnsureSceneRelationships(*this);
     WeatherSystem::EnsureDefaults(*this);
     NPCController::EnsureDefaults(*this);
+    FreeWillSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     world_time.elapsed_seconds += safe_dt;
@@ -144,6 +146,7 @@ void Scene::Update(float dt_seconds) {
 
     AnimationSystem::Update(*this, safe_dt);
     NPCController::Update(*this, safe_dt);
+    FreeWillSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);

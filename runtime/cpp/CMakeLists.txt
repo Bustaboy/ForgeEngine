@@ -91,6 +91,8 @@ set(FORGE_RUNTIME_SOURCES
     LivingNpcSystem.cpp
     NPCController.h
     NPCController.cpp
+    FreeWillSystem.h
+    FreeWillSystem.cpp
     DialogSystem.h
     DialogSystem.cpp
     DialogEvolutionSystem.h
@@ -133,6 +135,17 @@ target_link_libraries(forge_runtime
         Vulkan::Vulkan
         glfw
 )
+
+
+set(FORGE_LLAMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
+if(EXISTS "${FORGE_LLAMA_DIR}/CMakeLists.txt")
+    add_subdirectory(${FORGE_LLAMA_DIR} EXCLUDE_FROM_ALL)
+    if(TARGET llama)
+        target_link_libraries(forge_runtime PRIVATE llama)
+        target_compile_definitions(forge_runtime PRIVATE FORGE_HAS_LLAMA_CPP=1)
+        target_include_directories(forge_runtime PRIVATE ${FORGE_LLAMA_DIR}/include)
+    endif()
+endif()
 
 if(MSVC)
     target_compile_options(forge_runtime PRIVATE /W4 /permissive-)
