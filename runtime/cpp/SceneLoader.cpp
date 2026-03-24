@@ -1091,6 +1091,33 @@ void FloatMapFromJson(const json& node, std::map<std::string, float>& values) {
         values[key] = value_node.get<float>();
     }
 }
+
+json SettlementStateToJson(const SettlementState& settlement) {
+    return json{
+        {"village_name", settlement.village_name},
+        {"total_population", settlement.total_population},
+        {"shared_resources", FloatMapToJson(settlement.shared_resources)},
+        {"morale", settlement.morale},
+        {"tick_interval_seconds", settlement.tick_interval_seconds},
+        {"accumulated_tick_seconds", settlement.accumulated_tick_seconds},
+    };
+}
+
+SettlementState SettlementStateFromJson(const json& node, const SettlementState& fallback) {
+    SettlementState settlement = fallback;
+    settlement.village_name = node.value("village_name", settlement.village_name);
+    settlement.total_population = node.value("total_population", settlement.total_population);
+    if (node.contains("shared_resources") && node["shared_resources"].is_object()) {
+        FloatMapFromJson(node["shared_resources"], settlement.shared_resources);
+    }
+    settlement.morale = std::clamp(node.value("morale", settlement.morale), 0.0F, 100.0F);
+    settlement.tick_interval_seconds = std::clamp(node.value("tick_interval_seconds", settlement.tick_interval_seconds), 1.0F, 60.0F);
+    settlement.accumulated_tick_seconds = std::max(0.0F, node.value("accumulated_tick_seconds", settlement.accumulated_tick_seconds));
+    settlement.shared_resources["food"] = std::max(0.0F, settlement.shared_resources.count("food") > 0 ? settlement.shared_resources["food"] : 80.0F);
+    settlement.shared_resources["stockpile"] =
+        std::max(0.0F, settlement.shared_resources.count("stockpile") > 0 ? settlement.shared_resources["stockpile"] : 45.0F);
+    return settlement;
+}
 }  // namespace
 
 bool SceneLoader::Load(const std::string& path, Scene& scene) {
@@ -1139,6 +1166,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.world_style_guide = document.value("world_style_guide", scene.world_style_guide);
     if (document.contains("weather") && document["weather"].is_object()) {
         scene.weather = WeatherStateFromJson(document["weather"], scene.weather);
+    }
+    scene.settlement = SettlementState{};
+    if (document.contains("settlement") && document["settlement"].is_object()) {
+        scene.settlement = SettlementStateFromJson(document["settlement"], scene.settlement);
     }
     scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
@@ -1375,6 +1406,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["biome"] = scene.biome;
     document["world_style_guide"] = scene.world_style_guide;
     document["weather"] = WeatherStateToJson(scene.weather);
+    document["settlement"] = SettlementStateToJson(scene.settlement);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);

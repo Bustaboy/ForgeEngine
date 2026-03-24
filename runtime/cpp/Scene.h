@@ -160,6 +160,15 @@ struct FreeWillState {
     std::deque<FreeWillSparkRequest> pending_sparks{};
 };
 
+struct SettlementState {
+    std::string village_name = "River Town";
+    std::uint32_t total_population = 0;
+    std::map<std::string, float> shared_resources{{"food", 80.0F}, {"stockpile", 45.0F}, {"wood", 20.0F}, {"stone", 16.0F}};
+    float morale = 62.0F;
+    float tick_interval_seconds = 6.0F;
+    float accumulated_tick_seconds = 0.0F;
+};
+
 struct WorldTime {
     float elapsed_seconds = 0.0F;
     float day_progress = 0.25F;
@@ -181,6 +190,7 @@ struct Scene {
     std::string biome = "temperate";
     std::string world_style_guide = "grounded stylized frontier";
     WeatherState weather{};
+    SettlementState settlement{};
     std::map<std::string, FactionDefinition> factions{};
     std::map<std::string, float> player_reputation{};
     std::map<std::uint64_t, RelationshipProfile> relationships{};

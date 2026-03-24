@@ -14,6 +14,7 @@
 #include "NarratorSystem.h"
 #include "NPCController.h"
 #include "FreeWillSystem.h"
+#include "SettlementSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -206,6 +207,29 @@ void ProcessConsoleCommands(Scene& scene) {
         GF_LOG_INFO(EconomySystem::EconomySummary(scene));
         for (const EconomyTradeRoute& route : scene.economy.trade_routes) {
             GF_LOG_INFO("Route: " + EconomySystem::RouteSummary(route));
+        }
+        return;
+    }
+
+    if (command == "/settlement") {
+        SettlementSystem::EnsureDefaults(scene);
+        std::ostringstream summary;
+        summary << "Settlement '" << scene.settlement.village_name << "' pop=" << scene.settlement.total_population
+                << " morale=" << static_cast<int>(std::round(scene.settlement.morale))
+                << " food=" << static_cast<int>(std::round(scene.settlement.shared_resources["food"]))
+                << " stockpile=" << static_cast<int>(std::round(scene.settlement.shared_resources["stockpile"]));
+        GF_LOG_INFO(summary.str());
+        return;
+    }
+
+    if (command == "/village_morale") {
+        float morale = scene.settlement.morale;
+        parser >> morale;
+        if (!parser.fail()) {
+            scene.settlement.morale = std::clamp(morale, 0.0F, 100.0F);
+            GF_LOG_INFO("Village morale set to " + std::to_string(static_cast<int>(std::round(scene.settlement.morale))) + ".");
+        } else {
+            GF_LOG_INFO("Village morale: " + std::to_string(static_cast<int>(std::round(scene.settlement.morale))));
         }
         return;
     }

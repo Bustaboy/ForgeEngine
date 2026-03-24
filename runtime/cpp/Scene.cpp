@@ -14,6 +14,7 @@
 #include "CutsceneSystem.h"
 #include "VoiceSystem.h"
 #include "WeatherSystem.h"
+#include "SettlementSystem.h"
 #include "templates/generated_gameplay.h"
 
 #include <algorithm>
@@ -78,6 +79,7 @@ void Scene::Update(float dt_seconds) {
     EconomySystem::EnsureDefaults(*this);
     RelationshipSystem::EnsureSceneRelationships(*this);
     WeatherSystem::EnsureDefaults(*this);
+    SettlementSystem::EnsureDefaults(*this);
     NPCController::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
@@ -154,6 +156,7 @@ void Scene::Update(float dt_seconds) {
     NarratorSystem::Update(*this, safe_dt);
     VoiceSystem::Update(*this, safe_dt);
     EconomySystem::Update(*this, safe_dt);
+    SettlementSystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
 }
 
