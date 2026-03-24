@@ -919,6 +919,7 @@
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
                 <Button Classes="panel-tab" Content="📖" Click="OnSystemTabClick" Tag="Story" />
                 <Button Classes="panel-tab" Content="🌦" Click="OnSystemTabClick" Tag="Weather" />
+                <Button Classes="panel-tab" Content="🧍" Click="OnSystemTabClick" Tag="LivingNpcs" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -951,6 +952,39 @@
                   <TextBox Grid.Column="5" Text="{Binding WeatherNextTransitionSecondsEditor}" />
                 </Grid>
                 <Button Content="Apply Weather" Click="OnApplyWeatherClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsLivingNpcsTabActive}">
+                <TextBlock Text="Living NPCs + Free-Will" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <CheckBox Content="Global Free-Will Enabled" IsChecked="{Binding LivingNpcsFreeWillEnabledEditor}" />
+                  <CheckBox Grid.Column="1" Content="LLM Enabled" IsChecked="{Binding LivingNpcsLlmEnabledEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Spark chance/sec" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding LivingNpcsSparkChancePerSecondEditor}" />
+                  <TextBlock Grid.Column="2" Text="Max sparks/NPC/day" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding LivingNpcsMaxSparksPerNpcPerDayEditor}" />
+                </Grid>
+                <TextBox Text="{Binding LivingNpcsModelPathEditor}" Watermark="llama.cpp model path (e.g., models/llm-q4-k.gguf)" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                  <Button Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
+                  <Button Grid.Column="1" Content="Re-seed Selected NPC Defaults" Click="OnReseedLivingNpcDefaultsClick" />
+                </Grid>
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding LivingNpcsSparksToday, StringFormat=Sparks today: {0}}" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="Recent sparks" Foreground="#AFC2DF" FontSize="11" />
+                    <ItemsControl ItemsSource="{Binding LivingNpcsRecentSparks}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding .}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+                <TextBlock Text="{Binding LivingNpcsStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">

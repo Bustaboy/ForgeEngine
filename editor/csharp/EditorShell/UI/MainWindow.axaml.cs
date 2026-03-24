@@ -1119,6 +1119,16 @@ public partial class MainWindow : Window
         await _viewModel.ApplyWeatherAsync();
     }
 
+    private async void OnSaveLivingNpcsSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveLivingNpcsSettingsAsync();
+    }
+
+    private async void OnReseedLivingNpcDefaultsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ReseedLivingNpcDefaultsAsync();
+    }
+
     private async void OnApplyBuildableClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.ApplyBuildableSelectionAsync();

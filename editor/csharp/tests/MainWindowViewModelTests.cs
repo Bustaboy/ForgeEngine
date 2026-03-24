@@ -525,6 +525,92 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveLivingNpcSettings_PersistsAndReloadsFreeWillState()
+    {
+        var prototypeRoot = CreatePrototypeRoot();
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+
+        viewModel.LivingNpcsFreeWillEnabledEditor = false;
+        viewModel.LivingNpcsLlmEnabledEditor = false;
+        viewModel.LivingNpcsSparkChancePerSecondEditor = 0.0125f;
+        viewModel.LivingNpcsMaxSparksPerNpcPerDayEditor = 9;
+        viewModel.LivingNpcsModelPathEditor = "models/custom-living.gguf";
+
+        await viewModel.SaveLivingNpcsSettingsAsync();
+        viewModel.ReloadSystemPanelsFromScene();
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var freeWill = document.RootElement.GetProperty("free_will");
+        Assert.False(freeWill.GetProperty("enabled").GetBoolean());
+        Assert.False(freeWill.GetProperty("llm_enabled").GetBoolean());
+        Assert.Equal(0.0125f, freeWill.GetProperty("spark_chance_per_second").GetSingle());
+        Assert.Equal(9, freeWill.GetProperty("max_sparks_per_npc_per_day").GetInt32());
+        Assert.Equal("models/custom-living.gguf", freeWill.GetProperty("model_path").GetString());
+
+        Assert.False(viewModel.LivingNpcsFreeWillEnabledEditor);
+        Assert.False(viewModel.LivingNpcsLlmEnabledEditor);
+        Assert.Equal(0.0125f, viewModel.LivingNpcsSparkChancePerSecondEditor);
+        Assert.Equal(9, viewModel.LivingNpcsMaxSparksPerNpcPerDayEditor);
+        Assert.Equal("models/custom-living.gguf", viewModel.LivingNpcsModelPathEditor);
+    }
+
+    [Fact]
+    public async Task AcceptCoCreatorSuggestion_AppliesLivingNpcAdjustments()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"),
+            """
+            {
+              "player_spawn": { "x": 0, "y": 0 },
+              "entities": [
+                { "id": 11, "type": "npc", "name": "Mara", "x": 2, "y": 3, "z": 0 }
+              ]
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        var suggestion = new CoCreatorSuggestion(
+            "sg_living_1",
+            "Mara schedule tweak",
+            "Adds clearer home/work anchors and need pressure.",
+            new JsonObject
+            {
+                ["type"] = "living_npc_adjustment",
+                ["npc_id"] = 11,
+                ["home"] = new JsonObject { ["x"] = 6, ["y"] = 4 },
+                ["work"] = new JsonObject { ["x"] = 12, ["y"] = -1 },
+                ["needs_modifiers"] = new JsonObject { ["social"] = 8, ["energy"] = -15 },
+            });
+
+        var suggestionsField = typeof(MainWindowViewModel).GetField("_coCreatorSuggestions", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Field _coCreatorSuggestions not found.");
+        var suggestions = (System.Collections.ObjectModel.ObservableCollection<CoCreatorSuggestion>)suggestionsField.GetValue(viewModel)!;
+        suggestions.Add(suggestion);
+        viewModel.SelectedCoCreatorSuggestion = suggestion;
+
+        await viewModel.AcceptCoCreatorSuggestionAsync();
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var npc = document.RootElement.GetProperty("entities")[0];
+        Assert.Equal(6f, npc.GetProperty("schedule").GetProperty("home_position").GetProperty("x").GetSingle());
+        Assert.Equal(4f, npc.GetProperty("schedule").GetProperty("home_position").GetProperty("z").GetSingle());
+        Assert.Equal(12f, npc.GetProperty("schedule").GetProperty("workplace_position").GetProperty("x").GetSingle());
+        Assert.Equal(-1f, npc.GetProperty("schedule").GetProperty("workplace_position").GetProperty("z").GetSingle());
+        Assert.Equal(68f, npc.GetProperty("needs").GetProperty("social").GetSingle());
+        Assert.Equal(65f, npc.GetProperty("needs").GetProperty("energy").GetSingle());
+    }
+
+    [Fact]
     public void HierarchyTree_BuildsNestedEntityNodesFromScene()
     {
         var prototypeRoot = CreatePrototypeRootWithHierarchy();
