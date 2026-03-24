@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BuildingSystem.h"
 #include "Entity.h"
 
 #include <glm/vec3.hpp>
