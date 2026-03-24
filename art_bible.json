@@ -1,0 +1,37 @@
+{
+  "schema": "gameforge.art-bible.v1",
+  "project_name": "ForgeEngine",
+  "art_direction": "stylized indie 3D with readable silhouettes",
+  "rendering_keywords": [
+    "stylized PBR",
+    "clean topology",
+    "high readability",
+    "hero prop focus"
+  ],
+  "palette_keywords": [
+    "warm midtones",
+    "cool shadow accents",
+    "saturated focal color"
+  ],
+  "camera_guidance": [
+    "gameplay-first framing",
+    "clear horizon separation",
+    "avoid extreme lens distortion"
+  ],
+  "lighting_guidance": [
+    "single dominant key light",
+    "soft ambient fill",
+    "contact shadows for depth"
+  ],
+  "composition_guidance": [
+    "strong foreground-midground-background layering",
+    "guide eye toward interactable elements",
+    "limit clutter around objective path"
+  ],
+  "negative_prompt": [
+    "photoreal skin pores",
+    "noisy compression artifacts",
+    "muddy silhouettes",
+    "illegible UI-like textures"
+  ]
+}
