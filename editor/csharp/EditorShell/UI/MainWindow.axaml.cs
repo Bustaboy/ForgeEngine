@@ -9,6 +9,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
+using GameForge.Editor.EditorShell.EditorSystems;
 using GameForge.Editor.EditorShell.ViewModels;
 using System.ComponentModel;
 using System.Collections.Specialized;
@@ -1208,6 +1209,34 @@ public partial class MainWindow : Window
     private async void OnQueueStoryEventClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.QueueStoryEventAsync();
+    }
+
+    private void OnStoryBeatSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.AddedItems.Count == 0)
+        {
+            return;
+        }
+
+        if (e.AddedItems[0] is StoryBeatRow beat)
+        {
+            _viewModel.SelectStoryBeatForEditing(beat);
+        }
+    }
+
+    private void OnEditStorySuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.StageSelectedStorySuggestionForEdit();
+    }
+
+    private async void OnAcceptStorySuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.AcceptStoryBeatSuggestionAsync();
+    }
+
+    private void OnRejectStorySuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.RejectStoryBeatSuggestion();
     }
 
     private async void OnNewProjectClick(object? sender, RoutedEventArgs e)
