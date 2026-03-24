@@ -5,6 +5,7 @@
 #include "FactionSystem.h"
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
+#include "LivingNpcSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
@@ -54,25 +55,43 @@ glm::vec3 SampleSkyColor(float day_progress) {
     return Lerp(kSunsetSky, kNightSky, SegmentT(day_progress, 0.75F, 1.0F));
 }
 
+void SyncLegacyTimeFieldsFromWorldTime(Scene& scene) {
+    scene.elapsed_seconds = scene.world_time.elapsed_seconds;
+    scene.day_progress = scene.world_time.day_progress;
+    scene.day_cycle_speed = scene.world_time.day_cycle_speed;
+    scene.day_count = scene.world_time.day_count;
+}
+
+void SyncWorldTimeFromLegacyFields(Scene& scene) {
+    scene.world_time.elapsed_seconds = scene.elapsed_seconds;
+    scene.world_time.day_progress = scene.day_progress;
+    scene.world_time.day_cycle_speed = scene.day_cycle_speed;
+    scene.world_time.day_count = scene.day_count;
+}
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
+    SyncWorldTimeFromLegacyFields(*this);
     FactionSystem::EnsureSceneFactions(*this);
     EconomySystem::EnsureDefaults(*this);
     RelationshipSystem::EnsureSceneRelationships(*this);
     WeatherSystem::EnsureDefaults(*this);
+    LivingNpcSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
-    elapsed_seconds += safe_dt;
+    world_time.elapsed_seconds += safe_dt;
 
-    day_cycle_speed = std::max(0.0F, day_cycle_speed);
-    day_progress += safe_dt * day_cycle_speed;
-    while (day_progress >= 1.0F) {
-        day_progress -= 1.0F;
-        ++day_count;
+    world_time.day_cycle_speed = std::max(0.0F, world_time.day_cycle_speed);
+    world_time.day_progress += safe_dt * world_time.day_cycle_speed;
+    while (world_time.day_progress >= 1.0F) {
+        world_time.day_progress -= 1.0F;
+        ++world_time.day_count;
     }
-    day_progress = Clamp01(day_progress);
-    day_count = std::max(1U, day_count);
+    world_time.day_progress = Clamp01(world_time.day_progress);
+    world_time.day_count = std::max(1U, world_time.day_count);
+    world_time.minutes_per_day = std::max(60U, world_time.minutes_per_day);
+    SyncLegacyTimeFieldsFromWorldTime(*this);
     WeatherSystem::Update(*this, safe_dt);
 
     if (active_dialog_npc_id != 0) {
@@ -124,6 +143,7 @@ void Scene::Update(float dt_seconds) {
     }
 
     AnimationSystem::Update(*this, safe_dt);
+    LivingNpcSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);
@@ -161,4 +181,11 @@ bool Scene::Load(const std::string& path) {
 
 void Scene::MarkNavmeshDirty() {
     NavmeshSystem::MarkDirty(*this);
+}
+
+std::uint32_t Scene::MinuteOfDay() const {
+    const std::uint32_t minutes_per_day = std::max(1U, world_time.minutes_per_day);
+    const float minute_float = Clamp01(world_time.day_progress) * static_cast<float>(minutes_per_day);
+    const auto minute = static_cast<std::uint32_t>(minute_float);
+    return std::min(minutes_per_day - 1, minute);
 }

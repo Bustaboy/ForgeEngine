@@ -139,11 +139,20 @@ struct WeatherState {
     std::uint32_t last_relationship_day_applied = 1;
 };
 
+struct WorldTime {
+    float elapsed_seconds = 0.0F;
+    float day_progress = 0.25F;
+    float day_cycle_speed = 0.01F;
+    std::uint32_t day_count = 1;
+    std::uint32_t minutes_per_day = 1440;
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
     std::map<std::uint64_t, float> npc_relationships{};
     std::uint64_t active_dialog_npc_id = 0;
+    WorldTime world_time{};
     float elapsed_seconds = 0.0F;
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;
@@ -177,4 +186,5 @@ struct Scene {
     bool Save(const std::string& path) const;
     bool Load(const std::string& path);
     void MarkNavmeshDirty();
+    [[nodiscard]] std::uint32_t MinuteOfDay() const;
 };
