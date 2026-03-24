@@ -97,6 +97,8 @@ set(FORGE_RUNTIME_SOURCES
     StorySystem.cpp
     NarratorSystem.h
     NarratorSystem.cpp
+    CutsceneSystem.h
+    CutsceneSystem.cpp
     Timer.cpp
     Scene.cpp
     Scene.h

@@ -71,6 +71,7 @@ public sealed partial class MainWindowViewModel
     private string _storyBeatTitleEditor = "New Beat";
     private string _storyBeatSummaryEditor = "Summary";
     private bool _storyBeatCompletedEditor;
+    private bool _storyBeatCutsceneTriggerEditor;
     private string _storyEventIdEditor = "event_new";
     private string _storyEventTitleEditor = "New Story Event";
     private string _storyEventBeatIdEditor = "beat_new";
@@ -419,6 +420,7 @@ public sealed partial class MainWindowViewModel
     public string StoryBeatTitleEditor { get => _storyBeatTitleEditor; set { _storyBeatTitleEditor = value; OnPropertyChanged(); } }
     public string StoryBeatSummaryEditor { get => _storyBeatSummaryEditor; set { _storyBeatSummaryEditor = value; OnPropertyChanged(); } }
     public bool StoryBeatCompletedEditor { get => _storyBeatCompletedEditor; set { _storyBeatCompletedEditor = value; OnPropertyChanged(); } }
+    public bool StoryBeatCutsceneTriggerEditor { get => _storyBeatCutsceneTriggerEditor; set { _storyBeatCutsceneTriggerEditor = value; OnPropertyChanged(); } }
     public string StoryEventIdEditor { get => _storyEventIdEditor; set { _storyEventIdEditor = value; OnPropertyChanged(); } }
     public string StoryEventTitleEditor { get => _storyEventTitleEditor; set { _storyEventTitleEditor = value; OnPropertyChanged(); } }
     public string StoryEventBeatIdEditor { get => _storyEventBeatIdEditor; set { _storyEventBeatIdEditor = value; OnPropertyChanged(); } }
@@ -781,6 +783,7 @@ public sealed partial class MainWindowViewModel
                 existing["title"] = string.IsNullOrWhiteSpace(StoryBeatTitleEditor) ? beatId : StoryBeatTitleEditor.Trim();
                 existing["summary"] = StoryBeatSummaryEditor.Trim();
                 existing["completed"] = StoryBeatCompletedEditor;
+                existing["cutscene_trigger"] = StoryBeatCutsceneTriggerEditor;
                 existing["next_ids"] = existing["next_ids"] as JsonArray ?? new JsonArray();
                 StoryStatus = $"Beat '{beatId}' saved.";
                 return true;
@@ -798,6 +801,7 @@ public sealed partial class MainWindowViewModel
         StoryBeatTitleEditor = beat.Title;
         StoryBeatSummaryEditor = beat.Summary;
         StoryBeatCompletedEditor = beat.Completed;
+        StoryBeatCutsceneTriggerEditor = beat.CutsceneTrigger;
         StoryStatus = $"Loaded beat '{beat.Id}' for editing.";
     }
 
@@ -810,10 +814,24 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
+        var mutationType = selected.Mutation["type"]?.GetValue<string>() ?? string.Empty;
+        if (string.Equals(mutationType, "story_mark_cutscene", StringComparison.Ordinal))
+        {
+            StoryBeatIdEditor = selected.Mutation["beat_id"]?.GetValue<string>() ?? StoryBeatIdEditor;
+            if (!string.IsNullOrWhiteSpace(selected.Mutation["title"]?.GetValue<string>()))
+            {
+                StoryBeatTitleEditor = selected.Mutation["title"]!.GetValue<string>();
+            }
+            StoryBeatCutsceneTriggerEditor = true;
+            StoryStatus = "AI cutscene suggestion staged. Review beat details, then explicitly approve.";
+            return;
+        }
+
         StoryBeatIdEditor = selected.Mutation["beat_id"]?.GetValue<string>() ?? $"beat_{Guid.NewGuid():N}";
         StoryBeatTitleEditor = selected.Mutation["title"]?.GetValue<string>() ?? "AI Suggested Beat";
         StoryBeatSummaryEditor = selected.Mutation["summary"]?.GetValue<string>() ?? "Suggested by AI co-creator.";
         StoryBeatCompletedEditor = false;
+        StoryBeatCutsceneTriggerEditor = selected.Mutation["cutscene_trigger"]?.GetValue<bool>() ?? false;
         StoryStatus = "AI suggestion staged in beat editor. Edit if needed, then explicitly approve.";
     }
 
@@ -830,6 +848,18 @@ public sealed partial class MainWindowViewModel
         {
             StoryStatus = "Beat id is required before approval.";
             return;
+        }
+
+        var mutationType = selected.Mutation["type"]?.GetValue<string>() ?? string.Empty;
+        if (string.Equals(mutationType, "story_mark_cutscene", StringComparison.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(StoryBeatIdEditor))
+            {
+                StoryStatus = "Select a target beat before approving cutscene generation.";
+                return;
+            }
+
+            StoryBeatCutsceneTriggerEditor = true;
         }
 
         await UpsertStoryBeatAsync(cancellationToken);
@@ -1346,7 +1376,11 @@ public sealed partial class MainWindowViewModel
     }
 
     private static bool IsStoryAddBeatSuggestion(CoCreatorSuggestion suggestion)
-        => string.Equals(suggestion.Mutation["type"]?.GetValue<string>(), "story_add_beat", StringComparison.Ordinal);
+    {
+        var type = suggestion.Mutation["type"]?.GetValue<string>() ?? string.Empty;
+        return string.Equals(type, "story_add_beat", StringComparison.Ordinal)
+            || string.Equals(type, "story_mark_cutscene", StringComparison.Ordinal);
+    }
 
     private void StageStorySuggestionForReview(CoCreatorSuggestion suggestion)
     {

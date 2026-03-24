@@ -620,6 +620,7 @@ json StoryBeatToJson(const StoryBeat& beat) {
         {"title", beat.title},
         {"summary", beat.summary},
         {"completed", beat.completed},
+        {"cutscene_trigger", beat.cutscene_trigger},
         {"next_ids", json::array()},
     };
     for (const std::string& next_id : beat.next_ids) {
@@ -634,6 +635,7 @@ StoryBeat StoryBeatFromJson(const json& node) {
     beat.title = node.value("title", beat.title);
     beat.summary = node.value("summary", beat.summary);
     beat.completed = node.value("completed", beat.completed);
+    beat.cutscene_trigger = node.value("cutscene_trigger", beat.cutscene_trigger);
     if (node.contains("next_ids") && node["next_ids"].is_array()) {
         for (const json& next_id_node : node["next_ids"]) {
             if (next_id_node.is_string()) {
@@ -733,6 +735,58 @@ NarratorState NarratorStateFromJson(const json& node) {
         }
     }
     return narrator;
+}
+
+json CutsceneStateToJson(const CutsceneState& cutscene) {
+    json node = json{
+        {"enabled", cutscene.enabled},
+        {"active", cutscene.active},
+        {"source_beat_id", cutscene.source_beat_id},
+        {"source_event_id", cutscene.source_event_id},
+        {"target_npc_id", cutscene.target_npc_id},
+        {"target_npc_animation", cutscene.target_npc_animation},
+        {"camera_start", Vec3ToJson(cutscene.camera_start)},
+        {"camera_mid", Vec3ToJson(cutscene.camera_mid)},
+        {"camera_end", Vec3ToJson(cutscene.camera_end)},
+        {"duration_seconds", cutscene.duration_seconds},
+        {"elapsed_seconds", cutscene.elapsed_seconds},
+        {"narrator_line", cutscene.narrator_line},
+        {"played_cutscene_history", json::array()},
+    };
+    for (const std::string& beat_id : cutscene.played_cutscene_history) {
+        node["played_cutscene_history"].push_back(beat_id);
+    }
+    return node;
+}
+
+CutsceneState CutsceneStateFromJson(const json& node) {
+    CutsceneState cutscene{};
+    cutscene.enabled = node.value("enabled", cutscene.enabled);
+    cutscene.active = node.value("active", cutscene.active);
+    cutscene.source_beat_id = node.value("source_beat_id", cutscene.source_beat_id);
+    cutscene.source_event_id = node.value("source_event_id", cutscene.source_event_id);
+    cutscene.target_npc_id = node.value("target_npc_id", cutscene.target_npc_id);
+    cutscene.target_npc_animation = node.value("target_npc_animation", cutscene.target_npc_animation);
+    cutscene.duration_seconds = node.value("duration_seconds", cutscene.duration_seconds);
+    cutscene.elapsed_seconds = node.value("elapsed_seconds", cutscene.elapsed_seconds);
+    cutscene.narrator_line = node.value("narrator_line", cutscene.narrator_line);
+    if (node.contains("camera_start") && node["camera_start"].is_object()) {
+        cutscene.camera_start = Vec3FromJson(node["camera_start"], cutscene.camera_start);
+    }
+    if (node.contains("camera_mid") && node["camera_mid"].is_object()) {
+        cutscene.camera_mid = Vec3FromJson(node["camera_mid"], cutscene.camera_mid);
+    }
+    if (node.contains("camera_end") && node["camera_end"].is_object()) {
+        cutscene.camera_end = Vec3FromJson(node["camera_end"], cutscene.camera_end);
+    }
+    if (node.contains("played_cutscene_history") && node["played_cutscene_history"].is_array()) {
+        for (const json& beat_node : node["played_cutscene_history"]) {
+            if (beat_node.is_string()) {
+                cutscene.played_cutscene_history.push_back(beat_node.get<std::string>());
+            }
+        }
+    }
+    return cutscene;
 }
 
 json NavmeshToJson(const NavmeshData& navmesh) {
@@ -1023,6 +1077,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     if (document.contains("narrator") && document["narrator"].is_object()) {
         scene.narrator = NarratorStateFromJson(document["narrator"]);
     }
+    scene.cutscene = CutsceneState{};
+    if (document.contains("cutscene") && document["cutscene"].is_object()) {
+        scene.cutscene = CutsceneStateFromJson(document["cutscene"]);
+    }
 
     scene.Update(0.0F);
     return true;
@@ -1128,6 +1186,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     }
     document["story"] = story;
     document["narrator"] = NarratorStateToJson(scene.narrator);
+    document["cutscene"] = CutsceneStateToJson(scene.cutscene);
 
     std::ofstream file(path);
     if (!file.is_open()) {

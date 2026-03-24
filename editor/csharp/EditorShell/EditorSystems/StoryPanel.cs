@@ -2,9 +2,9 @@ using System.Text.Json.Nodes;
 
 namespace GameForge.Editor.EditorShell.EditorSystems;
 
-public sealed record StoryBeatRow(string Id, string Title, string Summary, bool Completed)
+public sealed record StoryBeatRow(string Id, string Title, string Summary, bool Completed, bool CutsceneTrigger)
 {
-    public string Label => $"{(Completed ? "✓" : "•")} {Title} ({Id})";
+    public string Label => $"{(Completed ? "✓" : "•")} {Title} ({Id}){(CutsceneTrigger ? " 🎬" : string.Empty)}";
 }
 
 public sealed class StoryPanelState
@@ -23,6 +23,7 @@ public sealed class StoryPanelState
                 var title = node["title"]?.GetValue<string>() ?? id;
                 var summary = node["summary"]?.GetValue<string>() ?? string.Empty;
                 var completed = node["completed"]?.GetValue<bool>() ?? false;
+                var cutsceneTrigger = node["cutscene_trigger"]?.GetValue<bool>() ?? false;
                 if (string.IsNullOrWhiteSpace(id))
                 {
                     continue;
@@ -31,7 +32,8 @@ public sealed class StoryPanelState
                     id,
                     string.IsNullOrWhiteSpace(title) ? id : title,
                     summary,
-                    completed));
+                    completed,
+                    cutsceneTrigger));
             }
         }
         return new StoryPanelState { Beats = beats };

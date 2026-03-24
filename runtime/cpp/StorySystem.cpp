@@ -4,6 +4,7 @@
 #include "FactionSystem.h"
 #include "Logger.h"
 #include "NarratorSystem.h"
+#include "CutsceneSystem.h"
 #include "RelationshipSystem.h"
 #include "Scene.h"
 
@@ -71,6 +72,23 @@ void MarkBeatComplete(Scene& scene, const std::string& beat_id) {
         }
     }
 }
+
+const StoryBeat* FindBeatById(const Scene& scene, const std::string& beat_id) {
+    for (const StoryBeat& beat : scene.story.campaign_beats) {
+        if (beat.id == beat_id) {
+            return &beat;
+        }
+    }
+    return nullptr;
+}
+
+void MaybeStartCutscene(Scene& scene, const StoryEvent& event) {
+    const StoryBeat* beat = FindBeatById(scene, event.beat_id);
+    if (beat == nullptr || !beat->cutscene_trigger) {
+        return;
+    }
+    CutsceneSystem::TryStartForBeat(scene, *beat, event.event_id, event.narrator_line);
+}
 }  // namespace
 
 namespace StorySystem {
@@ -84,6 +102,7 @@ void EnsureDefaults(Scene& scene) {
         "Arrival at the Fringe",
         "The player reaches the settlement and meets local factions.",
         {"first_contract"},
+        false,
         false,
     });
 }
@@ -108,6 +127,7 @@ bool TriggerEventById(Scene& scene, const char* event_id) {
             if (!event.narrator_line.empty()) {
                 NarratorSystem::QueueLine(scene, event.narrator_line, "story_event:" + event.event_id);
             }
+            MaybeStartCutscene(scene, event);
             GF_LOG_INFO("Story event applied: " + event.event_id + " (" + event.title + ")");
         }
         return changed;
@@ -135,6 +155,7 @@ void Update(Scene& scene, float /*dt_seconds*/) {
         if (!event.narrator_line.empty()) {
             NarratorSystem::QueueLine(scene, event.narrator_line, "story_event:" + event.event_id);
         }
+        MaybeStartCutscene(scene, event);
     }
 }
 

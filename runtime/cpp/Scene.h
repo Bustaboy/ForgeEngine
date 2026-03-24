@@ -68,6 +68,7 @@ struct StoryBeat {
     std::string summary{};
     std::vector<std::string> next_ids{};
     bool completed = false;
+    bool cutscene_trigger = false;
 };
 
 struct StoryRipple {
@@ -105,6 +106,22 @@ struct NarratorState {
     std::vector<std::string> spoken_history{};
 };
 
+struct CutsceneState {
+    bool enabled = true;
+    bool active = false;
+    std::string source_beat_id{};
+    std::string source_event_id{};
+    std::uint64_t target_npc_id = 0;
+    std::string target_npc_animation = "idle";
+    glm::vec3 camera_start{0.0F, 1.7F, -4.0F};
+    glm::vec3 camera_mid{0.0F, 2.2F, -2.0F};
+    glm::vec3 camera_end{0.0F, 1.8F, -1.0F};
+    float duration_seconds = 4.0F;
+    float elapsed_seconds = 0.0F;
+    std::string narrator_line{};
+    std::vector<std::string> played_cutscene_history{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -131,6 +148,7 @@ struct Scene {
     std::deque<CoCreatorQueuedMutation> co_creator_queue{};
     StoryState story{};
     NarratorState narrator{};
+    CutsceneState cutscene{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

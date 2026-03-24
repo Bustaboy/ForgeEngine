@@ -9,6 +9,7 @@
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
 #include "StorySystem.h"
+#include "CutsceneSystem.h"
 #include "templates/generated_gameplay.h"
 
 #include <algorithm>
@@ -122,6 +123,7 @@ void Scene::Update(float dt_seconds) {
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);
+    CutsceneSystem::Update(*this, safe_dt);
     NarratorSystem::Update(*this, safe_dt);
     EconomySystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
