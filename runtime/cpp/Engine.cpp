@@ -11,6 +11,7 @@
 #include "SceneLoader.h"
 #include "StorySystem.h"
 #include "BuildingSystem.h"
+#include "NarratorSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -19,6 +20,7 @@
 #include <glm/vec4.hpp>
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <iostream>
 #include <sstream>
@@ -278,7 +280,21 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event");
+    if (command == "/narrate") {
+        std::string line;
+        std::getline(parser, line);
+        line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }));
+        if (!NarratorSystem::QueueLine(scene, line, "console")) {
+            GF_LOG_INFO("Usage: /narrate <text>");
+            return;
+        }
+        GF_LOG_INFO("Narrator line queued.");
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate");
 }
 }  // namespace
 

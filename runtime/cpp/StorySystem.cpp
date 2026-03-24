@@ -3,6 +3,7 @@
 #include "EconomySystem.h"
 #include "FactionSystem.h"
 #include "Logger.h"
+#include "NarratorSystem.h"
 #include "RelationshipSystem.h"
 #include "Scene.h"
 
@@ -104,6 +105,9 @@ bool TriggerEventById(Scene& scene, const char* event_id) {
             MarkBeatComplete(scene, event.beat_id);
             scene.story.event_history.push_back(event.event_id);
             scene.recent_actions.push_back("story_event:" + event.event_id);
+            if (!event.narrator_line.empty()) {
+                NarratorSystem::QueueLine(scene, event.narrator_line, "story_event:" + event.event_id);
+            }
             GF_LOG_INFO("Story event applied: " + event.event_id + " (" + event.title + ")");
         }
         return changed;
@@ -128,6 +132,9 @@ void Update(Scene& scene, float /*dt_seconds*/) {
         MarkBeatComplete(scene, event.beat_id);
         scene.story.event_history.push_back(event.event_id);
         scene.recent_actions.push_back("story_event:" + event.event_id);
+        if (!event.narrator_line.empty()) {
+            NarratorSystem::QueueLine(scene, event.narrator_line, "story_event:" + event.event_id);
+        }
     }
 }
 

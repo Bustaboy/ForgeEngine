@@ -1081,6 +1081,13 @@
                   <TextBox Grid.Column="1" Text="{Binding StoryFactionNotesEditor}" AcceptsReturn="True" MinHeight="54" />
                 </Grid>
                 <Button Content="Save Story Bible" Click="OnSaveStoryBibleClick" />
+                <TextBlock Text="Narrator (tutorial + key moments)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <CheckBox Content="Narrator Enabled" IsChecked="{Binding NarratorEnabledEditor}" />
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock VerticalAlignment="Center" Text="Voice" Foreground="#AFC2DF" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding NarratorVoiceOptions}" SelectedItem="{Binding NarratorVoiceEditor}" />
+                </Grid>
+                <Button Content="Save Narrator Settings" Click="OnSaveNarratorSettingsClick" />
                 <TextBlock Text="Campaign Beat" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
                   <TextBox Text="{Binding StoryBeatIdEditor}" Watermark="beat_id" />
@@ -1119,6 +1126,7 @@
                   <TextBox Grid.Column="1" Text="{Binding StoryEventBeatIdEditor}" Watermark="beat_id" />
                 </Grid>
                 <TextBox Text="{Binding StoryEventTitleEditor}" Watermark="Event title" />
+                <TextBox Text="{Binding StoryNarratorLineEditor}" Watermark="Narrator line (optional, for tutorials/key moments)" />
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
                   <TextBox Text="{Binding StoryRippleTypeEditor}" Watermark="ripple type" />
                   <TextBox Grid.Column="1" Text="{Binding StoryRippleTargetEditor}" Watermark="target id" />
