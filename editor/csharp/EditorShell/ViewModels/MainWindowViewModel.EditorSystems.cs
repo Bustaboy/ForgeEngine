@@ -413,6 +413,11 @@ public sealed partial class MainWindowViewModel
     public string LivingNpcsModelPathEditor { get => _livingNpcs.ModelPath; set { _livingNpcs.ModelPath = value; OnPropertyChanged(); } }
     public int LivingNpcsSparksToday => _livingNpcs.SparksToday;
     public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
+    public string SettlementVillageNameEditor { get => _livingNpcs.VillageName; set { _livingNpcs.VillageName = value; OnPropertyChanged(); } }
+    public int SettlementPopulation => _livingNpcs.TotalPopulation;
+    public float SettlementMoraleEditor { get => _livingNpcs.VillageMorale; set { _livingNpcs.VillageMorale = Math.Clamp(value, 0f, 100f); OnPropertyChanged(); } }
+    public float SettlementFoodEditor { get => _livingNpcs.FoodStockpile; set { _livingNpcs.FoodStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
+    public float SettlementStockpileEditor { get => _livingNpcs.SharedStockpile; set { _livingNpcs.SharedStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
@@ -1264,6 +1269,21 @@ public sealed partial class MainWindowViewModel
                 {
                     return ApplyLivingNpcAdjustment(root, selected.Mutation);
                 }
+                if (string.Equals(mutationType, "settlement_tweak", StringComparison.Ordinal))
+                {
+                    var settlement = root["settlement"] as JsonObject ?? new JsonObject();
+                    root["settlement"] = settlement;
+                    settlement["village_name"] = settlement["village_name"]?.GetValue<string>() ?? "River Town";
+                    var morale = ReadSingle(settlement["morale"], 62f);
+                    settlement["morale"] = Math.Clamp(morale + ReadSingle(selected.Mutation["morale_delta"], 0f), 0f, 100f);
+                    var resources = settlement["shared_resources"] as JsonObject ?? new JsonObject();
+                    settlement["shared_resources"] = resources;
+                    var resourceKey = selected.Mutation["resource"]?.GetValue<string>() ?? "stockpile";
+                    var delta = ReadSingle(selected.Mutation["delta"], 0f);
+                    var current = ReadSingle(resources[resourceKey], resourceKey == "food" ? 80f : 45f);
+                    resources[resourceKey] = Math.Max(0f, current + delta);
+                    return true;
+                }
                 return false;
             },
             cancellationToken);
@@ -1510,6 +1530,11 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
             OnPropertyChanged(nameof(LivingNpcsSparksToday));
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
+            OnPropertyChanged(nameof(SettlementVillageNameEditor));
+            OnPropertyChanged(nameof(SettlementPopulation));
+            OnPropertyChanged(nameof(SettlementMoraleEditor));
+            OnPropertyChanged(nameof(SettlementFoodEditor));
+            OnPropertyChanged(nameof(SettlementStockpileEditor));
             SyncStoryBeatSuggestions();
             OnPropertyChanged(nameof(FactionStatusSummary));
             OnPropertyChanged(nameof(RelationshipStatusSummary));

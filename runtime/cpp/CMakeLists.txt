@@ -81,6 +81,8 @@ set(FORGE_RUNTIME_SOURCES
     InventorySystem.cpp
     EconomySystem.h
     EconomySystem.cpp
+    SettlementSystem.h
+    SettlementSystem.cpp
     WeatherSystem.h
     WeatherSystem.cpp
     NavmeshSystem.h

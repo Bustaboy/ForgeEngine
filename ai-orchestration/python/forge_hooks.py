@@ -514,6 +514,32 @@ def co_creator_tick(
             }
         )
 
+    settlement_payload = scene_json.get("settlement") if isinstance(scene_json.get("settlement"), dict) else {}
+    resources_payload = settlement_payload.get("shared_resources") if isinstance(settlement_payload.get("shared_resources"), dict) else {}
+    village_food = float(resources_payload.get("food", 80.0) or 80.0)
+    village_morale = float(settlement_payload.get("morale", 62.0) or 62.0)
+    if village_food < 45.0 or village_morale < 48.0:
+        low_key = "food" if village_food < 45.0 else "stockpile"
+        delta = 10.0 if low_key == "food" else 8.0
+        morale_delta = 1.8 if low_key == "food" else 1.2
+        suggestions.append(
+            {
+                "id": "settlement_recovery_tweak",
+                "title": "Stabilize village resources after recent pressure",
+                "why_this_fits": (
+                    "Settlement metrics are dipping, so this proposes a small village-level correction. "
+                    "It keeps local-first continuity while preserving your authority to accept or reject."
+                ),
+                "mutation": {
+                    "type": "settlement_tweak",
+                    "resource": low_key,
+                    "delta": delta,
+                    "morale_delta": morale_delta,
+                    "reason": "co_creator_settlement_recovery",
+                },
+            }
+        )
+
     dialog_npc_id = 0
     dialog_faction_id = dominant_faction_id
     for entity in entities:

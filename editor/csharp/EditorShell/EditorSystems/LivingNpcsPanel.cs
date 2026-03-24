@@ -11,6 +11,11 @@ public sealed class LivingNpcsPanelState
     public string ModelPath { get; set; } = "models/llm-q4-k.gguf";
     public int SparksToday { get; private set; }
     public IReadOnlyList<string> RecentSparks { get; private set; } = [];
+    public string VillageName { get; set; } = "River Town";
+    public int TotalPopulation { get; private set; }
+    public float VillageMorale { get; set; } = 62f;
+    public float FoodStockpile { get; set; } = 80f;
+    public float SharedStockpile { get; set; } = 45f;
 
     public static LivingNpcsPanelState FromScene(JsonObject root)
     {
@@ -50,6 +55,16 @@ public sealed class LivingNpcsPanelState
                 .ToArray();
         }
 
+        var settlement = root["settlement"] as JsonObject;
+        state.VillageName = settlement?["village_name"]?.GetValue<string>() ?? "River Town";
+        state.TotalPopulation = ReadInt32(settlement?["total_population"], 0);
+        state.VillageMorale = Math.Clamp(ReadSingle(settlement?["morale"], 62f), 0f, 100f);
+        if (settlement?["shared_resources"] is JsonObject resources)
+        {
+            state.FoodStockpile = Math.Max(0f, ReadSingle(resources["food"], 80f));
+            state.SharedStockpile = Math.Max(0f, ReadSingle(resources["stockpile"], 45f));
+        }
+
         return state;
     }
 
@@ -67,6 +82,20 @@ public sealed class LivingNpcsPanelState
         freeWill["rng_seed"] = Math.Max(0, ReadInt32(freeWill["rng_seed"], 0));
         freeWill["daily_spark_count"] ??= new JsonObject();
         freeWill["last_spark_line_by_npc"] ??= new JsonObject();
+
+        var settlement = root["settlement"] as JsonObject ?? new JsonObject();
+        root["settlement"] = settlement;
+        settlement["village_name"] = string.IsNullOrWhiteSpace(VillageName) ? "River Town" : VillageName.Trim();
+        settlement["total_population"] = Math.Max(0, ReadInt32(settlement["total_population"], Math.Max(0, TotalPopulation)));
+        settlement["morale"] = Math.Clamp(VillageMorale, 0f, 100f);
+        settlement["tick_interval_seconds"] = Math.Clamp(ReadSingle(settlement["tick_interval_seconds"], 6f), 1f, 60f);
+        settlement["accumulated_tick_seconds"] = Math.Max(0f, ReadSingle(settlement["accumulated_tick_seconds"], 0f));
+        var resources = settlement["shared_resources"] as JsonObject ?? new JsonObject();
+        settlement["shared_resources"] = resources;
+        resources["food"] = Math.Max(0f, FoodStockpile);
+        resources["stockpile"] = Math.Max(0f, SharedStockpile);
+        resources["wood"] = Math.Max(0f, ReadSingle(resources["wood"], 20f));
+        resources["stone"] = Math.Max(0f, ReadSingle(resources["stone"], 16f));
     }
 
     private static float ReadSingle(JsonNode? value, float fallback)
