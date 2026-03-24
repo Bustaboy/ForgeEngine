@@ -3,6 +3,8 @@
 #include "BuildingSystem.h"
 #include "EconomySystem.h"
 #include "FactionSystem.h"
+#include "NavmeshSystem.h"
+#include "AnimationSystem.h"
 #include "SceneLoader.h"
 #include "templates/generated_gameplay.h"
 
@@ -82,18 +84,24 @@ void Scene::Update(float dt_seconds) {
     directional_light.color = sky_color;
     directional_light.intensity = 0.15F + daylight * 1.15F;
 
+    NavmeshSystem::Update(*this, safe_dt);
+
     for (std::size_t i = 0; i < entities.size(); ++i) {
         Entity& entity = entities[i];
         if (entity.buildable.IsValid()) {
             continue;
         }
 
+        const bool has_navigation = npc_navigation.find(entity.id) != npc_navigation.end();
         entity.transform.pos += entity.velocity * safe_dt;
-        entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * safe_dt;
-        entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
 
-        if (entity.transform.pos.x > 1.2F) {
-            entity.transform.pos.x = -1.2F;
+        if (!has_navigation) {
+            entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * safe_dt;
+            entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
+
+            if (entity.transform.pos.x > 1.2F) {
+                entity.transform.pos.x = -1.2F;
+            }
         }
 
         const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
@@ -105,6 +113,8 @@ void Scene::Update(float dt_seconds) {
         entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
         entity.renderable.color.a = 1.0F;
     }
+
+    AnimationSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);
     EconomySystem::Update(*this, safe_dt);
@@ -132,4 +142,9 @@ bool Scene::Save(const std::string& path) const {
 
 bool Scene::Load(const std::string& path) {
     return SceneLoader::Load(path, *this);
+}
+
+
+void Scene::MarkNavmeshDirty() {
+    NavmeshSystem::MarkDirty(*this);
 }

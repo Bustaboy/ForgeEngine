@@ -250,6 +250,7 @@ json EntityToJson(const Entity& entity) {
           {"scale", Vec3ToJson(entity.transform.scale)}}},
         {"renderable", {{"color", Vec4ToJson(entity.renderable.color)}}},
         {"velocity", Vec3ToJson(entity.velocity)},
+        {"animation", {{"motion_phase", entity.animation.motion_phase}, {"left_foot_offset", entity.animation.left_foot_offset}, {"right_foot_offset", entity.animation.right_foot_offset}}},
     };
 
     if (entity.buildable.IsValid()) {
@@ -307,6 +308,12 @@ Entity EntityFromJson(const json& node) {
 
     if (node.contains("velocity") && node["velocity"].is_object()) {
         entity.velocity = Vec3FromJson(node["velocity"], entity.velocity);
+    }
+    if (node.contains("animation") && node["animation"].is_object()) {
+        const json& animation = node["animation"];
+        entity.animation.motion_phase = animation.value("motion_phase", entity.animation.motion_phase);
+        entity.animation.left_foot_offset = animation.value("left_foot_offset", entity.animation.left_foot_offset);
+        entity.animation.right_foot_offset = animation.value("right_foot_offset", entity.animation.right_foot_offset);
     }
 
     if (node.contains("buildable") && node["buildable"].is_object()) {
@@ -441,6 +448,89 @@ json FloatMapToJson(const std::map<std::string, float>& values) {
     return node;
 }
 
+
+json NavPathNodeToJson(const NavPathNode& node) {
+    return json{{"x", node.x}, {"z", node.z}};
+}
+
+NavPathNode NavPathNodeFromJson(const json& node) {
+    NavPathNode out{};
+    out.x = node.value("x", 0);
+    out.z = node.value("z", 0);
+    return out;
+}
+
+json NpcNavigationStateToJson(const NpcNavigationState& navigation) {
+    json node = json{
+        {"mode", navigation.mode},
+        {"route_id", navigation.route_id},
+        {"heading_to_destination", navigation.heading_to_destination},
+        {"path_index", navigation.path_index},
+        {"target_world", Vec3ToJson(navigation.target_world)},
+        {"desired_speed", navigation.desired_speed},
+        {"path", json::array()},
+    };
+    for (const NavPathNode& path_node : navigation.path) {
+        node["path"].push_back(NavPathNodeToJson(path_node));
+    }
+    return node;
+}
+
+NpcNavigationState NpcNavigationStateFromJson(const json& node) {
+    NpcNavigationState navigation{};
+    navigation.mode = node.value("mode", navigation.mode);
+    navigation.route_id = node.value("route_id", navigation.route_id);
+    navigation.heading_to_destination = node.value("heading_to_destination", navigation.heading_to_destination);
+    navigation.path_index = node.value("path_index", navigation.path_index);
+    navigation.desired_speed = node.value("desired_speed", navigation.desired_speed);
+    if (node.contains("target_world") && node["target_world"].is_object()) {
+        navigation.target_world = Vec3FromJson(node["target_world"], navigation.target_world);
+    }
+    if (node.contains("path") && node["path"].is_array()) {
+        for (const json& path_node : node["path"]) {
+            if (path_node.is_object()) {
+                navigation.path.push_back(NavPathNodeFromJson(path_node));
+            }
+        }
+    }
+    return navigation;
+}
+
+json NavmeshToJson(const NavmeshData& navmesh) {
+    return json{
+        {"cell_size", navmesh.cell_size},
+        {"min_x", navmesh.min_x},
+        {"min_z", navmesh.min_z},
+        {"width", navmesh.width},
+        {"height", navmesh.height},
+        {"walkable", navmesh.walkable},
+        {"revision", navmesh.revision},
+        {"last_buildable_count", navmesh.last_buildable_count},
+        {"dirty", navmesh.dirty},
+    };
+}
+
+NavmeshData NavmeshFromJson(const json& node) {
+    NavmeshData navmesh{};
+    navmesh.cell_size = node.value("cell_size", navmesh.cell_size);
+    navmesh.min_x = node.value("min_x", navmesh.min_x);
+    navmesh.min_z = node.value("min_z", navmesh.min_z);
+    navmesh.width = std::max(1, node.value("width", navmesh.width));
+    navmesh.height = std::max(1, node.value("height", navmesh.height));
+    navmesh.revision = node.value("revision", navmesh.revision);
+    navmesh.last_buildable_count = node.value("last_buildable_count", navmesh.last_buildable_count);
+    navmesh.dirty = node.value("dirty", navmesh.dirty);
+    if (node.contains("walkable") && node["walkable"].is_array()) {
+        navmesh.walkable.clear();
+        for (const json& walkable_node : node["walkable"]) {
+            if (walkable_node.is_number_integer()) {
+                navmesh.walkable.push_back(static_cast<std::uint8_t>(walkable_node.get<int>() > 0 ? 1 : 0));
+            }
+        }
+    }
+    return navmesh;
+}
+
 void FloatMapFromJson(const json& node, std::map<std::string, float>& values) {
     values.clear();
     if (!node.is_object()) {
@@ -549,6 +639,40 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
+    if (document.contains("navmesh") && document["navmesh"].is_object()) {
+        scene.navmesh = NavmeshFromJson(document["navmesh"]);
+    } else {
+        scene.navmesh = NavmeshData{};
+    }
+
+    scene.active_npc_ids.clear();
+    if (document.contains("active_npc_ids") && document["active_npc_ids"].is_array()) {
+        for (const json& npc_id_node : document["active_npc_ids"]) {
+            if (!npc_id_node.is_number_unsigned()) {
+                continue;
+            }
+            scene.active_npc_ids.push_back(npc_id_node.get<std::uint64_t>());
+        }
+    }
+
+    scene.npc_navigation.clear();
+    if (document.contains("npc_navigation") && document["npc_navigation"].is_object()) {
+        for (const auto& [npc_id_key, nav_node] : document["npc_navigation"].items()) {
+            if (!nav_node.is_object()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                scene.npc_navigation[npc_id] = NpcNavigationStateFromJson(nav_node);
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    if (document.contains("player_proxy_position") && document["player_proxy_position"].is_object()) {
+        scene.player_proxy_position = Vec3FromJson(document["player_proxy_position"], scene.player_proxy_position);
+    }
 
     if (document.contains("directional_light") && document["directional_light"].is_object()) {
         const json& light = document["directional_light"];
@@ -628,6 +752,17 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         economy["trade_routes"].push_back(EconomyRouteToJson(route));
     }
     document["economy"] = economy;
+    document["navmesh"] = NavmeshToJson(scene.navmesh);
+    document["active_npc_ids"] = json::array();
+    for (const std::uint64_t npc_id : scene.active_npc_ids) {
+        document["active_npc_ids"].push_back(npc_id);
+    }
+    json npc_navigation = json::object();
+    for (const auto& [npc_id, navigation] : scene.npc_navigation) {
+        npc_navigation[std::to_string(npc_id)] = NpcNavigationStateToJson(navigation);
+    }
+    document["npc_navigation"] = npc_navigation;
+    document["player_proxy_position"] = Vec3ToJson(scene.player_proxy_position);
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
     document["recent_actions"] = json::array();
     for (const std::string& action : scene.recent_actions) {

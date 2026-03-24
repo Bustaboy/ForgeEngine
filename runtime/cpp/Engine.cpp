@@ -340,6 +340,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     camera_input_state.raw_position = camera_.position;
     camera_input_state.horizontal_speed = glm::length(glm::vec2(camera_velocity_.x, camera_velocity_.z));
     camera_.Update(dt_seconds, camera_input_state);
+    scene_.player_proxy_position = camera_.position;
 
     const bool build_toggle_pressed = input.IsKeyPressed(GLFW_KEY_B);
     if (build_toggle_pressed && !was_build_toggle_pressed_) {
@@ -397,6 +398,10 @@ void Engine::SeedFallbackScene() {
     scene_.player_reputation.clear();
     scene_.economy = EconomyState{};
     scene_.active_dialog_npc_id = 0;
+    scene_.navmesh = NavmeshData{};
+    scene_.active_npc_ids.clear();
+    scene_.npc_navigation.clear();
+    scene_.player_proxy_position = {0.0F, 0.0F, 0.0F};
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
     constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};
