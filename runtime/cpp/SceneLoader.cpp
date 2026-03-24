@@ -37,8 +37,19 @@ float Clamp01(float value) {
     return std::clamp(value, 0.0F, 1.0F);
 }
 
+json IVec2ToJson(const glm::ivec2& value) {
+    return json{{"x", value.x}, {"y", value.y}};
+}
+
+glm::ivec2 IVec2FromJson(const json& node, const glm::ivec2& fallback) {
+    glm::ivec2 value = fallback;
+    value.x = node.value("x", fallback.x);
+    value.y = node.value("y", fallback.y);
+    return value;
+}
+
 json EntityToJson(const Entity& entity) {
-    return json{
+    json node = json{
         {"id", entity.id},
         {"transform",
          {{"pos", Vec3ToJson(entity.transform.pos)},
@@ -47,6 +58,15 @@ json EntityToJson(const Entity& entity) {
         {"renderable", {{"color", Vec4ToJson(entity.renderable.color)}}},
         {"velocity", Vec3ToJson(entity.velocity)},
     };
+
+    if (entity.buildable.IsValid()) {
+        node["buildable"] = json{
+            {"type", entity.buildable.type},
+            {"grid_size", IVec2ToJson(entity.buildable.grid_size)},
+        };
+    }
+
+    return node;
 }
 
 Entity EntityFromJson(const json& node) {
@@ -75,6 +95,14 @@ Entity EntityFromJson(const json& node) {
 
     if (node.contains("velocity") && node["velocity"].is_object()) {
         entity.velocity = Vec3FromJson(node["velocity"], entity.velocity);
+    }
+
+    if (node.contains("buildable") && node["buildable"].is_object()) {
+        const json& buildable = node["buildable"];
+        entity.buildable.type = buildable.value("type", entity.buildable.type);
+        if (buildable.contains("grid_size") && buildable["grid_size"].is_object()) {
+            entity.buildable.grid_size = IVec2FromJson(buildable["grid_size"], entity.buildable.grid_size);
+        }
     }
 
     return entity;
@@ -120,6 +148,7 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+    scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
 
     if (document.contains("directional_light") && document["directional_light"].is_object()) {
         const json& light = document["directional_light"];
@@ -148,6 +177,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_progress"] = scene.day_progress;
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
+    document["build_mode_enabled"] = scene.build_mode_enabled;
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
 
     std::ofstream file(path);

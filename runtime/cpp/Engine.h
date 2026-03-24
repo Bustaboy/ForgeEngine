@@ -25,5 +25,7 @@ private:
     Timer timer_{};
     Camera camera_{};
     glm::vec3 camera_velocity_{0.0F, 0.0F, 0.0F};
+    bool was_build_toggle_pressed_ = false;
+    bool was_left_mouse_pressed_ = false;
     std::string scene_path_ = "scene_scaffold.json";
 };
