@@ -9,10 +9,22 @@
 #include <glm/vec3.hpp>
 
 #include <array>
+#include <cstdint>
 #include <string>
 
 class Engine {
 public:
+    struct PerfGuardrailsState {
+        bool low_power_mode = false;
+        double smoothed_frame_seconds = 1.0 / 60.0;
+        double current_fixed_dt_seconds = 1.0 / 60.0;
+        double frame_budget_seconds = 1.0 / 60.0;
+        std::uint64_t total_frames = 0;
+        std::uint64_t throttled_frames = 0;
+        std::uint64_t dropped_simulation_steps = 0;
+        std::uint64_t simulation_steps_last_frame = 0;
+    };
+
     void Run();
 
 private:
@@ -33,4 +45,5 @@ private:
     bool debug_overlay_enabled_ = true;
     std::string overlay_status_message_ = "Ready";
     std::string scene_path_ = "scene_scaffold.json";
+    PerfGuardrailsState perf_state_{};
 };

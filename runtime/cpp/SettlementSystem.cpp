@@ -64,9 +64,13 @@ void Update(Scene& scene, float dt_seconds) {
     EnsureDefaults(scene);
     auto& settlement = scene.settlement;
 
+    const int npc_count_estimate = static_cast<int>(std::count_if(scene.entities.begin(), scene.entities.end(), [](const Entity& entity) {
+        return !entity.buildable.IsValid();
+    }));
+    const float scale = npc_count_estimate >= 250 ? 1.8F : (npc_count_estimate >= 120 ? 1.35F : 1.0F);
     const float safe_dt = std::clamp(dt_seconds, 0.0F, 0.5F);
     settlement.accumulated_tick_seconds += safe_dt;
-    const float tick_seconds = std::max(1.0F, settlement.tick_interval_seconds);
+    const float tick_seconds = std::clamp(std::max(1.0F, settlement.tick_interval_seconds * scale), 1.0F, 120.0F);
     if (settlement.accumulated_tick_seconds < tick_seconds) {
         return;
     }
