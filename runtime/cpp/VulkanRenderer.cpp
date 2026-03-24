@@ -770,7 +770,13 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT |
         VK_COLOR_COMPONENT_A_BIT;
-    color_blend_attachment.blendEnable = VK_FALSE;
+    color_blend_attachment.blendEnable = VK_TRUE;
+    color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
     VkPipelineColorBlendStateCreateInfo color_blending{};
     color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -1624,6 +1630,29 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         PerDrawPushConstants per_draw_push{};
         per_draw_push.model = model;
         per_draw_push.color = entity.renderable.color;
+
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &per_draw_push);
+
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+    }
+    if (scene.build_ghost_preview.has_value()) {
+        const Entity& ghost = scene.build_ghost_preview.value();
+        glm::mat4 model(1.0F);
+        model = glm::translate(model, ghost.transform.pos);
+        model = glm::rotate(model, ghost.transform.rot.x, glm::vec3(1.0F, 0.0F, 0.0F));
+        model = glm::rotate(model, ghost.transform.rot.y, glm::vec3(0.0F, 1.0F, 0.0F));
+        model = glm::rotate(model, ghost.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
+        model = glm::scale(model, ghost.transform.scale);
+
+        PerDrawPushConstants per_draw_push{};
+        per_draw_push.model = model;
+        per_draw_push.color = ghost.renderable.color;
 
         vkCmdPushConstants(
             command_buffers_[image_index],

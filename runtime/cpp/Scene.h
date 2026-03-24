@@ -8,6 +8,7 @@
 #include <string>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <vector>
 
 struct Scene {
@@ -20,10 +21,14 @@ struct Scene {
     float day_cycle_speed = 0.01F;
     std::uint32_t day_count = 1;
     bool build_mode_enabled = false;
+    std::optional<Entity> build_ghost_preview{};
     DirectionalLight directional_light{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();
+    [[nodiscard]] std::optional<Entity> GetBuildGhostPreviewFromRay(
+        const glm::vec3& ray_origin,
+        const glm::vec3& ray_direction) const;
     [[nodiscard]] bool TryPlaceBuildingFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction);
     bool Save(const std::string& path) const;
     bool Load(const std::string& path);
