@@ -7,3 +7,6 @@ ai-orchestration/python/models/artifacts/
 
 # Local orchestrator env files
 ai-orchestration/python/.env
+
+# Local virtual environment
+.venv/

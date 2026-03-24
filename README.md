@@ -7,16 +7,58 @@ ForgeEngine V1 is a **local-first, single-player, no-code-first** game creation 
 
 ## Quick Start
 
-Bootstrap scripts now auto-install the runtime JSON header dependency.
+For alpha testers on Windows, this is now the **#1 recommended setup path**.
 
-### Ubuntu/Linux
-```bash
-./scripts/bootstrap.sh
+### 1) Windows 10/11 (Recommended)
+Run one command in PowerShell from the repo root:
+
+```powershell
+pwsh -f ./scripts/Setup-Alpha.ps1
 ```
 
-### Windows (PowerShell)
+What it does automatically:
+- Installs .NET 8 SDK, CMake, Ninja, Python, Vulkan SDK, and MSYS2/MinGW g++.
+- Runs `scripts/bootstrap.ps1`.
+- Creates or reuses `./.venv`.
+- Writes `forge.pth` so `ai-orchestration\python` is always importable.
+- Installs `ai-orchestration\python\requirements.txt` (if present).
+- Runs model prep + benchmark only on a fresh venv.
+
+Force a full clean Python/model reset:
+
 ```powershell
-pwsh -f scripts/bootstrap.ps1
+pwsh -f scripts/Setup-Alpha.ps1 -Fresh
+```
+
+### 2) Linux/macOS (One-command setup)
+
+```bash
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+Force a clean venv + model prep on Linux/macOS:
+
+```bash
+./scripts/setup.sh --fresh
+```
+
+### 3) Packaged installers (secondary option)
+If you prefer installable artifacts over local setup scripts:
+
+#### Ubuntu (DEB + AppImage)
+```bash
+./scripts/package_ubuntu.sh
+```
+
+#### Windows (MSI)
+```powershell
+pwsh -f scripts/package_windows.ps1 -Version 0.1.0
+```
+
+#### macOS (DMG)
+```bash
+./scripts/package_macos.sh
 ```
 
 ## Optional Runtime-Only Verification
