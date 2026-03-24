@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
 set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp")
 if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
     message(FATAL_ERROR
@@ -72,20 +74,11 @@ if(NOT glfw3_FOUND)
     )
 endif()
 
-find_package(glm CONFIG QUIET)
-if(TARGET glm::glm)
-    set(FORGE_GLM_TARGET glm::glm)
-else()
-    find_path(GLM_INCLUDE_DIR glm/vec3.hpp
-        HINTS
-            $ENV{GLM_DIR}/include
-            /usr/include
-            /usr/local/include
-    )
-    if(NOT GLM_INCLUDE_DIR)
-        message(FATAL_ERROR "GLM headers not found. Install GLM dev package or set GLM_DIR.")
-    endif()
-endif()
+FetchContent_Declare(
+    glm
+    URL https://github.com/g-truc/glm/releases/download/1.0.1/glm-1.0.1-light.zip
+)
+FetchContent_MakeAvailable(glm)
 
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
@@ -101,14 +94,13 @@ target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
         runtime/cpp/external/nlohmann_json/single_include
-        ${GLM_INCLUDE_DIR}
+        ${glm_SOURCE_DIR}
 )
 
 target_link_libraries(forge_runtime
     PRIVATE
         Vulkan::Vulkan
         glfw
-        ${FORGE_GLM_TARGET}
 )
 
 if(MSVC)
