@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BuildingSystem.h"
+#include "EconomySystem.h"
 #include "Entity.h"
 
 #include <glm/vec3.hpp>
@@ -44,6 +45,7 @@ struct Scene {
     std::string world_style_guide = "grounded stylized frontier";
     std::map<std::string, FactionDefinition> factions{};
     std::map<std::string, float> player_reputation{};
+    EconomyState economy{};
     bool build_mode_enabled = false;
     std::optional<Entity> build_ghost_preview{};
     DirectionalLight directional_light{};

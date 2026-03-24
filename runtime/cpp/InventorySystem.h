@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+struct Scene;
+
 struct Recipe {
     std::string name{};
     std::map<std::string, int> inputs{};
@@ -22,5 +24,12 @@ bool RemoveItem(Inventory& inventory, const std::string& item, int amount);
 [[nodiscard]] bool CraftRecipe(Inventory& inventory, const std::string& recipe_name, std::string& error_message);
 [[nodiscard]] std::vector<Recipe> DefaultRecipes();
 [[nodiscard]] std::string InventorySummary(const Inventory& inventory);
+[[nodiscard]] bool TradeWithSettlementMarket(
+    Scene& scene,
+    const std::string& item,
+    int quantity,
+    bool player_buys,
+    float faction_reputation,
+    std::string& summary_message);
 
 }  // namespace InventorySystem

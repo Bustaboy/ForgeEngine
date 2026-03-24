@@ -1025,6 +1025,11 @@
                 <ScrollViewer MaxHeight="70">
                   <TextBlock Text="{Binding FactionStatusSummary}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
                 </ScrollViewer>
+                <TextBlock Text="Economy Snapshot" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                <TextBlock Text="{Binding EconomySummary}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                <ScrollViewer MaxHeight="76">
+                  <TextBlock Text="{Binding TradeRouteSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                </ScrollViewer>
                 <TextBlock Text="{Binding CoCreatorStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                 <ComboBox ItemsSource="{Binding CoCreatorSuggestions}" SelectedItem="{Binding SelectedCoCreatorSuggestion}">
                   <ComboBox.ItemTemplate>

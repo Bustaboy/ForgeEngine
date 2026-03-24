@@ -258,6 +258,32 @@ def co_creator_tick(
     factions = factions_raw if isinstance(factions_raw, dict) else {}
     reputation_raw = scene_json.get("player_reputation")
     player_reputation = reputation_raw if isinstance(reputation_raw, dict) else {}
+    economy_raw = scene_json.get("economy")
+    economy = economy_raw if isinstance(economy_raw, dict) else {}
+    price_table = economy.get("price_table") if isinstance(economy.get("price_table"), dict) else {}
+    routes = economy.get("trade_routes") if isinstance(economy.get("trade_routes"), list) else []
+    most_expensive_resource = ""
+    most_expensive_price = 0.0
+    for resource, value in price_table.items():
+        if isinstance(value, (int, float)) and float(value) > most_expensive_price:
+            most_expensive_resource = str(resource)
+            most_expensive_price = float(value)
+    highest_route_risk = 0.0
+    riskiest_route_id = ""
+    riskiest_route_resource = ""
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        risk_value = route.get("risk", 0.0)
+        disruption = route.get("disruption", 0.0)
+        if not isinstance(risk_value, (int, float)) or not isinstance(disruption, (int, float)):
+            continue
+        combined_risk = float(risk_value) + float(disruption)
+        if combined_risk > highest_route_risk:
+            highest_route_risk = combined_risk
+            riskiest_route_id = str(route.get("route_id", "route_unknown"))
+            riskiest_route_resource = str(route.get("resource", "trade_goods"))
+
     dominant_faction_id = ""
     dominant_faction_name = "local communities"
     dominant_reputation = 0.0

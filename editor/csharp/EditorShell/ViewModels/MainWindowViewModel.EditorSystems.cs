@@ -52,6 +52,8 @@ public sealed partial class MainWindowViewModel
     private float _reputationDeltaEditor = 5f;
     private string _factionStatusSummary = "No faction data in scene.";
     private string _coCreatorStatus = "Live suggestions idle.";
+    private string _economySummary = "Economy unavailable.";
+    private string _tradeRouteSummary = "No trade routes loaded.";
 
     public string ActiveSystemTab
     {
@@ -363,6 +365,8 @@ public sealed partial class MainWindowViewModel
     }
 
     public string CoCreatorWhyThisFits => SelectedCoCreatorSuggestion?.WhyThisFits ?? "Pick a suggestion to see the rationale.";
+    public string EconomySummary { get => _economySummary; private set { _economySummary = value; OnPropertyChanged(); } }
+    public string TradeRouteSummary { get => _tradeRouteSummary; private set { _tradeRouteSummary = value; OnPropertyChanged(); } }
 
     public void SetSystemTab(string tab)
     {
@@ -603,6 +607,7 @@ public sealed partial class MainWindowViewModel
         var dayProgress = root?["day_progress"]?.GetValue<float>() ?? 0.25f;
         var projectRoot = ResolveRepositoryRoot();
         var recentActionsJson = JsonSerializer.Serialize(_coCreatorRecentActions.TakeLast(8).ToArray());
+        var economyPayload = root?["economy"]?.ToJsonString() ?? "{}";
         var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(
             projectRoot,
             "co-creator-tick",
@@ -610,7 +615,8 @@ public sealed partial class MainWindowViewModel
             string.IsNullOrWhiteSpace(BiomeEditor) ? "temperate" : BiomeEditor.Trim(),
             string.IsNullOrWhiteSpace(WorldStyleGuideEditor) ? "grounded stylized frontier" : WorldStyleGuideEditor.Trim(),
             dayProgress.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-            recentActionsJson);
+            recentActionsJson,
+            economyPayload);
 
         using var process = Process.Start(startInfo);
         if (process is null)
@@ -788,6 +794,42 @@ public sealed partial class MainWindowViewModel
                 FactionStatusSummary = "No faction reputation yet.";
             }
 
+            if (root["economy"] is JsonObject economy)
+            {
+                if (economy["price_table"] is JsonObject prices && prices.Count > 0)
+                {
+                    EconomySummary = string.Join(", ", prices.Select(entry => $"{entry.Key}:{(entry.Value?.GetValue<float>() ?? 0f):0.0}"));
+                }
+                else
+                {
+                    EconomySummary = "No market prices yet.";
+                }
+
+                if (economy["trade_routes"] is JsonArray routes && routes.Count > 0)
+                {
+                    var lines = routes.OfType<JsonObject>()
+                        .Select(route =>
+                        {
+                            var routeId = route["route_id"]?.GetValue<string>() ?? "route";
+                            var resource = route["resource"]?.GetValue<string>() ?? "resource";
+                            var risk = route["risk"]?.GetValue<float>() ?? 0f;
+                            var deaths = route["trader_deaths"]?.GetValue<int>() ?? 0;
+                            return $"{routeId}: {resource} risk={risk:0.00} deaths={deaths}";
+                        })
+                        .ToArray();
+                    TradeRouteSummary = string.Join(Environment.NewLine, lines);
+                }
+                else
+                {
+                    TradeRouteSummary = "No trade routes loaded.";
+                }
+            }
+            else
+            {
+                EconomySummary = "Economy unavailable.";
+                TradeRouteSummary = "No trade routes loaded.";
+            }
+
             if (SelectedBuildableEntityId == 0 && _buildings.Buildables.Count > 0)
             {
                 SelectedBuildableEntityId = _buildings.Buildables[0].EntityId;
@@ -816,6 +858,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(Recipes));
             OnPropertyChanged(nameof(DialogNpcs));
             OnPropertyChanged(nameof(FactionStatusSummary));
+            OnPropertyChanged(nameof(EconomySummary));
+            OnPropertyChanged(nameof(TradeRouteSummary));
         }
         catch
         {

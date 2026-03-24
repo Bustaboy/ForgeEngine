@@ -404,6 +404,56 @@ FactionDefinition FactionDefinitionFromJson(const json& node, const std::string&
     }
     return faction;
 }
+
+json EconomyRouteToJson(const EconomyTradeRoute& route) {
+    return json{
+        {"route_id", route.route_id},
+        {"from_settlement", route.from_settlement},
+        {"to_settlement", route.to_settlement},
+        {"resource", route.resource},
+        {"units_per_tick", route.units_per_tick},
+        {"risk", route.risk},
+        {"disruption", route.disruption},
+        {"last_trader_id", route.last_trader_id},
+        {"trader_deaths", route.trader_deaths},
+    };
+}
+
+EconomyTradeRoute EconomyRouteFromJson(const json& node) {
+    EconomyTradeRoute route{};
+    route.route_id = node.value("route_id", route.route_id);
+    route.from_settlement = node.value("from_settlement", route.from_settlement);
+    route.to_settlement = node.value("to_settlement", route.to_settlement);
+    route.resource = node.value("resource", route.resource);
+    route.units_per_tick = std::max(1, node.value("units_per_tick", route.units_per_tick));
+    route.risk = node.value("risk", route.risk);
+    route.disruption = node.value("disruption", route.disruption);
+    route.last_trader_id = node.value("last_trader_id", route.last_trader_id);
+    route.trader_deaths = node.value("trader_deaths", route.trader_deaths);
+    return route;
+}
+
+json FloatMapToJson(const std::map<std::string, float>& values) {
+    json node = json::object();
+    for (const auto& [key, value] : values) {
+        node[key] = value;
+    }
+    return node;
+}
+
+void FloatMapFromJson(const json& node, std::map<std::string, float>& values) {
+    values.clear();
+    if (!node.is_object()) {
+        return;
+    }
+
+    for (const auto& [key, value_node] : node.items()) {
+        if (!value_node.is_number()) {
+            continue;
+        }
+        values[key] = value_node.get<float>();
+    }
+}
 }  // namespace
 
 bool SceneLoader::Load(const std::string& path, Scene& scene) {
@@ -477,6 +527,29 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
+    scene.economy = EconomyState{};
+    if (document.contains("economy") && document["economy"].is_object()) {
+        const json& economy = document["economy"];
+        FloatMapFromJson(economy.value("resource_supply", json::object()), scene.economy.resource_supply);
+        FloatMapFromJson(economy.value("resource_demand", json::object()), scene.economy.resource_demand);
+        FloatMapFromJson(economy.value("base_prices", json::object()), scene.economy.base_prices);
+        FloatMapFromJson(economy.value("price_table", json::object()), scene.economy.price_table);
+        scene.economy.tick_interval_seconds = std::max(0.1F, economy.value("tick_interval_seconds", scene.economy.tick_interval_seconds));
+        scene.economy.accumulated_tick_seconds = std::max(0.0F, economy.value("accumulated_tick_seconds", scene.economy.accumulated_tick_seconds));
+        if (economy.contains("trade_routes") && economy["trade_routes"].is_array()) {
+            for (const json& route_node : economy["trade_routes"]) {
+                if (!route_node.is_object()) {
+                    continue;
+                }
+                EconomyTradeRoute route = EconomyRouteFromJson(route_node);
+                if (route.IsValid()) {
+                    scene.economy.trade_routes.push_back(route);
+                }
+            }
+        }
+    }
+
+
     if (document.contains("directional_light") && document["directional_light"].is_object()) {
         const json& light = document["directional_light"];
         if (light.contains("direction") && light["direction"].is_object()) {
@@ -543,6 +616,18 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         player_reputation[faction_id] = value;
     }
     document["player_reputation"] = player_reputation;
+    json economy = json::object();
+    economy["resource_supply"] = FloatMapToJson(scene.economy.resource_supply);
+    economy["resource_demand"] = FloatMapToJson(scene.economy.resource_demand);
+    economy["base_prices"] = FloatMapToJson(scene.economy.base_prices);
+    economy["price_table"] = FloatMapToJson(scene.economy.price_table);
+    economy["tick_interval_seconds"] = scene.economy.tick_interval_seconds;
+    economy["accumulated_tick_seconds"] = scene.economy.accumulated_tick_seconds;
+    economy["trade_routes"] = json::array();
+    for (const EconomyTradeRoute& route : scene.economy.trade_routes) {
+        economy["trade_routes"].push_back(EconomyRouteToJson(route));
+    }
+    document["economy"] = economy;
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
     document["recent_actions"] = json::array();
     for (const std::string& action : scene.recent_actions) {

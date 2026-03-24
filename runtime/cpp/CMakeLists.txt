@@ -79,6 +79,8 @@ set(FORGE_RUNTIME_SOURCES
     BuildingSystem.cpp
     InventorySystem.h
     InventorySystem.cpp
+    EconomySystem.h
+    EconomySystem.cpp
     DialogSystem.h
     DialogSystem.cpp
     DialogEvolutionSystem.h
