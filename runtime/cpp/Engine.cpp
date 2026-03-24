@@ -2,6 +2,7 @@
 
 #include "DialogSystem.h"
 #include "DialogEvolutionSystem.h"
+#include "EconomySystem.h"
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
@@ -150,7 +151,76 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /evolve_dialog");
+    if (command == "/economy") {
+        EconomySystem::EnsureDefaults(scene);
+        GF_LOG_INFO(EconomySystem::EconomySummary(scene));
+        for (const EconomyTradeRoute& route : scene.economy.trade_routes) {
+            GF_LOG_INFO("Route: " + EconomySystem::RouteSummary(route));
+        }
+        return;
+    }
+
+    if (command == "/trade") {
+        std::string arg0;
+        parser >> arg0;
+        if (arg0.empty()) {
+            GF_LOG_INFO("Usage: /trade <route_id> [raid] | /trade buy|sell <item> <qty> [faction_id]");
+            return;
+        }
+
+        if (arg0 == "buy" || arg0 == "sell") {
+            std::string item;
+            int quantity = 0;
+            std::string faction_id;
+            parser >> item >> quantity >> faction_id;
+            float faction_reputation = 0.0F;
+            if (!faction_id.empty()) {
+                faction_reputation = FactionSystem::GetReputation(scene, faction_id);
+            }
+            std::string trade_summary;
+            const bool ok = InventorySystem::TradeWithSettlementMarket(
+                scene,
+                item,
+                quantity,
+                arg0 == "buy",
+                faction_reputation,
+                trade_summary);
+            GF_LOG_INFO(trade_summary);
+            if (ok) {
+                GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+            }
+            return;
+        }
+
+        const std::string route_id = arg0;
+        std::string route_action;
+        parser >> route_action;
+        if (route_action == "raid") {
+            EconomySystem::RegisterRouteRaid(scene, route_id);
+            GF_LOG_INFO("Route raided: " + route_id);
+            GF_LOG_INFO(EconomySystem::EconomySummary(scene));
+            return;
+        }
+
+        bool found = false;
+        for (const EconomyTradeRoute& route : scene.economy.trade_routes) {
+            if (route.route_id == route_id) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            GF_LOG_INFO("Unknown route id: " + route_id);
+            return;
+        }
+
+        EconomySystem::RunTradeTick(scene);
+        GF_LOG_INFO("Trade tick applied for route context: " + route_id);
+        GF_LOG_INFO(EconomySystem::EconomySummary(scene));
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /evolve_dialog /economy /trade");
 }
 }  // namespace
 
@@ -325,6 +395,7 @@ void Engine::SeedFallbackScene() {
     scene_.npc_relationships.clear();
     scene_.factions.clear();
     scene_.player_reputation.clear();
+    scene_.economy = EconomyState{};
     scene_.active_dialog_npc_id = 0;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
@@ -369,6 +440,7 @@ void Engine::SeedFallbackScene() {
         }
         scene_.entities.push_back(entity);
     }
+    EconomySystem::EnsureDefaults(scene_);
 }
 
 void Engine::Shutdown() {

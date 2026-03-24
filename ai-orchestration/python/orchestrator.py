@@ -2631,7 +2631,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if command == "co-creator-tick":
         if len(raw_args) < 6:
             raise ValueError(
-                "Usage: orchestrator.py co-creator-tick <scene_json_path> <biome> <world_style_guide> <day_progress> <recent_actions_json>"
+                "Usage: orchestrator.py co-creator-tick <scene_json_path> <biome> <world_style_guide> <day_progress> <recent_actions_json> [economy_json]"
             )
         scene_payload = json.loads(Path(raw_args[1]).read_text(encoding="utf-8"))
         if not isinstance(scene_payload, dict):

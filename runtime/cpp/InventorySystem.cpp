@@ -1,5 +1,8 @@
 #include "InventorySystem.h"
 
+#include "EconomySystem.h"
+#include "Scene.h"
+
 #include <sstream>
 
 namespace {
@@ -80,6 +83,16 @@ bool CraftRecipe(Inventory& inventory, const std::string& recipe_name, std::stri
 
     error_message.clear();
     return true;
+}
+
+bool TradeWithSettlementMarket(
+    Scene& scene,
+    const std::string& item,
+    int quantity,
+    bool player_buys,
+    float faction_reputation,
+    std::string& summary_message) {
+    return EconomySystem::TradeWithMarket(scene, item, quantity, player_buys, faction_reputation, summary_message);
 }
 
 std::vector<Recipe> DefaultRecipes() {

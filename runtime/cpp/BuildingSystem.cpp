@@ -1,6 +1,7 @@
 #include "BuildingSystem.h"
 
 #include "InventorySystem.h"
+#include "EconomySystem.h"
 #include "FactionSystem.h"
 #include "Logger.h"
 #include "Scene.h"
@@ -140,12 +141,14 @@ bool TryPlaceBuildingFromRay(Scene& scene, const glm::vec3& ray_origin, const gl
 
     const BuildTemplate build_template = SelectBuildTemplate(scene);
     const std::string item_name = RequiredInventoryItem(build_template);
-    if (!InventorySystem::RemoveItem(scene.player_inventory, item_name, 1)) {
-        GF_LOG_INFO("Not enough " + item_name + " to build");
+    const int dynamic_cost = EconomySystem::AdjustedBuildItemCost(scene, item_name, 1);
+    if (!InventorySystem::RemoveItem(scene.player_inventory, item_name, dynamic_cost)) {
+        GF_LOG_INFO("Not enough " + item_name + " to build (needs " + std::to_string(dynamic_cost) + ").");
         return false;
     }
 
-    GF_LOG_INFO("Consumed " + item_name);
+    EconomySystem::RegisterConsumption(scene, item_name, dynamic_cost);
+    GF_LOG_INFO("Consumed " + item_name + " x" + std::to_string(dynamic_cost));
     scene.entities.push_back(candidate.value());
     return true;
 }

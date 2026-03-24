@@ -1,6 +1,7 @@
 #include "DialogSystem.h"
 
 #include "DialogEvolutionSystem.h"
+#include "EconomySystem.h"
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
@@ -194,6 +195,11 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     DialogEffect adjusted_effect = choice.effect;
     if (adjusted_effect.inventory_delta > 0) {
         adjusted_effect.inventory_delta = FactionSystem::ApplyTradeAdjustmentForEntity(scene, *npc, adjusted_effect.inventory_delta);
+        if (!adjusted_effect.inventory_item.empty()) {
+            const float market_price = EconomySystem::PriceFor(scene, adjusted_effect.inventory_item);
+            const float scarcity_scale = std::clamp(6.0F / std::max(0.5F, market_price), 0.45F, 1.8F);
+            adjusted_effect.inventory_delta = std::max(1, static_cast<int>(std::round(adjusted_effect.inventory_delta * scarcity_scale)));
+        }
     }
     ApplyEffect(scene, npc->id, adjusted_effect);
     if (!npc->faction.faction_id.empty() && adjusted_effect.relationship_delta != 0.0F) {
