@@ -160,6 +160,32 @@ struct FreeWillState {
     std::deque<FreeWillSparkRequest> pending_sparks{};
 };
 
+
+struct CombatUnitState {
+    std::uint64_t entity_id = 0;
+    std::uint32_t team_id = 0;
+    std::int32_t grid_x = 0;
+    std::int32_t grid_y = 0;
+    float health = 0.0F;
+    float max_health = 0.0F;
+    std::uint32_t ap = 0;
+    std::uint32_t max_ap = 0;
+    float initiative = 0.0F;
+    bool alive = true;
+};
+
+struct CombatState {
+    bool active = false;
+    std::uint32_t grid_width = 8;
+    std::uint32_t grid_height = 8;
+    std::vector<CombatUnitState> units{};
+    std::vector<std::uint64_t> turn_order{};
+    std::size_t active_turn_index = 0;
+    std::uint32_t round_index = 0;
+    std::string trigger_source{};
+    std::string last_resolution{};
+};
+
 struct SettlementState {
     std::string village_name = "River Town";
     std::uint32_t total_population = 0;
@@ -208,6 +234,7 @@ struct Scene {
     NarratorState narrator{};
     CutsceneState cutscene{};
     FreeWillState free_will{};
+    CombatState combat{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

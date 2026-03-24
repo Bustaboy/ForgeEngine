@@ -15,6 +15,7 @@
 #include "NPCController.h"
 #include "FreeWillSystem.h"
 #include "SettlementSystem.h"
+#include "CombatSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -294,6 +295,34 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
+
+    if (command == "/combat_start") {
+        std::uint32_t grid_width = 8;
+        std::uint32_t grid_height = 8;
+        parser >> grid_width >> grid_height;
+        const bool started = CombatSystem::StartEncounter(scene, {}, grid_width, grid_height, "console");
+        GF_LOG_INFO(started ? "Combat encounter started." : "Combat start failed.");
+        return;
+    }
+
+    if (command == "/combat_action") {
+        std::string action;
+        std::string target;
+        parser >> action >> target;
+        if (action.empty()) {
+            GF_LOG_INFO("Usage: /combat_action <move|attack|wait|use_item> <target>");
+            return;
+        }
+        std::string message;
+        const bool ok = CombatSystem::TryAction(scene, action, target, message);
+        GF_LOG_INFO(message);
+        if (ok && !scene.combat.active) {
+            GF_LOG_INFO("Combat resolved: " + scene.combat.last_resolution + ". morale=" +
+                        std::to_string(static_cast<int>(std::round(scene.settlement.morale))));
+        }
+        return;
+    }
+
     if (command == "/story_event") {
         std::string event_id;
         parser >> event_id;
@@ -400,7 +429,7 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /story_event /narrate /npc_schedule /npc_activity /npc_freewill");
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /combat_start /combat_action /story_event /narrate /npc_schedule /npc_activity /npc_freewill");
 }
 }  // namespace
 

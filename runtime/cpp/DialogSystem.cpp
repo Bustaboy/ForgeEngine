@@ -9,11 +9,13 @@
 #include "RelationshipSystem.h"
 #include "Scene.h"
 #include "WeatherSystem.h"
+#include "CombatSystem.h"
 
 #include <glm/geometric.hpp>
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <vector>
 
 namespace {
 Entity* FindEntityById(Scene& scene, std::uint64_t id) {
@@ -213,6 +215,22 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     ApplyEffect(scene, npc->id, adjusted_effect);
     if (!npc->faction.faction_id.empty() && adjusted_effect.relationship_delta != 0.0F) {
         FactionSystem::AddPlayerReputation(scene, npc->faction.faction_id, adjusted_effect.relationship_delta, "dialog");
+    }
+
+    if (choice.next_node_id.rfind("combat:", 0) == 0) {
+        std::vector<std::uint64_t> participants{};
+        participants.push_back(npc->id);
+        for (const Entity& entity : scene.entities) {
+            if (entity.buildable.IsValid() || entity.id == npc->id) {
+                continue;
+            }
+            participants.insert(participants.begin(), entity.id);
+            break;
+        }
+        const bool started = CombatSystem::StartEncounter(scene, participants, 8U, 8U, "dialog_choice");
+        GF_LOG_INFO(started ? "Dialog escalated into combat." : "Dialog combat trigger failed.");
+        EndDialog(scene, *npc);
+        return started;
     }
 
     if (choice.next_node_id.empty()) {

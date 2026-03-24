@@ -96,6 +96,7 @@ public sealed partial class MainWindowViewModel
     private float _characterVoiceVolumeEditor = 1f;
     private string _storyNarratorLineEditor = "";
     private string _storyStatus = "Story tools ready.";
+    private bool _combatModeEnabledEditor;
     private string _livingNpcsStatus = "Living NPC settings ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
@@ -487,6 +488,7 @@ public sealed partial class MainWindowViewModel
     public IReadOnlyList<string> VoicePersonalityOptions => _voicePersonalityOptions;
     public IReadOnlyList<string> VoiceStyleOptions => _voiceStyleOptions;
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
+    public bool CombatModeEnabledEditor { get => _combatModeEnabledEditor; set { _combatModeEnabledEditor = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
     public CoCreatorSuggestion? SelectedStoryBeatSuggestion
@@ -613,6 +615,25 @@ public sealed partial class MainWindowViewModel
                     ? "No NPCs matched the current selection for re-seed."
                     : $"Re-seeded living defaults for {updatedCount} NPC(s).";
                 return updatedCount > 0;
+            },
+            cancellationToken);
+
+    public async Task ToggleCombatModeAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Combat mode toggled",
+            root =>
+            {
+                var combat = root["combat"] as JsonObject ?? new JsonObject();
+                root["combat"] = combat;
+                var active = combat["active"]?.GetValue<bool>() ?? false;
+                combat["active"] = !active;
+                combat["grid_width"] = Math.Max(4, combat["grid_width"]?.GetValue<int>() ?? 8);
+                combat["grid_height"] = Math.Max(4, combat["grid_height"]?.GetValue<int>() ?? 8);
+                CombatModeEnabledEditor = !active;
+                StoryStatus = CombatModeEnabledEditor
+                    ? "Combat mode enabled in scene. Use /combat_start in runtime to begin encounter."
+                    : "Combat mode disabled in scene.";
+                return true;
             },
             cancellationToken);
 
@@ -1375,6 +1396,7 @@ public sealed partial class MainWindowViewModel
             _storyPanel = StoryPanelState.FromScene(root);
             _weather = WeatherPanelState.FromScene(root);
             _livingNpcs = LivingNpcsPanelState.FromScene(root);
+            CombatModeEnabledEditor = root["combat"]?["active"]?.GetValue<bool>() ?? false;
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)

@@ -1211,6 +1211,11 @@ public partial class MainWindow : Window
         await _viewModel.AdjustFactionReputationAsync(-1f);
     }
 
+    private async void OnToggleCombatModeClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ToggleCombatModeAsync();
+    }
+
     private async void OnSaveStoryBibleClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveStoryBibleAsync();

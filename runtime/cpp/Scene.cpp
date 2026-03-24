@@ -15,6 +15,7 @@
 #include "VoiceSystem.h"
 #include "WeatherSystem.h"
 #include "SettlementSystem.h"
+#include "CombatSystem.h"
 #include "templates/generated_gameplay.h"
 
 #include <algorithm>
@@ -82,6 +83,7 @@ void Scene::Update(float dt_seconds) {
     SettlementSystem::EnsureDefaults(*this);
     NPCController::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
+    CombatSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     world_time.elapsed_seconds += safe_dt;
@@ -158,6 +160,7 @@ void Scene::Update(float dt_seconds) {
     EconomySystem::Update(*this, safe_dt);
     SettlementSystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
+    CombatSystem::Update(*this, safe_dt);
 }
 
 bool Scene::ToggleBuildMode() {
