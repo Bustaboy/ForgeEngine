@@ -19,6 +19,14 @@ if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
 from benchmark import run_benchmark_as_dict
+from forge_hooks import (
+    apply_to_scene_file,
+    generate_building_templates,
+    generate_dialog_tree,
+    generate_npc_with_dialog,
+    generate_recipes,
+    modify_scene,
+)
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 
@@ -2568,6 +2576,60 @@ def run_bot_playtest_with_report(prototype_root: Path, scenario_path: Path, outp
     return result, report, json_path, markdown_path
 
 
+def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
+    """Dispatch simple hook commands before argparse-based legacy flags."""
+    if not raw_args:
+        return None
+
+    command = raw_args[0]
+    if command == "generate-dialog":
+        if len(raw_args) < 4:
+            raise ValueError("Usage: orchestrator.py generate-dialog <npc_name> <personality> <theme>")
+        payload = generate_dialog_tree(raw_args[1], raw_args[2], raw_args[3])
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "generate-recipes":
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py generate-recipes <theme> [count]")
+        count = int(raw_args[2]) if len(raw_args) >= 3 else 4
+        payload = generate_recipes(raw_args[1], count)
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "add-npc":
+        if len(raw_args) < 3:
+            raise ValueError("Usage: orchestrator.py add-npc <name> <role>")
+        payload = generate_npc_with_dialog(raw_args[1], raw_args[2])
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "generate-building-templates":
+        count = int(raw_args[1]) if len(raw_args) >= 2 else 3
+        payload = generate_building_templates(count)
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "modify-scene":
+        if len(raw_args) < 3:
+            raise ValueError("Usage: orchestrator.py modify-scene <scene_json_path> <instruction>")
+        payload = apply_to_scene_file(raw_args[1], raw_args[2])
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    if command == "modify-scene-json":
+        if len(raw_args) < 3:
+            raise ValueError("Usage: orchestrator.py modify-scene-json <scene_json_path> <instruction>")
+        scene_payload = json.loads(Path(raw_args[1]).read_text(encoding="utf-8"))
+        if not isinstance(scene_payload, dict):
+            raise ValueError("Scene payload must be a JSON object")
+        payload = modify_scene(scene_payload, raw_args[2])
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    return None
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GameForge V1 AI orchestration skeleton")
     parser.add_argument("--suggest-uncertain", dest="uncertain_input", help="User reply to evaluate for uncertainty")
@@ -2628,6 +2690,10 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    hook_result = _try_run_forge_hooks_cli(sys.argv[1:])
+    if hook_result is not None:
+        return hook_result
+
     args = _parse_args()
     launch_runtime = args.launch_runtime if args.launch_runtime is not None else bool(args.run_generation_pipeline)
 
