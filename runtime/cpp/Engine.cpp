@@ -1,5 +1,6 @@
 #include "Engine.h"
 
+#include "InventorySystem.h"
 #include "Logger.h"
 #include "SceneLoader.h"
 
@@ -11,8 +12,75 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
+
+namespace {
+void ProcessConsoleCommands(Scene& scene) {
+    std::streambuf* input_buffer = std::cin.rdbuf();
+    if (input_buffer == nullptr || input_buffer->in_avail() <= 0) {
+        return;
+    }
+
+    std::string command_line;
+    if (!std::getline(std::cin, command_line) || command_line.empty() || command_line[0] != '/') {
+        return;
+    }
+
+    std::istringstream parser(command_line);
+    std::string command;
+    parser >> command;
+
+    if (command == "/give") {
+        std::string item;
+        int amount = 0;
+        parser >> item >> amount;
+        if (InventorySystem::AddItem(scene.player_inventory, item, amount)) {
+            GF_LOG_INFO("Given " + std::to_string(amount) + " " + item + ".");
+            GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+        } else {
+            GF_LOG_INFO("Usage: /give <item> <amount>");
+        }
+        return;
+    }
+
+    if (command == "/craft") {
+        std::string recipe_name;
+        parser >> recipe_name;
+        std::string error_message;
+        if (InventorySystem::CraftRecipe(scene.player_inventory, recipe_name, error_message)) {
+            const Recipe* recipe = InventorySystem::FindRecipeByName(recipe_name);
+            if (recipe != nullptr) {
+                GF_LOG_INFO(
+                    "Crafted " + std::to_string(recipe->output_quantity) + " " + recipe->output_item + " from recipe " +
+                    recipe_name + ".");
+            } else {
+                GF_LOG_INFO("Crafted recipe: " + recipe_name + ".");
+            }
+            GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+        } else {
+            GF_LOG_INFO("Craft failed: " + error_message);
+        }
+        return;
+    }
+
+    if (command == "/inventory") {
+        GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+        return;
+    }
+
+    if (command == "/recipes") {
+        for (const Recipe& recipe : InventorySystem::DefaultRecipes()) {
+            GF_LOG_INFO("Recipe: " + recipe.name + " -> " + recipe.output_item + " x" + std::to_string(recipe.output_quantity));
+        }
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes");
+}
+}  // namespace
 
 void Engine::Run() {
     Init();
@@ -170,6 +238,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     }
     was_left_mouse_pressed_ = left_mouse_pressed;
 
+    ProcessConsoleCommands(scene_);
     scene_.Update(dt_seconds);
 }
 

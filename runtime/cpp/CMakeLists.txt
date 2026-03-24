@@ -76,6 +76,8 @@ set(FORGE_RUNTIME_SOURCES
     Engine.cpp
     BuildingSystem.h
     BuildingSystem.cpp
+    InventorySystem.h
+    InventorySystem.cpp
     Timer.cpp
     Scene.cpp
     VulkanRenderer.cpp

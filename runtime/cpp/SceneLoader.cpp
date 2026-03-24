@@ -48,6 +48,34 @@ glm::ivec2 IVec2FromJson(const json& node, const glm::ivec2& fallback) {
     return value;
 }
 
+json InventoryToJson(const Inventory& inventory) {
+    json node = json::object();
+    for (const auto& [item, amount] : inventory.items) {
+        node[item] = amount;
+    }
+    return node;
+}
+
+Inventory InventoryFromJson(const json& node, const Inventory& fallback) {
+    Inventory inventory = fallback;
+    inventory.items.clear();
+
+    if (!node.is_object()) {
+        return inventory;
+    }
+
+    for (const auto& [item, amount_node] : node.items()) {
+        if (!amount_node.is_number_integer()) {
+            continue;
+        }
+        const int amount = amount_node.get<int>();
+        if (amount > 0) {
+            inventory.items[item] = amount;
+        }
+    }
+    return inventory;
+}
+
 json EntityToJson(const Entity& entity) {
     json node = json{
         {"id", entity.id},
@@ -64,6 +92,9 @@ json EntityToJson(const Entity& entity) {
             {"type", entity.buildable.type},
             {"grid_size", IVec2ToJson(entity.buildable.grid_size)},
         };
+    }
+    if (!entity.inventory.items.empty()) {
+        node["inventory"] = InventoryToJson(entity.inventory);
     }
 
     return node;
@@ -103,6 +134,9 @@ Entity EntityFromJson(const json& node) {
         if (buildable.contains("grid_size") && buildable["grid_size"].is_object()) {
             entity.buildable.grid_size = IVec2FromJson(buildable["grid_size"], entity.buildable.grid_size);
         }
+    }
+    if (node.contains("inventory")) {
+        entity.inventory = InventoryFromJson(node["inventory"], entity.inventory);
     }
 
     return entity;
@@ -149,6 +183,9 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
+    if (document.contains("player_inventory")) {
+        scene.player_inventory = InventoryFromJson(document["player_inventory"], scene.player_inventory);
+    }
 
     if (document.contains("directional_light") && document["directional_light"].is_object()) {
         const json& light = document["directional_light"];
@@ -178,6 +215,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
     document["build_mode_enabled"] = scene.build_mode_enabled;
+    document["player_inventory"] = InventoryToJson(scene.player_inventory);
     document["directional_light"] = DirectionalLightToJson(scene.directional_light);
 
     std::ofstream file(path);
