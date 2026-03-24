@@ -1014,6 +1014,7 @@
                   <Button Grid.Column="1" Content="Refresh Suggestions" Click="OnRefreshCoCreatorClick" />
                   <Button Grid.Column="2" Content="Toggle Live" Click="OnToggleCoCreatorLiveClick" />
                 </Grid>
+                <Button Content="Evolve Selected NPC Dialog" Click="OnEvolveSelectedNpcDialogClick" />
                 <TextBlock Text="Faction Reputation" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <Grid ColumnDefinitions="*,80,80" ColumnSpacing="6">
                   <TextBox Text="{Binding SelectedFactionIdEditor}" Watermark="Faction id (e.g., guild_builders)" />

@@ -1154,6 +1154,11 @@ public partial class MainWindow : Window
         await _viewModel.RefreshCoCreatorSuggestionsAsync();
     }
 
+    private async void OnEvolveSelectedNpcDialogClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.EvolveSelectedNpcDialogAsync();
+    }
+
     private void OnToggleCoCreatorLiveClick(object? sender, RoutedEventArgs e)
     {
         _viewModel.SetCoCreatorLive(!_viewModel.CoCreatorLiveEnabled);

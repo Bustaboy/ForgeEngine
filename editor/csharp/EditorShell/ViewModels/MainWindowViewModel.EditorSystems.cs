@@ -673,6 +673,17 @@ public sealed partial class MainWindowViewModel
                     root["day_progress"] = Math.Clamp(value, 0f, 1f);
                     return true;
                 }
+                if (string.Equals(mutationType, "dialog_add_branch", StringComparison.Ordinal))
+                {
+                    var npcId = selected.Mutation["npc_id"]?.GetValue<ulong>() ?? 0UL;
+                    var branchText = selected.Mutation["branch_text"]?.GetValue<string>() ?? "I have new thoughts to share.";
+                    var choiceText = selected.Mutation["choice_text"]?.GetValue<string>() ?? "What's changed?";
+                    var triggerEvent = selected.Mutation["trigger_event"]?.GetValue<string>() ?? "co_creator_update";
+                    var requiredFactionId = selected.Mutation["required_faction_id"]?.GetValue<string>() ?? string.Empty;
+                    var minRequiredRep = selected.Mutation["min_required_reputation"]?.GetValue<float>() ?? -100f;
+                    var relationshipDelta = selected.Mutation["choice_relationship_delta"]?.GetValue<float>() ?? 0.5f;
+                    return TryAppendDialogBranch(root, npcId, branchText, choiceText, triggerEvent, requiredFactionId, minRequiredRep, relationshipDelta);
+                }
                 return false;
             },
             cancellationToken);
@@ -810,6 +821,120 @@ public sealed partial class MainWindowViewModel
         {
             // Keep existing system panel state if scene parse fails.
         }
+    }
+
+    public async Task EvolveSelectedNpcDialogAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Dialog evolved from Co-Creator tab",
+            root =>
+            {
+                var npcId = SelectedDialogEntityId;
+                if (npcId == 0 && _dialogs.Npcs.Count > 0)
+                {
+                    npcId = _dialogs.Npcs[0].EntityId;
+                }
+
+                var factionId = string.IsNullOrWhiteSpace(SelectedFactionIdEditor) ? "guild_builders" : SelectedFactionIdEditor.Trim();
+                var rep = 0f;
+                if (root["player_reputation"] is JsonObject playerRep)
+                {
+                    rep = playerRep[factionId]?.GetValue<float>() ?? 0f;
+                }
+                var tone = rep >= 45f ? "warm" : rep <= -25f ? "guarded" : "neutral";
+                var branchText =
+                    $"({tone}) The {BiomeEditor} rumors remember your last choices. It now shapes this {WorldStyleGuideEditor} exchange.";
+                var choiceText = tone == "guarded"
+                    ? "Can we repair trust?"
+                    : "Any new developments from recent events?";
+                return TryAppendDialogBranch(root, npcId, branchText, choiceText, "editor_evolve_button", factionId, tone == "guarded" ? -10f : -100f, 1f);
+            },
+            cancellationToken);
+
+    private static bool TryAppendDialogBranch(
+        JsonObject root,
+        ulong npcId,
+        string branchText,
+        string choiceText,
+        string triggerEvent,
+        string requiredFactionId,
+        float minRequiredRep,
+        float relationshipDelta)
+    {
+        if (root["entities"] is not JsonArray entities)
+        {
+            return false;
+        }
+
+        foreach (var entity in entities.OfType<JsonObject>())
+        {
+            var id = entity["id"]?.GetValue<ulong>() ?? 0UL;
+            if (id != npcId || entity["dialog"] is not JsonObject dialog)
+            {
+                continue;
+            }
+
+            if (dialog["nodes"] is not JsonArray nodes || nodes.Count == 0)
+            {
+                return false;
+            }
+
+            var branchId = $"evolved_{nodes.Count + 1}";
+            var newNode = new JsonObject
+            {
+                ["id"] = branchId,
+                ["text"] = branchText,
+                ["choices"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["text"] = "I understand.",
+                        ["effect"] = new JsonObject
+                        {
+                            ["relationship_delta"] = relationshipDelta,
+                        },
+                    },
+                },
+            };
+            nodes.Add(newNode);
+
+            var startNodeId = dialog["start_node_id"]?.GetValue<string>()
+                ?? (nodes[0] as JsonObject)?["id"]?.GetValue<string>()
+                ?? string.Empty;
+            foreach (var node in nodes.OfType<JsonObject>())
+            {
+                if (!string.Equals(node["id"]?.GetValue<string>(), startNodeId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var choices = node["choices"] as JsonArray ?? new JsonArray();
+                node["choices"] = choices;
+                var branchChoice = new JsonObject
+                {
+                    ["text"] = choiceText,
+                    ["next_node_id"] = branchId,
+                    ["effect"] = new JsonObject(),
+                };
+                if (!string.IsNullOrWhiteSpace(requiredFactionId))
+                {
+                    branchChoice["required_faction_id"] = requiredFactionId;
+                    branchChoice["min_required_reputation"] = minRequiredRep;
+                }
+                choices.Add(branchChoice);
+                break;
+            }
+
+            var worldEvents = dialog["world_events"] as JsonArray ?? new JsonArray();
+            dialog["world_events"] = worldEvents;
+            worldEvents.Add(triggerEvent);
+            while (worldEvents.Count > 24)
+            {
+                worldEvents.RemoveAt(0);
+            }
+            return true;
+        }
+
+        return false;
     }
 
     private async Task ApplySceneMutationAsync(string label, Func<JsonObject, bool> mutate, CancellationToken cancellationToken = default)

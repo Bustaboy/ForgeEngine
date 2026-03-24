@@ -168,6 +168,25 @@ json DialogComponentToJson(const DialogComponent& dialog) {
     if (!dialog.active_node_id.empty()) {
         node["active_node_id"] = dialog.active_node_id;
     }
+    if (!dialog.past_choices.empty()) {
+        node["past_choices"] = json::array();
+        for (const std::string& choice_text : dialog.past_choices) {
+            node["past_choices"].push_back(choice_text);
+        }
+    }
+    if (!dialog.world_events.empty()) {
+        node["world_events"] = json::array();
+        for (const std::string& world_event : dialog.world_events) {
+            node["world_events"].push_back(world_event);
+        }
+    }
+    if (!dialog.reputation_influence.empty()) {
+        json influence = json::object();
+        for (const auto& [faction_id, value] : dialog.reputation_influence) {
+            influence[faction_id] = value;
+        }
+        node["reputation_influence"] = influence;
+    }
 
     return node;
 }
@@ -178,6 +197,31 @@ DialogComponent DialogComponentFromJson(const json& node, const DialogComponent&
     dialog.start_node_id = node.value("start_node_id", dialog.start_node_id);
     dialog.active_node_id = node.value("active_node_id", dialog.active_node_id);
     dialog.in_progress = node.value("in_progress", false);
+    dialog.past_choices.clear();
+    if (node.contains("past_choices") && node["past_choices"].is_array()) {
+        for (const json& choice_node : node["past_choices"]) {
+            if (choice_node.is_string()) {
+                dialog.past_choices.push_back(choice_node.get<std::string>());
+            }
+        }
+    }
+    dialog.world_events.clear();
+    if (node.contains("world_events") && node["world_events"].is_array()) {
+        for (const json& event_node : node["world_events"]) {
+            if (event_node.is_string()) {
+                dialog.world_events.push_back(event_node.get<std::string>());
+            }
+        }
+    }
+    dialog.reputation_influence.clear();
+    if (node.contains("reputation_influence") && node["reputation_influence"].is_object()) {
+        for (const auto& [faction_id, value_node] : node["reputation_influence"].items()) {
+            if (!value_node.is_number()) {
+                continue;
+            }
+            dialog.reputation_influence[faction_id] = value_node.get<float>();
+        }
+    }
 
     if (node.contains("nodes") && node["nodes"].is_array()) {
         dialog.nodes.reserve(node["nodes"].size());

@@ -72,6 +72,9 @@ struct DialogComponent {
     std::string start_node_id{};
     std::string active_node_id{};
     bool in_progress = false;
+    std::vector<std::string> past_choices{};
+    std::vector<std::string> world_events{};
+    std::map<std::string, float> reputation_influence{};
 
     [[nodiscard]] bool IsValid() const {
         if (nodes.empty()) {
