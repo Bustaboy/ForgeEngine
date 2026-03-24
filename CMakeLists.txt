@@ -140,3 +140,15 @@ endif()
 set_target_properties(forge_runtime PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+
+set(FORGE_EDITOR_CS_SOURCES
+    editor/csharp/EditorShell/EditorSystems/DayNightPanel.cs
+    editor/csharp/EditorShell/EditorSystems/BuildingPanel.cs
+    editor/csharp/EditorShell/EditorSystems/InventoryRecipesPanel.cs
+    editor/csharp/EditorShell/EditorSystems/DialogPanel.cs
+    editor/csharp/EditorShell/EditorSystems/AiOrchestrationPanel.cs
+    editor/csharp/EditorShell/ViewModels/MainWindowViewModel.EditorSystems.cs
+)
+
+add_custom_target(forge_editor_cs_sources SOURCES ${FORGE_EDITOR_CS_SOURCES})
