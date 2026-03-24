@@ -24,7 +24,6 @@ void Engine::Run() {
 
     while (!renderer_.ShouldClose()) {
         timer_.BeginFrame();
-        renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()));
         renderer_.PollEvents();
         input.BeginFrame();
 
@@ -51,9 +50,12 @@ void Engine::Run() {
         renderer_.RenderFrame(scene_, camera_);
 
         if (timer_.ShouldUpdateFps()) {
+            const std::string day_clock = timer_.DayClockText();
+            renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()), day_clock);
             renderer_.SetWindowTitle(
                 "ForgeEngine Runtime (Vulkan-first) | FPS: " + std::to_string(timer_.Fps()) +
-                " | Frame: " + timer_.FrameTimeMsText() + "ms");
+                " | Frame: " + timer_.FrameTimeMsText() + "ms | " + day_clock);
+            GF_LOG_INFO("Day time: " + std::to_string(timer_.DayProgress()));
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -81,6 +83,9 @@ void Engine::Init() {
     camera_.smoothedYaw = camera_.yaw;
     camera_.smoothedPitch = camera_.pitch;
     camera_.smoothedPosition = camera_.position;
+    timer_.SetDayProgress(scene_.day_progress);
+    timer_.SetCycleSpeed(scene_.day_cycle_speed);
+    timer_.SetDayCount(scene_.day_count);
     GF_LOG_INFO("Render loop started");
 }
 
@@ -127,12 +132,19 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     camera_input_state.horizontal_speed = glm::length(glm::vec2(camera_velocity_.x, camera_velocity_.z));
     camera_.Update(dt_seconds, camera_input_state);
 
+    timer_.SetCycleSpeed(scene_.day_cycle_speed);
+    timer_.UpdateWorldTime(dt_seconds);
+    scene_.day_progress = timer_.DayProgress();
+    scene_.day_count = timer_.DayCount();
     scene_.Update(dt_seconds);
 }
 
 void Engine::SeedFallbackScene() {
     scene_.entities.clear();
     scene_.elapsed_seconds = 0.0F;
+    scene_.day_progress = 0.25F;
+    scene_.day_cycle_speed = 0.01F;
+    scene_.day_count = 1;
 
     constexpr std::array<float, 5> kInitialX = {-0.85F, -0.45F, 0.0F, 0.45F, 0.85F};
     constexpr std::array<float, 5> kVelocityX = {0.30F, 0.25F, 0.20F, 0.15F, 0.10F};

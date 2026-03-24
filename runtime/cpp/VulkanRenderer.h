@@ -41,7 +41,7 @@ public:
     void Init();
     void Shutdown();
     void RenderFrame(const Scene& scene, const Camera& camera);
-    void DrawFPSOverlay(float fps);
+    void DrawFPSOverlay(float fps, const std::string& day_night_text);
 
     [[nodiscard]] bool ShouldClose() const;
     [[nodiscard]] bool IsKeyPressed(int key) const;

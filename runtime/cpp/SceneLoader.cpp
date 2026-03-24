@@ -6,7 +6,9 @@
 #include <cmath>
 #include <cstddef>
 #include <fstream>
+#include <algorithm>
 
+#include <glm/gtc/constants.hpp>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -35,6 +37,39 @@ glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
     value.z = node.value("z", fallback.z);
     value.w = node.value("w", fallback.w);
     return value;
+}
+
+float Clamp01(float value) {
+    return std::clamp(value, 0.0F, 1.0F);
+}
+
+glm::vec3 Lerp(const glm::vec3& start, const glm::vec3& end, float t) {
+    return start + (end - start) * Clamp01(t);
+}
+
+float SegmentT(float progress, float start, float end) {
+    if (end <= start) {
+        return 0.0F;
+    }
+    return Clamp01((progress - start) / (end - start));
+}
+
+glm::vec3 SampleSkyColor(float day_progress) {
+    constexpr glm::vec3 kNightSky{0.03F, 0.05F, 0.12F};
+    constexpr glm::vec3 kSunriseSky{0.95F, 0.48F, 0.20F};
+    constexpr glm::vec3 kDaySky{0.70F, 0.85F, 1.00F};
+    constexpr glm::vec3 kSunsetSky{0.98F, 0.38F, 0.25F};
+
+    if (day_progress < 0.25F) {
+        return Lerp(kNightSky, kSunriseSky, SegmentT(day_progress, 0.0F, 0.25F));
+    }
+    if (day_progress < 0.50F) {
+        return Lerp(kSunriseSky, kDaySky, SegmentT(day_progress, 0.25F, 0.50F));
+    }
+    if (day_progress < 0.75F) {
+        return Lerp(kDaySky, kSunsetSky, SegmentT(day_progress, 0.50F, 0.75F));
+    }
+    return Lerp(kSunsetSky, kNightSky, SegmentT(day_progress, 0.75F, 1.0F));
 }
 
 json EntityToJson(const Entity& entity) {
@@ -79,6 +114,14 @@ Entity EntityFromJson(const json& node) {
 
     return entity;
 }
+
+json DirectionalLightToJson(const DirectionalLight& light) {
+    return json{
+        {"direction", Vec3ToJson(light.direction)},
+        {"color", Vec3ToJson(light.color)},
+        {"intensity", light.intensity},
+    };
+}
 }  // namespace
 
 bool SceneLoader::Load(const std::string& path, Scene& scene) {
@@ -108,7 +151,23 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
-    scene.elapsed_seconds = 0.0F;
+    scene.elapsed_seconds = document.value("elapsed_seconds", 0.0F);
+    scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
+    scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
+    scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+
+    if (document.contains("directional_light") && document["directional_light"].is_object()) {
+        const json& light = document["directional_light"];
+        if (light.contains("direction") && light["direction"].is_object()) {
+            scene.directional_light.direction = Vec3FromJson(light["direction"], scene.directional_light.direction);
+        }
+        if (light.contains("color") && light["color"].is_object()) {
+            scene.directional_light.color = Vec3FromJson(light["color"], scene.directional_light.color);
+        }
+        scene.directional_light.intensity = light.value("intensity", scene.directional_light.intensity);
+    }
+
+    scene.Update(0.0F);
     return true;
 }
 
@@ -120,6 +179,11 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     for (const Entity& entity : scene.entities) {
         document["entities"].push_back(EntityToJson(entity));
     }
+    document["elapsed_seconds"] = scene.elapsed_seconds;
+    document["day_progress"] = scene.day_progress;
+    document["day_cycle_speed"] = scene.day_cycle_speed;
+    document["day_count"] = scene.day_count;
+    document["directional_light"] = DirectionalLightToJson(scene.directional_light);
 
     std::ofstream file(path);
     if (!file.is_open()) {
@@ -132,6 +196,16 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
 
 void Scene::Update(float dt_seconds) {
     elapsed_seconds += dt_seconds;
+
+    day_progress = Clamp01(day_progress);
+    const float sun_angle = day_progress * glm::two_pi<float>();
+    const glm::vec3 sun_direction = glm::normalize(glm::vec3(std::cos(sun_angle), std::sin(sun_angle), 0.25F));
+    const float daylight = std::max(0.0F, sun_direction.y);
+    const glm::vec3 sky_color = SampleSkyColor(day_progress);
+
+    directional_light.direction = sun_direction;
+    directional_light.color = sky_color;
+    directional_light.intensity = 0.15F + daylight * 1.15F;
 
     for (std::size_t i = 0; i < entities.size(); ++i) {
         Entity& entity = entities[i];

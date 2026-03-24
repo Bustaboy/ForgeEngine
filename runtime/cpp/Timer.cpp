@@ -1,6 +1,8 @@
 #include "Timer.h"
 
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -27,6 +29,14 @@ void Timer::BeginFrame() {
     }
 }
 
+void Timer::UpdateWorldTime(float dt_seconds) {
+    day_progress_ += dt_seconds * cycle_speed_;
+    while (day_progress_ >= 1.0F) {
+        day_progress_ -= 1.0F;
+        ++day_count_;
+    }
+}
+
 bool Timer::ShouldUpdateFps() const {
     return fps_updated_;
 }
@@ -37,4 +47,43 @@ int Timer::Fps() const {
 
 const std::string& Timer::FrameTimeMsText() const {
     return frame_time_ms_;
+}
+
+float Timer::DayProgress() const {
+    return day_progress_;
+}
+
+float Timer::CycleSpeed() const {
+    return cycle_speed_;
+}
+
+std::uint32_t Timer::DayCount() const {
+    return day_count_;
+}
+
+std::string Timer::DayClockText() const {
+    constexpr int kMinutesPerDay = 24 * 60;
+    const int total_minutes = static_cast<int>(std::floor(day_progress_ * static_cast<float>(kMinutesPerDay)));
+    const int hours = (total_minutes / 60) % 24;
+    const int minutes = total_minutes % 60;
+
+    std::ostringstream stream;
+    stream << "Day " << day_count_ << " - " << std::setw(2) << std::setfill('0') << hours
+           << ":" << std::setw(2) << std::setfill('0') << minutes;
+    return stream.str();
+}
+
+void Timer::SetDayProgress(float day_progress) {
+    day_progress_ = std::clamp(day_progress, 0.0F, 1.0F);
+    if (day_progress_ >= 1.0F) {
+        day_progress_ = 0.0F;
+    }
+}
+
+void Timer::SetCycleSpeed(float cycle_speed) {
+    cycle_speed_ = std::max(0.0F, cycle_speed);
+}
+
+void Timer::SetDayCount(std::uint32_t day_count) {
+    day_count_ = std::max(1U, day_count);
 }
