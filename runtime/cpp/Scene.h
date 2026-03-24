@@ -11,6 +11,7 @@
 
 struct Scene {
     std::vector<Entity> entities{};
+    Inventory player_inventory{};
     float elapsed_seconds = 0.0F;
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;

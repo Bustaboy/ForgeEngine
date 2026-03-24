@@ -5,6 +5,7 @@
 #include <glm/vec2.hpp>
 
 #include <cstdint>
+#include <map>
 #include <string>
 
 struct Transform {
@@ -26,11 +27,18 @@ struct BuildableComponent {
     }
 };
 
+struct InventoryComponent {
+    std::map<std::string, int> items{};
+};
+
+using Inventory = InventoryComponent;
+
 struct Entity {
     std::uint64_t id = 0;
     Transform transform{};
     Renderable renderable{};
     BuildableComponent buildable{};
+    InventoryComponent inventory{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
 };
 
