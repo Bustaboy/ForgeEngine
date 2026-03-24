@@ -670,6 +670,7 @@ json StoryEventToJson(const StoryEvent& event) {
         {"beat_id", event.beat_id},
         {"title", event.title},
         {"summary", event.summary},
+        {"narrator_line", event.narrator_line},
         {"applied", event.applied},
         {"ripples", json::array()},
     };
@@ -685,6 +686,7 @@ StoryEvent StoryEventFromJson(const json& node) {
     event.beat_id = node.value("beat_id", event.beat_id);
     event.title = node.value("title", event.title);
     event.summary = node.value("summary", event.summary);
+    event.narrator_line = node.value("narrator_line", event.narrator_line);
     event.applied = node.value("applied", event.applied);
     if (node.contains("ripples") && node["ripples"].is_array()) {
         for (const json& ripple_node : node["ripples"]) {
@@ -694,6 +696,43 @@ StoryEvent StoryEventFromJson(const json& node) {
         }
     }
     return event;
+}
+
+json NarratorStateToJson(const NarratorState& narrator) {
+    json node = json{
+        {"enabled", narrator.enabled},
+        {"voice_id", narrator.voice_id},
+        {"pending_lines", json::array()},
+        {"spoken_history", json::array()},
+    };
+    for (const std::string& line : narrator.pending_lines) {
+        node["pending_lines"].push_back(line);
+    }
+    for (const std::string& line : narrator.spoken_history) {
+        node["spoken_history"].push_back(line);
+    }
+    return node;
+}
+
+NarratorState NarratorStateFromJson(const json& node) {
+    NarratorState narrator{};
+    narrator.enabled = node.value("enabled", narrator.enabled);
+    narrator.voice_id = node.value("voice_id", narrator.voice_id);
+    if (node.contains("pending_lines") && node["pending_lines"].is_array()) {
+        for (const json& line_node : node["pending_lines"]) {
+            if (line_node.is_string()) {
+                narrator.pending_lines.push_back(line_node.get<std::string>());
+            }
+        }
+    }
+    if (node.contains("spoken_history") && node["spoken_history"].is_array()) {
+        for (const json& line_node : node["spoken_history"]) {
+            if (line_node.is_string()) {
+                narrator.spoken_history.push_back(line_node.get<std::string>());
+            }
+        }
+    }
+    return narrator;
 }
 
 json NavmeshToJson(const NavmeshData& navmesh) {
@@ -980,6 +1019,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             }
         }
     }
+    scene.narrator = NarratorState{};
+    if (document.contains("narrator") && document["narrator"].is_object()) {
+        scene.narrator = NarratorStateFromJson(document["narrator"]);
+    }
 
     scene.Update(0.0F);
     return true;
@@ -1084,6 +1127,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         story["event_history"].push_back(event_id);
     }
     document["story"] = story;
+    document["narrator"] = NarratorStateToJson(scene.narrator);
 
     std::ofstream file(path);
     if (!file.is_open()) {

@@ -83,6 +83,7 @@ struct StoryEvent {
     std::string beat_id{};
     std::string title{};
     std::string summary{};
+    std::string narrator_line{};
     std::vector<StoryRipple> ripples{};
     bool applied = false;
 };
@@ -95,6 +96,13 @@ struct StoryState {
     std::vector<StoryBeat> campaign_beats{};
     std::vector<StoryEvent> pending_events{};
     std::vector<std::string> event_history{};
+};
+
+struct NarratorState {
+    bool enabled = true;
+    std::string voice_id = "default";
+    std::deque<std::string> pending_lines{};
+    std::vector<std::string> spoken_history{};
 };
 
 struct Scene {
@@ -122,6 +130,7 @@ struct Scene {
     std::vector<std::string> recent_actions{};
     std::deque<CoCreatorQueuedMutation> co_creator_queue{};
     StoryState story{};
+    NarratorState narrator{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

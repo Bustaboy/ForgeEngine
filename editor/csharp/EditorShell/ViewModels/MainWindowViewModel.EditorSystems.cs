@@ -78,7 +78,11 @@ public sealed partial class MainWindowViewModel
     private string _storyRippleTargetEditor = "guild_builders";
     private string _storyRippleDimensionEditor = "";
     private float _storyRippleValueEditor = 5f;
+    private bool _narratorEnabledEditor = true;
+    private string _narratorVoiceEditor = "default";
+    private string _storyNarratorLineEditor = "";
     private string _storyStatus = "Story tools ready.";
+    private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly ObservableCollection<CoCreatorSuggestion> _storyBeatSuggestions = [];
     private CoCreatorSuggestion? _selectedStoryBeatSuggestion;
 
@@ -422,6 +426,10 @@ public sealed partial class MainWindowViewModel
     public string StoryRippleTargetEditor { get => _storyRippleTargetEditor; set { _storyRippleTargetEditor = value; OnPropertyChanged(); } }
     public string StoryRippleDimensionEditor { get => _storyRippleDimensionEditor; set { _storyRippleDimensionEditor = value; OnPropertyChanged(); } }
     public float StoryRippleValueEditor { get => _storyRippleValueEditor; set { _storyRippleValueEditor = value; OnPropertyChanged(); } }
+    public bool NarratorEnabledEditor { get => _narratorEnabledEditor; set { _narratorEnabledEditor = value; OnPropertyChanged(); } }
+    public string NarratorVoiceEditor { get => _narratorVoiceEditor; set { _narratorVoiceEditor = value; OnPropertyChanged(); } }
+    public string StoryNarratorLineEditor { get => _storyNarratorLineEditor; set { _storyNarratorLineEditor = value; OnPropertyChanged(); } }
+    public IReadOnlyList<string> NarratorVoiceOptions => _narratorVoiceOptions;
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
@@ -732,6 +740,22 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task SaveNarratorSettingsAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Narrator settings updated",
+            root =>
+            {
+                var narrator = root["narrator"] as JsonObject ?? new JsonObject();
+                root["narrator"] = narrator;
+                narrator["enabled"] = NarratorEnabledEditor;
+                narrator["voice_id"] = string.IsNullOrWhiteSpace(NarratorVoiceEditor) ? "default" : NarratorVoiceEditor.Trim();
+                narrator["pending_lines"] = narrator["pending_lines"] as JsonArray ?? new JsonArray();
+                narrator["spoken_history"] = narrator["spoken_history"] as JsonArray ?? new JsonArray();
+                StoryStatus = $"Narrator {(NarratorEnabledEditor ? "enabled" : "disabled")} with voice '{NarratorVoiceEditor}'.";
+                return true;
+            },
+            cancellationToken);
+
     public async Task UpsertStoryBeatAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
             "Story beat updated",
@@ -846,6 +870,7 @@ public sealed partial class MainWindowViewModel
                     ["beat_id"] = StoryEventBeatIdEditor.Trim(),
                     ["title"] = string.IsNullOrWhiteSpace(StoryEventTitleEditor) ? StoryEventIdEditor.Trim() : StoryEventTitleEditor.Trim(),
                     ["summary"] = StoryEventTitleEditor.Trim(),
+                    ["narrator_line"] = StoryNarratorLineEditor.Trim(),
                     ["applied"] = false,
                     ["ripples"] = new JsonArray
                     {
@@ -860,7 +885,7 @@ public sealed partial class MainWindowViewModel
                     },
                 };
                 pending.Add(eventNode);
-                StoryStatus = $"Queued story event '{StoryEventIdEditor.Trim()}' with ripple.";
+                StoryStatus = $"Queued story event '{StoryEventIdEditor.Trim()}' with ripple + narrator line.";
                 return true;
             },
             cancellationToken);
@@ -1111,6 +1136,11 @@ public sealed partial class MainWindowViewModel
                 StoryNpcEditor = FlattenBibleEntries(story["major_npcs"] as JsonArray);
                 StoryEventsEditor = FlattenBibleEntries(story["key_events"] as JsonArray);
                 StoryFactionNotesEditor = FlattenBibleEntries(story["faction_notes"] as JsonArray);
+            }
+            if (root["narrator"] is JsonObject narrator)
+            {
+                NarratorEnabledEditor = narrator["enabled"]?.GetValue<bool>() ?? true;
+                NarratorVoiceEditor = narrator["voice_id"]?.GetValue<string>() ?? "default";
             }
             if (root["player_reputation"] is JsonObject reputation)
             {
