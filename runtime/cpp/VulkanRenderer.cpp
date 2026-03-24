@@ -196,8 +196,23 @@ void VulkanRenderer::SetWindowTitle(const std::string& title) const {
     }
 }
 
-void VulkanRenderer::DrawFPSOverlay(float fps, const std::string& day_night_text) {
-    GF_LOG_INFO("FPS: " + std::to_string(fps) + " | " + day_night_text);
+void VulkanRenderer::DrawFPSOverlay(
+    float fps,
+    const std::string& day_night_text,
+    const std::string& status_text,
+    bool enabled) {
+    if (!enabled) {
+        return;
+    }
+
+    const std::string overlay_text =
+        "FPS: " + std::to_string(static_cast<int>(std::round(fps))) + " | " + day_night_text + " | " + status_text;
+    if (overlay_text == last_overlay_text_) {
+        return;
+    }
+
+    last_overlay_text_ = overlay_text;
+    GF_LOG_INFO("[Overlay] " + overlay_text);
 }
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {

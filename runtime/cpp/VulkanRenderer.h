@@ -41,7 +41,7 @@ public:
     void Init();
     void Shutdown();
     void RenderFrame(const Scene& scene, const Camera& camera);
-    void DrawFPSOverlay(float fps, const std::string& day_night_text);
+    void DrawFPSOverlay(float fps, const std::string& day_night_text, const std::string& status_text, bool enabled);
 
     [[nodiscard]] bool ShouldClose() const;
     [[nodiscard]] bool IsKeyPressed(int key) const;
@@ -179,4 +179,5 @@ private:
     std::size_t current_frame_ = 0;
     bool framebuffer_resized_ = false;
     bool enable_validation_layers_ = false;
+    std::string last_overlay_text_{};
 };

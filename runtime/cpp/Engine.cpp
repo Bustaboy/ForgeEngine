@@ -64,7 +64,23 @@ bool TryComputeCursorRay(GLFWwindow* window, const Camera& camera, glm::vec3& ou
     return true;
 }
 
-void ProcessConsoleCommands(Scene& scene) {
+void SetOverlayStatusMessage(std::string& overlay_status_message, const std::string& message) {
+    if (message.empty()) {
+        return;
+    }
+    overlay_status_message = message;
+}
+
+void LogConsoleHelp() {
+    GF_LOG_INFO("Console commands:");
+    GF_LOG_INFO("  Core: /help | /debug_overlay [on|off|toggle] | /inventory | /recipes");
+    GF_LOG_INFO("  Build/Craft: /give <item> <amount> | /craft <recipe> | /trade ... | /settlement");
+    GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
+    GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
+    GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+}
+
+void ProcessConsoleCommands(Scene& scene, bool& debug_overlay_enabled, std::string& overlay_status_message) {
     std::streambuf* input_buffer = std::cin.rdbuf();
     if (input_buffer == nullptr || input_buffer->in_avail() <= 0) {
         return;
@@ -79,6 +95,28 @@ void ProcessConsoleCommands(Scene& scene) {
     std::string command;
     parser >> command;
 
+    if (command == "/help") {
+        LogConsoleHelp();
+        SetOverlayStatusMessage(overlay_status_message, "Console help printed");
+        return;
+    }
+
+    if (command == "/debug_overlay") {
+        std::string arg;
+        parser >> arg;
+        if (arg == "on") {
+            debug_overlay_enabled = true;
+        } else if (arg == "off") {
+            debug_overlay_enabled = false;
+        } else {
+            debug_overlay_enabled = !debug_overlay_enabled;
+        }
+        const std::string state = std::string("Debug Overlay: ") + (debug_overlay_enabled ? "ON" : "OFF");
+        GF_LOG_INFO(state);
+        SetOverlayStatusMessage(overlay_status_message, state);
+        return;
+    }
+
     if (command == "/give") {
         std::string item;
         int amount = 0;
@@ -86,8 +124,10 @@ void ProcessConsoleCommands(Scene& scene) {
         if (InventorySystem::AddItem(scene.player_inventory, item, amount)) {
             GF_LOG_INFO("Given " + std::to_string(amount) + " " + item + ".");
             GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+            SetOverlayStatusMessage(overlay_status_message, "Item added: " + item);
         } else {
             GF_LOG_INFO("Usage: /give <item> <amount>");
+            SetOverlayStatusMessage(overlay_status_message, "Usage: /give <item> <amount>");
         }
         return;
     }
@@ -106,8 +146,10 @@ void ProcessConsoleCommands(Scene& scene) {
                 GF_LOG_INFO("Crafted recipe: " + recipe_name + ".");
             }
             GF_LOG_INFO(InventorySystem::InventorySummary(scene.player_inventory));
+            SetOverlayStatusMessage(overlay_status_message, "Item consumed");
         } else {
             GF_LOG_INFO("Craft failed: " + error_message);
+            SetOverlayStatusMessage(overlay_status_message, "Not enough resources");
         }
         return;
     }
@@ -220,6 +262,7 @@ void ProcessConsoleCommands(Scene& scene) {
                 << " food=" << static_cast<int>(std::round(scene.settlement.shared_resources["food"]))
                 << " stockpile=" << static_cast<int>(std::round(scene.settlement.shared_resources["stockpile"]));
         GF_LOG_INFO(summary.str());
+        SetOverlayStatusMessage(overlay_status_message, "Settlement updated");
         return;
     }
 
@@ -229,6 +272,7 @@ void ProcessConsoleCommands(Scene& scene) {
         if (!parser.fail()) {
             scene.settlement.morale = std::clamp(morale, 0.0F, 100.0F);
             GF_LOG_INFO("Village morale set to " + std::to_string(static_cast<int>(std::round(scene.settlement.morale))) + ".");
+            SetOverlayStatusMessage(overlay_status_message, "Settlement morale changed");
         } else {
             GF_LOG_INFO("Village morale: " + std::to_string(static_cast<int>(std::round(scene.settlement.morale))));
         }
@@ -274,6 +318,7 @@ void ProcessConsoleCommands(Scene& scene) {
             EconomySystem::RegisterRouteRaid(scene, route_id);
             GF_LOG_INFO("Route raided: " + route_id);
             GF_LOG_INFO(EconomySystem::EconomySummary(scene));
+            SetOverlayStatusMessage(overlay_status_message, "Trade route raided");
             return;
         }
 
@@ -292,6 +337,7 @@ void ProcessConsoleCommands(Scene& scene) {
         EconomySystem::RunTradeTick(scene);
         GF_LOG_INFO("Trade tick applied for route context: " + route_id);
         GF_LOG_INFO(EconomySystem::EconomySummary(scene));
+        SetOverlayStatusMessage(overlay_status_message, "Trade tick applied");
         return;
     }
 
@@ -302,6 +348,7 @@ void ProcessConsoleCommands(Scene& scene) {
         parser >> grid_width >> grid_height;
         const bool started = CombatSystem::StartEncounter(scene, {}, grid_width, grid_height, "console");
         GF_LOG_INFO(started ? "Combat encounter started." : "Combat start failed.");
+        SetOverlayStatusMessage(overlay_status_message, started ? "Combat started" : "Combat start failed");
         return;
     }
 
@@ -316,9 +363,11 @@ void ProcessConsoleCommands(Scene& scene) {
         std::string message;
         const bool ok = CombatSystem::TryAction(scene, action, target, message);
         GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Combat action resolved" : "Combat action failed");
         if (ok && !scene.combat.active) {
             GF_LOG_INFO("Combat resolved: " + scene.combat.last_resolution + ". morale=" +
                         std::to_string(static_cast<int>(std::round(scene.settlement.morale))));
+            SetOverlayStatusMessage(overlay_status_message, "Combat resolved");
         }
         return;
     }
@@ -429,7 +478,9 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /relationship /evolve_dialog /economy /trade /combat_start /combat_action /story_event /narrate /npc_schedule /npc_activity /npc_freewill");
+    GF_LOG_WARN("Unknown command: " + command);
+    LogConsoleHelp();
+    SetOverlayStatusMessage(overlay_status_message, "Unknown command");
 }
 }  // namespace
 
@@ -472,10 +523,14 @@ void Engine::Run() {
 
         if (timer_.ShouldUpdateFps()) {
             const std::string day_clock = timer_.DayClockText(scene_.day_progress, scene_.day_count);
-            renderer_.DrawFPSOverlay(static_cast<float>(timer_.Fps()), day_clock);
+            renderer_.DrawFPSOverlay(
+                static_cast<float>(timer_.Fps()),
+                day_clock,
+                overlay_status_message_,
+                debug_overlay_enabled_);
             renderer_.SetWindowTitle(
                 "ForgeEngine Runtime (Vulkan-first) | FPS: " + std::to_string(timer_.Fps()) +
-                " | Frame: " + timer_.FrameTimeMsText() + "ms | " + day_clock);
+                " | Frame: " + timer_.FrameTimeMsText() + "ms | " + day_clock + " | " + overlay_status_message_);
             GF_LOG_INFO("Day time: " + std::to_string(scene_.day_progress));
         }
 
@@ -554,7 +609,8 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     const bool build_toggle_pressed = input.IsKeyPressed(GLFW_KEY_B);
     if (build_toggle_pressed && !was_build_toggle_pressed_) {
         const bool build_mode_enabled = scene_.ToggleBuildMode();
-        GF_LOG_INFO(std::string("Build Mode: ") + (build_mode_enabled ? "ON" : "OFF"));
+        overlay_status_message_ = std::string("Build Mode: ") + (build_mode_enabled ? "ON" : "OFF");
+        GF_LOG_INFO(overlay_status_message_);
     }
     was_build_toggle_pressed_ = build_toggle_pressed;
 
@@ -570,7 +626,13 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     if (left_mouse_pressed && !was_left_mouse_pressed_ && scene_.build_mode_enabled) {
         if (has_build_ray) {
             const bool placed = scene_.TryPlaceBuildingFromRay(camera_.position, build_ray_direction);
-            GF_LOG_INFO(placed ? "Placed building." : "Building placement blocked.");
+            if (placed) {
+                overlay_status_message_ = "Item consumed";
+                GF_LOG_INFO("Placed building.");
+            } else {
+                overlay_status_message_ = "Not enough resources";
+                GF_LOG_INFO("Building placement blocked.");
+            }
         }
     }
     was_left_mouse_pressed_ = left_mouse_pressed;
@@ -591,9 +653,17 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
         was_dialog_choice_pressed_[i] = choice_pressed;
     }
 
-    ProcessConsoleCommands(scene_);
+    ProcessConsoleCommands(scene_, debug_overlay_enabled_, overlay_status_message_);
     scene_.Update(dt_seconds);
     CoCreatorSystem::TrimHistory(scene_);
+    if (!scene_.recent_actions.empty()) {
+        const std::string& latest_action = scene_.recent_actions.back();
+        if (latest_action.rfind("combat_start:", 0) == 0) {
+            overlay_status_message_ = "Combat started";
+        } else if (latest_action.rfind("combat_outcome:", 0) == 0) {
+            overlay_status_message_ = "Combat resolved";
+        }
+    }
 }
 
 void Engine::SeedFallbackScene() {

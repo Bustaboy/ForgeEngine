@@ -94,6 +94,15 @@
       <Setter Property="Foreground" Value="#EEF4FF" />
     </Style>
 
+    <Style Selector="Button.system-action">
+      <Setter Property="Background" Value="#173153" />
+      <Setter Property="BorderBrush" Value="#39608D" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#EAF3FF" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="10,7" />
+    </Style>
+
     <Style Selector="Border.asset-card">
       <Setter Property="Background" Value="#0B1524" />
       <Setter Property="BorderBrush" Value="#264566" />
@@ -911,15 +920,17 @@
             <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🧠 Scene Systems + AI" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+                <Button Classes="panel-tab" Content="📖" Click="OnSystemTabClick" Tag="Story" />
+                <Button Classes="panel-tab" Content="🧍" Click="OnSystemTabClick" Tag="LivingNpcs" />
+                <Button Classes="panel-tab" Content="🌦" Click="OnSystemTabClick" Tag="Weather" />
+                <Button Classes="panel-tab" Content="🏘" Click="OnSystemTabClick" Tag="Settlement" />
+                <Button Classes="panel-tab" Content="⚔" Click="OnSystemTabClick" Tag="Combat" />
                 <Button Classes="panel-tab" Content="🌗" Click="OnSystemTabClick" Tag="DayNight" />
                 <Button Classes="panel-tab" Content="🏠" Click="OnSystemTabClick" Tag="Buildings" />
                 <Button Classes="panel-tab" Content="🎒" Click="OnSystemTabClick" Tag="InventoryRecipes" />
                 <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
-                <Button Classes="panel-tab" Content="📖" Click="OnSystemTabClick" Tag="Story" />
-                <Button Classes="panel-tab" Content="🌦" Click="OnSystemTabClick" Tag="Weather" />
-                <Button Classes="panel-tab" Content="🧍" Click="OnSystemTabClick" Tag="LivingNpcs" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -932,7 +943,7 @@
                   <TextBlock Grid.Column="4" Text="Day" Foreground="#AFC2DF" VerticalAlignment="Center" />
                   <TextBox Grid.Column="5" Text="{Binding DayCountEditor}" />
                 </Grid>
-                <Button Content="Apply Day/Night" Click="OnApplyDayNightClick" />
+                <Button Classes="system-action" Content="Apply Day/Night" Click="OnApplyDayNightClick" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsWeatherTabActive}">
@@ -951,7 +962,7 @@
                   <TextBlock Grid.Column="4" Text="Next change(s)" Foreground="#AFC2DF" VerticalAlignment="Center" />
                   <TextBox Grid.Column="5" Text="{Binding WeatherNextTransitionSecondsEditor}" />
                 </Grid>
-                <Button Content="Apply Weather" Click="OnApplyWeatherClick" />
+                <Button Classes="system-action" Content="Apply Weather" Click="OnApplyWeatherClick" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsLivingNpcsTabActive}">
@@ -967,31 +978,7 @@
                   <TextBox Grid.Column="3" Text="{Binding LivingNpcsMaxSparksPerNpcPerDayEditor}" />
                 </Grid>
                 <TextBox Text="{Binding LivingNpcsModelPathEditor}" Watermark="llama.cpp model path (e.g., models/llm-q4-k.gguf)" />
-                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
-                  <StackPanel Spacing="4">
-                    <TextBlock Text="Settlement Overview" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
-                      <TextBlock Text="Village" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                      <TextBox Grid.Column="1" Text="{Binding SettlementVillageNameEditor}" />
-                      <TextBlock Grid.Column="2" Text="Population" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                      <TextBlock Grid.Column="3" Text="{Binding SettlementPopulation}" Foreground="#D6E9FF" />
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
-                      <TextBlock Text="Morale" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                      <TextBox Grid.Column="1" Text="{Binding SettlementMoraleEditor}" />
-                      <TextBlock Grid.Column="2" Text="Food" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                      <TextBox Grid.Column="3" Text="{Binding SettlementFoodEditor}" />
-                    </Grid>
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                      <TextBlock Text="Stockpile" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                      <TextBox Grid.Column="1" Text="{Binding SettlementStockpileEditor}" />
-                    </Grid>
-                  </StackPanel>
-                </Border>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                  <Button Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
-                  <Button Grid.Column="1" Content="Re-seed Selected NPC Defaults" Click="OnReseedLivingNpcDefaultsClick" />
-                </Grid>
+                <Button Classes="system-action" Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
                   <StackPanel Spacing="4">
                     <TextBlock Text="{Binding LivingNpcsSparksToday, StringFormat=Sparks today: {0}}" Foreground="#D6E9FF" FontWeight="SemiBold" />
@@ -1005,7 +992,35 @@
                     </ItemsControl>
                   </StackPanel>
                 </Border>
+                <Button Classes="system-action" Content="Re-seed Selected NPC Defaults" Click="OnReseedLivingNpcDefaultsClick" />
                 <TextBlock Text="{Binding LivingNpcsStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsSettlementTabActive}">
+                <TextBlock Text="Settlement Overview" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Village" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding SettlementVillageNameEditor}" />
+                  <TextBlock Grid.Column="2" Text="Population" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding SettlementPopulation}" Foreground="#D6E9FF" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Morale" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding SettlementMoraleEditor}" />
+                  <TextBlock Grid.Column="2" Text="Food" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="3" Text="{Binding SettlementFoodEditor}" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Stockpile" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding SettlementStockpileEditor}" />
+                </Grid>
+                <Button Classes="system-action" Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsCombatTabActive}">
+                <TextBlock Text="Combat Mode" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Button Classes="system-action" Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
+                <TextBlock Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">
@@ -1155,18 +1170,14 @@
                   <TextBox Text="{Binding StoryEventsEditor}" AcceptsReturn="True" MinHeight="54" />
                   <TextBox Grid.Column="1" Text="{Binding StoryFactionNotesEditor}" AcceptsReturn="True" MinHeight="54" />
                 </Grid>
-                <Button Content="Save Story Bible" Click="OnSaveStoryBibleClick" />
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                  <Button Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
-                  <TextBlock Grid.Column="1" Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
-                </Grid>
+                <Button Classes="system-action" Content="Save Story Bible" Click="OnSaveStoryBibleClick" />
                 <TextBlock Text="Narrator (tutorial + key moments)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <CheckBox Content="Narrator Enabled" IsChecked="{Binding NarratorEnabledEditor}" />
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
                   <TextBlock VerticalAlignment="Center" Text="Voice" Foreground="#AFC2DF" />
                   <ComboBox Grid.Column="1" ItemsSource="{Binding NarratorVoiceOptions}" SelectedItem="{Binding NarratorVoiceEditor}" />
                 </Grid>
-                <Button Content="Save Narrator Settings" Click="OnSaveNarratorSettingsClick" />
+                <Button Classes="system-action" Content="Save Narrator Settings" Click="OnSaveNarratorSettingsClick" />
                 <TextBlock Text="Character Voice Profile (selected NPC)" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                 <TextBox Text="{Binding CharacterVoiceProfileIdEditor}" Watermark="profile id (e.g., blacksmith_gruff)" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="6">

@@ -30,5 +30,7 @@ private:
     bool was_left_mouse_pressed_ = false;
     bool was_interact_pressed_ = false;
     std::array<bool, 3> was_dialog_choice_pressed_ = {false, false, false};
+    bool debug_overlay_enabled_ = true;
+    std::string overlay_status_message_ = "Ready";
     std::string scene_path_ = "scene_scaffold.json";
 };
