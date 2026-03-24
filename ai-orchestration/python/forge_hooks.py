@@ -435,6 +435,52 @@ def co_creator_tick(
             }
         )
 
+    dialog_npc_id = 0
+    dialog_faction_id = dominant_faction_id
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        dialog_payload = entity.get("dialog")
+        if not isinstance(dialog_payload, dict):
+            continue
+        candidate_id = entity.get("id")
+        if isinstance(candidate_id, int) and candidate_id > 0:
+            dialog_npc_id = candidate_id
+            faction_payload = entity.get("faction")
+            if isinstance(faction_payload, dict):
+                faction_id = faction_payload.get("faction_id")
+                if isinstance(faction_id, str) and faction_id.strip():
+                    dialog_faction_id = faction_id.strip()
+            break
+
+    if dialog_npc_id > 0:
+        faction_rep = float(player_reputation.get(dialog_faction_id, 0.0)) if dialog_faction_id else 0.0
+        tone = "warm" if faction_rep >= 45.0 else "guarded" if faction_rep <= -25.0 else "neutral"
+        dialog_trigger = "market_whispers" if "trade" in recent_text else "night_watch" if is_night else "camp_rumors"
+        suggestions.append(
+            {
+                "id": f"dialog_evolution_{dialog_npc_id}",
+                "title": "Evolve an NPC conversation branch from recent events",
+                "why_this_fits": (
+                    "The world state and reputation trends suggest this NPC should remember what happened. "
+                    "This adds a memory-aware branch tied to biome, style, and current social tone."
+                ),
+                "mutation": {
+                    "type": "dialog_add_branch",
+                    "npc_id": dialog_npc_id,
+                    "trigger_event": dialog_trigger,
+                    "required_faction_id": dialog_faction_id,
+                    "min_required_reputation": -10.0 if tone == "guarded" else -100.0,
+                    "choice_text": "How are people reacting to my recent choices?",
+                    "branch_text": (
+                        f"({tone}) In this {biome_label} region, word of your actions now shapes how our "
+                        f"{style_label} community responds."
+                    ),
+                    "choice_relationship_delta": 1.0 if tone != "guarded" else 0.4,
+                },
+            }
+        )
+
     filtered: list[dict[str, Any]] = []
     for suggestion in suggestions:
         mutation = suggestion.get("mutation")

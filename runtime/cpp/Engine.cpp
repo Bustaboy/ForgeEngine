@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include "DialogSystem.h"
+#include "DialogEvolutionSystem.h"
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
@@ -138,7 +139,18 @@ void ProcessConsoleCommands(Scene& scene) {
         return;
     }
 
-    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep");
+    if (command == "/evolve_dialog") {
+        std::uint64_t npc_id = scene.active_dialog_npc_id;
+        parser >> npc_id;
+        if (npc_id == 0 && !scene.entities.empty()) {
+            npc_id = scene.entities.front().id;
+        }
+        const bool evolved = DialogEvolutionSystem::EvolveNpcDialog(scene, npc_id, "console_trigger", true);
+        GF_LOG_INFO(evolved ? "Dialog evolution applied." : "Dialog evolution failed. Usage: /evolve_dialog [npc_id]");
+        return;
+    }
+
+    GF_LOG_INFO("Unknown command. Available: /give /craft /inventory /recipes /factions /rep /evolve_dialog");
 }
 }  // namespace
 

@@ -1,5 +1,6 @@
 #include "DialogSystem.h"
 
+#include "DialogEvolutionSystem.h"
 #include "FactionSystem.h"
 #include "InventorySystem.h"
 #include "Logger.h"
@@ -186,6 +187,10 @@ bool HandleChoiceInput(Scene& scene, int choice_index) {
     }
 
     GF_LOG_INFO("Player: " + choice.text);
+    DialogEvolutionSystem::RecordPlayerChoice(scene, *npc, *current_node, choice);
+    if (!npc->dialog.past_choices.empty() && (npc->dialog.past_choices.size() % 3U) == 0U) {
+        DialogEvolutionSystem::EvolveNpcDialog(scene, npc->id, "choice_memory_threshold", true);
+    }
     DialogEffect adjusted_effect = choice.effect;
     if (adjusted_effect.inventory_delta > 0) {
         adjusted_effect.inventory_delta = FactionSystem::ApplyTradeAdjustmentForEntity(scene, *npc, adjusted_effect.inventory_delta);
