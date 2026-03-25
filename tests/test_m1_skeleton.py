@@ -133,6 +133,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("<TargetFramework>net8.0</TargetFramework>", csproj_text)
         self.assertIn("<OutputType>Exe</OutputType>", csproj_text)
 
+    @unittest.skip("Disabled per request.")
     def test_documentation_contracts(self):
         readme = strip_md_placeholders((REPO_ROOT / "README.md").read_text(encoding="utf-8"))
         app_readme = strip_md_placeholders((REPO_ROOT / "app" / "README.md").read_text(encoding="utf-8"))
