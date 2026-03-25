@@ -9,6 +9,7 @@ import random
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from art_bible import ArtBible, default_art_bible
 
@@ -109,6 +110,270 @@ def _prompt_variation_context(prompt: str) -> dict[str, str]:
 
 def _clamp_color(value: float) -> float:
     return round(max(0.0, min(1.2, value)), 3)
+
+
+def _loot_seed(prompt: str, template_type: str, seed: int | None) -> int:
+    if seed is not None:
+        return int(seed)
+    digest = hashlib.sha256(f"loot|{template_type}|{prompt}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], byteorder="big", signed=False)
+
+
+def _load_item_templates(templates_path: Path | None = None) -> dict[str, list[dict[str, Any]]]:
+    resolved = templates_path or (Path.cwd() / "items.json")
+    payload = json.loads(resolved.read_text(encoding="utf-8"))
+    templates = payload.get("templates")
+    if not isinstance(templates, dict):
+        raise ValueError("items.json must contain a top-level 'templates' object")
+    loaded: dict[str, list[dict[str, Any]]] = {}
+    for template_type, rows in templates.items():
+        if not isinstance(rows, list):
+            continue
+        loaded[str(template_type).strip().lower()] = [row for row in rows if isinstance(row, dict)]
+    return loaded
+
+
+def _coerce_stats(template_stats: object) -> dict[str, float]:
+    if not isinstance(template_stats, dict):
+        return {}
+    stats: dict[str, float] = {}
+    for key, value in template_stats.items():
+        if isinstance(value, (int, float)):
+            stats[str(key)] = float(value)
+    return stats
+
+
+def generate_loot(
+    prompt: str,
+    art_bible: ArtBible,
+    template_type: str = "weapon",
+    count: int = 1,
+    seed: int | None = None,
+    templates_path: Path | None = None,
+) -> dict[str, object]:
+    clean_prompt = prompt.strip()
+    if not clean_prompt:
+        raise ValueError("prompt must be non-empty")
+    safe_count = max(1, int(count))
+    normalized_type = template_type.strip().lower()
+    if not normalized_type:
+        normalized_type = "weapon"
+
+    templates_by_type = _load_item_templates(templates_path=templates_path)
+    templates = templates_by_type.get(normalized_type)
+    if not templates:
+        supported = ", ".join(sorted(templates_by_type.keys()))
+        raise ValueError(f"Unknown template_type '{normalized_type}'. Supported: {supported}")
+
+    used_seed = _loot_seed(clean_prompt, normalized_type, seed)
+    rng = random.Random(used_seed)
+    context = _prompt_variation_context(clean_prompt)
+    muted_palette = any("muted" in token.lower() for token in art_bible.palette_keywords)
+    quality_suffixes = {
+        "common": ["", "Worn", "Field"],
+        "uncommon": ["Reliable", "Refined", "Crafted"],
+        "rare": ["Masterwork", "Gilded", "Stormforged"],
+        "epic": ["Legendary", "Mythic", "Dawnmarked"],
+    }
+    rarity_weights = [("common", 58), ("uncommon", 28), ("rare", 11), ("epic", 3)]
+    season_material_shift = {
+        "autumn": "oak",
+        "winter": "steel",
+        "spring": "woven",
+        "summer": "sunbaked",
+        "neutral": "tempered",
+    }
+
+    generated: list[dict[str, object]] = []
+    for index in range(safe_count):
+        template = dict(rng.choice(templates))
+        base_name = str(template.get("name", f"{normalized_type.title()} {index + 1}")).strip()
+        base_asset = str(template.get("asset_id", f"{normalized_type}_asset")).strip()
+        icon_asset = str(template.get("icon_asset_id", f"{base_asset}_icon")).strip()
+        base_value = int(template.get("base_value", 5))
+        base_stats = _coerce_stats(template.get("stats"))
+        candidate_rarities = [entry[0] for entry in rarity_weights]
+        rarity = rng.choices(candidate_rarities, weights=[entry[1] for entry in rarity_weights], k=1)[0]
+        if context["mood"] in {"mysterious", "melancholic"} and rarity == "common" and rng.random() > 0.65:
+            rarity = "uncommon"
+
+        jitter_mult = {"common": 0.06, "uncommon": 0.1, "rare": 0.16, "epic": 0.22}[rarity]
+        adjusted_stats: dict[str, float] = {}
+        for stat_name, stat_value in base_stats.items():
+            jitter = 1.0 + rng.uniform(-jitter_mult, jitter_mult)
+            adjusted_stats[stat_name] = round(max(0.0, stat_value * jitter), 3)
+
+        tint_base = {"r": 1.0, "g": 1.0, "b": 1.0}
+        if context["season"] == "autumn":
+            tint_base = {"r": 1.04, "g": 0.92, "b": 0.86}
+        elif context["season"] == "winter":
+            tint_base = {"r": 0.91, "g": 0.95, "b": 1.07}
+        elif context["season"] == "spring":
+            tint_base = {"r": 1.03, "g": 1.06, "b": 0.98}
+        elif context["season"] == "summer":
+            tint_base = {"r": 1.06, "g": 1.01, "b": 0.94}
+        if muted_palette:
+            tint_base = {channel: round(multiplier * 0.97, 3) for channel, multiplier in tint_base.items()}
+        tint = {channel: _clamp_color(multiplier + rng.uniform(-0.02, 0.02)) for channel, multiplier in tint_base.items()}
+
+        quality_options = quality_suffixes.get(rarity, [""])
+        quality_suffix = rng.choice(quality_options)
+        name = base_name if not quality_suffix else f"{base_name} {quality_suffix}"
+        material_variant = f"{template.get('material_hint', 'alloy')}_{season_material_shift[context['season']]}"
+        rarity_value_mult = {"common": 1.0, "uncommon": 1.4, "rare": 2.15, "epic": 3.4}[rarity]
+        value = int(round(base_value * rarity_value_mult * (1.0 + rng.uniform(-0.06, 0.08))))
+        item_slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or f"{normalized_type}_{index + 1}"
+        item_id = f"{normalized_type}_{item_slug}_{index + 1}"
+
+        generated.append(
+            {
+                "item_id": item_id,
+                "template_type": normalized_type,
+                "name": name,
+                "asset_id": base_asset,
+                "icon_asset_id": icon_asset,
+                "stats": adjusted_stats,
+                "value": max(1, value),
+                "rarity": rarity,
+                "variation": {
+                    "seed": used_seed,
+                    "index": index,
+                    "season": context["season"],
+                    "mood": context["mood"],
+                    "quality_suffix": quality_suffix or "none",
+                    "material_variant": material_variant,
+                    "tint": tint,
+                    "art_bible_style": art_bible.art_direction,
+                },
+            }
+        )
+
+    return {
+        "schema": "gameforge.loot_generation.v1",
+        "prompt": clean_prompt,
+        "seed": used_seed,
+        "template_type": normalized_type,
+        "count": safe_count,
+        "items": generated,
+    }
+
+
+def apply_generated_loot_to_scene(
+    scene_path: Path,
+    prompt: str,
+    template_type: str = "weapon",
+    count: int = 1,
+    target_inventory: str = "player",
+    seed: int | None = None,
+    art_bible_path: Path | None = None,
+    templates_path: Path | None = None,
+) -> dict[str, object]:
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_payload, dict):
+        raise ValueError("Scene payload must be a JSON object")
+
+    if art_bible_path is not None and art_bible_path.exists():
+        art_bible = ArtBible.from_json_file(art_bible_path)
+    else:
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+
+    generated = generate_loot(
+        prompt=prompt,
+        art_bible=art_bible,
+        template_type=template_type,
+        count=count,
+        seed=seed,
+        templates_path=templates_path,
+    )
+    items = generated["items"] if isinstance(generated.get("items"), list) else []
+    destination = (target_inventory or "player").strip().lower()
+
+    player_inventory = scene_payload.get("player_inventory")
+    if not isinstance(player_inventory, dict):
+        player_inventory = {}
+        scene_payload["player_inventory"] = player_inventory
+
+    generated_inventory = scene_payload.get("generated_inventory")
+    if not isinstance(generated_inventory, dict):
+        generated_inventory = {"player": []}
+        scene_payload["generated_inventory"] = generated_inventory
+    if not isinstance(generated_inventory.get("player"), list):
+        generated_inventory["player"] = []
+
+    npc_inventories = scene_payload.get("npc_inventories")
+    if not isinstance(npc_inventories, dict):
+        npc_inventories = {}
+        scene_payload["npc_inventories"] = npc_inventories
+
+    target_stack: dict[str, object]
+    target_generated: list[object]
+    if destination == "player":
+        target_stack = player_inventory
+        target_generated = generated_inventory["player"]
+    else:
+        if not isinstance(npc_inventories.get(destination), dict):
+            npc_inventories[destination] = {}
+        if not isinstance(generated_inventory.get("npcs"), dict):
+            generated_inventory["npcs"] = {}
+        npcs_generated = generated_inventory["npcs"]
+        if not isinstance(npcs_generated, dict):
+            npcs_generated = {}
+            generated_inventory["npcs"] = npcs_generated
+        if not isinstance(npcs_generated.get(destination), list):
+            npcs_generated[destination] = []
+        target_stack = npc_inventories[destination]
+        target_generated = npcs_generated[destination]
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("item_id", "")).strip()
+        if not item_id:
+            continue
+        quantity_value = target_stack.get(item_id, 0)
+        quantity = int(quantity_value) if isinstance(quantity_value, (int, float)) else 0
+        target_stack[item_id] = quantity + 1
+        target_generated.append(item)
+
+    economy = scene_payload.get("economy")
+    if not isinstance(economy, dict):
+        economy = {}
+        scene_payload["economy"] = economy
+    price_table = economy.get("price_table")
+    if not isinstance(price_table, dict):
+        price_table = {}
+        economy["price_table"] = price_table
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("item_id", "")).strip()
+        item_value = item.get("value")
+        if item_id and isinstance(item_value, (int, float)):
+            price_table[item_id] = int(item_value)
+
+    render_2d = scene_payload.get("render_2d")
+    if not isinstance(render_2d, dict):
+        render_2d = {"enabled": True, "sprites": [], "tilemaps": [], "entity_sprite_map": {}}
+        scene_payload["render_2d"] = render_2d
+    entity_sprite_map = render_2d.get("entity_sprite_map")
+    if not isinstance(entity_sprite_map, dict):
+        entity_sprite_map = {}
+        render_2d["entity_sprite_map"] = entity_sprite_map
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("item_id", "")).strip()
+        icon_asset_id = str(item.get("icon_asset_id", "")).strip()
+        if item_id and icon_asset_id:
+            entity_sprite_map[item_id] = icon_asset_id
+
+    scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
+    return {
+        "scene_path": str(scene_path),
+        "target_inventory": destination,
+        "applied_count": len(items),
+        "generated": generated,
+    }
 
 
 def apply_variations(

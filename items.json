@@ -1,0 +1,106 @@
+{
+  "schema": "gameforge.item_templates.v1",
+  "templates": {
+    "weapon": [
+      {
+        "name": "Iron Saber",
+        "asset_id": "weapon_iron_saber",
+        "icon_asset_id": "icon_weapon_iron_saber",
+        "material_hint": "metal",
+        "base_value": 42,
+        "stats": {
+          "damage": 16,
+          "speed": 1.0,
+          "crit": 0.08
+        }
+      },
+      {
+        "name": "Ranger Bow",
+        "asset_id": "weapon_ranger_bow",
+        "icon_asset_id": "icon_weapon_ranger_bow",
+        "material_hint": "wood",
+        "base_value": 38,
+        "stats": {
+          "damage": 13,
+          "speed": 1.15,
+          "range": 18
+        }
+      }
+    ],
+    "tool": [
+      {
+        "name": "Surveyor Pick",
+        "asset_id": "tool_surveyor_pick",
+        "icon_asset_id": "icon_tool_surveyor_pick",
+        "material_hint": "metal",
+        "base_value": 26,
+        "stats": {
+          "gather": 8,
+          "durability": 22,
+          "speed": 0.9
+        }
+      },
+      {
+        "name": "Builder Hammer",
+        "asset_id": "tool_builder_hammer",
+        "icon_asset_id": "icon_tool_builder_hammer",
+        "material_hint": "wood",
+        "base_value": 24,
+        "stats": {
+          "build_power": 7,
+          "durability": 20,
+          "stability": 1.1
+        }
+      }
+    ],
+    "consumable": [
+      {
+        "name": "Field Ration",
+        "asset_id": "consumable_field_ration",
+        "icon_asset_id": "icon_consumable_field_ration",
+        "material_hint": "organic",
+        "base_value": 12,
+        "stats": {
+          "heal": 18,
+          "stamina": 10
+        }
+      },
+      {
+        "name": "Herbal Tonic",
+        "asset_id": "consumable_herbal_tonic",
+        "icon_asset_id": "icon_consumable_herbal_tonic",
+        "material_hint": "glass",
+        "base_value": 16,
+        "stats": {
+          "heal": 12,
+          "focus": 14,
+          "buff_seconds": 30
+        }
+      }
+    ],
+    "quest": [
+      {
+        "name": "Warden Sigil",
+        "asset_id": "quest_warden_sigil",
+        "icon_asset_id": "icon_quest_warden_sigil",
+        "material_hint": "metal",
+        "base_value": 55,
+        "stats": {
+          "reputation": 5,
+          "story_weight": 1
+        }
+      },
+      {
+        "name": "Ancient Ledger",
+        "asset_id": "quest_ancient_ledger",
+        "icon_asset_id": "icon_quest_ancient_ledger",
+        "material_hint": "paper",
+        "base_value": 48,
+        "stats": {
+          "reputation": 3,
+          "story_weight": 1.2
+        }
+      }
+    ]
+  }
+}

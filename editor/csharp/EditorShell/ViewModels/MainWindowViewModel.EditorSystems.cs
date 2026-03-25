@@ -730,6 +730,14 @@ public sealed partial class MainWindowViewModel
             finalArgs.Add(scenePath);
             finalArgs.Add(string.IsNullOrWhiteSpace(AiPromptEditor) ? "build a farmhouse" : AiPromptEditor);
         }
+        else if (string.Equals(command, "generate-loot", StringComparison.Ordinal))
+        {
+            finalArgs.Add(scenePath);
+            finalArgs.Add(string.IsNullOrWhiteSpace(AiPromptEditor) ? "autumn trader reward cache" : AiPromptEditor);
+            finalArgs.Add("1");
+            finalArgs.Add("player");
+            finalArgs.Add("weapon");
+        }
 
         if (string.Equals(command, "add-npc", StringComparison.Ordinal) && args.Length == 0)
         {

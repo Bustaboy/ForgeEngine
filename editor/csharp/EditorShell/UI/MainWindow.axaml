@@ -1150,11 +1150,12 @@
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsAiTabActive}">
                 <TextBlock Text="Python AI Orchestration" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <TextBox Text="{Binding AiPromptEditor}" Watermark="Modify Scene with Prompt" />
-                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
                   <Button Content="Generate NPC" Click="OnGenerateNpcClick" />
                   <Button Grid.Column="1" Content="Add 3 Houses" Click="OnAdd3HousesClick" />
                   <Button Grid.Column="2" Content="Modify Scene" Click="OnModifyScenePromptClick" />
                   <Button Grid.Column="3" Content="Generate with Kit-Bashing" Click="OnGenerateKitBashClick" />
+                  <Button Grid.Column="4" Content="Generate Loot" Click="OnGenerateLootClick" />
                 </Grid>
                 <ScrollViewer MaxHeight="84">
                   <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />

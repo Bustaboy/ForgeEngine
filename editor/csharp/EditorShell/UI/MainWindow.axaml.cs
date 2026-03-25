@@ -1200,6 +1200,11 @@ public partial class MainWindow : Window
         await _viewModel.RunAiHookAsync("kit-bash-scene");
     }
 
+    private async void OnGenerateLootClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunAiHookAsync("generate-loot");
+    }
+
     private async void OnSaveCoCreatorContextClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveCoCreatorSettingsAsync();
