@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 
@@ -19,8 +20,7 @@ float SnapToPixel(float value, float pixels_per_unit) {
 void SpriteBatch::LoadApprovedAssets(const std::string& approved_assets_root) {
     namespace fs = std::filesystem;
 
-    bindless_index_by_asset_id_.clear();
-    bindless_asset_ids_.clear();
+    approved_texture_path_by_asset_id_.clear();
 
     const fs::path root(approved_assets_root);
     if (!fs::exists(root) || !fs::is_directory(root)) {
@@ -32,13 +32,66 @@ void SpriteBatch::LoadApprovedAssets(const std::string& approved_assets_root) {
             continue;
         }
 
-        const fs::path extension = entry.path().extension();
-        if (extension != ".png" && extension != ".jpg" && extension != ".jpeg") {
+        fs::path extension = entry.path().extension();
+        std::string extension_lower = extension.string();
+        std::transform(extension_lower.begin(), extension_lower.end(), extension_lower.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        if (extension_lower != ".png" && extension_lower != ".jpg" && extension_lower != ".jpeg") {
             continue;
         }
 
-        RegisterBindlessAsset(entry.path().stem().string());
+        approved_texture_path_by_asset_id_[entry.path().stem().string()] = entry.path().string();
     }
+}
+
+bool SpriteBatch::RebuildTextureIndexForScene(const Scene& scene) {
+    std::unordered_map<std::string, std::uint32_t> new_index_by_asset_id{};
+    std::vector<std::string> new_asset_ids{};
+    std::vector<std::string> new_texture_paths{};
+
+    new_asset_ids.push_back("__default_white__");
+    new_texture_paths.push_back("");
+    new_index_by_asset_id["__default_white__"] = 0;
+
+    auto register_if_approved = [&](const std::string& asset_id) {
+        if (asset_id.empty()) {
+            return;
+        }
+
+        if (new_index_by_asset_id.find(asset_id) != new_index_by_asset_id.end()) {
+            return;
+        }
+
+        const auto approved_it = approved_texture_path_by_asset_id_.find(asset_id);
+        if (approved_it == approved_texture_path_by_asset_id_.end()) {
+            return;
+        }
+
+        const std::uint32_t index = static_cast<std::uint32_t>(new_asset_ids.size());
+        new_asset_ids.push_back(asset_id);
+        new_texture_paths.push_back(approved_it->second);
+        new_index_by_asset_id[asset_id] = index;
+    };
+
+    if (scene.render_2d.enabled) {
+        for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
+            register_if_approved(sprite.asset_id);
+        }
+
+        for (const SceneTilemap2D& tilemap : scene.render_2d.tilemaps) {
+            register_if_approved(tilemap.tileset_asset_id);
+        }
+    }
+
+    if (new_asset_ids == bindless_asset_ids_ && new_texture_paths == bindless_texture_paths_) {
+        return false;
+    }
+
+    bindless_index_by_asset_id_ = std::move(new_index_by_asset_id);
+    bindless_asset_ids_ = std::move(new_asset_ids);
+    bindless_texture_paths_ = std::move(new_texture_paths);
+    return true;
 }
 
 SpriteBatch::BuildResult SpriteBatch::Build(const Scene& scene) const {
@@ -90,18 +143,6 @@ std::size_t SpriteBatch::BindlessTextureCount() const {
     return bindless_asset_ids_.size();
 }
 
-std::uint32_t SpriteBatch::RegisterBindlessAsset(const std::string& asset_id) {
-    if (asset_id.empty()) {
-        return 0;
-    }
-
-    const auto it = bindless_index_by_asset_id_.find(asset_id);
-    if (it != bindless_index_by_asset_id_.end()) {
-        return it->second;
-    }
-
-    const std::uint32_t index = static_cast<std::uint32_t>(bindless_asset_ids_.size());
-    bindless_asset_ids_.push_back(asset_id);
-    bindless_index_by_asset_id_[asset_id] = index;
-    return index;
+const std::vector<std::string>& SpriteBatch::BindlessTexturePaths() const {
+    return bindless_texture_paths_;
 }

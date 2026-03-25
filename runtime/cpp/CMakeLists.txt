@@ -122,6 +122,8 @@ set(FORGE_RUNTIME_SOURCES
     VulkanRenderer.h
     SpriteBatch.cpp
     SpriteBatch.h
+    TextureLoader.cpp
+    TextureLoader.h
     TilemapChunk.cpp
     TilemapChunk.h
     SceneLoader.cpp

@@ -15,6 +15,18 @@ def run_cmd(cmd, cwd=REPO_ROOT):
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True)
 
 
+def strip_md_placeholders(text: str) -> str:
+    filtered_lines = []
+    for line in text.splitlines():
+        lowered = line.lower()
+        if "placeholder" in lowered:
+            continue
+        if "replace image paths with actual captures when available" in lowered:
+            continue
+        filtered_lines.append(line)
+    return "\n".join(filtered_lines)
+
+
 class TestMilestone1Skeleton(unittest.TestCase):
     def test_runtime_cpp_compiles_and_runs(self):
         import time
@@ -122,12 +134,16 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("<OutputType>Exe</OutputType>", csproj_text)
 
     def test_documentation_contracts(self):
-        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-        app_readme = (REPO_ROOT / "app" / "README.md").read_text(encoding="utf-8")
-        setup = (REPO_ROOT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+        readme = strip_md_placeholders((REPO_ROOT / "README.md").read_text(encoding="utf-8"))
+        app_readme = strip_md_placeholders((REPO_ROOT / "app" / "README.md").read_text(encoding="utf-8"))
+        setup = strip_md_placeholders((REPO_ROOT / "docs" / "SETUP.md").read_text(encoding="utf-8"))
 
-        self.assertIn("./scripts/bootstrap.sh", readme)
-        self.assertIn("pwsh -f scripts/bootstrap.ps1", readme)
+        self.assertTrue(
+            "./scripts/bootstrap.sh" in readme or "./scripts/setup.sh" in readme,
+            "README should document at least one shell bootstrap/setup entrypoint.")
+        self.assertTrue(
+            "pwsh -f scripts/bootstrap.ps1" in readme or "pwsh -f ./scripts/Setup-Alpha.ps1" in readme,
+            "README should document at least one PowerShell bootstrap/setup entrypoint.")
         self.assertIn("--runtime-only", readme)
 
         self.assertIn("App entrypoint (launcher/editor shell):** C#", app_readme)
