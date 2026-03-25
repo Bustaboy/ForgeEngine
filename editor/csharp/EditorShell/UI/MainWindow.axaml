@@ -1164,6 +1164,58 @@
                 <ScrollViewer MaxHeight="84">
                   <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />
                 </ScrollViewer>
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                      <TextBlock Text="Project Health" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="1" Text="{Binding ProjectHealthScore, StringFormat={}{0}/100}" Foreground="{Binding ProjectHealthBrush}" FontWeight="Bold" />
+                      <TextBlock Grid.Column="2" Text="{Binding ProjectHealthBand}" Foreground="{Binding ProjectHealthBrush}" />
+                      <Button Grid.Column="3" Content="Run Optimization Check" Click="OnRunOptimizationCheckClick" />
+                      <Button Grid.Column="4" Content="Optimize Project" Click="OnOptimizeProjectOneClick" />
+                    </Grid>
+                    <TextBlock Text="{Binding PerformanceHealthSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding OptimizationStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <TextBlock Text="Recent Changes" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                    <ItemsControl ItemsSource="{Binding RecentOptimizationChanges}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,4">
+                            <StackPanel Spacing="2">
+                              <TextBlock Text="{Binding ActionType}" Foreground="#EAF3FF" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding Summary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding Delta}" Foreground="#8EA5C7" FontSize="10" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Optimization Suggestions" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
+                    <ItemsControl ItemsSource="{Binding OptimizationSuggestions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,0,0,4">
+                            <StackPanel Spacing="4">
+                              <TextBlock Text="{Binding Title}" Foreground="#EAF3FF" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding Summary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                              <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="6">
+                                <Button Content="Preview" Tag="{Binding Id}" Click="OnPreviewOptimizationSuggestionClick" />
+                                <Button Grid.Column="1" Content="Apply" Tag="{Binding Id}" Click="OnApplyOptimizationSuggestionClick" />
+                                <Button Grid.Column="2" Content="Ignore" Tag="{Binding Id}" Click="OnIgnoreOptimizationSuggestionClick" />
+                                <TextBlock Grid.Column="3"
+                                           Text="{Binding IsSafeToAutoApply, StringFormat=Safe: {0}}"
+                                           Foreground="#8EA5C7"
+                                           VerticalAlignment="Center" />
+                              </Grid>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Background="#0A1321" BorderBrush="#213A59" BorderThickness="1" CornerRadius="4" Padding="6">
+                      <TextBlock Text="{Binding SelectedOptimizationPreview}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                    </Border>
+                  </StackPanel>
+                </Border>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,6,0,0">
                   <StackPanel Spacing="6">
                     <TextBlock Text="Models" Foreground="#D6E9FF" FontWeight="SemiBold" />

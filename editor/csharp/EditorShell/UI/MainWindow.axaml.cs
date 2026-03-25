@@ -1259,6 +1259,40 @@ public partial class MainWindow : Window
         await _viewModel.RefreshModelManagerAsync();
     }
 
+    private async void OnRunOptimizationCheckClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunOptimizationCheckAsync();
+    }
+
+    private async void OnOptimizeProjectOneClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.OptimizeProjectOneClickAsync();
+    }
+
+    private void OnPreviewOptimizationSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is string suggestionId)
+        {
+            _viewModel.PreviewOptimizationSuggestion(suggestionId);
+        }
+    }
+
+    private async void OnApplyOptimizationSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is string suggestionId)
+        {
+            await _viewModel.ApplyOptimizationSuggestionAsync(suggestionId);
+        }
+    }
+
+    private void OnIgnoreOptimizationSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is string suggestionId)
+        {
+            _viewModel.IgnoreOptimizationSuggestion(suggestionId);
+        }
+    }
+
     private async void OnRender2DClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SetRenderModeAsync("2D");

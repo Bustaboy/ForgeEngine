@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Media;
 using GameForge.Editor.EditorShell.EditorSystems;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -30,6 +31,8 @@ public sealed partial class MainWindowViewModel
     private LivingNpcsPanelState _livingNpcs = new();
     private readonly List<string> _aiCommandLog = [];
     private readonly ObservableCollection<ModelManagerEntry> _modelManagerEntries = [];
+    private readonly ObservableCollection<OptimizationChangeEntry> _recentOptimizationChanges = [];
+    private readonly ObservableCollection<OptimizationSuggestion> _optimizationSuggestions = [];
     private readonly HashSet<string> _modelDownloadsInProgress = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
@@ -59,6 +62,12 @@ public sealed partial class MainWindowViewModel
     private string _modelManagerStatus = "Model manager idle.";
     private string _modelRecommendationSummary = "Run onboarding to receive hardware-matched model recommendations.";
     private string _forgeGuardKeepInstalledMessage = "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+    private string _optimizationStatus = "Optimization insights idle.";
+    private string _performanceHealthSummary = "Performance health unavailable.";
+    private int _projectHealthScore = 50;
+    private string _projectHealthBand = "Yellow";
+    private IBrush _projectHealthBrush = Brushes.Goldenrod;
+    private string _selectedOptimizationPreview = "Run Optimization Check to see suggestions.";
     private bool _isModelManagerBusy;
     private string _biomeEditor = "temperate";
     private string _worldStyleGuideEditor = "grounded stylized frontier";
@@ -434,9 +443,25 @@ public sealed partial class MainWindowViewModel
     public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public IReadOnlyList<ModelManagerEntry> ModelManagerEntries => _modelManagerEntries;
+    public IReadOnlyList<OptimizationChangeEntry> RecentOptimizationChanges => _recentOptimizationChanges;
+    public IReadOnlyList<OptimizationSuggestion> OptimizationSuggestions => _optimizationSuggestions;
     public string ModelManagerStatus { get => _modelManagerStatus; private set { _modelManagerStatus = value; OnPropertyChanged(); } }
     public string ModelRecommendationSummary { get => _modelRecommendationSummary; private set { _modelRecommendationSummary = value; OnPropertyChanged(); } }
     public string ForgeGuardKeepInstalledMessage { get => _forgeGuardKeepInstalledMessage; private set { _forgeGuardKeepInstalledMessage = value; OnPropertyChanged(); } }
+    public string OptimizationStatus { get => _optimizationStatus; private set { _optimizationStatus = value; OnPropertyChanged(); } }
+    public string PerformanceHealthSummary { get => _performanceHealthSummary; private set { _performanceHealthSummary = value; OnPropertyChanged(); } }
+    public int ProjectHealthScore
+    {
+        get => _projectHealthScore;
+        private set
+        {
+            _projectHealthScore = Math.Clamp(value, 0, 100);
+            OnPropertyChanged();
+        }
+    }
+    public string ProjectHealthBand { get => _projectHealthBand; private set { _projectHealthBand = value; OnPropertyChanged(); } }
+    public IBrush ProjectHealthBrush { get => _projectHealthBrush; private set { _projectHealthBrush = value; OnPropertyChanged(); } }
+    public string SelectedOptimizationPreview { get => _selectedOptimizationPreview; private set { _selectedOptimizationPreview = value; OnPropertyChanged(); } }
     public bool IsModelManagerBusy { get => _isModelManagerBusy; private set { _isModelManagerBusy = value; OnPropertyChanged(); } }
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
@@ -531,6 +556,103 @@ public sealed partial class MainWindowViewModel
         }
 
         ActiveSystemTab = tab;
+        if (string.Equals(tab, SystemTabAi, StringComparison.Ordinal))
+        {
+            RefreshOptimizationSnapshot();
+        }
+    }
+
+    public async Task RunOptimizationCheckAsync()
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null || !File.Exists(scenePath))
+        {
+            OptimizationStatus = "Generate a prototype before running optimization checks.";
+            return;
+        }
+
+        try
+        {
+            OptimizationStatus = "Running benchmark + ForgeGuard critique...";
+            await RunAiHookProcessAsync("benchmark-now", [scenePath, "optimization_check"]);
+            var critiqueResult = await RunAiHookProcessAsync("optimization-critique", [scenePath, "5"]);
+            if (critiqueResult.ExitCode != 0)
+            {
+                OptimizationStatus = $"Optimization check failed: {critiqueResult.Stderr.Trim()}";
+                return;
+            }
+
+            ApplyOptimizationPayload(critiqueResult.Stdout);
+            OptimizationStatus = $"Optimization check complete ({_optimizationSuggestions.Count} suggestion(s)).";
+        }
+        catch (Exception ex)
+        {
+            OptimizationStatus = $"Optimization check failed: {ex.Message}";
+        }
+    }
+
+    public async Task OptimizeProjectOneClickAsync()
+    {
+        await RunOptimizationCheckAsync();
+        if (_optimizationSuggestions.Count == 0)
+        {
+            return;
+        }
+
+        var safeSuggestions = _optimizationSuggestions.Where(item => item.IsSafeToAutoApply).Take(2).ToArray();
+        if (safeSuggestions.Length == 0)
+        {
+            OptimizationStatus = "No safe suggestions available for one-click apply.";
+            return;
+        }
+
+        foreach (var suggestion in safeSuggestions)
+        {
+            await ApplyOptimizationSuggestionAsync(suggestion.Id, autoApplied: true);
+        }
+
+        OptimizationStatus = $"Optimize Project applied {safeSuggestions.Length} safe suggestion(s).";
+    }
+
+    public void PreviewOptimizationSuggestion(string suggestionId)
+    {
+        var suggestion = _optimizationSuggestions.FirstOrDefault(item => string.Equals(item.Id, suggestionId, StringComparison.Ordinal));
+        if (suggestion is null)
+        {
+            return;
+        }
+
+        SelectedOptimizationPreview = $"{suggestion.Title}{Environment.NewLine}{suggestion.Summary}{Environment.NewLine}{suggestion.Preview}";
+    }
+
+    public async Task ApplyOptimizationSuggestionAsync(string suggestionId, bool autoApplied = false)
+    {
+        var suggestion = _optimizationSuggestions.FirstOrDefault(item => string.Equals(item.Id, suggestionId, StringComparison.Ordinal));
+        if (suggestion is null)
+        {
+            return;
+        }
+
+        await ApplySceneMutationAsync(
+            autoApplied ? $"Auto-optimized: {suggestion.Title}" : $"Optimization applied: {suggestion.Title}",
+            root => ApplyOptimizationPatchOperations(root, suggestion.PatchOperations));
+
+        _optimizationSuggestions.Remove(suggestion);
+        OnPropertyChanged(nameof(OptimizationSuggestions));
+        SelectedOptimizationPreview = $"{suggestion.Title} applied.";
+    }
+
+    public void IgnoreOptimizationSuggestion(string suggestionId)
+    {
+        var suggestion = _optimizationSuggestions.FirstOrDefault(item => string.Equals(item.Id, suggestionId, StringComparison.Ordinal));
+        if (suggestion is null)
+        {
+            return;
+        }
+
+        _optimizationSuggestions.Remove(suggestion);
+        OnPropertyChanged(nameof(OptimizationSuggestions));
+        SelectedOptimizationPreview = $"Ignored: {suggestion.Title}";
     }
 
     public async Task ApplyDayNightAsync(CancellationToken cancellationToken = default)
@@ -757,7 +879,6 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        var projectRoot = ResolveRepositoryRoot();
         var finalArgs = new List<string> { command };
         finalArgs.AddRange(args);
 
@@ -791,23 +912,11 @@ public sealed partial class MainWindowViewModel
             finalArgs.Add("villager");
         }
 
-        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(projectRoot, finalArgs.ToArray());
-        var oneLine = $"{startInfo.FileName} {string.Join(" ", startInfo.ArgumentList.Select(item => item.Contains(' ') ? $"\"{item}\"" : item))}";
-        _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] {oneLine}");
-        OnPropertyChanged(nameof(AiCommandLog));
+        var processResult = await RunAiHookProcessAsync(command, finalArgs);
+        var stdout = processResult.Stdout;
+        var stderr = processResult.Stderr;
 
-        using var process = Process.Start(startInfo);
-        if (process is null)
-        {
-            StatusMessage = "Failed to start orchestrator.py";
-            return;
-        }
-
-        var stdout = await process.StandardOutput.ReadToEndAsync();
-        var stderr = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-
-        if (process.ExitCode != 0)
+        if (processResult.ExitCode != 0)
         {
             StatusMessage = $"AI hook failed: {stderr}";
             return;
@@ -867,6 +976,26 @@ public sealed partial class MainWindowViewModel
         }
 
         StatusMessage = completion;
+    }
+
+    private async Task<(int ExitCode, string Stdout, string Stderr)> RunAiHookProcessAsync(string command, IReadOnlyList<string> finalArgs)
+    {
+        var projectRoot = ResolveRepositoryRoot();
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(projectRoot, finalArgs.ToArray());
+        var oneLine = $"{startInfo.FileName} {string.Join(" ", startInfo.ArgumentList.Select(item => item.Contains(' ') ? $"\"{item}\"" : item))}";
+        _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] {oneLine}");
+        OnPropertyChanged(nameof(AiCommandLog));
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            return (-1, string.Empty, $"Failed to start orchestrator.py ({command}).");
+        }
+
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return (process.ExitCode, stdout, stderr);
     }
 
     public async Task RefreshModelManagerAsync()
@@ -1874,6 +2003,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(RelationshipStatusSummary));
             OnPropertyChanged(nameof(EconomySummary));
             OnPropertyChanged(nameof(TradeRouteSummary));
+            RefreshOptimizationSnapshot();
         }
         catch
         {
@@ -2258,6 +2388,247 @@ public sealed partial class MainWindowViewModel
         return false;
     }
 
+    private void RefreshOptimizationSnapshot()
+    {
+        var scenePath = GetScenePath();
+        if (scenePath is null || !File.Exists(scenePath))
+        {
+            _recentOptimizationChanges.Clear();
+            _optimizationSuggestions.Clear();
+            PerformanceHealthSummary = "Performance health unavailable (no prototype scene yet).";
+            ProjectHealthScore = 50;
+            SetHealthBand();
+            return;
+        }
+
+        try
+        {
+            var projectRoot = Path.GetDirectoryName(Path.GetDirectoryName(scenePath) ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(projectRoot))
+            {
+                return;
+            }
+
+            var changesPath = Path.Combine(projectRoot, "changes.log.json");
+            _recentOptimizationChanges.Clear();
+            if (File.Exists(changesPath))
+            {
+                var changesRoot = JsonNode.Parse(File.ReadAllText(changesPath)) as JsonObject;
+                var entries = changesRoot?["entries"] as JsonArray;
+                if (entries is not null)
+                {
+                    foreach (var entry in entries.OfType<JsonObject>().Reverse().Take(8))
+                    {
+                        _recentOptimizationChanges.Add(new OptimizationChangeEntry(
+                            entry["action_type"]?.GetValue<string>() ?? "unknown",
+                            entry["summary_text"]?.GetValue<string>() ?? "(no summary)",
+                            FormatPerformanceDelta(entry["performance_delta"])));
+                    }
+                }
+            }
+
+            var historyPath = Path.Combine(projectRoot, "performance_history.json");
+            var summary = "Performance history unavailable.";
+            var score = 50;
+            if (File.Exists(historyPath))
+            {
+                var historyRoot = JsonNode.Parse(File.ReadAllText(historyPath)) as JsonObject;
+                var snapshots = historyRoot?["snapshots"] as JsonArray;
+                if (snapshots is not null && snapshots.Count > 0)
+                {
+                    var latest = snapshots[^1] as JsonObject;
+                    var previous = snapshots.Count > 1 ? snapshots[^2] as JsonObject : null;
+                    var latestMetrics = latest?["metrics"] as JsonObject;
+                    var previousMetrics = previous?["metrics"] as JsonObject;
+                    var target = latest?["target_hardware_profile"]?.GetValue<string>() ?? "unknown";
+                    var targetFps = string.Equals(target, "high_fidelity", StringComparison.OrdinalIgnoreCase) ? 60d
+                        : string.Equals(target, "potato", StringComparison.OrdinalIgnoreCase) ? 30d
+                        : 45d;
+                    var fps = latestMetrics?["fps_avg"]?.GetValue<double>() ?? 0d;
+                    var vram = latestMetrics?["vram_usage_mb"]?.GetValue<double>() ?? 0d;
+                    var drawCalls = latestMetrics?["draw_calls"]?.GetValue<int>() ?? 0;
+                    var fpsPrev = previousMetrics?["fps_avg"]?.GetValue<double>() ?? fps;
+                    var fpsDelta = fps - fpsPrev;
+                    score = 65;
+                    score += fps >= targetFps ? 15 : -15;
+                    score += fpsDelta >= 0 ? 5 : -5;
+                    score += drawCalls < 450 ? 8 : -8;
+                    score += vram <= 0 || vram <= 4096 ? 7 : -7;
+                    score = Math.Clamp(score, 0, 100);
+                    summary = $"Target {target} • FPS {fps:0.0} ({fpsDelta:+0.0;-0.0;0}) • Draw {drawCalls} • VRAM {vram:0} MB";
+                }
+            }
+
+            PerformanceHealthSummary = summary;
+            ProjectHealthScore = score;
+            SetHealthBand();
+            OnPropertyChanged(nameof(RecentOptimizationChanges));
+            OnPropertyChanged(nameof(OptimizationSuggestions));
+        }
+        catch
+        {
+            PerformanceHealthSummary = "Performance health unavailable.";
+            ProjectHealthScore = 50;
+            SetHealthBand();
+        }
+    }
+
+    private void SetHealthBand()
+    {
+        if (ProjectHealthScore >= 75)
+        {
+            ProjectHealthBand = "Green";
+            ProjectHealthBrush = Brushes.LimeGreen;
+            return;
+        }
+
+        if (ProjectHealthScore >= 45)
+        {
+            ProjectHealthBand = "Yellow";
+            ProjectHealthBrush = Brushes.Goldenrod;
+            return;
+        }
+
+        ProjectHealthBand = "Red";
+        ProjectHealthBrush = Brushes.IndianRed;
+    }
+
+    private static string FormatPerformanceDelta(JsonNode? deltaNode)
+    {
+        if (deltaNode is not JsonObject delta || delta.Count == 0)
+        {
+            return "Δ n/a";
+        }
+
+        var fps = delta["fps_avg"]?.GetValue<double?>();
+        var vram = delta["vram_usage_mb"]?.GetValue<double?>();
+        var parts = new List<string>();
+        if (fps is double fpsValue)
+        {
+            parts.Add($"FPS {fpsValue:+0.0;-0.0;0}");
+        }
+        if (vram is double vramValue)
+        {
+            parts.Add($"VRAM {vramValue:+0;-0;0}MB");
+        }
+
+        return parts.Count == 0 ? "Δ tracked" : $"Δ {string.Join(" | ", parts)}";
+    }
+
+    private void ApplyOptimizationPayload(string stdout)
+    {
+        JsonObject? payload;
+        try
+        {
+            payload = JsonNode.Parse(stdout) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            OptimizationStatus = "Optimization critique returned invalid JSON.";
+            return;
+        }
+
+        if (payload is null)
+        {
+            return;
+        }
+
+        _optimizationSuggestions.Clear();
+        if (payload["suggestions"] is JsonArray suggestions)
+        {
+            foreach (var suggestionNode in suggestions.OfType<JsonObject>())
+            {
+                var id = suggestionNode["id"]?.GetValue<string>() ?? $"sg-{_optimizationSuggestions.Count + 1}";
+                var patch = new List<OptimizationPatchOperation>();
+                if (suggestionNode["patch"] is JsonArray patchNodes)
+                {
+                    foreach (var patchNode in patchNodes.OfType<JsonObject>())
+                    {
+                        patch.Add(new OptimizationPatchOperation(
+                            patchNode["op"]?.GetValue<string>() ?? "set",
+                            patchNode["path"]?.GetValue<string>() ?? "/",
+                            patchNode["value"]?.DeepClone()));
+                    }
+                }
+
+                _optimizationSuggestions.Add(new OptimizationSuggestion(
+                    id,
+                    suggestionNode["title"]?.GetValue<string>() ?? "Optimization Suggestion",
+                    suggestionNode["summary"]?.GetValue<string>() ?? string.Empty,
+                    suggestionNode["preview"]?.GetValue<string>() ?? "No preview available.",
+                    string.Equals(suggestionNode["safety"]?.GetValue<string>(), "safe", StringComparison.OrdinalIgnoreCase),
+                    patch));
+            }
+        }
+
+        if (payload["recent_changes"] is JsonArray recentChanges)
+        {
+            _recentOptimizationChanges.Clear();
+            foreach (var recentNode in recentChanges.OfType<JsonObject>())
+            {
+                _recentOptimizationChanges.Add(new OptimizationChangeEntry(
+                    recentNode["action_type"]?.GetValue<string>() ?? "unknown",
+                    recentNode["summary"]?.GetValue<string>() ?? "(no summary)",
+                    FormatPerformanceDelta(recentNode["performance_delta"])));
+            }
+        }
+
+        ProjectHealthScore = payload["health_score"]?.GetValue<int>() ?? ProjectHealthScore;
+        SetHealthBand();
+        var summaryNode = payload["health_summary"] as JsonObject;
+        if (summaryNode is not null)
+        {
+            PerformanceHealthSummary = $"Target {summaryNode["target_profile"]?.GetValue<string>() ?? "unknown"} • FPS {summaryNode["fps_avg"]?.GetValue<double>() ?? 0:0.0} • VRAM {summaryNode["vram_usage_mb"]?.GetValue<double>() ?? 0:0} MB";
+        }
+
+        if (_optimizationSuggestions.Count > 0)
+        {
+            PreviewOptimizationSuggestion(_optimizationSuggestions[0].Id);
+        }
+
+        OnPropertyChanged(nameof(RecentOptimizationChanges));
+        OnPropertyChanged(nameof(OptimizationSuggestions));
+    }
+
+    private static bool ApplyOptimizationPatchOperations(JsonObject root, IReadOnlyList<OptimizationPatchOperation> operations)
+    {
+        var applied = false;
+        foreach (var operation in operations)
+        {
+            var segments = operation.Path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+            {
+                continue;
+            }
+
+            JsonObject current = root;
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                var key = segments[i];
+                if (current[key] is not JsonObject next)
+                {
+                    next = new JsonObject();
+                    current[key] = next;
+                }
+
+                current = next;
+            }
+
+            var leaf = segments[^1];
+            if (string.Equals(operation.Op, "remove", StringComparison.OrdinalIgnoreCase))
+            {
+                applied |= current.Remove(leaf);
+            }
+            else
+            {
+                current[leaf] = operation.Value?.DeepClone();
+                applied = true;
+            }
+        }
+
+        return applied;
+    }
+
     private async Task ApplySceneMutationAsync(string label, Func<JsonObject, bool> mutate, CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
@@ -2296,4 +2667,15 @@ public sealed partial class MainWindowViewModel
         ReloadSystemPanelsFromScene();
     }
 
+    public sealed record OptimizationChangeEntry(string ActionType, string Summary, string Delta);
+
+    public sealed record OptimizationPatchOperation(string Op, string Path, JsonNode? Value);
+
+    public sealed record OptimizationSuggestion(
+        string Id,
+        string Title,
+        string Summary,
+        string Preview,
+        bool IsSafeToAutoApply,
+        IReadOnlyList<OptimizationPatchOperation> PatchOperations);
 }
