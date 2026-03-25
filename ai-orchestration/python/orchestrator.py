@@ -1597,6 +1597,13 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         for entry in installed_models if isinstance(installed_models, list)
     )
 
+    optimization_overrides = scene_payload.get("optimization_overrides", {})
+    if not isinstance(optimization_overrides, dict):
+        optimization_overrides = {}
+    scene_mode = str(optimization_overrides.get("lightweight_mode", "balanced") or "balanced").strip().lower()
+    if scene_mode not in {"performance", "balanced", "quality"}:
+        scene_mode = "balanced"
+
     score = 65
     if fps_avg > 0:
         score += 15 if fps_avg >= target_fps else -15
@@ -1609,6 +1616,17 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
     if quality_score_value > 0:
         score += 5 if quality_score_value >= 70 else -4
     score = max(0, min(100, int(round(score))))
+
+    guardrails_node = optimization_overrides.get("guardrails", {})
+    if not isinstance(guardrails_node, dict):
+        guardrails_node = {}
+    soft_warning_threshold = int(guardrails_node.get("soft_warning_threshold", 50) or 50)
+    hard_block_threshold = int(guardrails_node.get("hard_block_threshold", 30) or 30)
+    hard_block_enabled = bool(guardrails_node.get("hard_block_enabled", False))
+    soft_warning_threshold = max(20, min(95, soft_warning_threshold))
+    hard_block_threshold = max(10, min(90, hard_block_threshold))
+    if hard_block_threshold >= soft_warning_threshold:
+        hard_block_threshold = max(10, soft_warning_threshold - 10)
 
     recent_changes = get_recent_changes(scene_path, limit=8)
     has_changes_log = changes_path.exists()
@@ -1969,6 +1987,58 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             }
         )
 
+    suggested_lightweight_mode = "balanced"
+    if fps_avg > 0 and (fps_avg < target_fps - 5.0 or draw_calls > 520 or vram_mb > 3200):
+        suggested_lightweight_mode = "performance"
+    elif fps_avg >= target_fps + 8.0 and draw_calls < 320 and vram_mb > 0 and vram_mb < 2300:
+        suggested_lightweight_mode = "quality"
+
+    if suggested_lightweight_mode != scene_mode:
+        mode_patch: list[dict[str, object]] = [
+            {"op": "set", "path": "/optimization_overrides/lightweight_mode", "value": suggested_lightweight_mode},
+            {"op": "set", "path": "/optimization_overrides/project_health_score", "value": score},
+            {"op": "set", "path": "/optimization_overrides/runtime/enabled", "value": True},
+            {"op": "set", "path": "/optimization_overrides/runtime/memory_guardrails_enabled", "value": True},
+        ]
+        if suggested_lightweight_mode == "performance":
+            mode_patch.extend(
+                [
+                    {"op": "set", "path": "/optimization_overrides/runtime/lod_distance_culling_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/draw_call_batching_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/pruning/post_processing_profile", "value": "light"},
+                    {"op": "set", "path": "/optimization_overrides/pruning/particle_weather_mode", "value": "sprite_sheet_overlay"},
+                ]
+            )
+        elif suggested_lightweight_mode == "quality":
+            mode_patch.extend(
+                [
+                    {"op": "set", "path": "/optimization_overrides/runtime/lod_distance_culling_enabled", "value": False},
+                    {"op": "set", "path": "/optimization_overrides/runtime/draw_call_batching_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/shader_variant_cache_enabled", "value": True},
+                ]
+            )
+        suggestions.append(
+            {
+                "id": "sg-010",
+                "priority": 1,
+                "title": f"Switch lightweight mode to '{suggested_lightweight_mode}'",
+                "summary": (
+                    f"ForgeGuard recommendation for target '{target_profile}' from perf history + change log. "
+                    f"Current={scene_mode}, suggested={suggested_lightweight_mode}."
+                ),
+                "safety": "safe",
+                "confidence": 0.84 if forgeguard_available else 0.69,
+                "impact": "high",
+                "estimated_win": {
+                    "fps_target_gap": round(target_fps - fps_avg, 2),
+                    "draw_call_pressure": draw_calls,
+                    "vram_usage_mb": round(vram_mb, 1),
+                },
+                "preview": "Applies lightweight preset plus safe P5/P6 overrides. User confirmation required.",
+                "patch": mode_patch,
+            }
+        )
+
     suggestions.append(
         {
             "id": "sg-900",
@@ -1983,6 +2053,7 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             "patch": [
                 {"op": "set", "path": "/optimization_overrides/last_checkpoint_utc", "value": datetime.now(timezone.utc).isoformat()},
                 {"op": "set", "path": "/optimization_overrides/baseline_health_score", "value": score},
+                {"op": "set", "path": "/optimization_overrides/project_health_score", "value": score},
             ],
         }
     )
@@ -1998,6 +2069,20 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
     return {
         "scene_path": str(scene_path),
         "health_score": score,
+        "project_health_score": score,
+        "lightweight_mode": scene_mode,
+        "lightweight_mode_suggestion": {
+            "current": scene_mode,
+            "suggested": suggested_lightweight_mode,
+            "reason": "forgeguard-heuristic" if forgeguard_available else "heuristic-fallback",
+            "requires_confirmation": True,
+        },
+        "guardrails": {
+            "soft_warning_threshold": soft_warning_threshold,
+            "hard_block_threshold": hard_block_threshold,
+            "hard_block_enabled": hard_block_enabled,
+            "status": "hard_block" if hard_block_enabled and score <= hard_block_threshold else "warning" if score <= soft_warning_threshold else "healthy",
+        },
         "health_summary": {
             "target_profile": target_profile,
             "target_fps": target_fps,

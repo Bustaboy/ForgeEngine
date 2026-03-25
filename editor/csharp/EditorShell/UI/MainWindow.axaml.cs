@@ -1269,6 +1269,11 @@ public partial class MainWindow : Window
         await _viewModel.OptimizeProjectOneClickAsync();
     }
 
+    private async void OnSwitchLightweightModeClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SwitchToLightweightModeAsync();
+    }
+
     private void OnPreviewOptimizationSuggestionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button button && button.Tag is string suggestionId)

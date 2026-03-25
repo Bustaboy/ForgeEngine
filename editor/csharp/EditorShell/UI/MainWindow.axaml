@@ -1166,14 +1166,18 @@
                 </ScrollViewer>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
                       <TextBlock Text="Project Health" Foreground="#D6E9FF" FontWeight="SemiBold" />
                       <TextBlock Grid.Column="1" Text="{Binding ProjectHealthScore, StringFormat={}{0}/100}" Foreground="{Binding ProjectHealthBrush}" FontWeight="Bold" />
                       <TextBlock Grid.Column="2" Text="{Binding ProjectHealthBand}" Foreground="{Binding ProjectHealthBrush}" />
-                      <Button Grid.Column="3" Content="Run Optimization Check" Click="OnRunOptimizationCheckClick" />
-                      <Button Grid.Column="4" Content="Optimize Project" Click="OnOptimizeProjectOneClick" />
+                      <TextBlock Grid.Column="3" Text="{Binding LightweightMode, StringFormat=Mode: {0}}" Foreground="#9FC2E5" />
+                      <Button Grid.Column="4" Content="Run Optimization Check" Click="OnRunOptimizationCheckClick" />
+                      <Button Grid.Column="5" Content="Optimize Project" Click="OnOptimizeProjectOneClick" />
+                      <Button Grid.Column="6" Content="Switch to Lightweight Mode" Click="OnSwitchLightweightModeClick" />
                     </Grid>
                     <TextBlock Text="{Binding PerformanceHealthSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LightweightModeSuggestion}" Foreground="#AFC2DF" FontSize="10" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GuardrailStatus}" Foreground="#F0B68B" FontSize="10" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding OptimizationStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
                     <TextBlock Text="Recent Changes" Foreground="#D6E9FF" FontWeight="SemiBold" Margin="0,4,0,0" />
                     <ItemsControl ItemsSource="{Binding RecentOptimizationChanges}">

@@ -2490,10 +2490,20 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
     draw_scene.render_2d.sprites.insert(draw_scene.render_2d.sprites.end(), tile_sprites.begin(), tile_sprites.end());
 
     const RuntimeOptimizationSettings& runtime_opt = scene.optimization_overrides.runtime;
+    float lightweight_cull_scale = 1.0F;
+    if (scene.optimization_overrides.lightweight_mode == "performance") {
+        lightweight_cull_scale = 0.82F;
+    } else if (scene.optimization_overrides.lightweight_mode == "quality") {
+        lightweight_cull_scale = 1.10F;
+    }
+
     if (runtime_opt.enabled && runtime_opt.lod_distance_culling_enabled) {
         std::vector<SceneSprite2D> filtered{};
         filtered.reserve(draw_scene.render_2d.sprites.size());
-        const float cull_sq = runtime_opt.sprite_cull_distance_m * runtime_opt.sprite_cull_distance_m;
+        const float sprite_cull_distance = runtime_opt.sprite_cull_distance_m * lightweight_cull_scale;
+        const float lod_near_distance = runtime_opt.lod_near_distance_m * lightweight_cull_scale;
+        const float lod_far_distance = runtime_opt.lod_far_distance_m * lightweight_cull_scale;
+        const float cull_sq = sprite_cull_distance * sprite_cull_distance;
         for (SceneSprite2D sprite : draw_scene.render_2d.sprites) {
             const glm::vec2 offset = sprite.position - draw_scene.render_2d.camera.center;
             const float dist_sq = glm::dot(offset, offset);
@@ -2501,10 +2511,10 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
                 continue;
             }
             const float dist = std::sqrt(dist_sq);
-            if (dist > runtime_opt.lod_far_distance_m) {
+            if (dist > lod_far_distance) {
                 sprite.tint.a *= 0.85F;
                 sprite.size *= 0.75F;
-            } else if (dist > runtime_opt.lod_near_distance_m) {
+            } else if (dist > lod_near_distance) {
                 sprite.tint.a *= 0.92F;
             }
             filtered.push_back(sprite);
