@@ -120,6 +120,10 @@ set(FORGE_RUNTIME_SOURCES
     CoCreatorSystem.cpp
     VulkanRenderer.cpp
     VulkanRenderer.h
+    SpriteBatch.cpp
+    SpriteBatch.h
+    TilemapChunk.cpp
+    TilemapChunk.h
     SceneLoader.cpp
     src/input/InputManager.cpp
 )

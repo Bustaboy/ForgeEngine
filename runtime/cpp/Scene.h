@@ -6,6 +6,8 @@
 #include "NavmeshSystem.h"
 
 #include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
+#include <glm/vec4.hpp>
 
 #include <string>
 #include <cstdint>
@@ -211,6 +213,40 @@ struct WorldTime {
     std::uint32_t minutes_per_day = 1440;
 };
 
+struct SceneSprite2D {
+    std::string asset_id{};
+    glm::vec2 position{0.0F, 0.0F};
+    glm::vec2 size{1.0F, 1.0F};
+    glm::vec4 tint{1.0F, 1.0F, 1.0F, 1.0F};
+    float rotation_radians = 0.0F;
+    float layer = 0.0F;
+};
+
+struct SceneTilemap2D {
+    std::string id{};
+    std::string tileset_asset_id{};
+    glm::vec2 origin{0.0F, 0.0F};
+    glm::vec2 tile_size{1.0F, 1.0F};
+    int columns = 0;
+    int rows = 0;
+    float layer = -0.1F;
+    std::vector<int> tiles{};
+};
+
+struct SceneCamera2D {
+    glm::vec2 center{0.0F, 0.0F};
+    glm::vec2 viewport_world_size{32.0F, 18.0F};
+    float pixels_per_unit = 32.0F;
+    bool pixel_snap = true;
+};
+
+struct SceneRender2D {
+    bool enabled = false;
+    SceneCamera2D camera{};
+    std::vector<SceneSprite2D> sprites{};
+    std::vector<SceneTilemap2D> tilemaps{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -243,6 +279,7 @@ struct Scene {
     CutsceneState cutscene{};
     FreeWillState free_will{};
     CombatState combat{};
+    SceneRender2D render_2d{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();
