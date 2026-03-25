@@ -224,11 +224,15 @@ install_linux_deps() {
   run_apt_update
 
   CURRENT_STEP="installing build tools (build-essential, g++, cmake, ninja-build)"
-  run_apt_install \
-    build-essential \
-    g++ \
-    cmake \
-    ninja-build
+  if ! run_apt_install build-essential g++ cmake ninja-build; then
+    fail "Failed to install C++ build tools."
+    printf "%b\n" "${C_YELLOW}  This is often caused by a broken apt state or a failed dependency of g++.${C_RESET}"
+    printf "%b\n" "${C_YELLOW}  Try running these commands to repair, then re-run setup:${C_RESET}"
+    printf "%b\n" "${C_YELLOW}    sudo apt-get install -f${C_RESET}"
+    printf "%b\n" "${C_YELLOW}    sudo dpkg --configure -a${C_RESET}"
+    printf "%b\n" "${C_YELLOW}    ./scripts/setup.sh${C_RESET}"
+    exit 1
+  fi
 
   CURRENT_STEP="installing graphics and windowing libraries"
   local vulkan_pkgs=(libvulkan-dev)
