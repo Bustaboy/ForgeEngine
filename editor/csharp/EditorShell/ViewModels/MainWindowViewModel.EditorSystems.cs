@@ -2560,8 +2560,10 @@ public sealed partial class MainWindowViewModel
                 _optimizationSuggestions.Add(new OptimizationSuggestion(
                     id,
                     suggestionNode["title"]?.GetValue<string>() ?? "Optimization Suggestion",
-                    suggestionNode["summary"]?.GetValue<string>() ?? string.Empty,
-                    suggestionNode["preview"]?.GetValue<string>() ?? "No preview available.",
+                    suggestionNode["description"]?.GetValue<string>()
+                        ?? suggestionNode["summary"]?.GetValue<string>()
+                        ?? string.Empty,
+                    BuildOptimizationPreview(suggestionNode),
                     string.Equals(suggestionNode["safety"]?.GetValue<string>(), "safe", StringComparison.OrdinalIgnoreCase),
                     patch,
                     suggestionNode["confidence"]?.GetValue<double>() ?? 0d,
@@ -2621,6 +2623,23 @@ public sealed partial class MainWindowViewModel
         }
 
         return string.Join(", ", parts);
+    }
+
+    private static string BuildOptimizationPreview(JsonObject suggestionNode)
+    {
+        var preview = suggestionNode["preview"]?.GetValue<string>() ?? "No preview available.";
+        var lightweightAlternative = suggestionNode["lightweight_alternative"]?.GetValue<string>();
+        if (!string.IsNullOrWhiteSpace(lightweightAlternative))
+        {
+            preview = $"{preview} Alt: {lightweightAlternative}";
+        }
+
+        if (suggestionNode["reversible"]?.GetValue<bool>() == true)
+        {
+            preview = $"{preview} (Reversible)";
+        }
+
+        return preview;
     }
 
     private static bool ApplyOptimizationPatchOperations(JsonObject root, IReadOnlyList<OptimizationPatchOperation> operations)
