@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 import os
 import re
@@ -1904,6 +1905,70 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
                 }
             )
 
+    if draw_calls > 420 or entity_count > int(700 * profile_scale):
+        suggestions.append(
+            {
+                "id": "sg-005",
+                "priority": 2,
+                "title": "Enable distance LOD and culling overrides",
+                "summary": "Large kit-bashed scene is above conservative draw/entity budgets.",
+                "safety": "safe",
+                "confidence": 0.82,
+                "impact": "high",
+                "estimated_win": {"draw_call_reduction_pct": 18.0, "cpu_update_reduction_pct": 10.0},
+                "preview": "Enables runtime LOD distance culling with conservative thresholds.",
+                "patch": [
+                    {"op": "set", "path": "/optimization_overrides/runtime/enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/lod_distance_culling_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/lod_near_distance_m", "value": 14},
+                    {"op": "set", "path": "/optimization_overrides/runtime/lod_far_distance_m", "value": 36},
+                    {"op": "set", "path": "/optimization_overrides/runtime/sprite_cull_distance_m", "value": 46},
+                    {"op": "set", "path": "/optimization_overrides/runtime/mesh_cull_distance_m", "value": 64},
+                ],
+            }
+        )
+
+    if vram_mb > 0 and vram_mb > 2048:
+        suggestions.append(
+            {
+                "id": "sg-006",
+                "priority": 3,
+                "title": "Generate texture atlas + compression manifests",
+                "summary": "VRAM usage indicates atlas/compression should be enabled for approved sprites.",
+                "safety": "safe",
+                "confidence": 0.79,
+                "impact": "medium",
+                "estimated_win": {"vram_reduction_mb": 320.0},
+                "preview": "Turns on runtime atlas and texture compression overrides.",
+                "patch": [
+                    {"op": "set", "path": "/optimization_overrides/runtime/enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/texture_atlas_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/texture_compression_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/memory_guardrails_enabled", "value": True},
+                ],
+            }
+        )
+
+    if fps_avg < target_fps:
+        suggestions.append(
+            {
+                "id": "sg-007",
+                "priority": 3,
+                "title": "Enable shader variant cache warm-up",
+                "summary": "Compile only used shader variants and cache binaries from generated manifest.",
+                "safety": "safe",
+                "confidence": 0.77,
+                "impact": "medium",
+                "estimated_win": {"first_frame_hitch_reduction_ms": 10.0},
+                "preview": "Enables shader_variant_cache_enabled under runtime overrides.",
+                "patch": [
+                    {"op": "set", "path": "/optimization_overrides/runtime/enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/shader_variant_cache_enabled", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime/draw_call_batching_enabled", "value": True},
+                ],
+            }
+        )
+
     suggestions.append(
         {
             "id": "sg-900",
@@ -1962,6 +2027,90 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             "has_changes_log": has_changes_log,
             "has_quality_metadata": isinstance(quality_metadata, dict) and bool(quality_metadata),
         },
+    }
+
+
+def build_runtime_optimization_assets(scene_path: Path) -> dict[str, object]:
+    """Build lightweight atlas + shader variant manifests for runtime optimization overrides."""
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_payload, dict):
+        raise ValueError("Scene payload must be a JSON object")
+
+    project_root = scene_path.resolve().parent.parent
+    approved_root = project_root / "Assets" / "Approved"
+    atlas_root = project_root / "Assets" / "Generated" / "runtime_atlas"
+    shader_root = project_root / "Assets" / "Generated" / "shaders"
+    atlas_root.mkdir(parents=True, exist_ok=True)
+    shader_root.mkdir(parents=True, exist_ok=True)
+
+    render_2d = scene_payload.get("render_2d", {}) if isinstance(scene_payload.get("render_2d"), dict) else {}
+    sprites = render_2d.get("sprites", []) if isinstance(render_2d.get("sprites"), list) else []
+    target_profile = "balanced"
+    history_path = project_root / "performance_history.json"
+    if history_path.exists():
+        try:
+            history_payload = json.loads(history_path.read_text(encoding="utf-8"))
+            snapshots = history_payload.get("snapshots", []) if isinstance(history_payload, dict) else []
+            if isinstance(snapshots, list) and snapshots:
+                target_profile = str(snapshots[-1].get("target_hardware_profile", target_profile) or target_profile)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    sprite_usage: dict[str, int] = defaultdict(int)
+    for sprite in sprites:
+        if not isinstance(sprite, dict):
+            continue
+        asset_id = str(sprite.get("asset_id", "") or "").strip()
+        if asset_id:
+            sprite_usage[asset_id] += 1
+
+    atlas_groups: dict[str, list[str]] = defaultdict(list)
+    extensions = {".png", ".jpg", ".jpeg"}
+    for asset_id, usage in sorted(sprite_usage.items(), key=lambda item: (-item[1], item[0])):
+        matches = []
+        if approved_root.exists():
+            for ext in extensions:
+                candidate = approved_root / f"{asset_id}{ext}"
+                if candidate.exists():
+                    matches.append(candidate)
+        if not matches:
+            continue
+        bucket = "core" if usage >= 8 else "secondary"
+        atlas_groups[bucket].append(matches[0].relative_to(project_root).as_posix())
+
+    compression = {"potato": "etc2", "balanced": "bc3", "high_fidelity": "bc7"}.get(target_profile, "bc3")
+    atlas_manifest = {
+        "schema": "gameforge.runtime_texture_atlas.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "target_hardware_profile": target_profile,
+        "compression": compression,
+        "atlas_groups": [{"name": name, "sources": sources} for name, sources in sorted(atlas_groups.items())],
+    }
+    atlas_manifest_path = atlas_root / "atlas_manifest.v1.json"
+    atlas_manifest_path.write_text(json.dumps(atlas_manifest, indent=2) + "\n", encoding="utf-8")
+
+    variants = [{"key": "base", "spv": "vertex.vert.spv"}, {"key": "lit", "spv": "fragment.frag.spv"}]
+    post = scene_payload.get("post_processing")
+    if isinstance(post, dict) and bool(post.get("enabled")):
+        if bool(post.get("bloom_enabled", True)):
+            variants.append({"key": "bloom_extract", "spv": "bloom_extract.frag.spv"})
+            variants.append({"key": "gaussian_blur", "spv": "gaussian_blur.frag.spv"})
+        variants.append({"key": "combine_tonemap", "spv": "combine_tonemap.frag.spv"})
+    shader_manifest = {
+        "schema": "gameforge.shader_variant_cache.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "variants": variants,
+    }
+    shader_manifest_path = shader_root / "shader_variant_cache.v1.json"
+    shader_manifest_path.write_text(json.dumps(shader_manifest, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "scene_path": str(scene_path),
+        "atlas_manifest": str(atlas_manifest_path),
+        "shader_manifest": str(shader_manifest_path),
+        "target_hardware_profile": target_profile,
+        "atlas_group_count": len(atlas_manifest["atlas_groups"]),
+        "shader_variant_count": len(variants),
     }
 
 
@@ -3724,6 +3873,13 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raise ValueError("Usage: orchestrator.py /optimization_critique <scene_json_path> [max_suggestions]")
         max_suggestions = int(raw_args[2]) if len(raw_args) >= 3 else 5
         result = optimization_critique(Path(raw_args[1]), max_suggestions=max_suggestions)
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"runtime-optimize-assets", "/runtime_optimize_assets"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /runtime_optimize_assets <scene_json_path>")
+        result = build_runtime_optimization_assets(Path(raw_args[1]))
         print(json.dumps(result, indent=2))
         return 0
 

@@ -573,8 +573,9 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            OptimizationStatus = "Running benchmark + ForgeGuard critique...";
+            OptimizationStatus = "Running benchmark + runtime asset optimize + ForgeGuard critique...";
             await RunAiHookProcessAsync("benchmark-now", [scenePath, "optimization_check"]);
+            await RunAiHookProcessAsync("runtime-optimize-assets", [scenePath]);
             var critiqueResult = await RunAiHookProcessAsync("optimization-critique", [scenePath, "5"]);
             if (critiqueResult.ExitCode != 0)
             {

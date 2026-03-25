@@ -1449,6 +1449,7 @@ std::set<std::string> RootFieldAllowList() {
         "render_2d",
         "post_processing",
         "quality_metadata",
+        "optimization_overrides",
     };
 }
 
@@ -2018,6 +2019,46 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
+    scene.optimization_overrides = SceneOptimizationOverrides{};
+    if (document.contains("optimization_overrides") && document["optimization_overrides"].is_object()) {
+        const json& overrides = document["optimization_overrides"];
+        if (overrides.contains("runtime") && overrides["runtime"].is_object()) {
+            const json& runtime = overrides["runtime"];
+            scene.optimization_overrides.runtime.enabled = runtime.value("enabled", scene.optimization_overrides.runtime.enabled);
+            scene.optimization_overrides.runtime.lod_distance_culling_enabled =
+                runtime.value("lod_distance_culling_enabled", scene.optimization_overrides.runtime.lod_distance_culling_enabled);
+            scene.optimization_overrides.runtime.draw_call_batching_enabled =
+                runtime.value("draw_call_batching_enabled", scene.optimization_overrides.runtime.draw_call_batching_enabled);
+            scene.optimization_overrides.runtime.shader_variant_cache_enabled =
+                runtime.value("shader_variant_cache_enabled", scene.optimization_overrides.runtime.shader_variant_cache_enabled);
+            scene.optimization_overrides.runtime.memory_guardrails_enabled =
+                runtime.value("memory_guardrails_enabled", scene.optimization_overrides.runtime.memory_guardrails_enabled);
+            scene.optimization_overrides.runtime.texture_atlas_enabled =
+                runtime.value("texture_atlas_enabled", scene.optimization_overrides.runtime.texture_atlas_enabled);
+            scene.optimization_overrides.runtime.texture_compression_enabled =
+                runtime.value("texture_compression_enabled", scene.optimization_overrides.runtime.texture_compression_enabled);
+            scene.optimization_overrides.runtime.lod_near_distance_m = std::max(
+                0.0F, runtime.value("lod_near_distance_m", scene.optimization_overrides.runtime.lod_near_distance_m));
+            scene.optimization_overrides.runtime.lod_far_distance_m = std::max(
+                scene.optimization_overrides.runtime.lod_near_distance_m,
+                runtime.value("lod_far_distance_m", scene.optimization_overrides.runtime.lod_far_distance_m));
+            scene.optimization_overrides.runtime.sprite_cull_distance_m = std::max(
+                0.0F, runtime.value("sprite_cull_distance_m", scene.optimization_overrides.runtime.sprite_cull_distance_m));
+            scene.optimization_overrides.runtime.mesh_cull_distance_m = std::max(
+                0.0F, runtime.value("mesh_cull_distance_m", scene.optimization_overrides.runtime.mesh_cull_distance_m));
+            scene.optimization_overrides.runtime.safe_entity_count =
+                std::max(128, runtime.value("safe_entity_count", scene.optimization_overrides.runtime.safe_entity_count));
+            scene.optimization_overrides.runtime.safe_texture_count =
+                std::max(32, runtime.value("safe_texture_count", scene.optimization_overrides.runtime.safe_texture_count));
+            scene.optimization_overrides.runtime.safe_vram_mb =
+                std::max(256, runtime.value("safe_vram_mb", scene.optimization_overrides.runtime.safe_vram_mb));
+            scene.optimization_overrides.runtime.texture_atlas_manifest =
+                runtime.value("texture_atlas_manifest", scene.optimization_overrides.runtime.texture_atlas_manifest);
+            scene.optimization_overrides.runtime.shader_variant_manifest =
+                runtime.value("shader_variant_manifest", scene.optimization_overrides.runtime.shader_variant_manifest);
+        }
+    }
+
     scene.Update(0.0F);
     return true;
 }
@@ -2174,6 +2215,26 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         {"vram_warning_threshold_mb", scene.quality_metadata.vram_warning_threshold_mb},
         {"sprite_warning_threshold", scene.quality_metadata.sprite_warning_threshold},
         {"warnings", scene.quality_metadata.warnings},
+    };
+    document["optimization_overrides"] = json{
+        {"runtime", json{
+            {"enabled", scene.optimization_overrides.runtime.enabled},
+            {"lod_distance_culling_enabled", scene.optimization_overrides.runtime.lod_distance_culling_enabled},
+            {"draw_call_batching_enabled", scene.optimization_overrides.runtime.draw_call_batching_enabled},
+            {"shader_variant_cache_enabled", scene.optimization_overrides.runtime.shader_variant_cache_enabled},
+            {"memory_guardrails_enabled", scene.optimization_overrides.runtime.memory_guardrails_enabled},
+            {"texture_atlas_enabled", scene.optimization_overrides.runtime.texture_atlas_enabled},
+            {"texture_compression_enabled", scene.optimization_overrides.runtime.texture_compression_enabled},
+            {"lod_near_distance_m", scene.optimization_overrides.runtime.lod_near_distance_m},
+            {"lod_far_distance_m", scene.optimization_overrides.runtime.lod_far_distance_m},
+            {"sprite_cull_distance_m", scene.optimization_overrides.runtime.sprite_cull_distance_m},
+            {"mesh_cull_distance_m", scene.optimization_overrides.runtime.mesh_cull_distance_m},
+            {"safe_entity_count", scene.optimization_overrides.runtime.safe_entity_count},
+            {"safe_texture_count", scene.optimization_overrides.runtime.safe_texture_count},
+            {"safe_vram_mb", scene.optimization_overrides.runtime.safe_vram_mb},
+            {"texture_atlas_manifest", scene.optimization_overrides.runtime.texture_atlas_manifest},
+            {"shader_variant_manifest", scene.optimization_overrides.runtime.shader_variant_manifest},
+        }},
     };
 
     std::ofstream file(path);

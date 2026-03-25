@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class VulkanRenderer {
@@ -227,4 +228,5 @@ private:
     bool enable_validation_layers_ = false;
     std::string last_overlay_text_{};
     std::unordered_map<std::string, MeshCacheEntry> mesh_cache_{};
+    std::unordered_set<std::string> warmed_shader_variants_{};
 };

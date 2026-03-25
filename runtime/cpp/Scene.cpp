@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 #include <glm/gtc/constants.hpp>
@@ -139,6 +140,53 @@ void EmitQualityGuardrailWarnings(const Scene& scene) {
     }
 }
 
+void EmitRuntimeOptimizationWarnings(const Scene& scene) {
+    if (!scene.optimization_overrides.runtime.enabled || !scene.optimization_overrides.runtime.memory_guardrails_enabled) {
+        return;
+    }
+
+    static bool entity_warned = false;
+    static bool texture_warned = false;
+    static bool vram_warned = false;
+    const int entity_count = static_cast<int>(scene.entities.size());
+    std::unordered_set<std::string> unique_assets{};
+    unique_assets.reserve(scene.render_2d.sprites.size());
+    for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
+        if (!sprite.asset_id.empty()) {
+            unique_assets.insert(sprite.asset_id);
+        }
+    }
+    const int texture_count = static_cast<int>(unique_assets.size());
+    const int vram_mb = static_cast<int>(std::round(scene.quality_metadata.estimated_vram_mb));
+
+    if (entity_count > scene.optimization_overrides.runtime.safe_entity_count && !entity_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: entity_count=" + std::to_string(entity_count) +
+            " exceeds safe_entity_count=" + std::to_string(scene.optimization_overrides.runtime.safe_entity_count));
+        entity_warned = true;
+    } else if (entity_count <= scene.optimization_overrides.runtime.safe_entity_count) {
+        entity_warned = false;
+    }
+
+    if (texture_count > scene.optimization_overrides.runtime.safe_texture_count && !texture_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: unique_texture_assets=" + std::to_string(texture_count) +
+            " exceeds safe_texture_count=" + std::to_string(scene.optimization_overrides.runtime.safe_texture_count));
+        texture_warned = true;
+    } else if (texture_count <= scene.optimization_overrides.runtime.safe_texture_count) {
+        texture_warned = false;
+    }
+
+    if (vram_mb > scene.optimization_overrides.runtime.safe_vram_mb && !vram_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: estimated_vram_mb=" + std::to_string(vram_mb) +
+            " exceeds safe_vram_mb=" + std::to_string(scene.optimization_overrides.runtime.safe_vram_mb));
+        vram_warned = true;
+    } else if (vram_mb <= scene.optimization_overrides.runtime.safe_vram_mb) {
+        vram_warned = false;
+    }
+}
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
@@ -230,6 +278,7 @@ void Scene::Update(float dt_seconds) {
     CombatSystem::Update(*this, safe_dt);
     ApplyMemoryGuardrails(*this);
     EmitQualityGuardrailWarnings(*this);
+    EmitRuntimeOptimizationWarnings(*this);
 }
 
 bool Scene::ToggleBuildMode() {
@@ -353,6 +402,36 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
                     break;
                 }
             }
+        }
+    }
+
+    const json optimization_patch = changes.value("optimization_overrides", json::object());
+    if (optimization_patch.is_object()) {
+        const json runtime_patch = optimization_patch.value("runtime", json::object());
+        if (runtime_patch.is_object()) {
+            optimization_overrides.runtime.enabled =
+                runtime_patch.value("enabled", optimization_overrides.runtime.enabled);
+            optimization_overrides.runtime.lod_distance_culling_enabled =
+                runtime_patch.value("lod_distance_culling_enabled", optimization_overrides.runtime.lod_distance_culling_enabled);
+            optimization_overrides.runtime.draw_call_batching_enabled =
+                runtime_patch.value("draw_call_batching_enabled", optimization_overrides.runtime.draw_call_batching_enabled);
+            optimization_overrides.runtime.shader_variant_cache_enabled =
+                runtime_patch.value("shader_variant_cache_enabled", optimization_overrides.runtime.shader_variant_cache_enabled);
+            optimization_overrides.runtime.memory_guardrails_enabled =
+                runtime_patch.value("memory_guardrails_enabled", optimization_overrides.runtime.memory_guardrails_enabled);
+            optimization_overrides.runtime.texture_atlas_enabled =
+                runtime_patch.value("texture_atlas_enabled", optimization_overrides.runtime.texture_atlas_enabled);
+            optimization_overrides.runtime.texture_compression_enabled =
+                runtime_patch.value("texture_compression_enabled", optimization_overrides.runtime.texture_compression_enabled);
+            optimization_overrides.runtime.lod_near_distance_m =
+                std::max(0.0F, runtime_patch.value("lod_near_distance_m", optimization_overrides.runtime.lod_near_distance_m));
+            optimization_overrides.runtime.lod_far_distance_m =
+                std::max(optimization_overrides.runtime.lod_near_distance_m,
+                    runtime_patch.value("lod_far_distance_m", optimization_overrides.runtime.lod_far_distance_m));
+            optimization_overrides.runtime.sprite_cull_distance_m =
+                std::max(0.0F, runtime_patch.value("sprite_cull_distance_m", optimization_overrides.runtime.sprite_cull_distance_m));
+            optimization_overrides.runtime.mesh_cull_distance_m =
+                std::max(0.0F, runtime_patch.value("mesh_cull_distance_m", optimization_overrides.runtime.mesh_cull_distance_m));
         }
     }
 
