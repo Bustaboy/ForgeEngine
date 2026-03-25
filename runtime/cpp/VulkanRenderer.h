@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Scene.h"
+#include "SpriteBatch.h"
+#include "TilemapChunk.h"
 #include "src/core/Camera.h"
 
 #include <GLFW/glfw3.h>
@@ -85,6 +87,7 @@ private:
     void RecreateSwapChain();
     void DrawFrame(const Scene& scene, const Camera& camera);
     void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
+    void Render2DLayer(std::uint32_t image_index, const Scene& scene);
     [[nodiscard]] std::uint32_t FindMemoryType(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] VkFormat FindSupportedDepthFormat() const;
 
@@ -168,6 +171,8 @@ private:
     VkFramebuffer offscreen_framebuffer_ = VK_NULL_HANDLE;
     VkFormat offscreen_depth_format_ = VK_FORMAT_UNDEFINED;
     bool post_process_enabled_ = true;
+    SpriteBatch sprite_batch_{};
+    TilemapChunk tilemap_chunk_{};
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;

@@ -105,6 +105,7 @@ void VulkanRenderer::Init() {
         CreateCommandPool();
         CreateCommandBuffers();
         CreateSyncObjects();
+        sprite_batch_.LoadApprovedAssets("Assets/Approved");
     } catch (...) {
         Shutdown();
         throw;
@@ -1684,6 +1685,7 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
 
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
+    Render2DLayer(image_index, scene);
 
     vkCmdEndRenderPass(command_buffers_[image_index]);
 
@@ -2354,6 +2356,95 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     }
 
     VK_CHECK(vkEndCommandBuffer(command_buffers_[image_index]));
+}
+
+void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene) {
+    if (!scene.render_2d.enabled) {
+        return;
+    }
+
+    auto tile_sprites = tilemap_chunk_.ExpandVisibleTiles(scene);
+    if (!tile_sprites.empty()) {
+        Scene merged_scene = scene;
+        merged_scene.render_2d.sprites.insert(
+            merged_scene.render_2d.sprites.end(),
+            tile_sprites.begin(),
+            tile_sprites.end());
+        const SpriteBatch::BuildResult build = sprite_batch_.Build(merged_scene);
+        const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
+        const glm::mat4 ortho = glm::ortho(
+            -viewport.x * 0.5F,
+            viewport.x * 0.5F,
+            -viewport.y * 0.5F,
+            viewport.y * 0.5F,
+            -10.0F,
+            10.0F);
+
+        PerFramePushConstants per_frame_push{};
+        per_frame_push.view_proj = ortho;
+        per_frame_push.light_dir = glm::vec4(0.0F, 0.0F, -1.0F, 0.0F);
+        per_frame_push.light_color = glm::vec4(1.0F);
+
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0,
+            sizeof(PerFramePushConstants),
+            &per_frame_push);
+
+        for (const SpriteBatch::DrawPacket& packet : build.draws) {
+            PerDrawPushConstants per_draw_push{};
+            per_draw_push.model = packet.model;
+            per_draw_push.color = packet.tint;
+            vkCmdPushConstants(
+                command_buffers_[image_index],
+                pipeline_layout_,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                sizeof(PerFramePushConstants),
+                sizeof(PerDrawPushConstants),
+                &per_draw_push);
+            vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        }
+        return;
+    }
+
+    const SpriteBatch::BuildResult build = sprite_batch_.Build(scene);
+    const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
+    const glm::mat4 ortho = glm::ortho(
+        -viewport.x * 0.5F,
+        viewport.x * 0.5F,
+        -viewport.y * 0.5F,
+        viewport.y * 0.5F,
+        -10.0F,
+        10.0F);
+
+    PerFramePushConstants per_frame_push{};
+    per_frame_push.view_proj = ortho;
+    per_frame_push.light_dir = glm::vec4(0.0F, 0.0F, -1.0F, 0.0F);
+    per_frame_push.light_color = glm::vec4(1.0F);
+
+    vkCmdPushConstants(
+        command_buffers_[image_index],
+        pipeline_layout_,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        0,
+        sizeof(PerFramePushConstants),
+        &per_frame_push);
+
+    for (const SpriteBatch::DrawPacket& packet : build.draws) {
+        PerDrawPushConstants per_draw_push{};
+        per_draw_push.model = packet.model;
+        per_draw_push.color = packet.tint;
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &per_draw_push);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+    }
 }
 
 void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {

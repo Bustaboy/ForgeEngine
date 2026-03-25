@@ -28,8 +28,88 @@ glm::vec3 Vec3FromJson(const json& node, const glm::vec3& fallback) {
     return value;
 }
 
+json Vec2ToJson(const glm::vec2& value) {
+    return json{{"x", value.x}, {"y", value.y}};
+}
+
+glm::vec2 Vec2FromJson(const json& node, const glm::vec2& fallback) {
+    glm::vec2 value = fallback;
+    value.x = node.value("x", fallback.x);
+    value.y = node.value("y", fallback.y);
+    return value;
+}
+
 json Vec4ToJson(const glm::vec4& value) {
     return json{{"x", value.x}, {"y", value.y}, {"z", value.z}, {"w", value.w}};
+}
+
+json SceneSprite2DToJson(const SceneSprite2D& sprite) {
+    return json{
+        {"asset_id", sprite.asset_id},
+        {"position", Vec2ToJson(sprite.position)},
+        {"size", Vec2ToJson(sprite.size)},
+        {"tint", Vec4ToJson(sprite.tint)},
+        {"rotation_radians", sprite.rotation_radians},
+        {"layer", sprite.layer},
+    };
+}
+
+SceneSprite2D SceneSprite2DFromJson(const json& node, const SceneSprite2D& fallback) {
+    SceneSprite2D sprite = fallback;
+    sprite.asset_id = node.value("asset_id", sprite.asset_id);
+    if (node.contains("position") && node["position"].is_object()) {
+        sprite.position = Vec2FromJson(node["position"], sprite.position);
+    }
+    if (node.contains("size") && node["size"].is_object()) {
+        sprite.size = Vec2FromJson(node["size"], sprite.size);
+    }
+    if (node.contains("tint") && node["tint"].is_object()) {
+        sprite.tint = Vec4FromJson(node["tint"], sprite.tint);
+    }
+    sprite.rotation_radians = node.value("rotation_radians", sprite.rotation_radians);
+    sprite.layer = node.value("layer", sprite.layer);
+    return sprite;
+}
+
+json SceneTilemap2DToJson(const SceneTilemap2D& tilemap) {
+    json node = json{
+        {"id", tilemap.id},
+        {"tileset_asset_id", tilemap.tileset_asset_id},
+        {"origin", Vec2ToJson(tilemap.origin)},
+        {"tile_size", Vec2ToJson(tilemap.tile_size)},
+        {"columns", tilemap.columns},
+        {"rows", tilemap.rows},
+        {"layer", tilemap.layer},
+        {"tiles", json::array()},
+    };
+    for (const int value : tilemap.tiles) {
+        node["tiles"].push_back(value);
+    }
+    return node;
+}
+
+SceneTilemap2D SceneTilemap2DFromJson(const json& node, const SceneTilemap2D& fallback) {
+    SceneTilemap2D tilemap = fallback;
+    tilemap.id = node.value("id", tilemap.id);
+    tilemap.tileset_asset_id = node.value("tileset_asset_id", tilemap.tileset_asset_id);
+    if (node.contains("origin") && node["origin"].is_object()) {
+        tilemap.origin = Vec2FromJson(node["origin"], tilemap.origin);
+    }
+    if (node.contains("tile_size") && node["tile_size"].is_object()) {
+        tilemap.tile_size = Vec2FromJson(node["tile_size"], tilemap.tile_size);
+    }
+    tilemap.columns = node.value("columns", tilemap.columns);
+    tilemap.rows = node.value("rows", tilemap.rows);
+    tilemap.layer = node.value("layer", tilemap.layer);
+    tilemap.tiles.clear();
+    if (node.contains("tiles") && node["tiles"].is_array()) {
+        for (const json& tile : node["tiles"]) {
+            if (tile.is_number_integer()) {
+                tilemap.tiles.push_back(tile.get<int>());
+            }
+        }
+    }
+    return tilemap;
 }
 
 glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
@@ -1730,6 +1810,39 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     if (document.contains("free_will") && document["free_will"].is_object()) {
         scene.free_will = FreeWillStateFromJson(document["free_will"], scene.free_will);
     }
+    scene.render_2d = SceneRender2D{};
+    if (document.contains("render_2d") && document["render_2d"].is_object()) {
+        const json& render_2d = document["render_2d"];
+        scene.render_2d.enabled = render_2d.value("enabled", scene.render_2d.enabled);
+        if (render_2d.contains("camera") && render_2d["camera"].is_object()) {
+            const json& camera_2d = render_2d["camera"];
+            if (camera_2d.contains("center") && camera_2d["center"].is_object()) {
+                scene.render_2d.camera.center = Vec2FromJson(camera_2d["center"], scene.render_2d.camera.center);
+            }
+            if (camera_2d.contains("viewport_world_size") && camera_2d["viewport_world_size"].is_object()) {
+                scene.render_2d.camera.viewport_world_size =
+                    Vec2FromJson(camera_2d["viewport_world_size"], scene.render_2d.camera.viewport_world_size);
+            }
+            scene.render_2d.camera.pixels_per_unit =
+                std::max(1.0F, camera_2d.value("pixels_per_unit", scene.render_2d.camera.pixels_per_unit));
+            scene.render_2d.camera.pixel_snap =
+                camera_2d.value("pixel_snap", scene.render_2d.camera.pixel_snap);
+        }
+        if (render_2d.contains("sprites") && render_2d["sprites"].is_array()) {
+            for (const json& sprite_node : render_2d["sprites"]) {
+                if (sprite_node.is_object()) {
+                    scene.render_2d.sprites.push_back(SceneSprite2DFromJson(sprite_node, SceneSprite2D{}));
+                }
+            }
+        }
+        if (render_2d.contains("tilemaps") && render_2d["tilemaps"].is_array()) {
+            for (const json& tilemap_node : render_2d["tilemaps"]) {
+                if (tilemap_node.is_object()) {
+                    scene.render_2d.tilemaps.push_back(SceneTilemap2DFromJson(tilemap_node, SceneTilemap2D{}));
+                }
+            }
+        }
+    }
 
     scene.Update(0.0F);
     return true;
@@ -1842,6 +1955,23 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["narrator"] = NarratorStateToJson(scene.narrator);
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
     document["free_will"] = FreeWillStateToJson(scene.free_will);
+    json render_2d = json::object();
+    render_2d["enabled"] = scene.render_2d.enabled;
+    render_2d["camera"] = json{
+        {"center", Vec2ToJson(scene.render_2d.camera.center)},
+        {"viewport_world_size", Vec2ToJson(scene.render_2d.camera.viewport_world_size)},
+        {"pixels_per_unit", scene.render_2d.camera.pixels_per_unit},
+        {"pixel_snap", scene.render_2d.camera.pixel_snap},
+    };
+    render_2d["sprites"] = json::array();
+    for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
+        render_2d["sprites"].push_back(SceneSprite2DToJson(sprite));
+    }
+    render_2d["tilemaps"] = json::array();
+    for (const SceneTilemap2D& tilemap : scene.render_2d.tilemaps) {
+        render_2d["tilemaps"].push_back(SceneTilemap2DToJson(tilemap));
+    }
+    document["render_2d"] = render_2d;
 
     std::ofstream file(path);
     if (!file.is_open()) {

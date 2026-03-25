@@ -86,6 +86,8 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/Timer.cpp
     runtime/cpp/Scene.cpp
     runtime/cpp/VulkanRenderer.cpp
+    runtime/cpp/SpriteBatch.cpp
+    runtime/cpp/TilemapChunk.cpp
     runtime/cpp/SceneLoader.cpp
     runtime/cpp/BuildingSystem.cpp
     runtime/cpp/InventorySystem.cpp
