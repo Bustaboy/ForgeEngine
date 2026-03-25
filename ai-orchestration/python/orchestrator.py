@@ -33,6 +33,7 @@ from forge_hooks import (
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 from art_bible import ArtBible, default_art_bible, default_asset_review_metadata, write_default_art_bible
+from kit_bashing import apply_kit_bash_to_scene
 
 
 UNCERTAINTY_CUES = {
@@ -3021,6 +3022,20 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         art_bible_path = Path(raw_args[3]) if len(raw_args) >= 4 else None
         result = generate_asset(raw_args[1], art_bible_path=art_bible_path, type=asset_type)
         print(json.dumps(asdict(result), indent=2))
+        return 0
+
+    if command == "kit-bash-scene":
+        if len(raw_args) < 3:
+            raise ValueError("Usage: orchestrator.py kit-bash-scene <scene_json_path> <prompt> [kits_json_path] [art_bible_json_path]")
+        kits_path = Path(raw_args[3]) if len(raw_args) >= 4 else (Path.cwd() / "kits.json")
+        art_bible_path = Path(raw_args[4]) if len(raw_args) >= 5 else (Path.cwd() / "art_bible.json")
+        result = apply_kit_bash_to_scene(
+            Path(raw_args[1]),
+            raw_args[2],
+            art_bible_path=art_bible_path,
+            kits_path=kits_path,
+        )
+        print(json.dumps(result, indent=2))
         return 0
 
     if command == "review-asset":

@@ -1,0 +1,78 @@
+{
+  "schema": "gameforge.kit_catalog.v1",
+  "version": 1,
+  "modules": [
+    {
+      "module_id": "wooden_wall",
+      "type": "building",
+      "tags": ["farm", "wall", "exterior"],
+      "compatible_with": ["stone_foundation", "thatched_roof", "farm_fence"],
+      "art_bible_constraints": {"material_hint": "weathered oak planks", "palette_bias": "warm_midtones"},
+      "default_asset_id": "approved://wooden_wall",
+      "default_size": {"x": 2.6, "y": 2.0}
+    },
+    {
+      "module_id": "stone_foundation",
+      "type": "foundation",
+      "tags": ["farm", "stone", "base"],
+      "compatible_with": ["wooden_wall", "thatched_roof"],
+      "art_bible_constraints": {"material_hint": "rough granite", "palette_bias": "cool_shadows"},
+      "default_asset_id": "approved://stone_foundation",
+      "default_size": {"x": 3.2, "y": 1.2}
+    },
+    {
+      "module_id": "thatched_roof",
+      "type": "roof",
+      "tags": ["farm", "roof"],
+      "compatible_with": ["wooden_wall", "cozy_interior_wall"],
+      "art_bible_constraints": {"material_hint": "dry straw weave", "palette_bias": "warm_midtones"},
+      "default_asset_id": "approved://thatched_roof",
+      "default_size": {"x": 3.0, "y": 1.4}
+    },
+    {
+      "module_id": "oak_tree_trunk",
+      "type": "tree",
+      "tags": ["nature", "forest", "autumn"],
+      "compatible_with": ["ground_cover_leafy", "farm_fence"],
+      "art_bible_constraints": {"material_hint": "aged oak bark", "palette_bias": "earth_neutral"},
+      "default_asset_id": "approved://oak_tree_trunk",
+      "default_size": {"x": 1.4, "y": 2.8}
+    },
+    {
+      "module_id": "ground_cover_leafy",
+      "type": "ground",
+      "tags": ["nature", "autumn", "foliage"],
+      "compatible_with": ["oak_tree_trunk", "farm_fence"],
+      "art_bible_constraints": {"material_hint": "leaf litter", "palette_bias": "muted_autumn"},
+      "default_asset_id": "approved://ground_cover_leafy",
+      "default_size": {"x": 2.2, "y": 1.0}
+    },
+    {
+      "module_id": "farm_fence",
+      "type": "fence",
+      "tags": ["farm", "boundary", "exterior"],
+      "compatible_with": ["wooden_wall", "oak_tree_trunk", "ground_cover_leafy"],
+      "art_bible_constraints": {"material_hint": "hand-cut posts", "palette_bias": "warm_midtones"},
+      "default_asset_id": "approved://farm_fence",
+      "default_size": {"x": 1.6, "y": 1.0}
+    },
+    {
+      "module_id": "cozy_interior_wall",
+      "type": "interior",
+      "tags": ["interior", "farmhouse", "cozy"],
+      "compatible_with": ["thatched_roof", "interior_shelf"],
+      "art_bible_constraints": {"material_hint": "limewashed timber", "palette_bias": "warm_midtones"},
+      "default_asset_id": "approved://cozy_interior_wall",
+      "default_size": {"x": 2.4, "y": 2.0}
+    },
+    {
+      "module_id": "interior_shelf",
+      "type": "prop",
+      "tags": ["interior", "prop", "storage"],
+      "compatible_with": ["cozy_interior_wall"],
+      "art_bible_constraints": {"material_hint": "simple pine shelf", "palette_bias": "earth_neutral"},
+      "default_asset_id": "approved://interior_shelf",
+      "default_size": {"x": 1.3, "y": 1.5}
+    }
+  ]
+}
