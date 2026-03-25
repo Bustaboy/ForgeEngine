@@ -29,6 +29,8 @@ public sealed partial class MainWindowViewModel
     private WeatherPanelState _weather = new();
     private LivingNpcsPanelState _livingNpcs = new();
     private readonly List<string> _aiCommandLog = [];
+    private readonly ObservableCollection<ModelManagerEntry> _modelManagerEntries = [];
+    private readonly HashSet<string> _modelDownloadsInProgress = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
     private CoCreatorSuggestion? _selectedCoCreatorSuggestion;
@@ -54,6 +56,10 @@ public sealed partial class MainWindowViewModel
     private int _dialogEffectInventoryDelta;
     private float _dialogEffectRelationshipDelta;
     private string _aiPromptEditor = "Add 3 Houses";
+    private string _modelManagerStatus = "Model manager idle.";
+    private string _modelRecommendationSummary = "Run onboarding to receive hardware-matched model recommendations.";
+    private string _forgeGuardKeepInstalledMessage = "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+    private bool _isModelManagerBusy;
     private string _biomeEditor = "temperate";
     private string _worldStyleGuideEditor = "grounded stylized frontier";
     private string _selectedFactionIdEditor = "guild_builders";
@@ -427,6 +433,11 @@ public sealed partial class MainWindowViewModel
     public float SettlementStockpileEditor { get => _livingNpcs.SharedStockpile; set { _livingNpcs.SharedStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
+    public IReadOnlyList<ModelManagerEntry> ModelManagerEntries => _modelManagerEntries;
+    public string ModelManagerStatus { get => _modelManagerStatus; private set { _modelManagerStatus = value; OnPropertyChanged(); } }
+    public string ModelRecommendationSummary { get => _modelRecommendationSummary; private set { _modelRecommendationSummary = value; OnPropertyChanged(); } }
+    public string ForgeGuardKeepInstalledMessage { get => _forgeGuardKeepInstalledMessage; private set { _forgeGuardKeepInstalledMessage = value; OnPropertyChanged(); } }
+    public bool IsModelManagerBusy { get => _isModelManagerBusy; private set { _isModelManagerBusy = value; OnPropertyChanged(); } }
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
     public string SelectedFactionIdEditor { get => _selectedFactionIdEditor; set { _selectedFactionIdEditor = value; OnPropertyChanged(); } }
@@ -733,8 +744,14 @@ public sealed partial class MainWindowViewModel
 
     public async Task RunAiHookAsync(string command, params string[] args)
     {
+        var requiresScene = string.Equals(command, "add-npc", StringComparison.Ordinal)
+            || string.Equals(command, "modify-scene", StringComparison.Ordinal)
+            || string.Equals(command, "kit-bash-scene", StringComparison.Ordinal)
+            || string.Equals(command, "generate-loot", StringComparison.Ordinal)
+            || string.Equals(command, "edit-scene", StringComparison.Ordinal);
+
         var scenePath = GetScenePath();
-        if (scenePath is null || !File.Exists(scenePath))
+        if (requiresScene && (scenePath is null || !File.Exists(scenePath)))
         {
             StatusMessage = "Generate a prototype before running AI hooks.";
             return;
@@ -821,7 +838,7 @@ public sealed partial class MainWindowViewModel
                     return true;
                 });
         }
-        else
+        else if (requiresScene)
         {
             LoadViewportEntitiesFromScene(PrototypeRoot);
             ReloadSystemPanelsFromScene();
@@ -851,6 +868,166 @@ public sealed partial class MainWindowViewModel
 
         StatusMessage = completion;
     }
+
+    public async Task RefreshModelManagerAsync()
+    {
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            JsonObject payload;
+            if (File.Exists(modelsJsonPath))
+            {
+                payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject ?? new JsonObject();
+            }
+            else
+            {
+                payload = new JsonObject();
+            }
+
+            RebuildModelManagerEntries(payload);
+        }
+        catch (Exception ex)
+        {
+            ModelManagerStatus = $"Model state unavailable: {ex.Message}";
+        }
+    }
+
+    public async Task DownloadManagedModelAsync(string friendlyName)
+    {
+        if (string.IsNullOrWhiteSpace(friendlyName))
+        {
+            return;
+        }
+
+        _modelDownloadsInProgress.Add(friendlyName);
+        RebuildModelManagerEntries(null);
+        IsModelManagerBusy = true;
+        try
+        {
+            await RunAiHookAsync("download-model", friendlyName.Trim().ToLowerInvariant());
+            ModelManagerStatus = $"Download finished for {friendlyName}.";
+            await RefreshModelManagerAsync();
+        }
+        finally
+        {
+            _modelDownloadsInProgress.Remove(friendlyName);
+            IsModelManagerBusy = false;
+            RebuildModelManagerEntries(null);
+        }
+    }
+
+    public async Task RunModelOnboardingAsync()
+    {
+        IsModelManagerBusy = true;
+        try
+        {
+            await RunAiHookAsync("onboarding-run");
+            ModelManagerStatus = "Onboarding complete. Recommendations updated from models.json.";
+            await RefreshModelManagerAsync();
+        }
+        finally
+        {
+            IsModelManagerBusy = false;
+        }
+    }
+
+    public async Task SetupRecommendedModelsAsync()
+    {
+        IsModelManagerBusy = true;
+        try
+        {
+            await RunModelOnboardingAsync();
+            foreach (var model in _modelManagerEntries.Where(item => item.ShouldDownloadByDefault))
+            {
+                await DownloadManagedModelAsync(model.FriendlyName);
+            }
+
+            ModelManagerStatus = "Recommended model setup complete.";
+            await RefreshModelManagerAsync();
+        }
+        finally
+        {
+            IsModelManagerBusy = false;
+        }
+    }
+
+    private void RebuildModelManagerEntries(JsonObject? modelsPayload)
+    {
+        if (modelsPayload is null)
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            if (File.Exists(modelsJsonPath))
+            {
+                modelsPayload = JsonNode.Parse(File.ReadAllText(modelsJsonPath)) as JsonObject ?? new JsonObject();
+            }
+            else
+            {
+                modelsPayload = new JsonObject();
+            }
+        }
+
+        var onboarding = modelsPayload["onboarding"] as JsonObject;
+        var recommendations = onboarding?["recommendations"] as JsonObject;
+        var configuredModels = modelsPayload["models"] as JsonObject;
+        var vram = onboarding?["benchmark"]?["hardware"]?["gpu_vram_gb"]?.GetValue<int?>() ?? 0;
+        var sessionCount = (modelsPayload["session_history"] as JsonArray)?.Count ?? 0;
+
+        var profileLead = vram > 0
+            ? sessionCount > 0
+                ? $"Based on your previous sessions ({sessionCount}) and ~{vram}GB VRAM"
+                : $"Based on your onboarding profile and ~{vram}GB VRAM"
+            : "Based on your local profile";
+
+        var defaults = new (string Friendly, string Display, string Size)[]
+        {
+            ("freewill", "Free-Will", "~2.0GB (Q4)"),
+            ("coding", "Coding", "~2.4GB (Q4)"),
+            ("assetgen", "Asset-Gen", "~5.2GB"),
+            ("forgeguard", "ForgeGuard", "~2.2GB (Q4)"),
+        };
+
+        _modelManagerEntries.Clear();
+        foreach (var model in defaults)
+        {
+            var recommendation = recommendations?[model.Friendly] as JsonObject;
+            var configured = configuredModels?[model.Friendly] as JsonObject;
+            var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
+            var installed = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+            var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
+            var status = isDownloading ? "Downloading" : installed ? "Installed" : "Not found";
+            var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
+            var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
+            var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
+            _modelManagerEntries.Add(new ModelManagerEntry(
+                model.Friendly,
+                model.Display,
+                status,
+                estimatedSize,
+                $"{profileLead}: {reason}",
+                shouldDownload));
+        }
+
+        ModelRecommendationSummary = _modelManagerEntries.FirstOrDefault(item => item.FriendlyName == "freewill")?.Recommendation
+            ?? "Run onboarding to receive hardware-matched model recommendations.";
+        ForgeGuardKeepInstalledMessage = onboarding?["forgeguard_keep_message"]?.GetValue<string>()
+            ?? "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+        if (_modelManagerEntries.Count > 0 && string.Equals(ModelManagerStatus, "Model manager idle.", StringComparison.Ordinal))
+        {
+            ModelManagerStatus = $"Loaded {_modelManagerEntries.Count} managed model entries.";
+        }
+
+        OnPropertyChanged(nameof(ModelManagerEntries));
+    }
+
+    public sealed record ModelManagerEntry(
+        string FriendlyName,
+        string DisplayName,
+        string Status,
+        string EstimatedSize,
+        string Recommendation,
+        bool ShouldDownloadByDefault);
 
     public async Task SaveCoCreatorSettingsAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
