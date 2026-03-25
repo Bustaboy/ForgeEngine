@@ -32,7 +32,7 @@ from forge_hooks import (
 )
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
-from art_bible import ArtBible, default_art_bible, write_default_art_bible
+from art_bible import ArtBible, default_art_bible, default_asset_review_metadata, write_default_art_bible
 
 
 UNCERTAINTY_CUES = {
@@ -280,6 +280,19 @@ class GeneratedGraphicAssetResult:
     art_bible_path: str | None
     quality_score: float
     generated_at_utc: str
+
+
+@dataclass(frozen=True)
+class AssetReviewResult:
+    reviewed: bool
+    decision: str
+    source_asset_path: str
+    destination_asset_path: str
+    metadata_path: str
+    review_status: str
+    reviewer: str
+    reviewed_at_utc: str
+    production_ready: bool
 
 
 class PipelineStageStatus(str, Enum):
@@ -1482,6 +1495,145 @@ def _quality_score_from_prompt(enhanced_prompt: str, asset_type: str) -> float:
     return round(max(0.0, min(1.0, 0.55 + (prompt_density * 0.35) + specificity_bonus)), 4)
 
 
+def _graphics_asset_roots(project_root: Path) -> tuple[Path, Path, Path]:
+    assets_root = project_root / "Assets"
+    return (
+        assets_root / "Generated",
+        assets_root / "Approved",
+        assets_root / "Rejected",
+    )
+
+
+def _metadata_path_for_asset(asset_path: Path) -> Path:
+    return asset_path.with_suffix(".metadata.json")
+
+
+def _resolve_asset_project_root(asset_path: Path) -> Path:
+    candidate = asset_path.resolve()
+    for parent in [candidate.parent, *candidate.parents]:
+        if parent.name == "Assets":
+            return parent.parent
+    return Path.cwd()
+
+
+def _normalize_decision(decision: str) -> str:
+    normalized = decision.strip().lower()
+    if normalized not in {"approve", "reject", "regenerate"}:
+        raise ValueError("decision must be one of: approve, reject, regenerate")
+    return normalized
+
+
+def _load_or_create_asset_metadata(asset_path: Path) -> tuple[Path, dict[str, object]]:
+    metadata_path = _metadata_path_for_asset(asset_path)
+    if metadata_path.exists():
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"Asset metadata must be a JSON object: {metadata_path}")
+    else:
+        payload = {
+            "schema": "gameforge.generated-graphic-asset.v1",
+            "generated": True,
+            "generated_at_utc": _utc_now_iso(),
+            "output_path": str(asset_path),
+        }
+    return metadata_path, payload
+
+
+def move_to_approved(asset_path: str, reviewer: str = "local-user") -> AssetReviewResult:
+    source = Path(asset_path).expanduser().resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"Asset file does not exist: {source}")
+
+    project_root = _resolve_asset_project_root(source)
+    _, approved_root, _ = _graphics_asset_roots(project_root)
+    approved_root.mkdir(parents=True, exist_ok=True)
+    destination = approved_root / source.name
+    metadata_source_path, metadata_payload = _load_or_create_asset_metadata(source)
+    destination_metadata = _metadata_path_for_asset(destination)
+
+    source.replace(destination)
+    if metadata_source_path.exists():
+        metadata_source_path.replace(destination_metadata)
+
+    reviewed_at = _utc_now_iso()
+    metadata_payload["output_path"] = str(destination)
+    metadata_payload["review"] = {
+        "status": "approved",
+        "decision": "approve",
+        "reviewer": reviewer,
+        "timestamp_utc": reviewed_at,
+    }
+    metadata_payload["review_status"] = "approved"
+    metadata_payload["approved_for_runtime"] = True
+    metadata_payload["production_ready"] = True
+    _write_json(destination_metadata, metadata_payload)
+
+    return AssetReviewResult(
+        reviewed=True,
+        decision="approve",
+        source_asset_path=str(source),
+        destination_asset_path=str(destination),
+        metadata_path=str(destination_metadata),
+        review_status="approved",
+        reviewer=reviewer,
+        reviewed_at_utc=reviewed_at,
+        production_ready=True,
+    )
+
+
+def move_to_rejected(asset_path: str, reviewer: str = "local-user", *, decision: str = "reject") -> AssetReviewResult:
+    normalized_decision = _normalize_decision(decision)
+    source = Path(asset_path).expanduser().resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"Asset file does not exist: {source}")
+
+    project_root = _resolve_asset_project_root(source)
+    _, _, rejected_root = _graphics_asset_roots(project_root)
+    rejected_root.mkdir(parents=True, exist_ok=True)
+    destination = rejected_root / source.name
+    metadata_source_path, metadata_payload = _load_or_create_asset_metadata(source)
+    destination_metadata = _metadata_path_for_asset(destination)
+
+    source.replace(destination)
+    if metadata_source_path.exists():
+        metadata_source_path.replace(destination_metadata)
+
+    reviewed_at = _utc_now_iso()
+    review_status = "rejected" if normalized_decision == "reject" else "regenerate-requested"
+    metadata_payload["output_path"] = str(destination)
+    metadata_payload["review"] = {
+        "status": review_status,
+        "decision": normalized_decision,
+        "reviewer": reviewer,
+        "timestamp_utc": reviewed_at,
+    }
+    metadata_payload["review_status"] = review_status
+    metadata_payload["approved_for_runtime"] = False
+    metadata_payload["production_ready"] = False
+    _write_json(destination_metadata, metadata_payload)
+
+    return AssetReviewResult(
+        reviewed=True,
+        decision=normalized_decision,
+        source_asset_path=str(source),
+        destination_asset_path=str(destination),
+        metadata_path=str(destination_metadata),
+        review_status=review_status,
+        reviewer=reviewer,
+        reviewed_at_utc=reviewed_at,
+        production_ready=False,
+    )
+
+
+def review_asset(asset_path: str, decision: str = "approve", reviewer: str = "local-user") -> AssetReviewResult:
+    normalized_decision = _normalize_decision(decision)
+    if normalized_decision == "approve":
+        return move_to_approved(asset_path, reviewer=reviewer)
+    if normalized_decision in {"reject", "regenerate"}:
+        return move_to_rejected(asset_path, reviewer=reviewer, decision=normalized_decision)
+    raise ValueError("Unsupported review decision")
+
+
 def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = "sprite") -> GeneratedGraphicAssetResult:
     normalized_type = type.strip().lower()
     if normalized_type not in {"sprite", "texture", "ui"}:
@@ -1500,8 +1652,10 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
     enhanced_prompt = art_bible.enhance_prompt(prompt_clean)
 
     seed = int(os.environ.get("GAMEFORGE_GRAPHICS_SEED", "0")) or int(time.time()) % 2_147_483_647
-    generated_root = Path.cwd() / "Assets" / "Generated"
+    generated_root, approved_root, rejected_root = _graphics_asset_roots(Path.cwd())
     generated_root.mkdir(parents=True, exist_ok=True)
+    approved_root.mkdir(parents=True, exist_ok=True)
+    rejected_root.mkdir(parents=True, exist_ok=True)
     file_stem = f"{normalized_type}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{seed}"
     backend_mode = os.environ.get("GAMEFORGE_GRAPHICS_BACKEND", "debug-local").strip().lower()
     output_extension = ".png" if backend_mode == "comfyui" else ".svg"
@@ -1530,6 +1684,10 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         "art_bible_path": art_bible_source,
         "art_bible": art_bible.to_dict(),
         "quality_score": quality_score,
+        "review": default_asset_review_metadata(),
+        "review_status": "pending-review",
+        "approved_for_runtime": False,
+        "production_ready": False,
     }
     _write_json(metadata_path, metadata_payload)
 
@@ -2862,6 +3020,15 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         asset_type = raw_args[2] if len(raw_args) >= 3 else "sprite"
         art_bible_path = Path(raw_args[3]) if len(raw_args) >= 4 else None
         result = generate_asset(raw_args[1], art_bible_path=art_bible_path, type=asset_type)
+        print(json.dumps(asdict(result), indent=2))
+        return 0
+
+    if command == "review-asset":
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py review-asset <asset_path> [decision]")
+        decision = raw_args[2] if len(raw_args) >= 3 else "approve"
+        reviewer = os.environ.get("GAMEFORGE_ASSET_REVIEWER", "local-user")
+        result = review_asset(raw_args[1], decision=decision, reviewer=reviewer)
         print(json.dumps(asdict(result), indent=2))
         return 0
 
