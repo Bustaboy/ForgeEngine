@@ -9,6 +9,8 @@ import os
 import re
 import subprocess
 import sys
+import time
+import urllib.request
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -30,7 +32,7 @@ from forge_hooks import (
 )
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
-from art_bible import ArtBible, enhance_prompt, write_default_art_bible
+from art_bible import ArtBible, default_art_bible, write_default_art_bible
 
 
 UNCERTAINTY_CUES = {
@@ -262,6 +264,22 @@ class OperationFailureFallbackState:
     retry_with_ai_available: bool
     retry_action: str
     manual_mode_action: str | None
+
+
+@dataclass(frozen=True)
+class GeneratedGraphicAssetResult:
+    generated: bool
+    asset_type: str
+    output_path: str
+    metadata_path: str
+    backend: str
+    model: str
+    seed: int
+    prompt: str
+    enhanced_prompt: str
+    art_bible_path: str | None
+    quality_score: float
+    generated_at_utc: str
 
 
 class PipelineStageStatus(str, Enum):
@@ -1376,6 +1394,159 @@ def _utc_now_iso() -> str:
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     _write_text(path, json.dumps(payload, indent=2))
+
+
+def _generate_with_comfyui(enhanced_prompt: str, seed: int, output_path: Path, asset_type: str) -> tuple[str, str]:
+    endpoint = os.environ.get("GAMEFORGE_COMFYUI_ENDPOINT", "http://127.0.0.1:8188").rstrip("/")
+    workflow_path = os.environ.get("GAMEFORGE_COMFYUI_WORKFLOW_JSON", "").strip()
+    if not workflow_path:
+        raise ValueError("ComfyUI backend requires GAMEFORGE_COMFYUI_WORKFLOW_JSON")
+
+    workflow_payload = json.loads(Path(workflow_path).read_text(encoding="utf-8"))
+    if not isinstance(workflow_payload, dict):
+        raise ValueError("ComfyUI workflow payload must be a JSON object")
+    prompt_graph = dict(workflow_payload.get("prompt", workflow_payload))
+    for node_payload in prompt_graph.values():
+        if not isinstance(node_payload, dict):
+            continue
+        inputs = node_payload.get("inputs")
+        if not isinstance(inputs, dict):
+            continue
+        if "text" in inputs:
+            inputs["text"] = enhanced_prompt
+        if "seed" in inputs:
+            inputs["seed"] = seed
+        if "filename_prefix" in inputs:
+            inputs["filename_prefix"] = f"gameforge_{asset_type}_{output_path.stem}"
+
+    request_payload = json.dumps({"prompt": prompt_graph}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{endpoint}/prompt",
+        data=request_payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
+        submit_payload = json.loads(response.read().decode("utf-8"))
+    prompt_id = str(submit_payload.get("prompt_id", "")).strip()
+    if not prompt_id:
+        raise RuntimeError(f"ComfyUI did not return prompt_id: {submit_payload}")
+
+    deadline = time.time() + 180
+    history_payload: dict[str, object] | None = None
+    while time.time() < deadline:
+        with urllib.request.urlopen(f"{endpoint}/history/{prompt_id}", timeout=30) as response:  # noqa: S310
+            history_payload = json.loads(response.read().decode("utf-8"))
+        if isinstance(history_payload, dict) and history_payload.get(prompt_id):
+            break
+        time.sleep(1.0)
+    if not history_payload or prompt_id not in history_payload:
+        raise TimeoutError("Timed out waiting for ComfyUI generation history")
+
+    outputs = history_payload[prompt_id].get("outputs", {})
+    if not isinstance(outputs, dict):
+        raise RuntimeError("ComfyUI history output did not include outputs block")
+
+    for node_output in outputs.values():
+        if not isinstance(node_output, dict):
+            continue
+        images = node_output.get("images")
+        if isinstance(images, list) and images:
+            first_image = images[0]
+            if isinstance(first_image, dict) and first_image.get("filename"):
+                comfy_output_dir = Path(os.environ.get("GAMEFORGE_COMFYUI_OUTPUT_DIR", str(Path.home() / "ComfyUI" / "output")))
+                source_path = comfy_output_dir / str(first_image["filename"])
+                if source_path.exists():
+                    output_path.write_bytes(source_path.read_bytes())
+                    return ("comfyui", os.environ.get("GAMEFORGE_COMFYUI_MODEL_NAME", "comfyui-local-workflow"))
+    raise RuntimeError("ComfyUI run finished but no image file could be resolved from history")
+
+
+def _generate_with_debug_backend(enhanced_prompt: str, seed: int, output_path: Path, asset_type: str) -> tuple[str, str]:
+    normalized = (enhanced_prompt + f"|{asset_type}|{seed}").encode("utf-8")
+    bucket = sum(normalized) % 255
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+<rect width="1024" height="1024" fill="rgb({bucket}, {(bucket * 3) % 255}, {(bucket * 7) % 255})"/>
+<text x="40" y="512" fill="white" font-size="36">GameForge Local Debug Asset</text>
+<text x="40" y="572" fill="white" font-size="24">type={asset_type} seed={seed}</text>
+</svg>
+"""
+    output_path.write_text(svg, encoding="utf-8")
+    return ("debug-local", "procedural-svg-v1")
+
+
+def _quality_score_from_prompt(enhanced_prompt: str, asset_type: str) -> float:
+    prompt_tokens = [token for token in re.split(r"\s+", enhanced_prompt.strip()) if token]
+    prompt_density = min(1.0, len(prompt_tokens) / 96.0)
+    specificity_bonus = 0.1 if asset_type in enhanced_prompt.lower() else 0.0
+    return round(max(0.0, min(1.0, 0.55 + (prompt_density * 0.35) + specificity_bonus)), 4)
+
+
+def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = "sprite") -> GeneratedGraphicAssetResult:
+    normalized_type = type.strip().lower()
+    if normalized_type not in {"sprite", "texture", "ui"}:
+        raise ValueError("asset_type must be one of: sprite, texture, ui")
+    prompt_clean = prompt.strip()
+    if not prompt_clean:
+        raise ValueError("prompt must be non-empty")
+
+    resolved_art_bible_path = art_bible_path or (Path.cwd() / "art_bible.json")
+    if resolved_art_bible_path.exists():
+        art_bible = ArtBible.from_json_file(resolved_art_bible_path)
+        art_bible_source: str | None = str(resolved_art_bible_path)
+    else:
+        art_bible = default_art_bible(project_name=Path.cwd().name or "GameForge Project")
+        art_bible_source = None
+    enhanced_prompt = art_bible.enhance_prompt(prompt_clean)
+
+    seed = int(os.environ.get("GAMEFORGE_GRAPHICS_SEED", "0")) or int(time.time()) % 2_147_483_647
+    generated_root = Path.cwd() / "Assets" / "Generated"
+    generated_root.mkdir(parents=True, exist_ok=True)
+    file_stem = f"{normalized_type}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{seed}"
+    backend_mode = os.environ.get("GAMEFORGE_GRAPHICS_BACKEND", "debug-local").strip().lower()
+    output_extension = ".png" if backend_mode == "comfyui" else ".svg"
+    output_path = generated_root / f"{file_stem}{output_extension}"
+
+    if backend_mode == "comfyui":
+        backend, model = _generate_with_comfyui(enhanced_prompt, seed, output_path, normalized_type)
+    elif backend_mode == "debug-local":
+        backend, model = _generate_with_debug_backend(enhanced_prompt, seed, output_path, normalized_type)
+    else:
+        raise ValueError("Unsupported GAMEFORGE_GRAPHICS_BACKEND. Supported values: comfyui, debug-local")
+
+    quality_score = _quality_score_from_prompt(enhanced_prompt, normalized_type)
+    metadata_path = generated_root / f"{file_stem}.metadata.json"
+    metadata_payload = {
+        "schema": "gameforge.generated-graphic-asset.v1",
+        "generated": True,
+        "generated_at_utc": _utc_now_iso(),
+        "asset_type": normalized_type,
+        "output_path": str(output_path),
+        "prompt": prompt_clean,
+        "enhanced_prompt": enhanced_prompt,
+        "seed": seed,
+        "backend": backend,
+        "model": model,
+        "art_bible_path": art_bible_source,
+        "art_bible": art_bible.to_dict(),
+        "quality_score": quality_score,
+    }
+    _write_json(metadata_path, metadata_payload)
+
+    return GeneratedGraphicAssetResult(
+        generated=True,
+        asset_type=normalized_type,
+        output_path=str(output_path),
+        metadata_path=str(metadata_path),
+        backend=backend,
+        model=model,
+        seed=seed,
+        prompt=prompt_clean,
+        enhanced_prompt=enhanced_prompt,
+        art_bible_path=art_bible_source,
+        quality_score=quality_score,
+        generated_at_utc=metadata_payload["generated_at_utc"],
+    )
 
 
 def _run_stage_hook(hook_command: str | None, stage: StageDefinition, status: PipelineStageStatus, output_root: Path) -> None:
@@ -2672,7 +2843,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raise ValueError("Usage: orchestrator.py enhance-prompt <raw_prompt> [art_bible_json_path]")
         art_bible_path = Path(raw_args[2]) if len(raw_args) >= 3 else Path.cwd() / "art_bible.json"
         art_bible = ArtBible.from_json_file(art_bible_path)
-        enhanced = enhance_prompt(raw_args[1], art_bible)
+        enhanced = art_bible.enhance_prompt(raw_args[1])
         print(
             json.dumps(
                 {
@@ -2683,6 +2854,15 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
                 indent=2,
             )
         )
+        return 0
+
+    if command == "generate-asset":
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py generate-asset <prompt> [type] [art_bible_json_path]")
+        asset_type = raw_args[2] if len(raw_args) >= 3 else "sprite"
+        art_bible_path = Path(raw_args[3]) if len(raw_args) >= 4 else None
+        result = generate_asset(raw_args[1], art_bible_path=art_bible_path, type=asset_type)
+        print(json.dumps(asdict(result), indent=2))
         return 0
 
     return None
