@@ -36,7 +36,7 @@ from art_bible import ArtBible, default_art_bible, default_asset_review_metadata
 from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
-from change_log import append_change_log_entry
+from change_log import append_change_log_entry, get_recent_changes
 from model_manager import (
     download_model,
     ensure_freewill_model,
@@ -1541,6 +1541,161 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
     )
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
     return {"scene_path": str(scene_path), "quality": quality, "consistency": consistency, "persisted": True}
+
+
+def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[str, object]:
+    """Generate a lightweight optimization critique with JSON patch suggestions."""
+
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_payload, dict):
+        raise ValueError("Scene payload must be a JSON object")
+
+    project_root = scene_path.resolve().parent.parent
+    history_path = project_root / "performance_history.json"
+    changes_path = project_root / "changes.log.json"
+    models_path = project_root / "models.json"
+
+    history_payload = {}
+    if history_path.exists():
+        try:
+            history_payload = json.loads(history_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            history_payload = {}
+    snapshots = history_payload.get("snapshots", []) if isinstance(history_payload, dict) else []
+    latest_snapshot = snapshots[-1] if isinstance(snapshots, list) and snapshots else {}
+    previous_snapshot = snapshots[-2] if isinstance(snapshots, list) and len(snapshots) > 1 else {}
+    latest_metrics = latest_snapshot.get("metrics", {}) if isinstance(latest_snapshot, dict) else {}
+    previous_metrics = previous_snapshot.get("metrics", {}) if isinstance(previous_snapshot, dict) else {}
+
+    target_profile = "unknown"
+    if isinstance(latest_snapshot, dict):
+        target_profile = str(latest_snapshot.get("target_hardware_profile", "unknown") or "unknown")
+
+    target_fps = {"potato": 30.0, "balanced": 45.0, "high_fidelity": 60.0}.get(target_profile, 45.0)
+    fps_avg = float(latest_metrics.get("fps_avg", 0.0) or 0.0)
+    vram_mb = float(latest_metrics.get("vram_usage_mb", 0.0) or 0.0)
+    draw_calls = int(latest_metrics.get("draw_calls", 0) or 0)
+    update_time_ms = float(latest_metrics.get("update_time_ms", 0.0) or 0.0)
+    fps_prev = float(previous_metrics.get("fps_avg", fps_avg) or fps_avg)
+    fps_delta = round(fps_avg - fps_prev, 2)
+
+    quality_metadata = scene_payload.get("quality_metadata", {})
+    quality_score_value = float(quality_metadata.get("score", 0.0) or 0.0) if isinstance(quality_metadata, dict) else 0.0
+
+    models_payload = {}
+    if models_path.exists():
+        try:
+            models_payload = json.loads(models_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            models_payload = {}
+    installed_models = models_payload.get("installed_models", []) if isinstance(models_payload, dict) else []
+    forgeguard_available = any(
+        isinstance(entry, dict) and str(entry.get("friendly_name", "")).strip().lower() == "forgeguard"
+        for entry in installed_models if isinstance(installed_models, list)
+    )
+
+    score = 65
+    if fps_avg > 0:
+        score += 15 if fps_avg >= target_fps else -15
+    if fps_delta < -2.0:
+        score -= 8
+    if draw_calls > 450:
+        score -= 10
+    if vram_mb > 0 and vram_mb > 4096:
+        score -= 8
+    if quality_score_value > 0:
+        score += 5 if quality_score_value >= 70 else -4
+    score = max(0, min(100, int(round(score))))
+
+    suggestions: list[dict[str, object]] = []
+    if fps_avg > 0 and fps_avg < target_fps:
+        suggestions.append(
+            {
+                "id": "sg-001",
+                "priority": 1,
+                "title": "Enable conservative runtime optimization hints",
+                "summary": f"Average FPS ({fps_avg:.1f}) is below target ({target_fps:.0f}) for profile '{target_profile}'.",
+                "safety": "safe",
+                "preview": "Adds optimization_overrides.runtime_hints with low-risk defaults.",
+                "patch": [
+                    {"op": "set", "path": "/optimization_overrides/runtime_hints/prefer_low_cost_shaders", "value": True},
+                    {"op": "set", "path": "/optimization_overrides/runtime_hints/target_fps", "value": target_fps},
+                ],
+            }
+        )
+
+    if draw_calls > 450:
+        suggestions.append(
+            {
+                "id": "sg-002",
+                "priority": 2,
+                "title": "Cap dynamic lights for heavy scenes",
+                "summary": f"Draw calls are elevated ({draw_calls}); lowering dynamic light count usually stabilizes frame pacing.",
+                "safety": "safe",
+                "preview": "Sets render_2d.max_dynamic_lights to 6 and enables occlusion hints.",
+                "patch": [
+                    {"op": "set", "path": "/render_2d/max_dynamic_lights", "value": 6},
+                    {"op": "set", "path": "/optimization_overrides/render_hints/occlusion_culling", "value": True},
+                ],
+            }
+        )
+
+    if vram_mb > 0 and vram_mb > 4096:
+        suggestions.append(
+            {
+                "id": "sg-003",
+                "priority": 3,
+                "title": "Enable texture streaming hints",
+                "summary": f"VRAM usage ({vram_mb:.0f} MB) is high for V1 defaults.",
+                "safety": "safe",
+                "preview": "Sets render_2d.texture_streaming_enabled to true.",
+                "patch": [
+                    {"op": "set", "path": "/render_2d/texture_streaming_enabled", "value": True},
+                ],
+            }
+        )
+
+    suggestions.append(
+        {
+            "id": "sg-004",
+            "priority": 4,
+            "title": "Stamp optimization checkpoint metadata",
+            "summary": "Tracks a local checkpoint so trend regressions can be compared between passes.",
+            "safety": "safe",
+            "preview": "Writes optimization_overrides.last_checkpoint_utc and score baseline.",
+            "patch": [
+                {"op": "set", "path": "/optimization_overrides/last_checkpoint_utc", "value": datetime.now(timezone.utc).isoformat()},
+                {"op": "set", "path": "/optimization_overrides/baseline_health_score", "value": score},
+            ],
+        }
+    )
+
+    suggestions = sorted(suggestions, key=lambda item: int(item.get("priority", 99)))[: max(3, min(max_suggestions, 5))]
+    recent_changes = get_recent_changes(scene_path, limit=8)
+    has_changes_log = changes_path.exists()
+
+    return {
+        "scene_path": str(scene_path),
+        "health_score": score,
+        "health_summary": {
+            "target_profile": target_profile,
+            "target_fps": target_fps,
+            "fps_avg": fps_avg,
+            "fps_delta": fps_delta,
+            "draw_calls": draw_calls,
+            "vram_usage_mb": vram_mb,
+            "update_time_ms": update_time_ms,
+            "quality_score": quality_score_value,
+        },
+        "recent_changes": recent_changes,
+        "suggestions": suggestions,
+        "source_model": "forgeguard" if forgeguard_available else "heuristic-fallback",
+        "signals": {
+            "has_performance_history": bool(snapshots),
+            "has_changes_log": has_changes_log,
+            "has_quality_metadata": isinstance(quality_metadata, dict) and bool(quality_metadata),
+        },
+    }
 
 
 def _graphics_asset_roots(project_root: Path) -> tuple[Path, Path, Path]:
@@ -3294,6 +3449,14 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raise ValueError("Usage: orchestrator.py /benchmark_now <scene_json_path> [session_name]")
         session_name = raw_args[2] if len(raw_args) >= 3 else "manual"
         result = record_performance_snapshot(Path(raw_args[1]), session_name=session_name)
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"optimization-critique", "/optimization_critique"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /optimization_critique <scene_json_path> [max_suggestions]")
+        max_suggestions = int(raw_args[2]) if len(raw_args) >= 3 else 5
+        result = optimization_critique(Path(raw_args[1]), max_suggestions=max_suggestions)
         print(json.dumps(result, indent=2))
         return 0
 
