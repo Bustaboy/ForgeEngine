@@ -36,6 +36,7 @@ from art_bible import ArtBible, default_art_bible, default_asset_review_metadata
 from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
+from model_manager import download_model, list_installed_models
 
 
 UNCERTAINTY_CUES = {
@@ -3198,6 +3199,19 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         reviewer = os.environ.get("GAMEFORGE_ASSET_REVIEWER", "local-user")
         result = review_asset(raw_args[1], decision=decision, reviewer=reviewer)
         print(json.dumps(asdict(result), indent=2))
+        return 0
+
+    if command in {"download-model", "/download_model"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /download_model <friendly_name> [quantization]")
+        quantization = raw_args[2] if len(raw_args) >= 3 else "Q4_K_M"
+        result = download_model(friendly_name=raw_args[1], quantization=quantization)
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"list-models", "/list_models"}:
+        result = list_installed_models()
+        print(json.dumps({"models": result}, indent=2))
         return 0
 
     return None
