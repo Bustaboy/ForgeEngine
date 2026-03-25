@@ -16,6 +16,7 @@
 #include "WeatherSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
+#include "RealTimeCombatSystem.h"
 #include "templates/generated_gameplay.h"
 #include "Logger.h"
 
@@ -228,6 +229,7 @@ void Scene::Update(float dt_seconds) {
     NPCController::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
+    RealTimeCombatSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     world_time.elapsed_seconds += safe_dt;
@@ -272,8 +274,9 @@ void Scene::Update(float dt_seconds) {
 
         const bool has_navigation = npc_navigation.find(entity.id) != npc_navigation.end();
         entity.transform.pos += entity.velocity * safe_dt;
+        const bool realtime_controlled = realtime_combat.active && entity.realtime_combat.enabled;
 
-        if (!has_navigation) {
+        if (!has_navigation && !realtime_controlled) {
             entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * safe_dt;
             entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
 
@@ -282,14 +285,16 @@ void Scene::Update(float dt_seconds) {
             }
         }
 
-        const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
-        const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.1F + static_cast<float>(i) * 0.07F));
-        const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.3F + static_cast<float>(i) * 0.05F));
+        if (!realtime_controlled) {
+            const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
+            const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.1F + static_cast<float>(i) * 0.07F));
+            const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.3F + static_cast<float>(i) * 0.05F));
 
-        entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
-        entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
-        entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
-        entity.renderable.color.a = 1.0F;
+            entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
+            entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
+            entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
+            entity.renderable.color.a = 1.0F;
+        }
     }
 
     AnimationSystem::Update(*this, safe_dt);
@@ -305,6 +310,7 @@ void Scene::Update(float dt_seconds) {
     SettlementSystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
+    RealTimeCombatSystem::Update(*this, safe_dt);
     ApplyMemoryGuardrails(*this);
     EmitQualityGuardrailWarnings(*this);
     EmitRuntimeOptimizationWarnings(*this);

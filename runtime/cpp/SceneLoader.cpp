@@ -344,6 +344,64 @@ json NeedsToJson(const NeedsComponent& needs) {
     };
 }
 
+json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
+    return json{
+        {"enabled", combat.enabled},
+        {"alive", combat.alive},
+        {"team_id", combat.team_id},
+        {"health", combat.health},
+        {"max_health", combat.max_health},
+        {"stamina", combat.stamina},
+        {"max_stamina", combat.max_stamina},
+        {"move_speed", combat.move_speed},
+        {"attack_damage", combat.attack_damage},
+        {"melee_range", combat.melee_range},
+        {"ranged_range", combat.ranged_range},
+        {"ranged_enabled", combat.ranged_enabled},
+        {"attack_cooldown_seconds", combat.attack_cooldown_seconds},
+        {"dodge_cooldown_seconds", combat.dodge_cooldown_seconds},
+        {"dodge_duration_seconds", combat.dodge_duration_seconds},
+        {"hit_reaction_seconds", combat.hit_reaction_seconds},
+        {"stamina_regen_per_second", combat.stamina_regen_per_second},
+        {"stamina_attack_cost", combat.stamina_attack_cost},
+        {"stamina_dodge_cost", combat.stamina_dodge_cost},
+        {"attack_cooldown_remaining", combat.attack_cooldown_remaining},
+        {"dodge_cooldown_remaining", combat.dodge_cooldown_remaining},
+        {"dodge_remaining", combat.dodge_remaining},
+        {"hit_reaction_remaining", combat.hit_reaction_remaining},
+        {"action_state", combat.action_state},
+    };
+}
+
+RealTimeCombatComponent RealTimeCombatComponentFromJson(const json& node, const RealTimeCombatComponent& fallback) {
+    RealTimeCombatComponent combat = fallback;
+    combat.enabled = node.value("enabled", combat.enabled);
+    combat.alive = node.value("alive", combat.alive);
+    combat.team_id = node.value("team_id", combat.team_id);
+    combat.health = node.value("health", combat.health);
+    combat.max_health = node.value("max_health", combat.max_health);
+    combat.stamina = node.value("stamina", combat.stamina);
+    combat.max_stamina = node.value("max_stamina", combat.max_stamina);
+    combat.move_speed = node.value("move_speed", combat.move_speed);
+    combat.attack_damage = node.value("attack_damage", combat.attack_damage);
+    combat.melee_range = node.value("melee_range", combat.melee_range);
+    combat.ranged_range = node.value("ranged_range", combat.ranged_range);
+    combat.ranged_enabled = node.value("ranged_enabled", combat.ranged_enabled);
+    combat.attack_cooldown_seconds = node.value("attack_cooldown_seconds", combat.attack_cooldown_seconds);
+    combat.dodge_cooldown_seconds = node.value("dodge_cooldown_seconds", combat.dodge_cooldown_seconds);
+    combat.dodge_duration_seconds = node.value("dodge_duration_seconds", combat.dodge_duration_seconds);
+    combat.hit_reaction_seconds = node.value("hit_reaction_seconds", combat.hit_reaction_seconds);
+    combat.stamina_regen_per_second = node.value("stamina_regen_per_second", combat.stamina_regen_per_second);
+    combat.stamina_attack_cost = node.value("stamina_attack_cost", combat.stamina_attack_cost);
+    combat.stamina_dodge_cost = node.value("stamina_dodge_cost", combat.stamina_dodge_cost);
+    combat.attack_cooldown_remaining = node.value("attack_cooldown_remaining", combat.attack_cooldown_remaining);
+    combat.dodge_cooldown_remaining = node.value("dodge_cooldown_remaining", combat.dodge_cooldown_remaining);
+    combat.dodge_remaining = node.value("dodge_remaining", combat.dodge_remaining);
+    combat.hit_reaction_remaining = node.value("hit_reaction_remaining", combat.hit_reaction_remaining);
+    combat.action_state = node.value("action_state", combat.action_state);
+    return combat;
+}
+
 NeedsComponent NeedsFromJson(const json& node, const NeedsComponent& fallback) {
     NeedsComponent needs = fallback;
     needs.hunger = Clamp01(node.value("hunger", needs.hunger) / 100.0F) * 100.0F;
@@ -594,6 +652,9 @@ json EntityToJson(const Entity& entity) {
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
     node["schedule"] = ScheduleComponentToJson(entity.schedule);
     node["needs"] = NeedsToJson(entity.needs);
+    if (entity.realtime_combat.enabled) {
+        node["realtime_combat"] = RealTimeCombatComponentToJson(entity.realtime_combat);
+    }
 
     return node;
 }
@@ -686,6 +747,9 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("needs") && node["needs"].is_object()) {
         entity.needs = NeedsFromJson(node["needs"], entity.needs);
+    }
+    if (node.contains("realtime_combat") && node["realtime_combat"].is_object()) {
+        entity.realtime_combat = RealTimeCombatComponentFromJson(node["realtime_combat"], entity.realtime_combat);
     }
 
     return entity;
@@ -1343,6 +1407,16 @@ json CombatStateToJson(const CombatState& combat) {
     return node;
 }
 
+json RealTimeCombatStateToJson(const RealTimeCombatState& combat) {
+    return json{
+        {"active", combat.active},
+        {"controlled_entity_id", combat.controlled_entity_id},
+        {"trigger_source", combat.trigger_source},
+        {"last_action", combat.last_action},
+        {"last_resolution", combat.last_resolution},
+    };
+}
+
 CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     CombatState combat = fallback;
     combat.active = node.value("active", combat.active);
@@ -1379,6 +1453,16 @@ CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
         combat.active_turn_index = std::min(combat.active_turn_index, combat.turn_order.size() - 1U);
     }
     return combat;
+}
+
+RealTimeCombatState RealTimeCombatStateFromJson(const json& node, const RealTimeCombatState& fallback) {
+    RealTimeCombatState state = fallback;
+    state.active = node.value("active", state.active);
+    state.controlled_entity_id = node.value("controlled_entity_id", state.controlled_entity_id);
+    state.trigger_source = node.value("trigger_source", state.trigger_source);
+    state.last_action = node.value("last_action", state.last_action);
+    state.last_resolution = node.value("last_resolution", state.last_resolution);
+    return state;
 }
 
 json SettlementStateToJson(const SettlementState& settlement) {
@@ -1427,6 +1511,7 @@ std::set<std::string> RootFieldAllowList() {
         "weather",
         "settlement",
         "combat",
+        "realtime_combat",
         "build_mode_enabled",
         "active_dialog_npc_id",
         "player_inventory",
@@ -1711,6 +1796,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.combat = CombatState{};
     if (document.contains("combat") && document["combat"].is_object()) {
         scene.combat = CombatStateFromJson(document["combat"], scene.combat);
+    }
+    scene.realtime_combat = RealTimeCombatState{};
+    if (document.contains("realtime_combat") && document["realtime_combat"].is_object()) {
+        scene.realtime_combat = RealTimeCombatStateFromJson(document["realtime_combat"], scene.realtime_combat);
     }
     scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
@@ -2097,6 +2186,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["weather"] = WeatherStateToJson(scene.weather);
     document["settlement"] = SettlementStateToJson(scene.settlement);
     document["combat"] = CombatStateToJson(scene.combat);
+    document["realtime_combat"] = RealTimeCombatStateToJson(scene.realtime_combat);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);

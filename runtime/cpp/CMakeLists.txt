@@ -85,6 +85,8 @@ set(FORGE_RUNTIME_SOURCES
     SettlementSystem.cpp
     CombatSystem.h
     CombatSystem.cpp
+    RealTimeCombatSystem.h
+    RealTimeCombatSystem.cpp
     WeatherSystem.h
     WeatherSystem.cpp
     NavmeshSystem.h
