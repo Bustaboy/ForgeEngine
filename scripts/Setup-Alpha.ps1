@@ -138,9 +138,16 @@ function Add-MsysToPathCurrentSession {
 
 function Ensure-MsysGpp {
     Write-Step 'Ensuring MSYS2 + MinGW g++ are installed'
-    Ensure-WingetPackage -Id 'MSYS2.MSYS2' -DisplayName 'MSYS2'
 
     $msysRoot = Find-MsysRoot
+    if ($msysRoot) {
+        Write-Ok "MSYS2 already installed at $msysRoot — skipping winget install."
+    }
+    else {
+        Ensure-WingetPackage -Id 'MSYS2.MSYS2' -DisplayName 'MSYS2'
+        $msysRoot = Find-MsysRoot
+    }
+
     if (-not $msysRoot) {
         throw @"
 MSYS2 installation was not found after winget finished.
