@@ -946,6 +946,16 @@ public partial class MainWindow : Window
         await _viewModel.ReviewGeneratedAssetAsync(assetPath, "reject");
     }
 
+    private async void OnRegenerateGeneratedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string assetPath } || string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        await _viewModel.ReviewGeneratedAssetAsync(assetPath, "regenerate");
+    }
+
     private void OnWindowAssetDragOver(object? sender, DragEventArgs e)
     {
         var assetId = e.Data.Get(AssetDragFormat) as string;

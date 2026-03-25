@@ -86,6 +86,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private readonly ReadOnlyObservableCollection<ImportedAsset> _readonlyFilteredImportedAssets;
     private readonly ObservableCollection<GeneratedAssetReviewItem> _generatedAssetReviewQueue = new();
     private readonly ReadOnlyObservableCollection<GeneratedAssetReviewItem> _readonlyGeneratedAssetReviewQueue;
+    private GeneratedAssetReviewItem? _selectedGeneratedAssetReviewItem;
     private string _assetSearchText = string.Empty;
     private string _selectedAssetKindFilter = AssetFilterAll;
     private string _assetDragGhostTitle = string.Empty;
@@ -221,6 +222,24 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<ImportedAsset> ImportedAssets { get; } = new();
     public ReadOnlyObservableCollection<ImportedAsset> FilteredImportedAssets => _readonlyFilteredImportedAssets;
     public ReadOnlyObservableCollection<GeneratedAssetReviewItem> GeneratedAssetReviewQueue => _readonlyGeneratedAssetReviewQueue;
+    public GeneratedAssetReviewItem? SelectedGeneratedAssetReviewItem
+    {
+        get => _selectedGeneratedAssetReviewItem;
+        set
+        {
+            if (!SetField(ref _selectedGeneratedAssetReviewItem, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasSelectedGeneratedAssetReviewItem));
+            OnPropertyChanged(nameof(HasNoSelectedGeneratedAssetReviewItem));
+            OnPropertyChanged(nameof(GeneratedAssetPreviewPath));
+            OnPropertyChanged(nameof(GeneratedAssetPreviewHasImage));
+            OnPropertyChanged(nameof(GeneratedAssetPreviewMetadata));
+            OnPropertyChanged(nameof(GeneratedAssetPreviewPrompt));
+        }
+    }
 
     public ReadOnlyObservableCollection<HierarchyNode> HierarchyRoots => _readonlyHierarchyRoots;
 
@@ -1136,9 +1155,43 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     public bool HasNoGeneratedAssetReviewItems => !HasGeneratedAssetReviewItems;
 
+    public bool HasSelectedGeneratedAssetReviewItem => SelectedGeneratedAssetReviewItem is not null;
+
+    public bool HasNoSelectedGeneratedAssetReviewItem => !HasSelectedGeneratedAssetReviewItem;
+
     public string GeneratedAssetReviewSummary => HasGeneratedAssetReviewItems
         ? $"{GeneratedAssetReviewQueue.Count} pending review"
         : "No generated assets pending review.";
+
+    public string GeneratedAssetPreviewPath => SelectedGeneratedAssetReviewItem?.AssetPath ?? string.Empty;
+
+    public bool GeneratedAssetPreviewHasImage
+    {
+        get
+        {
+            var path = GeneratedAssetPreviewPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            var extension = Path.GetExtension(path);
+            return string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".svg", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    public string GeneratedAssetPreviewPrompt => SelectedGeneratedAssetReviewItem?.Prompt ?? "Select a generated asset to preview.";
+
+    public string GeneratedAssetPreviewMetadata => SelectedGeneratedAssetReviewItem is null
+        ? "No asset selected."
+        : $"File: {SelectedGeneratedAssetReviewItem.DisplayName}\n" +
+          $"Type: {SelectedGeneratedAssetReviewItem.AssetType}\n" +
+          $"Quality: {SelectedGeneratedAssetReviewItem.QualityScoreLabel}\n" +
+          $"Status: {SelectedGeneratedAssetReviewItem.ReviewStatusLabel}\n" +
+          $"Metadata: {SelectedGeneratedAssetReviewItem.MetadataPath}";
 
     public bool IsAssetDragGhostVisible
     {
@@ -2445,6 +2498,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         try
         {
             var generatedRoot = Path.Combine(Environment.CurrentDirectory, "Assets", "Generated");
+            var previousSelectedAssetPath = SelectedGeneratedAssetReviewItem?.AssetPath;
             _generatedAssetReviewQueue.Clear();
             if (!Directory.Exists(generatedRoot))
             {
@@ -2455,7 +2509,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             }
 
             foreach (var metadataPath in Directory.EnumerateFiles(generatedRoot, "*.metadata.json", SearchOption.TopDirectoryOnly)
-                         .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase))
+                         .OrderByDescending(File.GetLastWriteTimeUtc))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var content = File.ReadAllText(metadataPath);
@@ -2465,6 +2519,9 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                 var reviewStatus = root.TryGetProperty("review_status", out var statusEl) ? statusEl.GetString() ?? "pending-review" : "pending-review";
                 var assetType = root.TryGetProperty("asset_type", out var typeEl) ? typeEl.GetString() ?? "asset" : "asset";
                 var prompt = root.TryGetProperty("prompt", out var promptEl) ? promptEl.GetString() ?? string.Empty : string.Empty;
+                var qualityScore = root.TryGetProperty("quality_score", out var qualityEl) && qualityEl.TryGetDouble(out var parsedQuality)
+                    ? parsedQuality
+                    : 0d;
                 if (string.IsNullOrWhiteSpace(outputPath))
                 {
                     continue;
@@ -2476,8 +2533,14 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                     Path.GetFileName(outputPath),
                     assetType,
                     reviewStatus,
-                    prompt));
+                    prompt,
+                    qualityScore));
             }
+
+            SelectedGeneratedAssetReviewItem = _generatedAssetReviewQueue.FirstOrDefault(item =>
+                                                  !string.IsNullOrWhiteSpace(previousSelectedAssetPath)
+                                                  && string.Equals(item.AssetPath, previousSelectedAssetPath, StringComparison.Ordinal))
+                                              ?? _generatedAssetReviewQueue.FirstOrDefault();
             OnPropertyChanged(nameof(HasGeneratedAssetReviewItems));
             OnPropertyChanged(nameof(HasNoGeneratedAssetReviewItems));
             OnPropertyChanged(nameof(GeneratedAssetReviewSummary));
@@ -6325,7 +6388,31 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         string DisplayName,
         string AssetType,
         string ReviewStatus,
-        string Prompt);
+        string Prompt,
+        double QualityScore)
+    {
+        public string PromptSnippet => string.IsNullOrWhiteSpace(Prompt)
+            ? "(no prompt recorded)"
+            : Prompt.Length <= 64
+                ? Prompt
+                : $"{Prompt[..64]}…";
+
+        public string QualityScoreLabel => QualityScore.ToString("0.00", CultureInfo.InvariantCulture);
+
+        public string ReviewStatusLabel => string.Equals(ReviewStatus, "approved", StringComparison.OrdinalIgnoreCase)
+            ? "Approved"
+            : string.Equals(ReviewStatus, "pending-review", StringComparison.OrdinalIgnoreCase)
+                ? "Pending"
+                : string.Equals(ReviewStatus, "regenerate-requested", StringComparison.OrdinalIgnoreCase)
+                    ? "Regenerate requested"
+                    : ReviewStatus;
+
+        public string ReviewStateIcon => string.Equals(ReviewStatus, "approved", StringComparison.OrdinalIgnoreCase)
+            ? "✅"
+            : string.Equals(ReviewStatus, "pending-review", StringComparison.OrdinalIgnoreCase)
+                ? "🕒"
+                : "⚠️";
+    }
 
     private sealed record UploadTimelineEntry(DateTimeOffset TimestampUtc, string Stage, string Message);
 

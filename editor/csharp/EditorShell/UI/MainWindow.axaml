@@ -402,29 +402,63 @@
                       BorderThickness="1"
                       CornerRadius="8"
                       Padding="8">
-                <StackPanel Spacing="6">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="6">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="Generated Asset Review Queue" Foreground="#D6E9FF" FontWeight="SemiBold" />
                     <Button Grid.Column="1" Content="Refresh Queue" Click="OnRefreshGeneratedReviewQueueClick" />
                   </Grid>
-                  <TextBlock Text="{Binding GeneratedAssetReviewSummary}" Foreground="#8EA5C7" FontSize="11" />
-                  <ItemsControl ItemsSource="{Binding GeneratedAssetReviewQueue}">
-                    <ItemsControl.ItemTemplate>
+                  <TextBlock Grid.Row="1" Text="{Binding GeneratedAssetReviewSummary}" Foreground="#8EA5C7" FontSize="11" />
+                  <ListBox Grid.Row="2"
+                           MaxHeight="180"
+                           ItemsSource="{Binding GeneratedAssetReviewQueue}"
+                           SelectedItem="{Binding SelectedGeneratedAssetReviewItem}">
+                    <ListBox.ItemTemplate>
                       <DataTemplate>
                         <Border Background="#0E2137" BorderBrush="#315273" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,6">
-                          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                            <StackPanel Spacing="1">
+                          <Grid ColumnDefinitions="40,*,Auto,Auto,Auto" ColumnSpacing="6">
+                            <Border Width="34" Height="34" CornerRadius="5" BorderThickness="1" BorderBrush="#355B85" Background="#132A43">
+                              <Grid>
+                                <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
+                              </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="1">
                               <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontSize="11" FontWeight="SemiBold" />
-                              <TextBlock Text="{Binding ReviewStatus}" Foreground="#8EA5C7" FontSize="10" />
+                              <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextTrimming="CharacterEllipsis" />
+                              <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding ReviewStateIcon}" FontSize="10" />
+                                <TextBlock Text="{Binding ReviewStatusLabel}" Foreground="#8EA5C7" FontSize="10" />
+                                <TextBlock Text="{Binding QualityScoreLabel, StringFormat=Q {0}}" Foreground="#6FA8FF" FontSize="10" />
+                              </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="1" Content="Approve" Click="OnApproveGeneratedAssetClick" Tag="{Binding AssetPath}" />
-                            <Button Grid.Column="2" Content="Reject" Click="OnRejectGeneratedAssetClick" Tag="{Binding AssetPath}" />
+                            <Button Grid.Column="2" Content="Approve" Click="OnApproveGeneratedAssetClick" Tag="{Binding AssetPath}" />
+                            <Button Grid.Column="3" Content="Reject" Click="OnRejectGeneratedAssetClick" Tag="{Binding AssetPath}" />
+                            <Button Grid.Column="4" Content="Regenerate" Click="OnRegenerateGeneratedAssetClick" Tag="{Binding AssetPath}" />
                           </Grid>
                         </Border>
                       </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <Border Grid.Row="3"
+                          Background="#12263D"
+                          BorderBrush="#355B85"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8">
+                    <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                      <Border Width="108" Height="108" CornerRadius="6" Background="#0E2137" BorderBrush="#355B85" BorderThickness="1">
+                        <Grid>
+                          <Image Source="{Binding GeneratedAssetPreviewPath}" Stretch="Uniform" IsVisible="{Binding GeneratedAssetPreviewHasImage}" />
+                          <TextBlock Text="No Preview" IsVisible="{Binding HasNoSelectedGeneratedAssetReviewItem}" Foreground="#8EA5C7" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="4">
+                        <TextBlock Text="Preview" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding GeneratedAssetPreviewPrompt}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="36" />
+                        <TextBlock Text="{Binding GeneratedAssetPreviewMetadata}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </Grid>
               </Border>
               <ScrollViewer Grid.Row="4">
                 <StackPanel Spacing="8">
