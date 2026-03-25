@@ -33,7 +33,7 @@ from forge_hooks import (
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 from art_bible import ArtBible, default_art_bible, default_asset_review_metadata, write_default_art_bible
-from kit_bashing import apply_kit_bash_to_scene
+from kit_bashing import apply_kit_bash_to_scene, apply_variations_to_scene
 
 
 UNCERTAINTY_CUES = {
@@ -3034,6 +3034,18 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raw_args[2],
             art_bible_path=art_bible_path,
             kits_path=kits_path,
+        )
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"apply-variations", "/apply_variations"}:
+        if len(raw_args) < 3:
+            raise ValueError("Usage: orchestrator.py /apply_variations <scene_json_path> <prompt> [art_bible_json_path]")
+        art_bible_path = Path(raw_args[3]) if len(raw_args) >= 4 else (Path.cwd() / "art_bible.json")
+        result = apply_variations_to_scene(
+            Path(raw_args[1]),
+            raw_args[2],
+            art_bible_path=art_bible_path,
         )
         print(json.dumps(result, indent=2))
         return 0
