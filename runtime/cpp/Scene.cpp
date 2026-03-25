@@ -109,9 +109,6 @@ void ApplyMemoryGuardrails(Scene& scene) {
     if (scene.combat.units.size() > SceneLimits::kCombatStateCap) {
         scene.combat.units.resize(SceneLimits::kCombatStateCap);
     }
-    if (scene.combat.turn_order.size() > SceneLimits::kCombatStateCap) {
-        scene.combat.turn_order.resize(SceneLimits::kCombatStateCap);
-    }
 }
 
 

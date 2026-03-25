@@ -84,7 +84,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Build/Craft: /give <item> <amount> | /craft <recipe> | /trade ... | /settlement");
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
-    GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <attack|ranged|dodge|move|stop> [target] | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -449,7 +449,7 @@ void ProcessConsoleCommands(
         std::string target;
         parser >> action >> target;
         if (action.empty()) {
-            GF_LOG_INFO("Usage: /combat_action <move|attack|wait|use_item> <target>");
+            GF_LOG_INFO("Usage: /combat_action <attack|ranged|dodge|move|stop> [target]");
             return;
         }
         std::string message;
@@ -814,6 +814,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     if (glm::dot(input_direction, input_direction) > 0.0F) {
         input_direction = glm::normalize(input_direction);
     }
+    CombatSystem::SetMoveInput(scene_, input_direction.x, input_direction.z);
 
     const glm::vec3 target_velocity = input_direction * move_speed;
     const float blend = std::min(1.0F, smoothing * dt_seconds);
@@ -864,6 +865,20 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
         DialogSystem::TryStartDialog(scene_, camera_.position, kDialogInteractionDistance);
     }
     was_interact_pressed_ = interact_pressed;
+
+    const bool dodge_pressed = input.IsKeyPressed(GLFW_KEY_LEFT_SHIFT);
+    if (dodge_pressed && !was_dodge_pressed_ && scene_.combat.active) {
+        std::string ignored_message;
+        (void)CombatSystem::TryAction(scene_, "dodge", "", ignored_message);
+    }
+    was_dodge_pressed_ = dodge_pressed;
+
+    const bool attack_pressed = input.IsKeyPressed(GLFW_KEY_SPACE);
+    if (attack_pressed && !was_attack_pressed_ && scene_.combat.active) {
+        std::string ignored_message;
+        (void)CombatSystem::TryAction(scene_, "attack", "", ignored_message);
+    }
+    was_attack_pressed_ = attack_pressed;
 
     constexpr std::array<int, 3> kChoiceKeys = {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3};
     for (std::size_t i = 0; i < kChoiceKeys.size(); ++i) {

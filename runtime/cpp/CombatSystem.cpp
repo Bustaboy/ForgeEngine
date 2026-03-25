@@ -1,28 +1,25 @@
 #include "CombatSystem.h"
 
-#include "InventorySystem.h"
 #include "Logger.h"
 #include "RelationshipSystem.h"
 #include "Scene.h"
 
+#include <glm/geometric.hpp>
+
 #include <algorithm>
 #include <cmath>
-#include <sstream>
 
 namespace {
 constexpr std::size_t kCombatStateCap = 48U;
+constexpr float kAttackRangeMelee = 1.8F;
+constexpr float kAttackRangeRanged = 8.0F;
+constexpr float kAttackStaminaCost = 20.0F;
+constexpr float kDodgeStaminaCost = 25.0F;
+constexpr float kMoveStaminaDrainPerSecond = 7.5F;
+constexpr float kStaminaRegenPerSecond = 14.0F;
 
 Entity* FindEntity(Scene& scene, std::uint64_t entity_id) {
     for (Entity& entity : scene.entities) {
-        if (entity.id == entity_id) {
-            return &entity;
-        }
-    }
-    return nullptr;
-}
-
-const Entity* FindEntity(const Scene& scene, std::uint64_t entity_id) {
-    for (const Entity& entity : scene.entities) {
         if (entity.id == entity_id) {
             return &entity;
         }
@@ -39,123 +36,39 @@ CombatUnitState* FindUnit(Scene& scene, std::uint64_t entity_id) {
     return nullptr;
 }
 
-const CombatUnitState* FindUnit(const Scene& scene, std::uint64_t entity_id) {
-    for (const CombatUnitState& unit : scene.combat.units) {
-        if (unit.entity_id == entity_id) {
-            return &unit;
-        }
-    }
-    return nullptr;
-}
-
-int ManhattanDistance(std::int32_t ax, std::int32_t ay, std::int32_t bx, std::int32_t by) {
-    return std::abs(ax - bx) + std::abs(ay - by);
-}
-
-bool TileOccupied(const Scene& scene, std::int32_t x, std::int32_t y, std::uint64_t ignore_entity_id) {
-    for (const CombatUnitState& unit : scene.combat.units) {
-        if (!unit.alive || unit.entity_id == ignore_entity_id) {
-            continue;
-        }
-        if (unit.grid_x == x && unit.grid_y == y) {
-            return true;
-        }
-    }
-    return false;
-}
-
-float WeatherMoveCostMultiplier(const Scene& scene) {
-    return std::clamp(1.0F / std::max(0.55F, scene.weather.movement_speed_multiplier), 0.8F, 1.8F);
-}
-
-float WeatherAccuracyMultiplier(const Scene& scene) {
+float WeatherCombatMultiplier(const Scene& scene, bool ranged) {
     const std::string weather = scene.weather.current_weather;
     if (weather == "storm" || weather == "sandstorm") {
-        return 0.80F;
+        return ranged ? 0.75F : 0.90F;
     }
-    if (weather == "fog" || weather == "rain" || weather == "snow") {
-        return 0.88F;
+    if (weather == "fog") {
+        return ranged ? 0.82F : 0.95F;
+    }
+    if (weather == "rain" || weather == "snow") {
+        return 0.90F;
     }
     return 1.0F;
 }
 
-float BuildMaxHealth(const Scene& scene, const Entity& entity) {
-    const float relation = RelationshipSystem::CompositeScore(scene, entity.id);
-    const float baseline = 42.0F + (entity.needs.energy * 0.50F) - (entity.needs.hunger * 0.25F) + (entity.needs.social * 0.12F);
-    return std::clamp(baseline + relation * 0.05F, 18.0F, 120.0F);
-}
-
-std::uint32_t BuildMaxAp(const Entity& entity) {
-    const float baseline = 2.0F + (entity.needs.energy / 33.0F);
-    return static_cast<std::uint32_t>(std::clamp(std::round(baseline), 2.0, 5.0));
-}
-
-float BuildInitiative(const Scene& scene, const Entity& entity) {
-    const float relation = RelationshipSystem::CompositeScore(scene, entity.id);
-    return entity.needs.energy * 0.8F + entity.needs.fun * 0.2F + relation * 0.15F;
-}
-
-float BuildAttackPower(const Scene& scene, const Entity& attacker) {
-    const float trust = RelationshipSystem::GetDimension(scene, attacker.id, "trust");
-    const float respect = RelationshipSystem::GetDimension(scene, attacker.id, "respect");
-    return 9.0F + attacker.needs.energy * 0.10F + (trust + respect) * 0.04F;
-}
-
-float BuildDefensePower(const Scene& scene, const Entity& defender) {
-    const float loyalty = RelationshipSystem::GetDimension(scene, defender.id, "loyalty");
-    const float grudge = RelationshipSystem::GetDimension(scene, defender.id, "grudge");
-    return 4.0F + defender.needs.social * 0.08F + loyalty * 0.03F - grudge * 0.015F;
-}
-
-bool IsTeamAlive(const Scene& scene, std::uint32_t team_id) {
-    for (const CombatUnitState& unit : scene.combat.units) {
-        if (unit.alive && unit.team_id == team_id) {
-            return true;
-        }
+float LightweightDamageScale(const Scene& scene) {
+    if (scene.optimization_overrides.lightweight_mode == "performance") {
+        return 0.88F;
     }
-    return false;
+    if (scene.optimization_overrides.lightweight_mode == "quality") {
+        return 1.06F;
+    }
+    return 1.0F;
 }
 
-bool AdvanceTurn(Scene& scene, std::string& out_message) {
-    if (scene.combat.turn_order.empty()) {
-        scene.combat.active = false;
-        out_message = "Combat ended: no turn order.";
-        return false;
-    }
-
-    const std::size_t order_size = scene.combat.turn_order.size();
-    for (std::size_t step = 0; step < order_size; ++step) {
-        scene.combat.active_turn_index = (scene.combat.active_turn_index + 1U) % order_size;
-        if (scene.combat.active_turn_index == 0U) {
-            ++scene.combat.round_index;
-            for (CombatUnitState& unit : scene.combat.units) {
-                if (unit.alive) {
-                    unit.ap = unit.max_ap;
-                }
-            }
-        }
-
-        const std::uint64_t candidate_id = scene.combat.turn_order[scene.combat.active_turn_index];
-        CombatUnitState* candidate = FindUnit(scene, candidate_id);
-        if (candidate != nullptr && candidate->alive && candidate->ap > 0) {
-            out_message = "Next turn: entity #" + std::to_string(candidate_id) + ".";
-            return true;
-        }
-    }
-
-    out_message = "No combatants can act.";
-    return false;
+float Distance(const CombatUnitState& a, const CombatUnitState& b) {
+    return glm::length(a.world_position - b.world_position);
 }
 
 void ApplyOutcome(Scene& scene, bool player_team_won) {
     if (player_team_won) {
         scene.settlement.morale = std::clamp(scene.settlement.morale + 6.0F, 0.0F, 100.0F);
-        scene.settlement.shared_resources["stockpile"] = std::max(0.0F, scene.settlement.shared_resources["stockpile"] + 4.0F);
-        scene.economy.resource_supply["stockpile"] += 1.0F;
     } else {
         scene.settlement.morale = std::clamp(scene.settlement.morale - 8.0F, 0.0F, 100.0F);
-        scene.settlement.shared_resources["food"] = std::max(0.0F, scene.settlement.shared_resources["food"] - 3.0F);
-        scene.economy.resource_demand["medicine"] += 2.0F;
     }
 
     for (const CombatUnitState& unit : scene.combat.units) {
@@ -175,43 +88,94 @@ void ApplyOutcome(Scene& scene, bool player_team_won) {
 }
 
 void ResolveIfComplete(Scene& scene) {
-    const bool player_alive = IsTeamAlive(scene, 0);
-    const bool hostile_alive = IsTeamAlive(scene, 1);
+    bool player_alive = false;
+    bool hostile_alive = false;
+    for (const CombatUnitState& unit : scene.combat.units) {
+        if (!unit.alive) {
+            continue;
+        }
+        if (unit.team_id == 0U) {
+            player_alive = true;
+        } else {
+            hostile_alive = true;
+        }
+    }
+
     if (!player_alive || !hostile_alive) {
         const bool player_won = player_alive && !hostile_alive;
         ApplyOutcome(scene, player_won);
         scene.combat.last_resolution = player_won ? "player_victory" : "player_defeat";
         scene.combat.active = false;
+        scene.combat.queued_action.clear();
+        scene.combat.queued_target.clear();
     }
 }
 
-std::vector<std::uint64_t> DefaultParticipants(const Scene& scene) {
-    std::vector<std::uint64_t> ids{};
-    ids.reserve(4U);
-    for (const Entity& entity : scene.entities) {
-        if (entity.buildable.IsValid()) {
+void SyncEntityCombatFromUnit(Entity& entity, const CombatUnitState& unit) {
+    entity.transform.pos = unit.world_position;
+    entity.combat.health = unit.health;
+    entity.combat.max_health = unit.max_health;
+    entity.combat.stamina = unit.stamina;
+    entity.combat.max_stamina = unit.max_stamina;
+    entity.combat.attack_cooldown_seconds = unit.attack_cooldown_seconds;
+    entity.combat.dodge_cooldown_seconds = unit.dodge_cooldown_seconds;
+    entity.combat.action_state = unit.action_state;
+}
+
+CombatUnitState* FindNearestEnemy(Scene& scene, const CombatUnitState& actor) {
+    CombatUnitState* best = nullptr;
+    float best_distance = 99999.0F;
+    for (CombatUnitState& candidate : scene.combat.units) {
+        if (!candidate.alive || candidate.team_id == actor.team_id || candidate.entity_id == actor.entity_id) {
             continue;
         }
-        ids.push_back(entity.id);
-        if (ids.size() >= 4U) {
-            break;
+        const float distance = Distance(actor, candidate);
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = &candidate;
         }
     }
-    return ids;
+    return best;
 }
 
-bool ParseGridTarget(const std::string& target, std::int32_t& out_x, std::int32_t& out_y) {
-    const std::size_t comma = target.find(',');
-    if (comma == std::string::npos) {
+float ComputeDamage(const Scene& scene, const Entity& attacker, const Entity& defender, bool ranged) {
+    const float trust = RelationshipSystem::GetDimension(scene, attacker.id, "trust");
+    const float respect = RelationshipSystem::GetDimension(scene, attacker.id, "respect");
+    const float loyalty = RelationshipSystem::GetDimension(scene, defender.id, "loyalty");
+    const float grudge = RelationshipSystem::GetDimension(scene, defender.id, "grudge");
+    const float relationship_scale = 1.0F + std::clamp((trust + respect - loyalty + grudge) * 0.0025F, -0.20F, 0.25F);
+    const float weather_scale = WeatherCombatMultiplier(scene, ranged);
+    const float stamina_scale = 0.65F + std::clamp(attacker.combat.stamina / std::max(1.0F, attacker.combat.max_stamina), 0.0F, 1.0F) * 0.35F;
+    const float base = ranged ? 10.0F : 14.0F;
+    return std::max(1.0F, base * relationship_scale * weather_scale * stamina_scale * LightweightDamageScale(scene));
+}
+
+bool TryAttack(Scene& scene, CombatUnitState& attacker_unit, Entity& attacker_entity, CombatUnitState& target_unit, Entity& target_entity) {
+    if (!attacker_unit.alive || !target_unit.alive || attacker_unit.team_id == target_unit.team_id) {
         return false;
     }
-    try {
-        out_x = std::stoi(target.substr(0, comma));
-        out_y = std::stoi(target.substr(comma + 1));
-        return true;
-    } catch (const std::exception&) {
+
+    const bool ranged = attacker_entity.combat.ranged_enabled || attacker_entity.inventory.items.count("ranged_kit") > 0;
+    const float range = ranged ? kAttackRangeRanged : kAttackRangeMelee;
+    if (Distance(attacker_unit, target_unit) > range) {
         return false;
     }
+    if (attacker_unit.attack_cooldown_seconds > 0.0F || attacker_unit.stamina < kAttackStaminaCost) {
+        return false;
+    }
+
+    const float damage = ComputeDamage(scene, attacker_entity, target_entity, ranged);
+    attacker_unit.stamina = std::max(0.0F, attacker_unit.stamina - kAttackStaminaCost);
+    attacker_unit.attack_cooldown_seconds = (scene.optimization_overrides.lightweight_mode == "performance") ? 0.55F : 0.45F;
+    attacker_unit.action_state = "attacking";
+
+    target_unit.health = std::max(0.0F, target_unit.health - damage);
+    target_unit.alive = target_unit.health > 0.0F;
+    target_unit.action_state = target_unit.alive ? "hit_reaction" : "idle";
+
+    scene.recent_actions.push_back(
+        "combat_hit:" + std::to_string(attacker_entity.id) + "->" + std::to_string(target_entity.id));
+    return true;
 }
 
 }  // namespace
@@ -221,18 +185,21 @@ namespace CombatSystem {
 void EnsureDefaults(Scene& scene) {
     scene.combat.grid_width = std::max(4U, scene.combat.grid_width);
     scene.combat.grid_height = std::max(4U, scene.combat.grid_height);
+    scene.combat.input_move_x = std::clamp(scene.combat.input_move_x, -1.0F, 1.0F);
+    scene.combat.input_move_z = std::clamp(scene.combat.input_move_z, -1.0F, 1.0F);
     if (scene.combat.units.size() > kCombatStateCap) {
         scene.combat.units.resize(kCombatStateCap);
     }
-    if (scene.combat.turn_order.size() > kCombatStateCap) {
-        scene.combat.turn_order.resize(kCombatStateCap);
-    }
-    scene.combat.turn_order.erase(
-        std::remove_if(scene.combat.turn_order.begin(), scene.combat.turn_order.end(), [&](std::uint64_t entity_id) {
-            return FindUnit(scene, entity_id) == nullptr;
+    scene.combat.units.erase(
+        std::remove_if(scene.combat.units.begin(), scene.combat.units.end(), [](const CombatUnitState& unit) {
+            return unit.entity_id == 0;
         }),
-        scene.combat.turn_order.end());
-    scene.combat.active_turn_index = std::min(scene.combat.active_turn_index, scene.combat.turn_order.empty() ? 0U : scene.combat.turn_order.size() - 1U);
+        scene.combat.units.end());
+}
+
+void SetMoveInput(Scene& scene, float input_x, float input_z) {
+    scene.combat.input_move_x = std::clamp(input_x, -1.0F, 1.0F);
+    scene.combat.input_move_z = std::clamp(input_z, -1.0F, 1.0F);
 }
 
 bool StartEncounter(
@@ -242,10 +209,21 @@ bool StartEncounter(
     std::uint32_t grid_height,
     const std::string& source) {
     EnsureDefaults(scene);
+
     std::vector<std::uint64_t> ids = participant_ids;
     if (ids.empty()) {
-        ids = DefaultParticipants(scene);
+        ids.reserve(4U);
+        for (const Entity& entity : scene.entities) {
+            if (entity.buildable.IsValid()) {
+                continue;
+            }
+            ids.push_back(entity.id);
+            if (ids.size() >= 4U) {
+                break;
+            }
+        }
     }
+
     if (ids.size() < 2U) {
         GF_LOG_INFO("Combat start failed: requires at least two units.");
         return false;
@@ -253,11 +231,10 @@ bool StartEncounter(
 
     scene.combat = CombatState{};
     scene.combat.active = true;
+    scene.combat.combat_mode_enabled = true;
     scene.combat.grid_width = std::max(4U, grid_width);
     scene.combat.grid_height = std::max(4U, grid_height);
     scene.combat.trigger_source = source;
-    scene.combat.round_index = 1U;
-    scene.combat.units.reserve(ids.size());
 
     std::uint32_t slot = 0;
     for (const std::uint64_t id : ids) {
@@ -266,17 +243,25 @@ bool StartEncounter(
             continue;
         }
 
+        entity->combat.enabled = true;
+        entity->combat.max_health = std::max(20.0F, entity->combat.max_health);
+        if (entity->combat.health <= 0.0F) {
+            entity->combat.health = entity->combat.max_health;
+        }
+
         CombatUnitState unit{};
         unit.entity_id = entity->id;
         unit.team_id = (slot == 0U) ? 0U : 1U;
-        unit.grid_x = (slot == 0U) ? 1 : static_cast<std::int32_t>(scene.combat.grid_width) - 2;
-        unit.grid_y = static_cast<std::int32_t>(1U + (slot % std::max(1U, scene.combat.grid_height - 2U)));
-        unit.max_health = BuildMaxHealth(scene, *entity);
-        unit.health = unit.max_health;
-        unit.max_ap = BuildMaxAp(*entity);
-        unit.ap = unit.max_ap;
-        unit.initiative = BuildInitiative(scene, *entity);
-        unit.alive = true;
+        unit.world_position = entity->transform.pos;
+        unit.max_health = entity->combat.max_health;
+        unit.health = std::clamp(entity->combat.health, 0.0F, unit.max_health);
+        unit.max_stamina = std::max(50.0F, entity->combat.max_stamina);
+        unit.stamina = std::clamp(entity->combat.stamina <= 0.0F ? unit.max_stamina : entity->combat.stamina, 0.0F, unit.max_stamina);
+        unit.attack_cooldown_seconds = 0.0F;
+        unit.dodge_cooldown_seconds = 0.0F;
+        unit.action_state = "idle";
+        unit.alive = unit.health > 0.0F;
+
         scene.combat.units.push_back(unit);
         ++slot;
     }
@@ -287,186 +272,122 @@ bool StartEncounter(
         return false;
     }
 
-    std::sort(scene.combat.units.begin(), scene.combat.units.end(), [](const CombatUnitState& a, const CombatUnitState& b) {
-        if (std::abs(a.initiative - b.initiative) <= 0.001F) {
-            return a.entity_id < b.entity_id;
-        }
-        return a.initiative > b.initiative;
-    });
-
-    scene.combat.turn_order.clear();
-    for (const CombatUnitState& unit : scene.combat.units) {
-        scene.combat.turn_order.push_back(unit.entity_id);
-    }
-    scene.combat.active_turn_index = 0U;
     scene.recent_actions.push_back("combat_start:" + source);
-    GF_LOG_INFO("Combat started on " + std::to_string(scene.combat.grid_width) + "x" + std::to_string(scene.combat.grid_height) + " grid.");
+    GF_LOG_INFO("Combat started (real-time). Participants=" + std::to_string(scene.combat.units.size()));
     return true;
 }
 
 bool TryAction(Scene& scene, const std::string& action, const std::string& target, std::string& out_message) {
     EnsureDefaults(scene);
-    if (!scene.combat.active || scene.combat.turn_order.empty()) {
+    if (action == "start") {
+        const bool ok = StartEncounter(scene, {}, scene.combat.grid_width, scene.combat.grid_height, "console_action");
+        out_message = ok ? "Combat started." : "Combat start failed.";
+        return ok;
+    }
+
+    if (!scene.combat.active) {
         out_message = "No active combat.";
         return false;
     }
 
-    const std::uint64_t actor_id = scene.combat.turn_order[scene.combat.active_turn_index];
-    CombatUnitState* actor_unit = FindUnit(scene, actor_id);
-    Entity* actor_entity = FindEntity(scene, actor_id);
-    if (actor_unit == nullptr || actor_entity == nullptr || !actor_unit->alive) {
-        out_message = "Active combatant unavailable.";
-        return false;
-    }
-
-    if (actor_unit->ap == 0U) {
-        AdvanceTurn(scene, out_message);
-        return false;
-    }
-
-    if (action == "wait") {
-        actor_unit->ap = 0U;
-        std::string turn_message;
-        AdvanceTurn(scene, turn_message);
-        ResolveIfComplete(scene);
-        out_message = "Entity #" + std::to_string(actor_id) + " waits. " + turn_message;
+    if (action == "attack" || action == "dodge" || action == "move" || action == "ranged") {
+        scene.combat.queued_action = action;
+        scene.combat.queued_target = target;
+        out_message = "Queued combat action: " + action;
         return true;
     }
 
-    if (action == "move") {
-        std::int32_t target_x = actor_unit->grid_x;
-        std::int32_t target_y = actor_unit->grid_y;
-        if (!ParseGridTarget(target, target_x, target_y)) {
-            out_message = "Move target must be x,y.";
-            return false;
-        }
-
-        if (target_x < 0 || target_y < 0 || target_x >= static_cast<std::int32_t>(scene.combat.grid_width) ||
-            target_y >= static_cast<std::int32_t>(scene.combat.grid_height)) {
-            out_message = "Move target is outside combat grid.";
-            return false;
-        }
-
-        if (TileOccupied(scene, target_x, target_y, actor_id)) {
-            out_message = "Move blocked: tile occupied.";
-            return false;
-        }
-
-        const int distance = ManhattanDistance(actor_unit->grid_x, actor_unit->grid_y, target_x, target_y);
-        const std::uint32_t ap_cost = static_cast<std::uint32_t>(
-            std::max(1.0, std::ceil(static_cast<double>(distance) * WeatherMoveCostMultiplier(scene))));
-        if (actor_unit->ap < ap_cost) {
-            out_message = "Not enough AP to move.";
-            return false;
-        }
-
-        actor_unit->grid_x = target_x;
-        actor_unit->grid_y = target_y;
-        actor_unit->ap -= ap_cost;
-        out_message = "Entity #" + std::to_string(actor_id) + " moved to (" + std::to_string(target_x) + "," + std::to_string(target_y) + ").";
-        if (actor_unit->ap == 0U) {
-            std::string turn_message;
-            AdvanceTurn(scene, turn_message);
-            out_message += " " + turn_message;
-        }
+    if (action == "stop") {
+        scene.combat.active = false;
+        scene.combat.queued_action.clear();
+        scene.combat.queued_target.clear();
+        scene.combat.last_resolution = "stopped";
+        out_message = "Combat stopped.";
         return true;
     }
 
-    if (action == "attack") {
-        std::uint64_t target_id = 0;
-        try {
-            target_id = std::stoull(target);
-        } catch (const std::exception&) {
-            out_message = "Attack target must be an entity id.";
-            return false;
-        }
-
-        CombatUnitState* target_unit = FindUnit(scene, target_id);
-        Entity* target_entity = FindEntity(scene, target_id);
-        if (target_unit == nullptr || target_entity == nullptr || !target_unit->alive) {
-            out_message = "Attack target unavailable.";
-            return false;
-        }
-        if (target_unit->team_id == actor_unit->team_id) {
-            out_message = "Cannot attack a friendly unit.";
-            return false;
-        }
-
-        const bool has_ranged = actor_entity->inventory.items.count("ranged_kit") > 0;
-        const int max_range = has_ranged ? 3 : 1;
-        const int range = ManhattanDistance(actor_unit->grid_x, actor_unit->grid_y, target_unit->grid_x, target_unit->grid_y);
-        if (range > max_range) {
-            out_message = "Target out of range.";
-            return false;
-        }
-
-        constexpr std::uint32_t kAttackApCost = 2U;
-        if (actor_unit->ap < kAttackApCost) {
-            out_message = "Not enough AP to attack.";
-            return false;
-        }
-
-        const float attack_value = BuildAttackPower(scene, *actor_entity);
-        const float defense_value = BuildDefensePower(scene, *target_entity);
-        const float accuracy = std::clamp((0.70F + (actor_entity->needs.fun * 0.0015F)) * WeatherAccuracyMultiplier(scene), 0.45F, 0.98F);
-        const float deterministic_roll = std::fmod(static_cast<float>((scene.day_count + actor_id + target_id) % 100U) / 100.0F, 1.0F);
-
-        actor_unit->ap -= kAttackApCost;
-        if (deterministic_roll > accuracy) {
-            out_message = "Entity #" + std::to_string(actor_id) + " missed #" + std::to_string(target_id) + ".";
-        } else {
-            const float damage = std::max(1.0F, attack_value - (defense_value * 0.65F));
-            target_unit->health = std::max(0.0F, target_unit->health - damage);
-            target_unit->alive = target_unit->health > 0.0F;
-            out_message = "Entity #" + std::to_string(actor_id) + " hit #" + std::to_string(target_id) + " for " +
-                          std::to_string(static_cast<int>(std::round(damage))) + " dmg.";
-            if (!target_unit->alive) {
-                out_message += " Target defeated.";
-            }
-        }
-
-        ResolveIfComplete(scene);
-        if (scene.combat.active && actor_unit->ap == 0U) {
-            std::string turn_message;
-            AdvanceTurn(scene, turn_message);
-            out_message += " " + turn_message;
-        }
-        return true;
-    }
-
-    if (action == "use" || action == "item" || action == "use_item") {
-        constexpr std::uint32_t kItemApCost = 1U;
-        if (actor_unit->ap < kItemApCost) {
-            out_message = "Not enough AP to use item.";
-            return false;
-        }
-
-        const std::string item = target.empty() ? "medkit" : target;
-        if (!InventorySystem::RemoveItem(scene.player_inventory, item, 1)) {
-            out_message = "Item not available in player inventory: " + item;
-            return false;
-        }
-
-        actor_unit->health = std::min(actor_unit->max_health, actor_unit->health + 16.0F);
-        actor_unit->ap -= kItemApCost;
-        out_message = "Entity #" + std::to_string(actor_id) + " used " + item + " and recovered health.";
-        if (actor_unit->ap == 0U) {
-            std::string turn_message;
-            AdvanceTurn(scene, turn_message);
-            out_message += " " + turn_message;
-        }
-        return true;
-    }
-
-    out_message = "Unknown combat action. Use move|attack|wait|use_item.";
+    out_message = "Unknown combat action. Use attack|ranged|dodge|move|stop.";
     return false;
 }
 
-void Update(Scene& scene, float /*dt_seconds*/) {
+void Update(Scene& scene, float dt_seconds) {
     EnsureDefaults(scene);
     if (!scene.combat.active) {
         return;
     }
+
+    for (CombatUnitState& unit : scene.combat.units) {
+        Entity* entity = FindEntity(scene, unit.entity_id);
+        if (entity == nullptr || !unit.alive) {
+            continue;
+        }
+
+        unit.attack_cooldown_seconds = std::max(0.0F, unit.attack_cooldown_seconds - dt_seconds);
+        unit.dodge_cooldown_seconds = std::max(0.0F, unit.dodge_cooldown_seconds - dt_seconds);
+        unit.stamina = std::clamp(unit.stamina + (kStaminaRegenPerSecond * dt_seconds), 0.0F, unit.max_stamina);
+
+        if (unit.team_id == 0U) {
+            glm::vec3 move_dir{scene.combat.input_move_x, 0.0F, scene.combat.input_move_z};
+            if (glm::length(move_dir) > 0.001F && unit.stamina > 0.0F) {
+                move_dir = glm::normalize(move_dir);
+                const float move_speed = std::clamp(entity->combat.move_speed, 1.5F, 8.0F) * scene.weather.movement_speed_multiplier;
+                unit.world_position += move_dir * (move_speed * dt_seconds);
+                unit.stamina = std::max(0.0F, unit.stamina - (kMoveStaminaDrainPerSecond * dt_seconds));
+                unit.action_state = "moving";
+            } else if (unit.action_state == "moving") {
+                unit.action_state = "idle";
+            }
+
+            if (scene.combat.queued_action == "dodge" && unit.dodge_cooldown_seconds <= 0.0F && unit.stamina >= kDodgeStaminaCost) {
+                unit.stamina -= kDodgeStaminaCost;
+                unit.dodge_cooldown_seconds = 1.0F;
+                unit.world_position += glm::vec3(0.0F, 0.0F, 1.6F);
+                unit.action_state = "dodging";
+                scene.combat.queued_action.clear();
+            }
+
+            if (scene.combat.queued_action == "attack" || scene.combat.queued_action == "ranged") {
+                CombatUnitState* target_unit = nullptr;
+                if (!scene.combat.queued_target.empty()) {
+                    try {
+                        target_unit = FindUnit(scene, std::stoull(scene.combat.queued_target));
+                    } catch (...) {
+                        target_unit = nullptr;
+                    }
+                }
+                if (target_unit == nullptr) {
+                    target_unit = FindNearestEnemy(scene, unit);
+                }
+                if (target_unit != nullptr) {
+                    Entity* target_entity = FindEntity(scene, target_unit->entity_id);
+                    if (target_entity != nullptr) {
+                        entity->combat.ranged_enabled = (scene.combat.queued_action == "ranged");
+                        (void)TryAttack(scene, unit, *entity, *target_unit, *target_entity);
+                    }
+                }
+                scene.combat.queued_action.clear();
+                scene.combat.queued_target.clear();
+            }
+        } else {
+            CombatUnitState* target_unit = FindNearestEnemy(scene, unit);
+            if (target_unit != nullptr) {
+                Entity* target_entity = FindEntity(scene, target_unit->entity_id);
+                if (target_entity != nullptr) {
+                    const bool attacked = TryAttack(scene, unit, *entity, *target_unit, *target_entity);
+                    if (!attacked) {
+                        const glm::vec3 to_target = target_unit->world_position - unit.world_position;
+                        if (glm::length(to_target) > 0.001F) {
+                            unit.world_position += glm::normalize(to_target) * ((entity->combat.move_speed * 0.8F) * dt_seconds);
+                            unit.action_state = "moving";
+                        }
+                    }
+                }
+            }
+        }
+
+        SyncEntityCombatFromUnit(*entity, unit);
+    }
+
     ResolveIfComplete(scene);
 }
 

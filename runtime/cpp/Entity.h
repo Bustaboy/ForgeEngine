@@ -147,6 +147,19 @@ struct NeedsComponent {
     float fun = 55.0F;
 };
 
+struct CombatComponent {
+    bool enabled = false;
+    float health = 100.0F;
+    float max_health = 100.0F;
+    float stamina = 100.0F;
+    float max_stamina = 100.0F;
+    float attack_cooldown_seconds = 0.0F;
+    float dodge_cooldown_seconds = 0.0F;
+    float move_speed = 3.8F;
+    bool ranged_enabled = false;
+    std::string action_state = "idle";
+};
+
 
 struct ProceduralAnimationComponent {
     float motion_phase = 0.0F;
@@ -167,6 +180,7 @@ struct Entity {
     VoiceProfileComponent voice_profile{};
     ScheduleComponent schedule{};
     NeedsComponent needs{};
+    CombatComponent combat{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
     MeshComponent mesh{};

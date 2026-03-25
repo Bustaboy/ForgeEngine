@@ -805,13 +805,48 @@ public sealed partial class MainWindowViewModel
             {
                 var combat = root["combat"] as JsonObject ?? new JsonObject();
                 root["combat"] = combat;
-                var active = combat["active"]?.GetValue<bool>() ?? false;
+                var active = combat["combat_mode_enabled"]?.GetValue<bool>()
+                    ?? combat["active"]?.GetValue<bool>()
+                    ?? false;
+                combat["combat_mode_enabled"] = !active;
                 combat["active"] = !active;
                 combat["grid_width"] = Math.Max(4, combat["grid_width"]?.GetValue<int>() ?? 8);
                 combat["grid_height"] = Math.Max(4, combat["grid_height"]?.GetValue<int>() ?? 8);
+
+                var entities = root["entities"] as JsonArray;
+                if (entities is not null)
+                {
+                    foreach (var entityNode in entities)
+                    {
+                        if (entityNode is not JsonObject entity)
+                        {
+                            continue;
+                        }
+
+                        var entityId = ReadUlong(entity["id"], 0);
+                        if (SelectedEntityIds.Count > 0 && !SelectedEntityIds.Contains(entityId))
+                        {
+                            continue;
+                        }
+
+                        var combatComponent = entity["combat"] as JsonObject ?? new JsonObject();
+                        entity["combat"] = combatComponent;
+                        combatComponent["enabled"] = !active;
+                        combatComponent["max_health"] = Math.Max(20f, ReadSingle(combatComponent["max_health"], 100f));
+                        combatComponent["health"] = Math.Clamp(ReadSingle(combatComponent["health"], 100f), 0f, ReadSingle(combatComponent["max_health"], 100f));
+                        combatComponent["max_stamina"] = Math.Max(50f, ReadSingle(combatComponent["max_stamina"], 100f));
+                        combatComponent["stamina"] = Math.Clamp(ReadSingle(combatComponent["stamina"], 100f), 0f, ReadSingle(combatComponent["max_stamina"], 100f));
+                        combatComponent["attack_cooldown_seconds"] = Math.Max(0f, ReadSingle(combatComponent["attack_cooldown_seconds"], 0f));
+                        combatComponent["dodge_cooldown_seconds"] = Math.Max(0f, ReadSingle(combatComponent["dodge_cooldown_seconds"], 0f));
+                        combatComponent["move_speed"] = Math.Clamp(ReadSingle(combatComponent["move_speed"], 3.8f), 1.5f, 8f);
+                        combatComponent["ranged_enabled"] = combatComponent["ranged_enabled"]?.GetValue<bool>() ?? false;
+                        combatComponent["action_state"] = "idle";
+                    }
+                }
+
                 CombatModeEnabledEditor = !active;
                 StoryStatus = CombatModeEnabledEditor
-                    ? "Combat mode enabled in scene. Use /combat_start in runtime to begin encounter."
+                    ? "Combat mode enabled for selected entities. Use /combat_start in runtime to begin encounter."
                     : "Combat mode disabled in scene.";
                 return true;
             },

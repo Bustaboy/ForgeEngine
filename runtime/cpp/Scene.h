@@ -174,24 +174,27 @@ struct FreeWillState {
 struct CombatUnitState {
     std::uint64_t entity_id = 0;
     std::uint32_t team_id = 0;
-    std::int32_t grid_x = 0;
-    std::int32_t grid_y = 0;
+    glm::vec3 world_position{0.0F, 0.0F, 0.0F};
     float health = 0.0F;
     float max_health = 0.0F;
-    std::uint32_t ap = 0;
-    std::uint32_t max_ap = 0;
-    float initiative = 0.0F;
+    float stamina = 0.0F;
+    float max_stamina = 0.0F;
+    float attack_cooldown_seconds = 0.0F;
+    float dodge_cooldown_seconds = 0.0F;
+    std::string action_state = "idle";
     bool alive = true;
 };
 
 struct CombatState {
     bool active = false;
+    bool combat_mode_enabled = false;
     std::uint32_t grid_width = 8;
     std::uint32_t grid_height = 8;
     std::vector<CombatUnitState> units{};
-    std::vector<std::uint64_t> turn_order{};
-    std::size_t active_turn_index = 0;
-    std::uint32_t round_index = 0;
+    float input_move_x = 0.0F;
+    float input_move_z = 0.0F;
+    std::string queued_action{};
+    std::string queued_target{};
     std::string trigger_source{};
     std::string last_resolution{};
 };

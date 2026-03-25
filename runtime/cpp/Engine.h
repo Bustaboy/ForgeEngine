@@ -41,6 +41,8 @@ private:
     bool was_build_toggle_pressed_ = false;
     bool was_left_mouse_pressed_ = false;
     bool was_interact_pressed_ = false;
+    bool was_dodge_pressed_ = false;
+    bool was_attack_pressed_ = false;
     std::array<bool, 3> was_dialog_choice_pressed_ = {false, false, false};
     bool debug_overlay_enabled_ = true;
     std::string overlay_status_message_ = "Ready";

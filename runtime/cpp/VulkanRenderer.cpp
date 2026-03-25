@@ -279,6 +279,11 @@ void VulkanRenderer::DrawFPSOverlay(
 }
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
+    static bool was_combat_active = false;
+    if (scene.combat.active != was_combat_active) {
+        GF_LOG_INFO(scene.combat.active ? "Renderer: combat overlay context active." : "Renderer: combat overlay context cleared.");
+        was_combat_active = scene.combat.active;
+    }
     if (scene.optimization_overrides.runtime.enabled &&
         scene.optimization_overrides.runtime.shader_variant_cache_enabled &&
         warmed_shader_variants_.empty()) {

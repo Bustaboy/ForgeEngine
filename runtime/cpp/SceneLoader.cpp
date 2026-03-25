@@ -353,6 +353,37 @@ NeedsComponent NeedsFromJson(const json& node, const NeedsComponent& fallback) {
     return needs;
 }
 
+json CombatComponentToJson(const CombatComponent& combat) {
+    return json{
+        {"enabled", combat.enabled},
+        {"health", combat.health},
+        {"max_health", combat.max_health},
+        {"stamina", combat.stamina},
+        {"max_stamina", combat.max_stamina},
+        {"attack_cooldown_seconds", combat.attack_cooldown_seconds},
+        {"dodge_cooldown_seconds", combat.dodge_cooldown_seconds},
+        {"move_speed", combat.move_speed},
+        {"ranged_enabled", combat.ranged_enabled},
+        {"action_state", combat.action_state},
+    };
+}
+
+CombatComponent CombatComponentFromJson(const json& node, const CombatComponent& fallback) {
+    CombatComponent combat = fallback;
+    combat.enabled = node.value("enabled", combat.enabled);
+    combat.health = std::max(0.0F, node.value("health", combat.health));
+    combat.max_health = std::max(1.0F, node.value("max_health", combat.max_health));
+    combat.max_stamina = std::max(1.0F, node.value("max_stamina", combat.max_stamina));
+    combat.stamina = std::clamp(node.value("stamina", combat.stamina), 0.0F, combat.max_stamina);
+    combat.attack_cooldown_seconds = std::max(0.0F, node.value("attack_cooldown_seconds", combat.attack_cooldown_seconds));
+    combat.dodge_cooldown_seconds = std::max(0.0F, node.value("dodge_cooldown_seconds", combat.dodge_cooldown_seconds));
+    combat.move_speed = std::clamp(node.value("move_speed", combat.move_speed), 1.5F, 8.0F);
+    combat.ranged_enabled = node.value("ranged_enabled", combat.ranged_enabled);
+    combat.action_state = node.value("action_state", combat.action_state);
+    combat.stamina = std::clamp(combat.stamina, 0.0F, combat.max_stamina);
+    return combat;
+}
+
 json DialogChoiceToJson(const DialogChoice& choice) {
     json node = json{
         {"text", choice.text},
@@ -594,6 +625,7 @@ json EntityToJson(const Entity& entity) {
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
     node["schedule"] = ScheduleComponentToJson(entity.schedule);
     node["needs"] = NeedsToJson(entity.needs);
+    node["combat"] = CombatComponentToJson(entity.combat);
 
     return node;
 }
@@ -686,6 +718,9 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("needs") && node["needs"].is_object()) {
         entity.needs = NeedsFromJson(node["needs"], entity.needs);
+    }
+    if (node.contains("combat") && node["combat"].is_object()) {
+        entity.combat = CombatComponentFromJson(node["combat"], entity.combat);
     }
 
     return entity;
@@ -1296,13 +1331,14 @@ json CombatUnitStateToJson(const CombatUnitState& unit) {
     return json{
         {"entity_id", unit.entity_id},
         {"team_id", unit.team_id},
-        {"grid_x", unit.grid_x},
-        {"grid_y", unit.grid_y},
+        {"world_position", Vec3ToJson(unit.world_position)},
         {"health", unit.health},
         {"max_health", unit.max_health},
-        {"ap", unit.ap},
-        {"max_ap", unit.max_ap},
-        {"initiative", unit.initiative},
+        {"stamina", unit.stamina},
+        {"max_stamina", unit.max_stamina},
+        {"attack_cooldown_seconds", unit.attack_cooldown_seconds},
+        {"dodge_cooldown_seconds", unit.dodge_cooldown_seconds},
+        {"action_state", unit.action_state},
         {"alive", unit.alive},
     };
 }
@@ -1311,13 +1347,16 @@ CombatUnitState CombatUnitStateFromJson(const json& node, const CombatUnitState&
     CombatUnitState unit = fallback;
     unit.entity_id = node.value("entity_id", unit.entity_id);
     unit.team_id = node.value("team_id", unit.team_id);
-    unit.grid_x = node.value("grid_x", unit.grid_x);
-    unit.grid_y = node.value("grid_y", unit.grid_y);
+    if (node.contains("world_position") && node["world_position"].is_object()) {
+        unit.world_position = Vec3FromJson(node["world_position"], unit.world_position);
+    }
     unit.health = std::max(0.0F, node.value("health", unit.health));
     unit.max_health = std::max(unit.health, node.value("max_health", unit.max_health));
-    unit.ap = node.value("ap", unit.ap);
-    unit.max_ap = std::max(1U, node.value("max_ap", unit.max_ap));
-    unit.initiative = node.value("initiative", unit.initiative);
+    unit.max_stamina = std::max(1.0F, node.value("max_stamina", unit.max_stamina));
+    unit.stamina = std::clamp(node.value("stamina", unit.stamina), 0.0F, unit.max_stamina);
+    unit.attack_cooldown_seconds = std::max(0.0F, node.value("attack_cooldown_seconds", unit.attack_cooldown_seconds));
+    unit.dodge_cooldown_seconds = std::max(0.0F, node.value("dodge_cooldown_seconds", unit.dodge_cooldown_seconds));
+    unit.action_state = node.value("action_state", unit.action_state);
     unit.alive = node.value("alive", unit.alive) && unit.health > 0.0F;
     return unit;
 }
@@ -1325,20 +1364,19 @@ CombatUnitState CombatUnitStateFromJson(const json& node, const CombatUnitState&
 json CombatStateToJson(const CombatState& combat) {
     json node = json{
         {"active", combat.active},
+        {"combat_mode_enabled", combat.combat_mode_enabled},
         {"grid_width", combat.grid_width},
         {"grid_height", combat.grid_height},
-        {"active_turn_index", combat.active_turn_index},
-        {"round_index", combat.round_index},
+        {"input_move_x", combat.input_move_x},
+        {"input_move_z", combat.input_move_z},
+        {"queued_action", combat.queued_action},
+        {"queued_target", combat.queued_target},
         {"trigger_source", combat.trigger_source},
         {"last_resolution", combat.last_resolution},
         {"units", json::array()},
-        {"turn_order", json::array()},
     };
     for (const CombatUnitState& unit : combat.units) {
         node["units"].push_back(CombatUnitStateToJson(unit));
-    }
-    for (const std::uint64_t entity_id : combat.turn_order) {
-        node["turn_order"].push_back(entity_id);
     }
     return node;
 }
@@ -1346,10 +1384,13 @@ json CombatStateToJson(const CombatState& combat) {
 CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     CombatState combat = fallback;
     combat.active = node.value("active", combat.active);
+    combat.combat_mode_enabled = node.value("combat_mode_enabled", combat.combat_mode_enabled);
     combat.grid_width = std::max(4U, node.value("grid_width", combat.grid_width));
     combat.grid_height = std::max(4U, node.value("grid_height", combat.grid_height));
-    combat.active_turn_index = node.value("active_turn_index", combat.active_turn_index);
-    combat.round_index = std::max(0U, node.value("round_index", combat.round_index));
+    combat.input_move_x = std::clamp(node.value("input_move_x", combat.input_move_x), -1.0F, 1.0F);
+    combat.input_move_z = std::clamp(node.value("input_move_z", combat.input_move_z), -1.0F, 1.0F);
+    combat.queued_action = node.value("queued_action", combat.queued_action);
+    combat.queued_target = node.value("queued_target", combat.queued_target);
     combat.trigger_source = node.value("trigger_source", combat.trigger_source);
     combat.last_resolution = node.value("last_resolution", combat.last_resolution);
     combat.units.clear();
@@ -1359,24 +1400,6 @@ CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
                 combat.units.push_back(CombatUnitStateFromJson(unit_node, CombatUnitState{}));
             }
         }
-    }
-    combat.turn_order.clear();
-    if (node.contains("turn_order") && node["turn_order"].is_array()) {
-        for (const json& id_node : node["turn_order"]) {
-            if (id_node.is_number_unsigned()) {
-                combat.turn_order.push_back(id_node.get<std::uint64_t>());
-            }
-        }
-    }
-    if (combat.turn_order.empty()) {
-        for (const CombatUnitState& unit : combat.units) {
-            combat.turn_order.push_back(unit.entity_id);
-        }
-    }
-    if (combat.turn_order.empty()) {
-        combat.active_turn_index = 0;
-    } else {
-        combat.active_turn_index = std::min(combat.active_turn_index, combat.turn_order.size() - 1U);
     }
     return combat;
 }
