@@ -1210,6 +1210,16 @@ public partial class MainWindow : Window
         await _viewModel.RunAiHookAsync("edit-scene");
     }
 
+    private async void OnRender2DClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetRenderModeAsync("2D");
+    }
+
+    private async void OnRender3DClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetRenderModeAsync("3D");
+    }
+
     private async void OnSaveCoCreatorContextClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveCoCreatorSettingsAsync();

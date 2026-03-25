@@ -249,6 +249,10 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
     }
 
     render_2d.enabled = render_patch.value("enabled", render_2d.enabled);
+    const std::string next_render_mode = render_patch.value("render_mode", render_2d.render_mode);
+    if (next_render_mode == "2D" || next_render_mode == "3D") {
+        render_2d.render_mode = next_render_mode;
+    }
 
     if (render_patch.contains("entity_sprite_map_set") && render_patch["entity_sprite_map_set"].is_object()) {
         for (const auto& [entity_type, asset_id_node] : render_patch["entity_sprite_map_set"].items()) {

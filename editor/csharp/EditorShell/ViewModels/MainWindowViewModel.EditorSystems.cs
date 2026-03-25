@@ -707,6 +707,30 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task SetRenderModeAsync(string mode, CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            $"Render mode set to {mode}",
+            root =>
+            {
+                if (!string.Equals(mode, "2D", StringComparison.Ordinal) && !string.Equals(mode, "3D", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                var render2d = root["render_2d"] as JsonObject ?? new JsonObject();
+                root["render_2d"] = render2d;
+                render2d["render_mode"] = mode;
+                if (render2d["enabled"] is null)
+                {
+                    render2d["enabled"] = true;
+                }
+
+                _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] /render_mode {mode}");
+                OnPropertyChanged(nameof(AiCommandLog));
+                return true;
+            },
+            cancellationToken);
+
     public async Task RunAiHookAsync(string command, params string[] args)
     {
         var scenePath = GetScenePath();

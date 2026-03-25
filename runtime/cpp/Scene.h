@@ -242,6 +242,7 @@ struct SceneCamera2D {
 };
 
 struct SceneRender2D {
+    std::string render_mode = "2D";
     bool enabled = false;
     SceneCamera2D camera{};
     std::map<std::string, std::string> entity_sprite_map{};
