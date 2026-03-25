@@ -33,6 +33,7 @@ from forge_hooks import (
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 from art_bible import ArtBible, default_art_bible, default_asset_review_metadata, write_default_art_bible
+from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
 
@@ -281,6 +282,10 @@ class GeneratedGraphicAssetResult:
     enhanced_prompt: str
     art_bible_path: str | None
     quality_score: float
+    consistency_score: float
+    variant_group_id: str
+    variant_count: int
+    variant_index: int
     generated_at_utc: str
 
 
@@ -1508,6 +1513,7 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
         art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
 
     quality = quality_score(scene_payload, art_bible=art_bible)
+    consistency = consistency_score(scene_payload, art_bible=art_bible)
     quality_node = scene_payload.get("quality_metadata")
     if not isinstance(quality_node, dict):
         quality_node = {}
@@ -1520,11 +1526,13 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
             "estimated_vram_mb": float(quality.get("estimated_vram_mb", 0.0)),
             "sprite_count": int(quality.get("sprite_count", 0)),
             "warnings": quality.get("warnings", []),
+            "consistency_score": float(consistency.get("score", 0.0)),
+            "consistency_components": consistency.get("components", {}),
             "source": "quality-scan",
         }
     )
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
-    return {"scene_path": str(scene_path), "quality": quality, "persisted": True}
+    return {"scene_path": str(scene_path), "quality": quality, "consistency": consistency, "persisted": True}
 
 
 def _graphics_asset_roots(project_root: Path) -> tuple[Path, Path, Path]:
@@ -1666,7 +1674,7 @@ def review_asset(asset_path: str, decision: str = "approve", reviewer: str = "lo
     raise ValueError("Unsupported review decision")
 
 
-def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = "sprite") -> GeneratedGraphicAssetResult:
+def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = "sprite", count: int = 1) -> GeneratedGraphicAssetResult:
     normalized_type = type.strip().lower()
     if normalized_type not in {"sprite", "texture", "ui"}:
         raise ValueError("asset_type must be one of: sprite, texture, ui")
@@ -1682,6 +1690,7 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         art_bible = default_art_bible(project_name=Path.cwd().name or "GameForge Project")
         art_bible_source = None
     enhanced_prompt = art_bible.enhance_prompt(prompt_clean)
+    safe_count = max(1, int(count))
 
     seed = int(os.environ.get("GAMEFORGE_GRAPHICS_SEED", "0")) or int(time.time()) % 2_147_483_647
     generated_root, approved_root, rejected_root = _graphics_asset_roots(Path.cwd())
@@ -1693,16 +1702,47 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
     output_extension = ".png" if backend_mode == "comfyui" else ".svg"
     output_path = generated_root / f"{file_stem}{output_extension}"
 
+    batch = batch_generate([prompt_clean], art_bible=art_bible, count=safe_count)
+    first_variant = batch["items"][0]["variants"][0] if batch.get("items") else {"seed": seed, "variant_index": 0}
+    primary_seed = int(first_variant.get("seed", seed))
     if backend_mode == "comfyui":
-        backend, model = _generate_with_comfyui(enhanced_prompt, seed, output_path, normalized_type)
+        backend, model = _generate_with_comfyui(enhanced_prompt, primary_seed, output_path, normalized_type)
     elif backend_mode == "debug-local":
-        backend, model = _generate_with_debug_backend(enhanced_prompt, seed, output_path, normalized_type)
+        backend, model = _generate_with_debug_backend(enhanced_prompt, primary_seed, output_path, normalized_type)
     else:
         raise ValueError("Unsupported GAMEFORGE_GRAPHICS_BACKEND. Supported values: comfyui, debug-local")
 
     quality = quality_score({"prompt": prompt_clean, "enhanced_prompt": enhanced_prompt, "dimensions": {"width": 1024, "height": 1024}}, art_bible=art_bible)
+    consistency = consistency_score({"prompt": prompt_clean, "enhanced_prompt": enhanced_prompt}, art_bible=art_bible)
     asset_quality_score = float(quality.get("score", 0))
+    asset_consistency_score = float(consistency.get("score", 0))
     metadata_path = generated_root / f"{file_stem}.metadata.json"
+    variant_group_id = f"{normalized_type}-{batch.get('shared_seed', primary_seed)}"
+    variants_written: list[dict[str, object]] = []
+    for variant in batch["items"][0]["variants"]:
+        variant_seed = int(variant.get("seed", primary_seed))
+        variant_index = int(variant.get("variant_index", 0))
+        if variant_index == 0:
+            variant_output_path = output_path
+        else:
+            variant_stem = f"{file_stem}-v{variant_index + 1}"
+            variant_ext = ".png" if backend_mode == "comfyui" else ".svg"
+            variant_output_path = generated_root / f"{variant_stem}{variant_ext}"
+            if backend_mode == "comfyui":
+                _generate_with_comfyui(enhanced_prompt, variant_seed, variant_output_path, normalized_type)
+            else:
+                _generate_with_debug_backend(enhanced_prompt, variant_seed, variant_output_path, normalized_type)
+        variants_written.append(
+            {
+                "variant_index": variant_index,
+                "seed": variant_seed,
+                "output_path": str(variant_output_path),
+                "consistency_score": variant.get("consistency_score", asset_consistency_score),
+                "consistency_components": variant.get("consistency_components", consistency.get("components", {})),
+                "control_signature": variant.get("control_signature", ""),
+            }
+        )
+
     metadata_payload = {
         "schema": "gameforge.generated-graphic-asset.v1",
         "generated": True,
@@ -1711,14 +1751,23 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         "output_path": str(output_path),
         "prompt": prompt_clean,
         "enhanced_prompt": enhanced_prompt,
-        "seed": seed,
+        "seed": primary_seed,
         "backend": backend,
         "model": model,
         "art_bible_path": art_bible_source,
         "art_bible": art_bible.to_dict(),
         "quality_score": asset_quality_score,
+        "consistency_score": asset_consistency_score,
+        "consistency_components": consistency.get("components", {}),
         "quality_components": quality.get("components", {}),
         "estimated_vram_mb": quality.get("estimated_vram_mb", 0.0),
+        "variant_group_id": variant_group_id,
+        "variant_count": safe_count,
+        "variant_index": 0,
+        "shared_seed": batch.get("shared_seed", primary_seed),
+        "control_profile": batch.get("control_profile", {}),
+        "hooks": batch.get("hooks", {}),
+        "variants": variants_written,
         "review": default_asset_review_metadata(),
         "review_status": "pending-review",
         "approved_for_runtime": False,
@@ -1733,11 +1782,15 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         metadata_path=str(metadata_path),
         backend=backend,
         model=model,
-        seed=seed,
+        seed=primary_seed,
         prompt=prompt_clean,
         enhanced_prompt=enhanced_prompt,
         art_bible_path=art_bible_source,
         quality_score=asset_quality_score,
+        consistency_score=asset_consistency_score,
+        variant_group_id=variant_group_id,
+        variant_count=safe_count,
+        variant_index=0,
         generated_at_utc=metadata_payload["generated_at_utc"],
     )
 
@@ -3051,23 +3104,33 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
 
     if command == "generate-asset":
         if len(raw_args) < 2:
-            raise ValueError("Usage: orchestrator.py generate-asset <prompt> [type] [art_bible_json_path]")
+            raise ValueError("Usage: orchestrator.py generate-asset <prompt> [type] [count] [art_bible_json_path]")
         asset_type = raw_args[2] if len(raw_args) >= 3 else "sprite"
-        art_bible_path = Path(raw_args[3]) if len(raw_args) >= 4 else None
-        result = generate_asset(raw_args[1], art_bible_path=art_bible_path, type=asset_type)
+        count = 1
+        art_bible_path: Path | None = None
+        if len(raw_args) >= 4:
+            third = str(raw_args[3]).strip()
+            if re.fullmatch(r"\d+", third):
+                count = int(third)
+                art_bible_path = Path(raw_args[4]) if len(raw_args) >= 5 else None
+            else:
+                art_bible_path = Path(raw_args[3])
+        result = generate_asset(raw_args[1], art_bible_path=art_bible_path, type=asset_type, count=count)
         print(json.dumps(asdict(result), indent=2))
         return 0
 
     if command == "kit-bash-scene":
         if len(raw_args) < 3:
-            raise ValueError("Usage: orchestrator.py kit-bash-scene <scene_json_path> <prompt> [kits_json_path] [art_bible_json_path]")
+            raise ValueError("Usage: orchestrator.py kit-bash-scene <scene_json_path> <prompt> [kits_json_path] [art_bible_json_path] [variant_count]")
         kits_path = Path(raw_args[3]) if len(raw_args) >= 4 else (Path.cwd() / "kits.json")
         art_bible_path = Path(raw_args[4]) if len(raw_args) >= 5 else (Path.cwd() / "art_bible.json")
+        variant_count = int(raw_args[5]) if len(raw_args) >= 6 else 1
         result = apply_kit_bash_to_scene(
             Path(raw_args[1]),
             raw_args[2],
             art_bible_path=art_bible_path,
             kits_path=kits_path,
+            variant_count=variant_count,
         )
         print(json.dumps(result, indent=2))
         return 0
