@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class VulkanRenderer {
@@ -26,6 +27,12 @@ public:
     struct PerDrawPushConstants {
         glm::mat4 model{1.0F};
         glm::vec4 color{1.0F, 1.0F, 1.0F, 1.0F};
+    };
+    struct TexturePushConstants {
+        std::uint32_t texture_index = 0;
+        std::uint32_t padding0 = 0;
+        std::uint32_t padding1 = 0;
+        std::uint32_t padding2 = 0;
     };
     struct BloomExtractPushConstants {
         glm::vec4 threshold{1.0F, 0.0F, 0.0F, 0.0F};
@@ -88,6 +95,21 @@ private:
     void DrawFrame(const Scene& scene, const Camera& camera);
     void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
     void Render2DLayer(std::uint32_t image_index, const Scene& scene);
+    void SyncBindlessTexturesForScene(const Scene& scene);
+    void DestroyBindlessTextures();
+    void UploadBindlessTextures();
+    void TransitionImageLayout(
+        VkImage image,
+        VkFormat format,
+        VkImageLayout old_layout,
+        VkImageLayout new_layout) const;
+    void CopyBufferToImage(VkBuffer buffer, VkImage image, std::uint32_t width, std::uint32_t height) const;
+    void CreateBuffer(
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VkMemoryPropertyFlags properties,
+        VkBuffer& buffer,
+        VkDeviceMemory& buffer_memory) const;
     [[nodiscard]] std::uint32_t FindMemoryType(std::uint32_t type_filter, VkMemoryPropertyFlags properties) const;
     [[nodiscard]] VkFormat FindSupportedDepthFormat() const;
 
@@ -173,6 +195,17 @@ private:
     bool post_process_enabled_ = true;
     SpriteBatch sprite_batch_{};
     TilemapChunk tilemap_chunk_{};
+    struct BindlessTextureGpuResource {
+        VkImage image = VK_NULL_HANDLE;
+        VkDeviceMemory image_memory = VK_NULL_HANDLE;
+        VkImageView image_view = VK_NULL_HANDLE;
+        VkSampler sampler = VK_NULL_HANDLE;
+    };
+    std::vector<BindlessTextureGpuResource> bindless_textures_{};
+    VkDescriptorSetLayout bindless_texture_descriptor_set_layout_ = VK_NULL_HANDLE;
+    VkDescriptorPool bindless_texture_descriptor_pool_ = VK_NULL_HANDLE;
+    VkDescriptorSet bindless_texture_descriptor_set_ = VK_NULL_HANDLE;
+    std::size_t last_uploaded_bindless_texture_count_ = 0;
 
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> command_buffers_;

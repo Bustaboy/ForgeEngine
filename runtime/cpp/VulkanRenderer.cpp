@@ -1,11 +1,13 @@
 #include "VulkanRenderer.h"
 
 #include "Logger.h"
+#include "TextureLoader.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -21,6 +23,7 @@ constexpr std::uint32_t kWindowWidth = 1280;
 constexpr std::uint32_t kWindowHeight = 720;
 constexpr int kMaxFramesInFlight = 2;
 constexpr std::uint32_t kQuadVertexCount = 6;
+constexpr std::uint32_t kMaxBindlessTextures = 512;
 
 const std::vector<const char*> kValidationLayers = {"VK_LAYER_KHRONOS_validation"};
 const std::vector<const char*> kRequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -117,6 +120,8 @@ void VulkanRenderer::Shutdown() {
         GF_LOG_INFO("Waiting for device idle...");
         VK_CHECK(vkDeviceWaitIdle(device_));
     }
+
+    DestroyBindlessTextures();
 
     GF_LOG_INFO("Destroying swapchain resources...");
     CleanupSwapChain();
@@ -419,7 +424,10 @@ void VulkanRenderer::CreateLogicalDevice() {
         queue_create_infos.push_back(queue_create_info);
     }
 
+    VkPhysicalDeviceFeatures available_features{};
+    vkGetPhysicalDeviceFeatures(physical_device_, &available_features);
     VkPhysicalDeviceFeatures device_features{};
+    device_features.shaderSampledImageArrayDynamicIndexing = available_features.shaderSampledImageArrayDynamicIndexing;
 
     VkDeviceCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -812,24 +820,14 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     push_constant_ranges[1].offset = sizeof(PerFramePushConstants);
     push_constant_ranges[1].size = sizeof(PerDrawPushConstants);
-    VkPushConstantRange bloom_extract_push_constant_range{};
-    bloom_extract_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    bloom_extract_push_constant_range.offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
-    bloom_extract_push_constant_range.size = sizeof(BloomExtractPushConstants);
-    VkPushConstantRange combine_tonemap_push_constant_range{};
-    combine_tonemap_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    combine_tonemap_push_constant_range.offset =
-        sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants) + sizeof(BloomExtractPushConstants);
-    combine_tonemap_push_constant_range.size = sizeof(CombineTonemapPushConstants);
-    VkPushConstantRange gaussian_blur_push_constant_range{};
-    gaussian_blur_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    gaussian_blur_push_constant_range.offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
-    gaussian_blur_push_constant_range.size = sizeof(GaussianBlurPushConstants);
-    std::array<VkPushConstantRange, 4> all_push_constant_ranges = {
+    VkPushConstantRange post_process_push_constant_range{};
+    post_process_push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    post_process_push_constant_range.offset = sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants);
+    post_process_push_constant_range.size = sizeof(BloomExtractPushConstants) + sizeof(CombineTonemapPushConstants);
+    std::array<VkPushConstantRange, 3> all_push_constant_ranges = {
         push_constant_ranges[0],
         push_constant_ranges[1],
-        gaussian_blur_push_constant_range,
-        combine_tonemap_push_constant_range,
+        post_process_push_constant_range,
     };
 
     VkDescriptorSetLayoutBinding post_process_sampler_binding{};
@@ -882,6 +880,33 @@ void VulkanRenderer::CreateGraphicsPipeline() {
         vkDestroyShaderModule(device_, vert_shader_module, nullptr);
         VK_CHECK(combine_descriptor_set_layout_result);
     }
+    VkDescriptorSetLayoutBinding bindless_sampler_binding{};
+    bindless_sampler_binding.binding = 0;
+    bindless_sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindless_sampler_binding.descriptorCount = kMaxBindlessTextures;
+    bindless_sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindless_sampler_binding.pImmutableSamplers = nullptr;
+    VkDescriptorSetLayoutCreateInfo bindless_descriptor_set_layout_info{};
+    bindless_descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    bindless_descriptor_set_layout_info.bindingCount = 1;
+    bindless_descriptor_set_layout_info.pBindings = &bindless_sampler_binding;
+    const VkResult bindless_descriptor_set_layout_result = vkCreateDescriptorSetLayout(
+        device_,
+        &bindless_descriptor_set_layout_info,
+        nullptr,
+        &bindless_texture_descriptor_set_layout_);
+    if (bindless_descriptor_set_layout_result != VK_SUCCESS) {
+        vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
+        combine_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(device_, post_process_descriptor_set_layout_, nullptr);
+        post_process_descriptor_set_layout_ = VK_NULL_HANDLE;
+        vkDestroyShaderModule(device_, gaussian_blur_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, combine_tonemap_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, bloom_extract_frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+        vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+        VK_CHECK(bindless_descriptor_set_layout_result);
+    }
 
     VkPipelineLayoutCreateInfo pipeline_layout_info{};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -892,8 +917,9 @@ void VulkanRenderer::CreateGraphicsPipeline() {
     VkDescriptorSetLayout pipeline_descriptor_set_layouts[] = {
         post_process_descriptor_set_layout_,
         combine_descriptor_set_layout_,
+        bindless_texture_descriptor_set_layout_,
     };
-    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.setLayoutCount = 3;
     pipeline_layout_info.pSetLayouts = pipeline_descriptor_set_layouts;
     pipeline_layout_info.pushConstantRangeCount = static_cast<std::uint32_t>(all_push_constant_ranges.size());
     pipeline_layout_info.pPushConstantRanges = all_push_constant_ranges.data();
@@ -1624,6 +1650,17 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
 
     vkCmdBeginRenderPass(command_buffers_[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(command_buffers_[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+    if (bindless_texture_descriptor_set_ != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(
+            command_buffers_[image_index],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipeline_layout_,
+            2,
+            1,
+            &bindless_texture_descriptor_set_,
+            0,
+            nullptr);
+    }
 
     const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
     PerFramePushConstants per_frame_push{};
@@ -1659,7 +1696,15 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
             sizeof(PerFramePushConstants),
             sizeof(PerDrawPushConstants),
             &per_draw_push);
-
+        TexturePushConstants texture_push{};
+        texture_push.texture_index = 0;
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(TexturePushConstants),
+            &texture_push);
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
     if (scene.build_ghost_preview.has_value()) {
@@ -1682,7 +1727,15 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
             sizeof(PerFramePushConstants),
             sizeof(PerDrawPushConstants),
             &per_draw_push);
-
+        TexturePushConstants texture_push{};
+        texture_push.texture_index = 0;
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(TexturePushConstants),
+            &texture_push);
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
     Render2DLayer(image_index, scene);
@@ -2370,6 +2423,7 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
             merged_scene.render_2d.sprites.end(),
             tile_sprites.begin(),
             tile_sprites.end());
+        SyncBindlessTexturesForScene(merged_scene);
         const SpriteBatch::BuildResult build = sprite_batch_.Build(merged_scene);
         const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
         const glm::mat4 ortho = glm::ortho(
@@ -2404,11 +2458,21 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
                 sizeof(PerFramePushConstants),
                 sizeof(PerDrawPushConstants),
                 &per_draw_push);
+            TexturePushConstants texture_push{};
+            texture_push.texture_index = packet.texture_index;
+            vkCmdPushConstants(
+                command_buffers_[image_index],
+                pipeline_layout_,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+                sizeof(TexturePushConstants),
+                &texture_push);
             vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
         }
         return;
     }
 
+    SyncBindlessTexturesForScene(scene);
     const SpriteBatch::BuildResult build = sprite_batch_.Build(scene);
     const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
     const glm::mat4 ortho = glm::ortho(
@@ -2443,8 +2507,349 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
             sizeof(PerFramePushConstants),
             sizeof(PerDrawPushConstants),
             &per_draw_push);
+        TexturePushConstants texture_push{};
+        texture_push.texture_index = packet.texture_index;
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(TexturePushConstants),
+            &texture_push);
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
+}
+
+void VulkanRenderer::CreateBuffer(
+    VkDeviceSize size,
+    VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags properties,
+    VkBuffer& buffer,
+    VkDeviceMemory& buffer_memory) const {
+    VkBufferCreateInfo buffer_info{};
+    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size = size;
+    buffer_info.usage = usage;
+    buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CHECK(vkCreateBuffer(device_, &buffer_info, nullptr, &buffer));
+
+    VkMemoryRequirements mem_requirements{};
+    vkGetBufferMemoryRequirements(device_, buffer, &mem_requirements);
+
+    VkMemoryAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_requirements.size;
+    alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, properties);
+    VK_CHECK(vkAllocateMemory(device_, &alloc_info, nullptr, &buffer_memory));
+    VK_CHECK(vkBindBufferMemory(device_, buffer, buffer_memory, 0));
+}
+
+void VulkanRenderer::TransitionImageLayout(
+    VkImage image,
+    VkFormat /*format*/,
+    VkImageLayout old_layout,
+    VkImageLayout new_layout) const {
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool_;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    VK_CHECK(vkAllocateCommandBuffers(device_, &alloc_info, &command_buffer));
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(command_buffer, &begin_info));
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = old_layout;
+    barrier.newLayout = new_layout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    VkPipelineStageFlags source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    } else if (
+        old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+        new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else {
+        throw std::runtime_error("Unsupported texture layout transition.");
+    }
+
+    vkCmdPipelineBarrier(
+        command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier);
+    VK_CHECK(vkEndCommandBuffer(command_buffer));
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    VK_CHECK(vkQueueSubmit(graphics_queue_, 1, &submit_info, VK_NULL_HANDLE));
+    VK_CHECK(vkQueueWaitIdle(graphics_queue_));
+
+    vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+}
+
+void VulkanRenderer::CopyBufferToImage(VkBuffer buffer, VkImage image, std::uint32_t width, std::uint32_t height) const {
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool_;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    VK_CHECK(vkAllocateCommandBuffers(device_, &alloc_info, &command_buffer));
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(command_buffer, &begin_info));
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+
+    vkCmdCopyBufferToImage(command_buffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    VK_CHECK(vkEndCommandBuffer(command_buffer));
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    VK_CHECK(vkQueueSubmit(graphics_queue_, 1, &submit_info, VK_NULL_HANDLE));
+    VK_CHECK(vkQueueWaitIdle(graphics_queue_));
+
+    vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+}
+
+void VulkanRenderer::DestroyBindlessTextures() {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+
+    for (auto& texture : bindless_textures_) {
+        if (texture.sampler != VK_NULL_HANDLE) {
+            vkDestroySampler(device_, texture.sampler, nullptr);
+            texture.sampler = VK_NULL_HANDLE;
+        }
+        if (texture.image_view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device_, texture.image_view, nullptr);
+            texture.image_view = VK_NULL_HANDLE;
+        }
+        if (texture.image != VK_NULL_HANDLE) {
+            vkDestroyImage(device_, texture.image, nullptr);
+            texture.image = VK_NULL_HANDLE;
+        }
+        if (texture.image_memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device_, texture.image_memory, nullptr);
+            texture.image_memory = VK_NULL_HANDLE;
+        }
+    }
+    bindless_textures_.clear();
+
+    if (bindless_texture_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, bindless_texture_descriptor_pool_, nullptr);
+        bindless_texture_descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    bindless_texture_descriptor_set_ = VK_NULL_HANDLE;
+    last_uploaded_bindless_texture_count_ = 0;
+}
+
+void VulkanRenderer::UploadBindlessTextures() {
+    if (bindless_texture_descriptor_set_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const std::vector<std::string>& texture_paths = sprite_batch_.BindlessTexturePaths();
+    if (texture_paths.empty()) {
+        return;
+    }
+
+    bindless_textures_.reserve(texture_paths.size());
+    for (std::size_t i = 0; i < texture_paths.size(); ++i) {
+        TextureLoader::LoadedImage loaded{};
+        if (i == 0 || texture_paths[i].empty()) {
+            loaded.width = 1;
+            loaded.height = 1;
+            loaded.rgba8 = {255, 255, 255, 255};
+        } else {
+            loaded = TextureLoader::LoadImageRGBA8(texture_paths[i]);
+        }
+
+        VkBuffer staging_buffer = VK_NULL_HANDLE;
+        VkDeviceMemory staging_buffer_memory = VK_NULL_HANDLE;
+        const VkDeviceSize image_size = static_cast<VkDeviceSize>(loaded.rgba8.size());
+        CreateBuffer(
+            image_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            staging_buffer,
+            staging_buffer_memory);
+
+        void* mapped = nullptr;
+        VK_CHECK(vkMapMemory(device_, staging_buffer_memory, 0, image_size, 0, &mapped));
+        std::memcpy(mapped, loaded.rgba8.data(), loaded.rgba8.size());
+        vkUnmapMemory(device_, staging_buffer_memory);
+
+        BindlessTextureGpuResource texture{};
+        VkImageCreateInfo image_info{};
+        image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_info.imageType = VK_IMAGE_TYPE_2D;
+        image_info.extent.width = static_cast<std::uint32_t>(loaded.width);
+        image_info.extent.height = static_cast<std::uint32_t>(loaded.height);
+        image_info.extent.depth = 1;
+        image_info.mipLevels = 1;
+        image_info.arrayLayers = 1;
+        image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+        image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        image_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+        VK_CHECK(vkCreateImage(device_, &image_info, nullptr, &texture.image));
+
+        VkMemoryRequirements mem_requirements{};
+        vkGetImageMemoryRequirements(device_, texture.image, &mem_requirements);
+        VkMemoryAllocateInfo alloc_info{};
+        alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_CHECK(vkAllocateMemory(device_, &alloc_info, nullptr, &texture.image_memory));
+        VK_CHECK(vkBindImageMemory(device_, texture.image, texture.image_memory, 0));
+
+        TransitionImageLayout(
+            texture.image,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        CopyBufferToImage(
+            staging_buffer,
+            texture.image,
+            static_cast<std::uint32_t>(loaded.width),
+            static_cast<std::uint32_t>(loaded.height));
+        TransitionImageLayout(
+            texture.image,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        vkDestroyBuffer(device_, staging_buffer, nullptr);
+        vkFreeMemory(device_, staging_buffer_memory, nullptr);
+
+        VkImageViewCreateInfo view_info{};
+        view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_info.image = texture.image;
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        view_info.subresourceRange.baseMipLevel = 0;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.baseArrayLayer = 0;
+        view_info.subresourceRange.layerCount = 1;
+        VK_CHECK(vkCreateImageView(device_, &view_info, nullptr, &texture.image_view));
+
+        VkSamplerCreateInfo sampler_info{};
+        sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.anisotropyEnable = VK_FALSE;
+        sampler_info.maxAnisotropy = 1.0F;
+        sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        sampler_info.unnormalizedCoordinates = VK_FALSE;
+        sampler_info.compareEnable = VK_FALSE;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_info.minLod = 0.0F;
+        sampler_info.maxLod = 0.0F;
+        VK_CHECK(vkCreateSampler(device_, &sampler_info, nullptr, &texture.sampler));
+
+        bindless_textures_.push_back(texture);
+    }
+
+    VkDescriptorPoolSize descriptor_pool_size{};
+    descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptor_pool_size.descriptorCount = kMaxBindlessTextures;
+    VkDescriptorPoolCreateInfo descriptor_pool_info{};
+    descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptor_pool_info.maxSets = 1;
+    descriptor_pool_info.poolSizeCount = 1;
+    descriptor_pool_info.pPoolSizes = &descriptor_pool_size;
+    VK_CHECK(vkCreateDescriptorPool(device_, &descriptor_pool_info, nullptr, &bindless_texture_descriptor_pool_));
+
+    VkDescriptorSetAllocateInfo allocate_info{};
+    allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocate_info.descriptorPool = bindless_texture_descriptor_pool_;
+    allocate_info.descriptorSetCount = 1;
+    allocate_info.pSetLayouts = &bindless_texture_descriptor_set_layout_;
+    VK_CHECK(vkAllocateDescriptorSets(device_, &allocate_info, &bindless_texture_descriptor_set_));
+
+    std::vector<VkDescriptorImageInfo> descriptor_images{};
+    descriptor_images.reserve(bindless_textures_.size());
+    for (const auto& texture : bindless_textures_) {
+        VkDescriptorImageInfo image_info{};
+        image_info.sampler = texture.sampler;
+        image_info.imageView = texture.image_view;
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptor_images.push_back(image_info);
+    }
+    VkWriteDescriptorSet descriptor_write{};
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.dstSet = bindless_texture_descriptor_set_;
+    descriptor_write.dstBinding = 0;
+    descriptor_write.dstArrayElement = 0;
+    descriptor_write.descriptorCount = static_cast<std::uint32_t>(descriptor_images.size());
+    descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptor_write.pImageInfo = descriptor_images.data();
+    vkUpdateDescriptorSets(device_, 1, &descriptor_write, 0, nullptr);
+    last_uploaded_bindless_texture_count_ = bindless_textures_.size();
+}
+
+void VulkanRenderer::SyncBindlessTexturesForScene(const Scene& scene) {
+    if (!scene.render_2d.enabled) {
+        return;
+    }
+
+    const bool changed = sprite_batch_.RebuildTextureIndexForScene(scene);
+    if (!changed && bindless_texture_descriptor_set_ != VK_NULL_HANDLE) {
+        return;
+    }
+
+    DestroyBindlessTextures();
+    UploadBindlessTextures();
 }
 
 void VulkanRenderer::DrawFrame(const Scene& scene, const Camera& camera) {
@@ -2553,6 +2958,10 @@ void VulkanRenderer::CleanupSwapChain() {
     if (combine_descriptor_set_layout_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device_, combine_descriptor_set_layout_, nullptr);
         combine_descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
+    if (bindless_texture_descriptor_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, bindless_texture_descriptor_set_layout_, nullptr);
+        bindless_texture_descriptor_set_layout_ = VK_NULL_HANDLE;
     }
 
     if (render_pass_ != VK_NULL_HANDLE) {
