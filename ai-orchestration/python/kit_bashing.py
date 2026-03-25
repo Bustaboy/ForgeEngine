@@ -258,6 +258,103 @@ def generate_loot(
     }
 
 
+
+
+def quality_score(payload: dict[str, Any], art_bible: ArtBible | None = None) -> dict[str, Any]:
+    """Estimate content quality and light performance cost for generated assets/scenes."""
+    if not isinstance(payload, dict):
+        return {
+            "score": 0,
+            "components": {},
+            "estimated_vram_mb": 0.0,
+            "warnings": ["payload_not_object"],
+        }
+
+    render_2d = payload.get("render_2d") if isinstance(payload.get("render_2d"), dict) else {}
+    sprites = render_2d.get("sprites") if isinstance(render_2d.get("sprites"), list) else []
+    tilemaps = render_2d.get("tilemaps") if isinstance(render_2d.get("tilemaps"), list) else []
+
+    sprite_count = len([row for row in sprites if isinstance(row, dict)])
+    tilemap_count = len([row for row in tilemaps if isinstance(row, dict)])
+
+    resolution_score = 50.0
+    dimensions = payload.get("dimensions") if isinstance(payload.get("dimensions"), dict) else {}
+    width = int(dimensions.get("width", 1024)) if isinstance(dimensions.get("width"), (int, float)) else 1024
+    height = int(dimensions.get("height", 1024)) if isinstance(dimensions.get("height"), (int, float)) else 1024
+    pixels = max(1, width * height)
+    if pixels >= 2048 * 2048:
+        resolution_score = 100.0
+    elif pixels >= 1024 * 1024:
+        resolution_score = 84.0
+    elif pixels >= 512 * 512:
+        resolution_score = 62.0
+
+    complexity_raw = sprite_count + (tilemap_count * 4)
+    complexity_score = max(40.0, min(100.0, 100.0 - max(0.0, complexity_raw - 64.0) * 0.55))
+
+    art_score = 72.0
+    if art_bible is not None:
+        prompt_blob = " ".join([
+            str(payload.get("prompt", "")),
+            str(payload.get("enhanced_prompt", "")),
+            str(payload.get("world_style_guide", "")),
+        ]).lower()
+        palette_hits = sum(1 for token in art_bible.palette_keywords if token.lower() in prompt_blob)
+        light_hits = sum(1 for token in art_bible.lighting_guidance if token.lower() in prompt_blob)
+        style_hit = 1 if art_bible.art_direction.lower() in prompt_blob else 0
+        art_score = min(100.0, 60.0 + palette_hits * 6.5 + light_hits * 5.5 + style_hit * 8.0)
+
+    base_texture_bytes = float(width * height * 4)
+    sprite_bytes = float(sprite_count) * 256.0 * 256.0 * 4.0
+    tilemap_bytes = float(tilemap_count) * 512.0 * 512.0 * 4.0
+    estimated_vram_mb = round((base_texture_bytes + sprite_bytes + tilemap_bytes) / (1024.0 * 1024.0), 2)
+    vram_score = max(35.0, min(100.0, 100.0 - max(0.0, estimated_vram_mb - 256.0) * 0.22))
+
+    weighted = (
+        resolution_score * 0.25
+        + complexity_score * 0.25
+        + art_score * 0.30
+        + vram_score * 0.20
+    )
+    final_score = int(round(max(0.0, min(100.0, weighted))))
+
+    warnings: list[str] = []
+    if estimated_vram_mb > 768.0:
+        warnings.append("estimated_vram_high")
+    if sprite_count > 280:
+        warnings.append("sprite_count_high")
+
+    return {
+        "score": final_score,
+        "components": {
+            "resolution": round(resolution_score, 2),
+            "complexity": round(complexity_score, 2),
+            "art_bible_adherence": round(art_score, 2),
+            "vram_efficiency": round(vram_score, 2),
+        },
+        "estimated_vram_mb": estimated_vram_mb,
+        "sprite_count": sprite_count,
+        "warnings": warnings,
+    }
+
+
+def _upsert_scene_quality_metadata(scene_payload: dict[str, Any], quality: dict[str, Any], source: str, prompt: str | None = None) -> None:
+    quality_node = scene_payload.get("quality_metadata")
+    if not isinstance(quality_node, dict):
+        quality_node = {}
+        scene_payload["quality_metadata"] = quality_node
+
+    quality_node["schema"] = "gameforge.scene_quality_metadata.v1"
+    quality_node["score"] = int(quality.get("score", 0))
+    quality_node["components"] = quality.get("components", {})
+    quality_node["estimated_vram_mb"] = float(quality.get("estimated_vram_mb", 0.0))
+    quality_node["sprite_count"] = int(quality.get("sprite_count", 0))
+    quality_node["warnings"] = quality.get("warnings", [])
+    quality_node["source"] = source
+    if prompt:
+        quality_node["prompt"] = prompt
+
+
 def apply_generated_loot_to_scene(
     scene_path: Path,
     prompt: str,
@@ -366,6 +463,10 @@ def apply_generated_loot_to_scene(
         icon_asset_id = str(item.get("icon_asset_id", "")).strip()
         if item_id and icon_asset_id:
             entity_sprite_map[item_id] = icon_asset_id
+
+    quality = quality_score(scene_payload, art_bible=art_bible)
+    _upsert_scene_quality_metadata(scene_payload, quality, source="generate-loot", prompt=prompt)
+
 
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
     return {
@@ -607,6 +708,9 @@ def apply_kit_bash_to_scene(scene_path: Path, prompt: str, art_bible_path: Path 
         }
         sprites.append(sprite_node)
 
+    quality = quality_score(scene_payload, art_bible=art_bible)
+    _upsert_scene_quality_metadata(scene_payload, quality, source="kit-bash-scene", prompt=prompt)
+
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
 
     result["scene_path"] = str(scene_path)
@@ -656,6 +760,9 @@ def apply_variations_to_scene(scene_path: Path, prompt: str, art_bible_path: Pat
     for idx, varied in zip(target_indexes, varied_instances):
         sprites[idx] = varied
         updated += 1
+
+    quality = quality_score(scene_payload, art_bible=art_bible)
+    _upsert_scene_quality_metadata(scene_payload, quality, source="apply-variations", prompt=prompt)
 
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
     return {

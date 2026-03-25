@@ -33,7 +33,7 @@ from forge_hooks import (
 from models import prepare_models_as_dict
 from pipeline import PIPELINE_STAGE_ORDER, StageDefinition
 from art_bible import ArtBible, default_art_bible, default_asset_review_metadata, write_default_art_bible
-from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene
+from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
 
 
@@ -1497,6 +1497,36 @@ def _quality_score_from_prompt(enhanced_prompt: str, asset_type: str) -> float:
     return round(max(0.0, min(1.0, 0.55 + (prompt_density * 0.35) + specificity_bonus)), 4)
 
 
+def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> dict[str, object]:
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_payload, dict):
+        raise ValueError("Scene payload must be a JSON object")
+
+    if art_bible_path is not None and art_bible_path.exists():
+        art_bible = ArtBible.from_json_file(art_bible_path)
+    else:
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+
+    quality = quality_score(scene_payload, art_bible=art_bible)
+    quality_node = scene_payload.get("quality_metadata")
+    if not isinstance(quality_node, dict):
+        quality_node = {}
+        scene_payload["quality_metadata"] = quality_node
+    quality_node.update(
+        {
+            "schema": "gameforge.scene_quality_metadata.v1",
+            "score": int(quality.get("score", 0)),
+            "components": quality.get("components", {}),
+            "estimated_vram_mb": float(quality.get("estimated_vram_mb", 0.0)),
+            "sprite_count": int(quality.get("sprite_count", 0)),
+            "warnings": quality.get("warnings", []),
+            "source": "quality-scan",
+        }
+    )
+    scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
+    return {"scene_path": str(scene_path), "quality": quality, "persisted": True}
+
+
 def _graphics_asset_roots(project_root: Path) -> tuple[Path, Path, Path]:
     assets_root = project_root / "Assets"
     return (
@@ -1670,7 +1700,8 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
     else:
         raise ValueError("Unsupported GAMEFORGE_GRAPHICS_BACKEND. Supported values: comfyui, debug-local")
 
-    quality_score = _quality_score_from_prompt(enhanced_prompt, normalized_type)
+    quality = quality_score({"prompt": prompt_clean, "enhanced_prompt": enhanced_prompt, "dimensions": {"width": 1024, "height": 1024}}, art_bible=art_bible)
+    asset_quality_score = float(quality.get("score", 0))
     metadata_path = generated_root / f"{file_stem}.metadata.json"
     metadata_payload = {
         "schema": "gameforge.generated-graphic-asset.v1",
@@ -1685,7 +1716,9 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         "model": model,
         "art_bible_path": art_bible_source,
         "art_bible": art_bible.to_dict(),
-        "quality_score": quality_score,
+        "quality_score": asset_quality_score,
+        "quality_components": quality.get("components", {}),
+        "estimated_vram_mb": quality.get("estimated_vram_mb", 0.0),
         "review": default_asset_review_metadata(),
         "review_status": "pending-review",
         "approved_for_runtime": False,
@@ -1704,7 +1737,7 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         prompt=prompt_clean,
         enhanced_prompt=enhanced_prompt,
         art_bible_path=art_bible_source,
-        quality_score=quality_score,
+        quality_score=asset_quality_score,
         generated_at_utc=metadata_payload["generated_at_utc"],
     )
 
@@ -3060,6 +3093,14 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raw_args[2],
             art_bible_path=art_bible_path,
         )
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"quality-scan", "/quality_scan"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /quality_scan <scene_json_path> [art_bible_json_path]")
+        art_bible_path = Path(raw_args[2]) if len(raw_args) >= 3 else (Path.cwd() / "art_bible.json")
+        result = quality_scan_scene(Path(raw_args[1]), art_bible_path=art_bible_path)
         print(json.dumps(result, indent=2))
         return 0
 

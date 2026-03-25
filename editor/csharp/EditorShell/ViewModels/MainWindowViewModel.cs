@@ -6397,7 +6397,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                 ? Prompt
                 : $"{Prompt[..64]}…";
 
-        public string QualityScoreLabel => QualityScore.ToString("0.00", CultureInfo.InvariantCulture);
+        public string QualityScoreLabel => $"{Math.Clamp(QualityScore, 0d, 100d).ToString("0.0", CultureInfo.InvariantCulture)}/100";
 
         public string ReviewStatusLabel => string.Equals(ReviewStatus, "approved", StringComparison.OrdinalIgnoreCase)
             ? "Approved"

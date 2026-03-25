@@ -250,6 +250,29 @@ struct SceneRender2D {
     std::vector<SceneTilemap2D> tilemaps{};
 };
 
+
+
+struct ScenePostProcessingSettings {
+    bool enabled = false;
+    bool bloom_enabled = true;
+    bool vignette_enabled = true;
+    bool color_grading_enabled = true;
+    bool outline_enabled = false;
+    float bloom_strength = 0.20F;
+    float vignette_strength = 0.18F;
+    float color_grade_saturation = 1.0F;
+    float color_grade_contrast = 1.0F;
+    float outline_strength = 0.35F;
+};
+
+struct SceneQualityMetadata {
+    int score = 0;
+    float estimated_vram_mb = 0.0F;
+    int sprite_count = 0;
+    int vram_warning_threshold_mb = 768;
+    int sprite_warning_threshold = 280;
+    std::vector<std::string> warnings{};
+};
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -283,6 +306,8 @@ struct Scene {
     FreeWillState free_will{};
     CombatState combat{};
     SceneRender2D render_2d{};
+    ScenePostProcessingSettings post_processing{};
+    SceneQualityMetadata quality_metadata{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

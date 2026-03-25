@@ -1358,6 +1358,9 @@ std::set<std::string> RootFieldAllowList() {
         "narrator",
         "cutscene",
         "free_will",
+        "render_2d",
+        "post_processing",
+        "quality_metadata",
     };
 }
 
@@ -1884,6 +1887,40 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
+
+    scene.post_processing = ScenePostProcessingSettings{};
+    if (document.contains("post_processing") && document["post_processing"].is_object()) {
+        const json& post = document["post_processing"];
+        scene.post_processing.enabled = post.value("enabled", scene.post_processing.enabled);
+        scene.post_processing.bloom_enabled = post.value("bloom_enabled", scene.post_processing.bloom_enabled);
+        scene.post_processing.vignette_enabled = post.value("vignette_enabled", scene.post_processing.vignette_enabled);
+        scene.post_processing.color_grading_enabled = post.value("color_grading_enabled", scene.post_processing.color_grading_enabled);
+        scene.post_processing.outline_enabled = post.value("outline_enabled", scene.post_processing.outline_enabled);
+        scene.post_processing.bloom_strength = std::clamp(post.value("bloom_strength", scene.post_processing.bloom_strength), 0.0F, 2.0F);
+        scene.post_processing.vignette_strength = std::clamp(post.value("vignette_strength", scene.post_processing.vignette_strength), 0.0F, 1.0F);
+        scene.post_processing.color_grade_saturation = std::clamp(post.value("color_grade_saturation", scene.post_processing.color_grade_saturation), 0.2F, 2.0F);
+        scene.post_processing.color_grade_contrast = std::clamp(post.value("color_grade_contrast", scene.post_processing.color_grade_contrast), 0.5F, 1.8F);
+        scene.post_processing.outline_strength = std::clamp(post.value("outline_strength", scene.post_processing.outline_strength), 0.0F, 1.0F);
+    }
+
+    scene.quality_metadata = SceneQualityMetadata{};
+    if (document.contains("quality_metadata") && document["quality_metadata"].is_object()) {
+        const json& quality = document["quality_metadata"];
+        scene.quality_metadata.score = std::clamp(quality.value("score", scene.quality_metadata.score), 0, 100);
+        scene.quality_metadata.estimated_vram_mb = std::max(0.0F, quality.value("estimated_vram_mb", scene.quality_metadata.estimated_vram_mb));
+        scene.quality_metadata.sprite_count = std::max(0, quality.value("sprite_count", scene.quality_metadata.sprite_count));
+        scene.quality_metadata.vram_warning_threshold_mb = std::max(128, quality.value("vram_warning_threshold_mb", scene.quality_metadata.vram_warning_threshold_mb));
+        scene.quality_metadata.sprite_warning_threshold = std::max(64, quality.value("sprite_warning_threshold", scene.quality_metadata.sprite_warning_threshold));
+        scene.quality_metadata.warnings.clear();
+        if (quality.contains("warnings") && quality["warnings"].is_array()) {
+            for (const json& warning : quality["warnings"]) {
+                if (warning.is_string()) {
+                    scene.quality_metadata.warnings.push_back(warning.get<std::string>());
+                }
+            }
+        }
+    }
+
     scene.Update(0.0F);
     return true;
 }
@@ -2020,6 +2057,27 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         render_2d["tilemaps"].push_back(SceneTilemap2DToJson(tilemap));
     }
     document["render_2d"] = render_2d;
+    document["post_processing"] = json{
+        {"enabled", scene.post_processing.enabled},
+        {"bloom_enabled", scene.post_processing.bloom_enabled},
+        {"vignette_enabled", scene.post_processing.vignette_enabled},
+        {"color_grading_enabled", scene.post_processing.color_grading_enabled},
+        {"outline_enabled", scene.post_processing.outline_enabled},
+        {"bloom_strength", scene.post_processing.bloom_strength},
+        {"vignette_strength", scene.post_processing.vignette_strength},
+        {"color_grade_saturation", scene.post_processing.color_grade_saturation},
+        {"color_grade_contrast", scene.post_processing.color_grade_contrast},
+        {"outline_strength", scene.post_processing.outline_strength},
+    };
+    document["quality_metadata"] = json{
+        {"schema", "gameforge.scene_quality_metadata.v1"},
+        {"score", scene.quality_metadata.score},
+        {"estimated_vram_mb", scene.quality_metadata.estimated_vram_mb},
+        {"sprite_count", scene.quality_metadata.sprite_count},
+        {"vram_warning_threshold_mb", scene.quality_metadata.vram_warning_threshold_mb},
+        {"sprite_warning_threshold", scene.quality_metadata.sprite_warning_threshold},
+        {"warnings", scene.quality_metadata.warnings},
+    };
 
     std::ofstream file(path);
     if (!file.is_open()) {
