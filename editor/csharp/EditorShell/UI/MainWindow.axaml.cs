@@ -139,6 +139,8 @@ public partial class MainWindow : Window
 
     private async void OnOpened(object? sender, EventArgs e)
     {
+        await _viewModel.RefreshModelManagerAsync();
+
         if (_firstRunModalChecked)
         {
             return;
@@ -1208,6 +1210,31 @@ public partial class MainWindow : Window
     private async void OnLiveEditSceneClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RunAiHookAsync("edit-scene");
+    }
+
+    private async void OnDownloadManagedModelClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string friendlyName)
+        {
+            return;
+        }
+
+        await _viewModel.DownloadManagedModelAsync(friendlyName);
+    }
+
+    private async void OnRunModelOnboardingClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunModelOnboardingAsync();
+    }
+
+    private async void OnSetupRecommendedModelsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetupRecommendedModelsAsync();
+    }
+
+    private async void OnRefreshModelsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RefreshModelManagerAsync();
     }
 
     private async void OnRender2DClick(object? sender, RoutedEventArgs e)

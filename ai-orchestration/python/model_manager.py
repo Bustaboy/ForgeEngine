@@ -356,7 +356,13 @@ def run_onboarding(
         ("target_profile", "Target profile (quality/balanced/performance): ", "balanced"),
     ]
     answers: dict[str, str] = {}
+    non_interactive = not sys.stdin.isatty()
+    previous_answers = config.get("onboarding", {}).get("answers", {}) if isinstance(config.get("onboarding"), dict) else {}
     for key, prompt, default in questions:
+        if non_interactive:
+            prior = previous_answers.get(key, "") if isinstance(previous_answers, dict) else ""
+            answers[key] = str(prior or default).strip().lower()
+            continue
         value = str(input_fn(prompt) or "").strip().lower()
         answers[key] = value or default
 

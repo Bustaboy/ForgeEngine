@@ -1164,6 +1164,43 @@
                 <ScrollViewer MaxHeight="84">
                   <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />
                 </ScrollViewer>
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,6,0,0">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Models" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                      <Button Content="Run Onboarding"
+                              Click="OnRunModelOnboardingClick" />
+                      <Button Grid.Column="1"
+                              Content="Setup Recommended Models"
+                              Click="OnSetupRecommendedModelsClick" />
+                      <Button Grid.Column="2" Content="Refresh Models" Click="OnRefreshModelsClick" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,4">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
+                                <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" />
+                                <TextBlock Text="{Binding Recommendation}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                              </StackPanel>
+                              <Button Grid.Column="1"
+                                      Content="Download"
+                                      Tag="{Binding FriendlyName}"
+                                      Click="OnDownloadManagedModelClick"
+                                      VerticalAlignment="Top" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding ForgeGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsCoCreatorTabActive}">
