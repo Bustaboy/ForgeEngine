@@ -862,6 +862,15 @@ public sealed partial class MainWindowViewModel
                     realtime["max_health"] = realtime["max_health"]?.GetValue<float>() ?? 100f;
                     realtime["stamina"] = realtime["stamina"]?.GetValue<float>() ?? 100f;
                     realtime["max_stamina"] = realtime["max_stamina"]?.GetValue<float>() ?? 100f;
+                    realtime["weapon_type"] = string.IsNullOrWhiteSpace(realtime["weapon_type"]?.GetValue<string>()) ? "melee" : realtime["weapon_type"]?.GetValue<string>();
+                    realtime["combo_window_seconds"] = realtime["combo_window_seconds"]?.GetValue<float>() ?? 0.72f;
+                    realtime["light_attack_damage_multiplier"] = realtime["light_attack_damage_multiplier"]?.GetValue<float>() ?? 1.0f;
+                    realtime["heavy_attack_damage_multiplier"] = realtime["heavy_attack_damage_multiplier"]?.GetValue<float>() ?? 1.45f;
+                    realtime["finisher_damage_multiplier"] = realtime["finisher_damage_multiplier"]?.GetValue<float>() ?? 1.9f;
+                    realtime["light_attack_stamina_multiplier"] = realtime["light_attack_stamina_multiplier"]?.GetValue<float>() ?? 1.0f;
+                    realtime["heavy_attack_stamina_multiplier"] = realtime["heavy_attack_stamina_multiplier"]?.GetValue<float>() ?? 1.3f;
+                    realtime["finisher_stamina_multiplier"] = realtime["finisher_stamina_multiplier"]?.GetValue<float>() ?? 1.55f;
+                    realtime["dodge_invulnerability_seconds"] = realtime["dodge_invulnerability_seconds"]?.GetValue<float>() ?? 0.11f;
                     realtime["hit_reaction_timer"] = realtime["hit_reaction_timer"]?.GetValue<float>() ?? 0f;
                     realtime["action_state"] = realtime["action_state"]?.GetValue<string>() ?? "idle";
                     realtime["animation_state"] = realtime["animation_state"]?.GetValue<string>() ?? "idle";
@@ -872,7 +881,9 @@ public sealed partial class MainWindowViewModel
                     .Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false);
                 RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledCount}";
                 var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
-                RealtimeCombatAnimationPreview = $"Animation Preview: {preview}";
+                var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
+                var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
+                RealtimeCombatAnimationPreview = $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
                 StoryStatus = nextEnabled
                     ? "Realtime combat enabled for selected entities. Use /realtime_combat_start in runtime."
                     : "Realtime combat disabled for selected entities.";
@@ -1947,10 +1958,12 @@ public sealed partial class MainWindowViewModel
                 : 0;
             RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledRealtimeCount}";
             var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
+            var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
+            var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
             var hitEntity = root["realtime_combat"]?["last_hit_entity_id"]?.GetValue<ulong>() ?? 0UL;
             RealtimeCombatAnimationPreview = hitEntity > 0
-                ? $"Animation Preview: {preview} (last hit: {hitEntity})"
-                : $"Animation Preview: {preview}";
+                ? $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview} (last hit: {hitEntity})"
+                : $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)

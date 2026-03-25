@@ -78,6 +78,15 @@ void SetOverlayStatusMessage(std::string& overlay_status_message, const std::str
     overlay_status_message = message;
 }
 
+Entity* FindEntityById(Scene& scene, std::uint64_t entity_id) {
+    for (Entity& entity : scene.entities) {
+        if (entity.id == entity_id) {
+            return &entity;
+        }
+    }
+    return nullptr;
+}
+
 void LogConsoleHelp() {
     GF_LOG_INFO("Console commands:");
     GF_LOG_INFO("  Core: /help | /debug_overlay [on|off|toggle] | /inventory | /recipes");
@@ -87,7 +96,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
-    GF_LOG_INFO("           /combat_hit_test <entity_id>");
+    GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -500,6 +509,31 @@ void ProcessConsoleCommands(
         const bool ok = RealTimeCombatSystem::HitTest(scene, entity_id, message);
         GF_LOG_INFO(message);
         SetOverlayStatusMessage(overlay_status_message, ok ? "Combat hit test applied" : "Combat hit test failed");
+        return;
+    }
+
+    if (command == "/combat_combo_test") {
+        RealTimeCombatSystem::EnsureDefaults(scene);
+        Entity* actor = FindEntityById(scene, scene.realtime_combat.controlled_entity_id);
+        if (actor == nullptr || !actor->realtime_combat.enabled) {
+            GF_LOG_INFO("Realtime actor unavailable. Start realtime combat first.");
+            return;
+        }
+        actor->realtime_combat.combo_step = 1U;
+        actor->realtime_combat.combo_timer_remaining = actor->realtime_combat.combo_window_seconds;
+        scene.realtime_combat.combo_preview = "heavy_ready";
+        GF_LOG_INFO("Combo test primed: next attack enters heavy window.");
+        SetOverlayStatusMessage(overlay_status_message, "Combo test primed");
+        return;
+    }
+
+    if (command == "/combat_weapon") {
+        std::string weapon_type;
+        parser >> weapon_type;
+        std::string message;
+        const bool ok = RealTimeCombatSystem::SetControlledWeapon(scene, weapon_type, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Weapon switched" : "Weapon switch failed");
         return;
     }
 

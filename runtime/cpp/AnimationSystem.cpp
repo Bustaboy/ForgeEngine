@@ -72,16 +72,28 @@ void Update(Scene& scene, float dt_seconds) {
                 entity.realtime_combat.animation_state = "idle";
             }
 
-            if (entity.realtime_combat.animation_state == "attacking") {
-                entity.animation.motion_phase += safe_dt * 6.0F;
-            } else if (entity.realtime_combat.animation_state == "dodging") {
-                entity.animation.motion_phase += safe_dt * 8.0F;
+            if (entity.realtime_combat.animation_state == "attacking" ||
+                entity.realtime_combat.animation_state.rfind("attack_", 0) == 0) {
+                const bool heavy_attack = entity.realtime_combat.animation_state.find("heavy") != std::string::npos ||
+                    entity.realtime_combat.animation_state.find("finisher") != std::string::npos;
+                entity.animation.motion_phase += safe_dt * (heavy_attack ? 5.1F : 6.4F);
+            } else if (entity.realtime_combat.animation_state == "dodging" ||
+                       entity.realtime_combat.animation_state.rfind("dodge_", 0) == 0) {
+                entity.animation.motion_phase += safe_dt * 8.4F;
             } else if (entity.realtime_combat.animation_state == "hit_reaction") {
                 entity.animation.motion_phase += safe_dt * 10.0F;
                 const float flinch = std::sin(entity.animation.motion_phase * 2.0F) * 0.06F;
                 entity.transform.rot.x = flinch;
                 entity.transform.rot.z = -flinch * 0.5F;
                 continue;
+            }
+
+            if (entity.realtime_combat.animation_state == "dodge_left") {
+                entity.transform.rot.z = 0.18F;
+            } else if (entity.realtime_combat.animation_state == "dodge_right") {
+                entity.transform.rot.z = -0.18F;
+            } else if (entity.realtime_combat.animation_state == "attack_finisher") {
+                entity.transform.rot.y += safe_dt * 1.1F;
             }
         }
         entity.animation.motion_phase += safe_dt * (2.2F + planar_speed * 3.4F);
