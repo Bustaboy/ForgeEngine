@@ -16,6 +16,94 @@
 namespace {
 using json = nlohmann::json;
 
+std::string TrimCopy(const std::string& value) {
+    const auto first = value.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) {
+        return "";
+    }
+    const auto last = value.find_last_not_of(" \t\r\n");
+    return value.substr(first, last - first + 1);
+}
+
+bool ReadJsonIfObject(const std::filesystem::path& path, json& out) {
+    if (path.empty() || !std::filesystem::exists(path) || !std::filesystem::is_regular_file(path)) {
+        return false;
+    }
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        return false;
+    }
+    try {
+        file >> out;
+        return out.is_object();
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+std::string ResolveFreeWillPathFromModelsJson(const std::filesystem::path& models_json_path) {
+    json models_json;
+    if (!ReadJsonIfObject(models_json_path, models_json)) {
+        return "";
+    }
+    if (!models_json.contains("models") || !models_json["models"].is_object()) {
+        return "";
+    }
+    const json& freewill = models_json["models"].value("freewill", json::object());
+    if (!freewill.is_object()) {
+        return "";
+    }
+    return TrimCopy(freewill.value("path", std::string{}));
+}
+
+std::string ResolveFreeWillPathFromArtBible(const std::filesystem::path& art_bible_path) {
+    json art_bible;
+    if (!ReadJsonIfObject(art_bible_path, art_bible)) {
+        return "";
+    }
+    if (art_bible.contains("free_will") && art_bible["free_will"].is_object()) {
+        const std::string direct = TrimCopy(art_bible["free_will"].value("model_path", std::string{}));
+        if (!direct.empty()) {
+            return direct;
+        }
+    }
+    if (art_bible.contains("models") && art_bible["models"].is_object()) {
+        const json& freewill = art_bible["models"].value("freewill", json::object());
+        if (freewill.is_object()) {
+            const std::string path = TrimCopy(freewill.value("path", std::string{}));
+            if (!path.empty()) {
+                return path;
+            }
+        }
+    }
+    return "";
+}
+
+std::string ResolveFreeWillModelPath(const std::string& scene_path) {
+    std::vector<std::filesystem::path> bases;
+    if (!scene_path.empty()) {
+        const auto absolute_scene = std::filesystem::absolute(std::filesystem::path(scene_path));
+        bases.push_back(absolute_scene.parent_path());
+        bases.push_back(absolute_scene.parent_path().parent_path());
+    }
+    bases.push_back(std::filesystem::current_path());
+
+    for (const auto& base : bases) {
+        if (base.empty()) {
+            continue;
+        }
+        const std::string models_path = ResolveFreeWillPathFromModelsJson(base / "models.json");
+        if (!models_path.empty()) {
+            return models_path;
+        }
+        const std::string art_bible_path = ResolveFreeWillPathFromArtBible(base / "art_bible.json");
+        if (!art_bible_path.empty()) {
+            return art_bible_path;
+        }
+    }
+    return "";
+}
+
 json Vec3ToJson(const glm::vec3& value) {
     return json{{"x", value.x}, {"y", value.y}, {"z", value.z}};
 }
@@ -1836,6 +1924,15 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.free_will = FreeWillState{};
     if (document.contains("free_will") && document["free_will"].is_object()) {
         scene.free_will = FreeWillStateFromJson(document["free_will"], scene.free_will);
+    }
+    if (scene.free_will.llm_enabled && scene.free_will.model_path.empty()) {
+        scene.free_will.model_path = ResolveFreeWillModelPath(path);
+    }
+    if (!scene.free_will.model_path.empty()) {
+        const std::filesystem::path configured_model_path(scene.free_will.model_path);
+        if (!std::filesystem::exists(configured_model_path)) {
+            scene.free_will.model_path.clear();
+        }
     }
     scene.render_2d = SceneRender2D{};
     if (document.contains("render_2d") && document["render_2d"].is_object()) {

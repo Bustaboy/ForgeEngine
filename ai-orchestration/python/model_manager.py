@@ -269,6 +269,147 @@ def _recommendation_size_band(vram_gb: int) -> str:
     return "small"
 
 
+def _extract_onboarding_recommendation(config: dict[str, Any], friendly_name: str) -> dict[str, Any]:
+    onboarding = config.get("onboarding", {})
+    if not isinstance(onboarding, dict):
+        return {}
+    recommendations = onboarding.get("recommendations", {})
+    if not isinstance(recommendations, dict):
+        return {}
+    recommendation = recommendations.get(friendly_name, {})
+    return recommendation if isinstance(recommendation, dict) else {}
+
+
+def get_recommended_freewill_model(
+    models_json_path: Path | None = None,
+    orchestrator_file: Path | None = None,
+    auto_prepare_models: bool = True,
+) -> dict[str, Any]:
+    """Return the best small/fit Free-Will model from onboarding + current hardware profile."""
+
+    config = _load_models_config(models_json_path=models_json_path)
+    recommendation = _extract_onboarding_recommendation(config, "freewill")
+    if isinstance(recommendation.get("repo_id"), str) and recommendation["repo_id"].strip():
+        return {
+            "friendly_name": "freewill",
+            "repo_id": recommendation["repo_id"].strip(),
+            "estimated_size": recommendation.get("estimated_size", ""),
+            "reason": recommendation.get("reason", "Recommended from onboarding profile."),
+            "source": "onboarding",
+        }
+
+    benchmark = run_benchmark_as_dict(orchestrator_file=orchestrator_file, auto_prepare_models=auto_prepare_models)
+    previous_answers = config.get("onboarding", {}).get("answers", {}) if isinstance(config.get("onboarding"), dict) else {}
+    defaults = {
+        "game_type": "hybrid",
+        "npc_importance": "medium",
+        "code_vs_asset": "balanced",
+        "target_profile": "balanced",
+    }
+    answers = {key: str(previous_answers.get(key, default)).strip().lower() for key, default in defaults.items()}
+    generated = generate_recommendations(hardware=benchmark.get("hardware", {}), answers=answers).get("freewill", {})
+    return {
+        "friendly_name": "freewill",
+        "repo_id": str(generated.get("repo_id", FRIENDLY_MODEL_REPOS["freewill"])).strip(),
+        "estimated_size": generated.get("estimated_size", ""),
+        "reason": generated.get("reason", "Recommended from hardware profile."),
+        "source": "hardware",
+    }
+
+
+def _resolve_scene_file(scene_path: Path | None = None) -> Path | None:
+    if scene_path:
+        return scene_path
+    candidates = [
+        Path.cwd() / "scene" / "scene_scaffold.json",
+        Path.cwd() / "scene_scaffold.json",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _write_freewill_path_to_scene(scene_path: Path, model_path: str) -> bool:
+    if not scene_path.exists():
+        return False
+    payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return False
+    free_will = payload.get("free_will", {})
+    if not isinstance(free_will, dict):
+        free_will = {}
+    free_will["model_path"] = model_path
+    free_will["llm_enabled"] = True
+    payload["free_will"] = free_will
+    scene_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return True
+
+
+def ensure_freewill_model(
+    models_json_path: Path | None = None,
+    scene_path: Path | None = None,
+    quantization: str = DEFAULT_QUANTIZATION,
+    orchestrator_file: Path | None = None,
+    auto_prepare_models: bool = True,
+) -> dict[str, Any]:
+    """Ensure recommended Free-Will model is available and persist Scene.free_will.model_path."""
+
+    recommendation = get_recommended_freewill_model(
+        models_json_path=models_json_path,
+        orchestrator_file=orchestrator_file,
+        auto_prepare_models=auto_prepare_models,
+    )
+    repo_id = str(recommendation.get("repo_id", "")).strip()
+    if not repo_id:
+        raise RuntimeError("Unable to determine recommended Free-Will model repo_id.")
+
+    current_path = get_model_path("freewill", models_json_path=models_json_path)
+    if current_path and Path(current_path).exists():
+        record = {
+            "friendly_name": "freewill",
+            "repo_id": repo_id,
+            "quantization": quantization,
+            "path": current_path,
+            "downloaded": False,
+        }
+    else:
+        record = download_model(
+            friendly_name="freewill",
+            repo_id=repo_id,
+            quantization=quantization,
+            models_json_path=models_json_path,
+        )
+        record["downloaded"] = True
+
+    resolved_scene = _resolve_scene_file(scene_path)
+    scene_updated = False
+    if resolved_scene is not None:
+        scene_updated = _write_freewill_path_to_scene(resolved_scene, record["path"])
+
+    return {
+        "recommended": recommendation,
+        "freewill": record,
+        "scene_path": str(resolved_scene) if resolved_scene else None,
+        "scene_updated": scene_updated,
+    }
+
+
+def remove_model(friendly_name: str, models_json_path: Path | None = None) -> dict[str, Any]:
+    """Remove a managed model entry from models.json."""
+
+    normalized_name = _normalize_friendly_name(friendly_name)
+    config = _load_models_config(models_json_path=models_json_path)
+    models = config.setdefault("models", {})
+    removed = models.pop(normalized_name, None)
+    config_path = _save_models_config(config, models_json_path=models_json_path)
+    return {
+        "friendly_name": normalized_name,
+        "removed": removed is not None,
+        "models_json": str(config_path),
+    }
+
+
 def generate_recommendations(
     hardware: dict[str, Any],
     answers: dict[str, str],
