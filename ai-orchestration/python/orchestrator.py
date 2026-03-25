@@ -36,6 +36,7 @@ from art_bible import ArtBible, default_art_bible, default_asset_review_metadata
 from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
+from change_log import append_change_log_entry
 from model_manager import (
     download_model,
     ensure_freewill_model,
@@ -3014,6 +3015,23 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         return None
 
     command = raw_args[0]
+
+    def _append_change_log(
+        *,
+        scene_arg_index: int,
+        action_type: str,
+        prompt: str,
+        affected_systems: list[str],
+    ) -> None:
+        try:
+            append_change_log_entry(
+                scene_path=Path(raw_args[scene_arg_index]),
+                action=action_type,
+                prompt=prompt,
+                affected_systems=affected_systems,
+            )
+        except Exception:  # noqa: BLE001 - change-log write should never block generation path
+            pass
     if command == "generate-dialog":
         if len(raw_args) < 4:
             raise ValueError("Usage: orchestrator.py generate-dialog <npc_name> <personality> <theme>")
@@ -3145,6 +3163,12 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             kits_path=kits_path,
             variant_count=variant_count,
         )
+        _append_change_log(
+            scene_arg_index=1,
+            action_type="kitbash",
+            prompt=raw_args[2],
+            affected_systems=["scene", "environment", "kitbash"],
+        )
         print(json.dumps(result, indent=2))
         return 0
 
@@ -3157,6 +3181,12 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raw_args[2],
             art_bible_path=art_bible_path,
         )
+        _append_change_log(
+            scene_arg_index=1,
+            action_type="optimize",
+            prompt=raw_args[2],
+            affected_systems=["scene", "visual_variations"],
+        )
         print(json.dumps(result, indent=2))
         return 0
 
@@ -3168,6 +3198,12 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             Path(raw_args[1]),
             raw_args[2],
             art_bible_path=art_bible_path,
+        )
+        _append_change_log(
+            scene_arg_index=1,
+            action_type="edit",
+            prompt=raw_args[2],
+            affected_systems=["scene", "live_edit"],
         )
         print(json.dumps(result, indent=2))
         return 0
@@ -3200,6 +3236,12 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             seed=seed,
             templates_path=items_path,
             art_bible_path=art_bible_path,
+        )
+        _append_change_log(
+            scene_arg_index=1,
+            action_type="generate",
+            prompt=raw_args[2],
+            affected_systems=["scene", "loot", "inventory"],
         )
         print(json.dumps(result, indent=2))
         return 0
