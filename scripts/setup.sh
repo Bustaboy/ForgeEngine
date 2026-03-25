@@ -12,6 +12,8 @@ ORCH_DIR="$REPO_ROOT/ai-orchestration/python"
 ORCH_SCRIPT="$ORCH_DIR/orchestrator.py"
 REQ_FILE="$ORCH_DIR/requirements.txt"
 FRESH=0
+CURRENT_STEP="initializing"
+SKIP_VULKAN_SDK=0
 
 # ANSI colors for beautiful progress output.
 C_RESET="\033[0m"
@@ -26,7 +28,10 @@ warn()    { printf "%b\n" "${C_YELLOW}⚠ $*${C_RESET}"; }
 fail()    { printf "%b\n" "${C_RED}✖ $*${C_RESET}"; }
 
 on_error() {
-  fail "Setup failed at line $1. Re-run this script after fixing the above issue."
+  fail "Setup failed at line $1 during: ${CURRENT_STEP}"
+  printf "%b\n" "${C_YELLOW}  → Check the error output above for details on what went wrong.${C_RESET}"
+  printf "%b\n" "${C_YELLOW}  → Fix the issue, then re-run: ./scripts/setup.sh${C_RESET}"
+  printf "%b\n" "${C_YELLOW}  → To start completely fresh: ./scripts/setup.sh --fresh${C_RESET}"
 }
 trap 'on_error $LINENO' ERR
 
@@ -137,18 +142,38 @@ setup_apt_lunarg_repo_if_needed() {
   . /etc/os-release
   codename="$VERSION_CODENAME"
 
-  require_cmd curl "Install curl and retry."
-  require_cmd gpg "Install gnupg and retry."
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "curl not found; cannot add LunarG repository. Vulkan SDK will be skipped."
+    warn "Install curl manually (sudo apt-get install curl) and re-run to include Vulkan SDK."
+    SKIP_VULKAN_SDK=1
+    return
+  fi
+  if ! command -v gpg >/dev/null 2>&1; then
+    warn "gpg not found; cannot add LunarG repository. Vulkan SDK will be skipped."
+    warn "Install gnupg manually (sudo apt-get install gnupg) and re-run to include Vulkan SDK."
+    SKIP_VULKAN_SDK=1
+    return
+  fi
 
   local keyring_path="/usr/share/keyrings/lunarg.gpg"
   local list_path="/etc/apt/sources.list.d/lunarg-vulkan.list"
 
+  local key_ok=1
   if [[ "${EUID}" -ne 0 ]]; then
-    curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor | sudo tee "$keyring_path" >/dev/null
-    curl -fsSL "https://packages.lunarg.com/vulkan/lunarg-vulkan-${codename}.list" | sudo tee "$list_path" >/dev/null
+    curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor | sudo tee "$keyring_path" >/dev/null \
+      && curl -fsSL "https://packages.lunarg.com/vulkan/lunarg-vulkan-${codename}.list" | sudo tee "$list_path" >/dev/null \
+      || key_ok=0
   else
-    curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor > "$keyring_path"
-    curl -fsSL "https://packages.lunarg.com/vulkan/lunarg-vulkan-${codename}.list" > "$list_path"
+    curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor > "$keyring_path" \
+      && curl -fsSL "https://packages.lunarg.com/vulkan/lunarg-vulkan-${codename}.list" > "$list_path" \
+      || key_ok=0
+  fi
+
+  if [[ "$key_ok" -eq 0 ]]; then
+    warn "Failed to add LunarG Vulkan SDK repository (network error or unsupported distro codename: ${codename})."
+    warn "Vulkan SDK will be skipped. Install it manually later from: https://vulkan.lunarg.com/sdk/home"
+    SKIP_VULKAN_SDK=1
+    return
   fi
 
   if [[ "${EUID}" -ne 0 ]]; then
@@ -158,32 +183,73 @@ setup_apt_lunarg_repo_if_needed() {
   fi
 }
 
+verify_linux_tools() {
+  local missing=()
+  local hints=()
+
+  command -v g++     >/dev/null 2>&1 || { missing+=(g++);           hints+=("sudo apt-get install g++"); }
+  command -v cmake   >/dev/null 2>&1 || { missing+=(cmake);         hints+=("sudo apt-get install cmake"); }
+  command -v ninja   >/dev/null 2>&1 || { missing+=(ninja-build);   hints+=("sudo apt-get install ninja-build"); }
+  command -v python3 >/dev/null 2>&1 || { missing+=(python3);       hints+=("sudo apt-get install python3 python3-venv python3-pip"); }
+  command -v dotnet  >/dev/null 2>&1 || { missing+=("dotnet-sdk-8.0"); hints+=("See https://learn.microsoft.com/en-us/dotnet/core/install/linux"); }
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    fail "The following required tools are missing after installation:"
+    local i
+    for (( i=0; i<${#missing[@]}; i++ )); do
+      printf "%b\n" "${C_RED}    - ${missing[$i]}${C_RESET}"
+      printf "%b\n" "${C_YELLOW}      Fix: ${hints[$i]}${C_RESET}"
+    done
+    exit 1
+  fi
+  success "All required tools verified."
+}
+
 install_linux_deps() {
   step "Detected apt-based Linux (Ubuntu/Debian). Installing dependencies"
+
+  CURRENT_STEP="updating apt package lists"
   run_apt_update
+
+  CURRENT_STEP="installing prerequisite tools (curl, wget, gnupg)"
   run_apt_install ca-certificates curl wget gnupg software-properties-common apt-transport-https
 
+  CURRENT_STEP="configuring .NET package repository"
   setup_apt_dotnet_repo_if_needed
+
+  CURRENT_STEP="configuring LunarG Vulkan SDK repository"
   setup_apt_lunarg_repo_if_needed
 
+  CURRENT_STEP="updating apt package lists (after repo additions)"
   run_apt_update
+
+  CURRENT_STEP="installing build tools (build-essential, g++, cmake, ninja-build)"
   run_apt_install \
     build-essential \
     g++ \
     cmake \
-    ninja-build \
-    libvulkan-dev \
-    vulkan-sdk \
+    ninja-build
+
+  CURRENT_STEP="installing graphics and windowing libraries"
+  local vulkan_pkgs=(libvulkan-dev)
+  [[ "$SKIP_VULKAN_SDK" -eq 0 ]] && vulkan_pkgs+=(vulkan-sdk)
+  run_apt_install \
+    "${vulkan_pkgs[@]}" \
     libglfw3-dev \
     libx11-dev \
     libxrandr-dev \
     libxinerama-dev \
     libxcursor-dev \
-    libxi-dev \
-    python3 \
-    python3-venv \
-    python3-pip \
-    dotnet-sdk-8.0
+    libxi-dev
+
+  CURRENT_STEP="installing Python tools"
+  run_apt_install python3 python3-venv python3-pip
+
+  CURRENT_STEP="installing .NET SDK 8.0"
+  run_apt_install dotnet-sdk-8.0
+
+  CURRENT_STEP="verifying installed tools"
+  verify_linux_tools
 
   success "Linux dependencies installed."
 }
@@ -251,6 +317,7 @@ create_or_reuse_venv() {
 }
 
 run_bootstrap() {
+  CURRENT_STEP="running ForgeEngine bootstrap (compiling C++ runtime, verifying project structure)"
   step "Running ForgeEngine bootstrap script"
   "$REPO_ROOT/scripts/bootstrap.sh"
   success "Bootstrap completed."
@@ -297,8 +364,10 @@ main() {
   esac
 
   run_bootstrap
+  CURRENT_STEP="setting up Python virtual environment"
   local should_prepare
   should_prepare="$(create_or_reuse_venv)"
+  CURRENT_STEP="preparing AI models"
   run_models_if_needed "$should_prepare"
 
   success "All done! 🎉"
