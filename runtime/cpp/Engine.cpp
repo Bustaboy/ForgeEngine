@@ -16,6 +16,7 @@
 #include "FreeWillSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
+#include "RealTimeCombatSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -85,6 +86,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -464,6 +466,27 @@ void ProcessConsoleCommands(
         return;
     }
 
+    if (command == "/realtime_combat_start") {
+        const bool started = RealTimeCombatSystem::Start(scene, "console");
+        GF_LOG_INFO(started ? "Real-time combat started." : "Real-time combat start failed (need >=2 enabled entities).");
+        SetOverlayStatusMessage(overlay_status_message, started ? "Real-time combat started" : "Real-time combat start failed");
+        return;
+    }
+
+    if (command == "/realtime_combat_action") {
+        std::string action;
+        parser >> action;
+        if (action.empty()) {
+            GF_LOG_INFO("Usage: /realtime_combat_action <attack|dodge|move|stop>");
+            return;
+        }
+        std::string message;
+        const bool ok = RealTimeCombatSystem::QueueAction(scene, action, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Realtime action queued" : "Realtime action failed");
+        return;
+    }
+
     if (command == "/story_event") {
         std::string event_id;
         parser >> event_id;
@@ -827,6 +850,16 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     camera_.Update(dt_seconds, camera_input_state);
     scene_.player_proxy_position = camera_.position;
 
+    RealTimeCombatSystem::InputFrame realtime_input{};
+    realtime_input.move_axis.y += input.IsKeyPressed(GLFW_KEY_W) ? 1.0F : 0.0F;
+    realtime_input.move_axis.y -= input.IsKeyPressed(GLFW_KEY_S) ? 1.0F : 0.0F;
+    realtime_input.move_axis.x += input.IsKeyPressed(GLFW_KEY_D) ? 1.0F : 0.0F;
+    realtime_input.move_axis.x -= input.IsKeyPressed(GLFW_KEY_A) ? 1.0F : 0.0F;
+    realtime_input.attack_pressed = input.IsKeyPressed(GLFW_KEY_SPACE);
+    realtime_input.dodge_pressed = input.IsKeyPressed(GLFW_KEY_LEFT_SHIFT) || input.IsKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+    realtime_input.stop_pressed = input.IsKeyPressed(GLFW_KEY_X);
+    RealTimeCombatSystem::SetInput(scene_, realtime_input);
+
     const bool build_toggle_pressed = input.IsKeyPressed(GLFW_KEY_B);
     if (build_toggle_pressed && !was_build_toggle_pressed_) {
         const bool build_mode_enabled = scene_.ToggleBuildMode();
@@ -883,6 +916,10 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
             overlay_status_message_ = "Combat started";
         } else if (latest_action.rfind("combat_outcome:", 0) == 0) {
             overlay_status_message_ = "Combat resolved";
+        } else if (latest_action.rfind("realtime_combat_start:", 0) == 0) {
+            overlay_status_message_ = "Realtime combat started";
+        } else if (latest_action.rfind("realtime_combat_outcome:", 0) == 0) {
+            overlay_status_message_ = "Realtime combat resolved";
         }
     }
 }

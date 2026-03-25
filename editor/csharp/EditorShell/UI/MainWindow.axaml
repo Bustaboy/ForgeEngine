@@ -1086,6 +1086,8 @@
                 <TextBlock Text="Combat Mode" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <Button Classes="system-action" Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
                 <TextBlock Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <Button Classes="system-action" Content="Toggle Realtime Combat on Selection" Click="OnToggleRealtimeCombatSelectionClick" />
+                <TextBlock Text="{Binding RealtimeCombatSelectionSummary}" Foreground="#8EA5C7" VerticalAlignment="Center" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">

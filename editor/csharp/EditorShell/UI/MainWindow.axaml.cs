@@ -1364,6 +1364,11 @@ public partial class MainWindow : Window
         await _viewModel.ToggleCombatModeAsync();
     }
 
+    private async void OnToggleRealtimeCombatSelectionClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ToggleRealtimeCombatForSelectionAsync();
+    }
+
     private async void OnSaveStoryBibleClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveStoryBibleAsync();

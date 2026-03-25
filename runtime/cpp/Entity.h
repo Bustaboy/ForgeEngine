@@ -154,6 +154,33 @@ struct ProceduralAnimationComponent {
     float right_foot_offset = 0.0F;
 };
 
+struct RealTimeCombatComponent {
+    bool enabled = false;
+    bool alive = true;
+    std::uint32_t team_id = 0;
+    float health = 100.0F;
+    float max_health = 100.0F;
+    float stamina = 100.0F;
+    float max_stamina = 100.0F;
+    float move_speed = 4.5F;
+    float attack_damage = 12.0F;
+    float melee_range = 1.8F;
+    float ranged_range = 7.0F;
+    bool ranged_enabled = false;
+    float attack_cooldown_seconds = 0.55F;
+    float dodge_cooldown_seconds = 1.2F;
+    float dodge_duration_seconds = 0.18F;
+    float hit_reaction_seconds = 0.16F;
+    float stamina_regen_per_second = 18.0F;
+    float stamina_attack_cost = 22.0F;
+    float stamina_dodge_cost = 30.0F;
+    float attack_cooldown_remaining = 0.0F;
+    float dodge_cooldown_remaining = 0.0F;
+    float dodge_remaining = 0.0F;
+    float hit_reaction_remaining = 0.0F;
+    std::string action_state = "idle";
+};
+
 struct Entity {
     std::uint64_t id = 0;
     Transform transform{};
@@ -170,6 +197,7 @@ struct Entity {
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
     MeshComponent mesh{};
+    RealTimeCombatComponent realtime_combat{};
 };
 
 struct DirectionalLight {

@@ -196,6 +196,14 @@ struct CombatState {
     std::string last_resolution{};
 };
 
+struct RealTimeCombatState {
+    bool active = false;
+    std::uint64_t controlled_entity_id = 0;
+    std::string trigger_source{};
+    std::string last_action{};
+    std::string last_resolution{};
+};
+
 struct SettlementState {
     std::string village_name = "River Town";
     std::uint32_t total_population = 0;
@@ -336,6 +344,7 @@ struct Scene {
     CutsceneState cutscene{};
     FreeWillState free_will{};
     CombatState combat{};
+    RealTimeCombatState realtime_combat{};
     SceneRender2D render_2d{};
     ScenePostProcessingSettings post_processing{};
     SceneQualityMetadata quality_metadata{};
