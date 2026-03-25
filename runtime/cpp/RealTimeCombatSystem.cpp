@@ -20,6 +20,42 @@ RuntimeState& MutableRuntimeState() {
     return state;
 }
 
+bool IsPerformanceMode(const Scene& scene) {
+    const std::string mode = scene.optimization_overrides.lightweight_mode;
+    return mode == "performance" || mode == "aggressive" || mode == "ultra";
+}
+
+float ComboWindowMultiplier(const Scene& scene) {
+    const std::string mode = scene.optimization_overrides.lightweight_mode;
+    if (mode == "ultra") {
+        return 0.50F;
+    }
+    if (mode == "aggressive") {
+        return 0.65F;
+    }
+    if (mode == "performance") {
+        return 0.82F;
+    }
+    return 1.0F;
+}
+
+void ApplyWeaponPreset(RealTimeCombatComponent& rtc, const std::string& requested_type) {
+    rtc.weapon_type = requested_type;
+    if (rtc.weapon_type == "ranged") {
+        rtc.ranged_enabled = true;
+        rtc.weapon_damage_multiplier = 0.92F;
+        rtc.weapon_speed_multiplier = 0.95F;
+        rtc.weapon_range_multiplier = 1.35F;
+        return;
+    }
+
+    rtc.weapon_type = "melee";
+    rtc.ranged_enabled = false;
+    rtc.weapon_damage_multiplier = 1.08F;
+    rtc.weapon_speed_multiplier = 1.06F;
+    rtc.weapon_range_multiplier = 1.0F;
+}
+
 Entity* FindEntity(Scene& scene, std::uint64_t id) {
     for (Entity& entity : scene.entities) {
         if (entity.id == id) {
@@ -104,6 +140,23 @@ void SanitizeComponent(RealTimeCombatComponent& rtc) {
     rtc.stamina_regen_per_second = std::clamp(rtc.stamina_regen_per_second, 2.0F, 60.0F);
     rtc.stamina_attack_cost = std::clamp(rtc.stamina_attack_cost, 5.0F, 80.0F);
     rtc.stamina_dodge_cost = std::clamp(rtc.stamina_dodge_cost, 5.0F, 80.0F);
+    rtc.weapon_damage_multiplier = std::clamp(rtc.weapon_damage_multiplier, 0.3F, 2.5F);
+    rtc.weapon_speed_multiplier = std::clamp(rtc.weapon_speed_multiplier, 0.4F, 2.2F);
+    rtc.weapon_range_multiplier = std::clamp(rtc.weapon_range_multiplier, 0.5F, 2.5F);
+    rtc.light_attack_damage_multiplier = std::clamp(rtc.light_attack_damage_multiplier, 0.5F, 2.5F);
+    rtc.heavy_attack_damage_multiplier = std::clamp(rtc.heavy_attack_damage_multiplier, 0.8F, 3.2F);
+    rtc.finisher_damage_multiplier = std::clamp(rtc.finisher_damage_multiplier, 1.0F, 4.0F);
+    rtc.light_attack_stamina_multiplier = std::clamp(rtc.light_attack_stamina_multiplier, 0.5F, 2.0F);
+    rtc.heavy_attack_stamina_multiplier = std::clamp(rtc.heavy_attack_stamina_multiplier, 0.8F, 3.0F);
+    rtc.finisher_stamina_multiplier = std::clamp(rtc.finisher_stamina_multiplier, 1.0F, 4.0F);
+    rtc.combo_window_seconds = std::clamp(rtc.combo_window_seconds, 0.18F, 1.4F);
+    rtc.combo_timer_remaining = std::max(0.0F, rtc.combo_timer_remaining);
+    rtc.combo_step = std::min<std::uint32_t>(rtc.combo_step, 2U);
+    rtc.dodge_invulnerability_seconds = std::clamp(rtc.dodge_invulnerability_seconds, 0.02F, 0.4F);
+    rtc.dodge_invulnerability_remaining = std::max(0.0F, rtc.dodge_invulnerability_remaining);
+    if (std::abs(rtc.dodge_direction.x) < 0.001F && std::abs(rtc.dodge_direction.y) < 0.001F) {
+        rtc.dodge_direction = glm::vec2(0.0F, 1.0F);
+    }
     rtc.attack_cooldown_remaining = std::max(0.0F, rtc.attack_cooldown_remaining);
     rtc.dodge_cooldown_remaining = std::max(0.0F, rtc.dodge_cooldown_remaining);
     rtc.dodge_remaining = std::max(0.0F, rtc.dodge_remaining);
@@ -113,6 +166,13 @@ void SanitizeComponent(RealTimeCombatComponent& rtc) {
     if (rtc.animation_state.empty()) {
         rtc.animation_state = "idle";
     }
+    if (rtc.weapon_type.empty()) {
+        rtc.weapon_type = rtc.ranged_enabled ? "ranged" : "melee";
+    }
+    if (rtc.weapon_type != "ranged" && rtc.weapon_type != "melee") {
+        rtc.weapon_type = rtc.ranged_enabled ? "ranged" : "melee";
+    }
+    ApplyWeaponPreset(rtc, rtc.weapon_type);
 }
 
 void UpdateAnimationState(RealTimeCombatComponent& rtc) {
@@ -120,7 +180,9 @@ void UpdateAnimationState(RealTimeCombatComponent& rtc) {
         rtc.animation_state = "down";
     } else if (rtc.hit_reaction_timer > 0.0F || rtc.hit_reaction_remaining > 0.0F) {
         rtc.animation_state = "hit_reaction";
-    } else if (rtc.action_state == "attacking" || rtc.action_state == "dodging" || rtc.action_state == "moving") {
+    } else if (rtc.action_state == "attacking" || rtc.action_state.rfind("attack_", 0) == 0 ||
+               rtc.action_state == "dodging" || rtc.action_state.rfind("dodge_", 0) == 0 ||
+               rtc.action_state == "moving") {
         rtc.animation_state = rtc.action_state;
     } else {
         rtc.animation_state = "idle";
@@ -133,6 +195,10 @@ void ApplyHitReaction(Scene& scene, Entity& target, const Entity& attacker, floa
     }
 
     RealTimeCombatComponent& rtc = target.realtime_combat;
+    if (rtc.dodge_invulnerability_remaining > 0.0F || rtc.dodge_remaining > 0.0F) {
+        scene.realtime_combat.last_action = "hit_avoided_iframe";
+        return;
+    }
     const float stamina_ratio = rtc.max_stamina > 0.0F ? rtc.stamina / rtc.max_stamina : 0.0F;
     const float health_ratio = rtc.max_health > 0.0F ? rtc.health / rtc.max_health : 0.0F;
     const bool heavy = damage >= rtc.max_health * 0.18F || stamina_ratio <= 0.28F;
@@ -178,6 +244,16 @@ void ApplyHitReaction(Scene& scene, Entity& target, const Entity& attacker, floa
     scene.realtime_combat.last_action = "hit_reaction_" + reaction;
     scene.realtime_combat.last_hit_entity_id = target.id;
     scene.realtime_combat.animation_preview = rtc.animation_state;
+}
+
+std::string ComboName(const RealTimeCombatComponent& rtc) {
+    if (rtc.combo_step == 1U && rtc.combo_timer_remaining > 0.0F) {
+        return "light";
+    }
+    if (rtc.combo_step == 2U && rtc.combo_timer_remaining > 0.0F) {
+        return "heavy";
+    }
+    return "none";
 }
 
 }  // namespace
@@ -234,6 +310,8 @@ bool Start(Scene& scene, const std::string& source) {
     scene.realtime_combat.trigger_source = source;
     scene.realtime_combat.last_action = "start";
     scene.realtime_combat.animation_preview = "idle";
+    scene.realtime_combat.combo_preview = "none";
+    scene.realtime_combat.weapon_preview = "melee";
     scene.realtime_combat.last_hit_entity_id = 0;
     scene.realtime_combat.last_resolution.clear();
     if (scene.realtime_combat.controlled_entity_id == 0) {
@@ -254,6 +332,8 @@ bool Start(Scene& scene, const std::string& source) {
         entity.realtime_combat.alive = entity.realtime_combat.health > 0.0F;
         entity.realtime_combat.action_state = "idle";
         entity.realtime_combat.animation_state = "idle";
+        entity.realtime_combat.combo_step = 0;
+        entity.realtime_combat.combo_timer_remaining = 0.0F;
     }
 
     scene.recent_actions.push_back("realtime_combat_start:" + source);
@@ -287,7 +367,11 @@ bool QueueAction(Scene& scene, const std::string& action, std::string& out_messa
         return true;
     }
     if (action == "attack") {
-        if (rtc.stamina < rtc.stamina_attack_cost) {
+        const float combo_multiplier = rtc.combo_step == 0U ? rtc.light_attack_stamina_multiplier
+            : (rtc.combo_step == 1U && rtc.combo_timer_remaining > 0.0F ? rtc.heavy_attack_stamina_multiplier
+                                                                         : rtc.finisher_stamina_multiplier);
+        const float attack_cost = rtc.stamina_attack_cost * combo_multiplier;
+        if (rtc.stamina < attack_cost) {
             out_message = "Not enough stamina to attack.";
             return false;
         }
@@ -341,6 +425,23 @@ bool HitTest(Scene& scene, std::uint64_t entity_id, std::string& out_message) {
     return true;
 }
 
+bool SetControlledWeapon(Scene& scene, const std::string& weapon_type, std::string& out_message) {
+    EnsureDefaults(scene);
+    Entity* actor = FindEntity(scene, scene.realtime_combat.controlled_entity_id);
+    if (actor == nullptr || !actor->realtime_combat.enabled) {
+        out_message = "Real-time actor unavailable.";
+        return false;
+    }
+    if (weapon_type != "melee" && weapon_type != "ranged") {
+        out_message = "Usage: /combat_weapon <melee|ranged>";
+        return false;
+    }
+    ApplyWeaponPreset(actor->realtime_combat, weapon_type);
+    scene.realtime_combat.weapon_preview = actor->realtime_combat.weapon_type;
+    out_message = "Weapon set to " + actor->realtime_combat.weapon_type + ".";
+    return true;
+}
+
 void Update(Scene& scene, float dt_seconds) {
     EnsureDefaults(scene);
     if (!scene.realtime_combat.active) {
@@ -375,9 +476,25 @@ void Update(Scene& scene, float dt_seconds) {
         rtc.attack_cooldown_remaining = std::max(0.0F, rtc.attack_cooldown_remaining - safe_dt);
         rtc.dodge_cooldown_remaining = std::max(0.0F, rtc.dodge_cooldown_remaining - safe_dt);
         rtc.dodge_remaining = std::max(0.0F, rtc.dodge_remaining - safe_dt);
+        rtc.dodge_invulnerability_remaining = std::max(0.0F, rtc.dodge_invulnerability_remaining - safe_dt);
         rtc.hit_reaction_remaining = std::max(0.0F, rtc.hit_reaction_remaining - safe_dt);
         rtc.hit_reaction_timer = std::max(0.0F, rtc.hit_reaction_timer - safe_dt);
-        rtc.stamina = std::clamp(rtc.stamina + rtc.stamina_regen_per_second * safe_dt, 0.0F, rtc.max_stamina);
+        rtc.combo_timer_remaining = std::max(0.0F, rtc.combo_timer_remaining - safe_dt);
+        if (rtc.combo_timer_remaining <= 0.0F) {
+            rtc.combo_step = 0U;
+        }
+        const float regen_scale = IsPerformanceMode(scene) ? 0.80F : 1.0F;
+        rtc.stamina = std::clamp(rtc.stamina + rtc.stamina_regen_per_second * regen_scale * safe_dt, 0.0F, rtc.max_stamina);
+        if (IsNpcEntity(entity) && rtc.max_stamina > 0.0F) {
+            const float stamina_ratio = rtc.stamina / rtc.max_stamina;
+            if (stamina_ratio < 0.25F) {
+                entity.needs.energy = std::clamp(entity.needs.energy - (10.0F * safe_dt), 0.0F, 100.0F);
+                if (entity.needs.energy < 30.0F) {
+                    entity.schedule.current_activity = "rest";
+                    entity.schedule.current_location = "home";
+                }
+            }
+        }
 
         if (rtc.team_id == 0 && rtc.alive) {
             ++alive_team0;
@@ -393,11 +510,17 @@ void Update(Scene& scene, float dt_seconds) {
                 if (glm::dot(axis, axis) > 1.0F) {
                     axis = glm::normalize(axis);
                 }
-                const float movement_multiplier = rtc.dodge_remaining > 0.0F ? 1.8F : 1.0F;
+                if (rtc.dodge_remaining > 0.0F) {
+                    axis = rtc.dodge_direction;
+                }
+                const float movement_multiplier = rtc.dodge_remaining > 0.0F ? 2.1F : 1.0F;
                 entity.transform.pos.x += axis.x * rtc.move_speed * movement_multiplier * safe_dt;
                 entity.transform.pos.z += axis.y * rtc.move_speed * movement_multiplier * safe_dt;
                 if (glm::dot(axis, axis) > 0.0001F) {
-                    rtc.action_state = rtc.dodge_remaining > 0.0F ? "dodging" : "moving";
+                    rtc.action_state = rtc.dodge_remaining > 0.0F
+                        ? (std::abs(axis.x) > std::abs(axis.y) ? (axis.x < 0.0F ? "dodge_left" : "dodge_right")
+                                                                : (axis.y < 0.0F ? "dodge_back" : "dodge_forward"))
+                        : "moving";
                 } else if (rtc.action_state == "moving") {
                     rtc.action_state = "idle";
                 }
@@ -407,27 +530,68 @@ void Update(Scene& scene, float dt_seconds) {
                 rtc.stamina -= rtc.stamina_dodge_cost;
                 rtc.dodge_cooldown_remaining = rtc.dodge_cooldown_seconds;
                 rtc.dodge_remaining = rtc.dodge_duration_seconds;
-                rtc.action_state = "dodging";
+                rtc.dodge_invulnerability_remaining = std::min(rtc.dodge_duration_seconds, rtc.dodge_invulnerability_seconds);
+                glm::vec2 dodge_axis = input.move_axis;
+                if (glm::dot(dodge_axis, dodge_axis) <= 0.0001F) {
+                    dodge_axis = glm::vec2(0.0F, 1.0F);
+                }
+                if (glm::dot(dodge_axis, dodge_axis) > 1.0F) {
+                    dodge_axis = glm::normalize(dodge_axis);
+                }
+                rtc.dodge_direction = dodge_axis;
+                rtc.action_state = std::abs(dodge_axis.x) > std::abs(dodge_axis.y)
+                    ? (dodge_axis.x < 0.0F ? "dodge_left" : "dodge_right")
+                    : (dodge_axis.y < 0.0F ? "dodge_back" : "dodge_forward");
                 scene.realtime_combat.last_action = "dodge";
             }
 
-            if (input.attack_pressed && rtc.attack_cooldown_remaining <= 0.0F && rtc.stamina >= rtc.stamina_attack_cost) {
-                rtc.stamina -= rtc.stamina_attack_cost;
-                rtc.attack_cooldown_remaining = rtc.attack_cooldown_seconds;
-                rtc.action_state = "attacking";
+            const bool can_combo_continue = rtc.combo_step > 0U && rtc.combo_timer_remaining > 0.0F;
+            const std::string attack_variant = !can_combo_continue || rtc.combo_step == 0U
+                ? "light"
+                : (rtc.combo_step == 1U ? "heavy" : "finisher");
+            const float damage_multiplier = attack_variant == "heavy" ? rtc.heavy_attack_damage_multiplier
+                : (attack_variant == "finisher" ? rtc.finisher_damage_multiplier : rtc.light_attack_damage_multiplier);
+            const float stamina_multiplier = attack_variant == "heavy" ? rtc.heavy_attack_stamina_multiplier
+                : (attack_variant == "finisher" ? rtc.finisher_stamina_multiplier : rtc.light_attack_stamina_multiplier);
+            const float speed_multiplier = attack_variant == "heavy" ? 0.82F : (attack_variant == "finisher" ? 0.72F : 1.0F);
+            const float attack_cost = rtc.stamina_attack_cost * stamina_multiplier;
 
-                const float range = rtc.ranged_enabled ? rtc.ranged_range : rtc.melee_range;
+            if (input.attack_pressed && rtc.attack_cooldown_remaining <= 0.0F && rtc.stamina >= attack_cost) {
+                rtc.stamina -= attack_cost;
+                rtc.attack_cooldown_remaining = rtc.attack_cooldown_seconds / std::max(0.5F, rtc.weapon_speed_multiplier * speed_multiplier);
+                rtc.action_state = "attack_" + attack_variant;
+                const float combo_window = rtc.combo_window_seconds * ComboWindowMultiplier(scene);
+                if (attack_variant == "light") {
+                    rtc.combo_step = 1U;
+                    rtc.combo_timer_remaining = combo_window;
+                } else if (attack_variant == "heavy") {
+                    rtc.combo_step = 2U;
+                    rtc.combo_timer_remaining = combo_window;
+                } else {
+                    rtc.combo_step = 0U;
+                    rtc.combo_timer_remaining = 0.0F;
+                }
+                scene.realtime_combat.combo_preview = attack_variant;
+
+                const float range = (rtc.ranged_enabled ? rtc.ranged_range : rtc.melee_range) * rtc.weapon_range_multiplier;
                 Entity* target = FindClosestHostile(scene, entity, range);
-                if (target != nullptr && target->realtime_combat.dodge_remaining <= 0.0F) {
+                if (target != nullptr && target->realtime_combat.dodge_invulnerability_remaining <= 0.0F) {
                     const float base_damage = rtc.attack_damage;
-                    const float damage = base_damage * WeatherDamageMultiplier(scene) *
+                    const float damage = base_damage * rtc.weapon_damage_multiplier * damage_multiplier * WeatherDamageMultiplier(scene) *
                         RelationshipDamageMultiplier(scene, entity) * MoraleDamageMultiplier(scene);
                     target->realtime_combat.health = std::max(0.0F, target->realtime_combat.health - damage);
                     target->realtime_combat.alive = target->realtime_combat.health > 0.0F;
                     ApplyHitReaction(scene, *target, entity, damage);
-                    scene.realtime_combat.last_action = "attack_hit";
+                    scene.realtime_combat.last_action = "attack_" + attack_variant + "_hit";
+                    if (attack_variant == "heavy" || attack_variant == "finisher") {
+                        RelationshipSystem::SetDimension(scene, entity.id, "respect", attack_variant == "finisher" ? 5.0F : 2.0F, false);
+                        RelationshipSystem::SetDimension(scene, entity.id, "trust", attack_variant == "finisher" ? 2.0F : 1.0F, false);
+                        if (IsNpcEntity(entity)) {
+                            entity.needs.social = std::clamp(entity.needs.social + 3.0F, 0.0F, 100.0F);
+                        }
+                    }
                 } else {
-                    scene.realtime_combat.last_action = "attack_miss";
+                    scene.realtime_combat.last_action = "attack_" + attack_variant + "_miss";
                 }
             }
         }
@@ -436,12 +600,15 @@ void Update(Scene& scene, float dt_seconds) {
             rtc.action_state = "down";
         } else if (rtc.hit_reaction_remaining > 0.0F) {
             rtc.action_state = "hit_reaction";
-        } else if (rtc.action_state == "attacking") {
+        } else if (rtc.action_state == "attacking" || rtc.action_state.rfind("attack_", 0) == 0 ||
+                   rtc.action_state.rfind("dodge_", 0) == 0) {
             rtc.action_state = "idle";
         }
         UpdateAnimationState(rtc);
         if (entity.id == scene.realtime_combat.controlled_entity_id) {
             scene.realtime_combat.animation_preview = rtc.animation_state;
+            scene.realtime_combat.combo_preview = ComboName(rtc);
+            scene.realtime_combat.weapon_preview = rtc.weapon_type;
         }
     }
 

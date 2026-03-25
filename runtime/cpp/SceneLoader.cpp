@@ -365,6 +365,22 @@ json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
         {"stamina_regen_per_second", combat.stamina_regen_per_second},
         {"stamina_attack_cost", combat.stamina_attack_cost},
         {"stamina_dodge_cost", combat.stamina_dodge_cost},
+        {"weapon_type", combat.weapon_type},
+        {"weapon_damage_multiplier", combat.weapon_damage_multiplier},
+        {"weapon_speed_multiplier", combat.weapon_speed_multiplier},
+        {"weapon_range_multiplier", combat.weapon_range_multiplier},
+        {"light_attack_damage_multiplier", combat.light_attack_damage_multiplier},
+        {"heavy_attack_damage_multiplier", combat.heavy_attack_damage_multiplier},
+        {"finisher_damage_multiplier", combat.finisher_damage_multiplier},
+        {"light_attack_stamina_multiplier", combat.light_attack_stamina_multiplier},
+        {"heavy_attack_stamina_multiplier", combat.heavy_attack_stamina_multiplier},
+        {"finisher_stamina_multiplier", combat.finisher_stamina_multiplier},
+        {"combo_window_seconds", combat.combo_window_seconds},
+        {"combo_timer_remaining", combat.combo_timer_remaining},
+        {"combo_step", combat.combo_step},
+        {"dodge_invulnerability_seconds", combat.dodge_invulnerability_seconds},
+        {"dodge_invulnerability_remaining", combat.dodge_invulnerability_remaining},
+        {"dodge_direction", Vec2ToJson(combat.dodge_direction)},
         {"attack_cooldown_remaining", combat.attack_cooldown_remaining},
         {"dodge_cooldown_remaining", combat.dodge_cooldown_remaining},
         {"dodge_remaining", combat.dodge_remaining},
@@ -396,6 +412,24 @@ RealTimeCombatComponent RealTimeCombatComponentFromJson(const json& node, const 
     combat.stamina_regen_per_second = node.value("stamina_regen_per_second", combat.stamina_regen_per_second);
     combat.stamina_attack_cost = node.value("stamina_attack_cost", combat.stamina_attack_cost);
     combat.stamina_dodge_cost = node.value("stamina_dodge_cost", combat.stamina_dodge_cost);
+    combat.weapon_type = node.value("weapon_type", combat.weapon_type);
+    combat.weapon_damage_multiplier = node.value("weapon_damage_multiplier", combat.weapon_damage_multiplier);
+    combat.weapon_speed_multiplier = node.value("weapon_speed_multiplier", combat.weapon_speed_multiplier);
+    combat.weapon_range_multiplier = node.value("weapon_range_multiplier", combat.weapon_range_multiplier);
+    combat.light_attack_damage_multiplier = node.value("light_attack_damage_multiplier", combat.light_attack_damage_multiplier);
+    combat.heavy_attack_damage_multiplier = node.value("heavy_attack_damage_multiplier", combat.heavy_attack_damage_multiplier);
+    combat.finisher_damage_multiplier = node.value("finisher_damage_multiplier", combat.finisher_damage_multiplier);
+    combat.light_attack_stamina_multiplier = node.value("light_attack_stamina_multiplier", combat.light_attack_stamina_multiplier);
+    combat.heavy_attack_stamina_multiplier = node.value("heavy_attack_stamina_multiplier", combat.heavy_attack_stamina_multiplier);
+    combat.finisher_stamina_multiplier = node.value("finisher_stamina_multiplier", combat.finisher_stamina_multiplier);
+    combat.combo_window_seconds = node.value("combo_window_seconds", combat.combo_window_seconds);
+    combat.combo_timer_remaining = node.value("combo_timer_remaining", combat.combo_timer_remaining);
+    combat.combo_step = node.value("combo_step", combat.combo_step);
+    combat.dodge_invulnerability_seconds = node.value("dodge_invulnerability_seconds", combat.dodge_invulnerability_seconds);
+    combat.dodge_invulnerability_remaining = node.value("dodge_invulnerability_remaining", combat.dodge_invulnerability_remaining);
+    if (node.contains("dodge_direction") && node["dodge_direction"].is_object()) {
+        combat.dodge_direction = Vec2FromJson(node["dodge_direction"], combat.dodge_direction);
+    }
     combat.attack_cooldown_remaining = node.value("attack_cooldown_remaining", combat.attack_cooldown_remaining);
     combat.dodge_cooldown_remaining = node.value("dodge_cooldown_remaining", combat.dodge_cooldown_remaining);
     combat.dodge_remaining = node.value("dodge_remaining", combat.dodge_remaining);
@@ -1419,6 +1453,8 @@ json RealTimeCombatStateToJson(const RealTimeCombatState& combat) {
         {"trigger_source", combat.trigger_source},
         {"last_action", combat.last_action},
         {"animation_preview", combat.animation_preview},
+        {"combo_preview", combat.combo_preview},
+        {"weapon_preview", combat.weapon_preview},
         {"last_resolution", combat.last_resolution},
     };
 }
@@ -1469,6 +1505,8 @@ RealTimeCombatState RealTimeCombatStateFromJson(const json& node, const RealTime
     state.trigger_source = node.value("trigger_source", state.trigger_source);
     state.last_action = node.value("last_action", state.last_action);
     state.animation_preview = node.value("animation_preview", state.animation_preview);
+    state.combo_preview = node.value("combo_preview", state.combo_preview);
+    state.weapon_preview = node.value("weapon_preview", state.weapon_preview);
     state.last_resolution = node.value("last_resolution", state.last_resolution);
     return state;
 }
