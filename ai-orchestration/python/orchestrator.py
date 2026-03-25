@@ -1578,6 +1578,8 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
     update_time_ms = float(latest_metrics.get("update_time_ms", 0.0) or 0.0)
     fps_prev = float(previous_metrics.get("fps_avg", fps_avg) or fps_avg)
     fps_delta = round(fps_avg - fps_prev, 2)
+    sprite_count_metric = int(latest_metrics.get("sprite_count", 0) or 0)
+    entity_count_metric = int(latest_metrics.get("entity_count", 0) or 0)
 
     quality_metadata = scene_payload.get("quality_metadata", {})
     quality_score_value = float(quality_metadata.get("score", 0.0) or 0.0) if isinstance(quality_metadata, dict) else 0.0
@@ -1613,6 +1615,152 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
     def _has_system_node(name: str) -> bool:
         return isinstance(scene_payload.get(name), dict)
 
+    def _node_enabled(name: str) -> bool:
+        node = scene_payload.get(name)
+        if not isinstance(node, dict):
+            return False
+        enabled = node.get("enabled")
+        if isinstance(enabled, bool):
+            return enabled
+        return True
+
+    def _estimate_scene_complexity() -> dict[str, int]:
+        entities = scene_payload.get("entities")
+        sprites = scene_payload.get("sprites")
+        render_2d = scene_payload.get("render_2d")
+        inferred_entities = len(entities) if isinstance(entities, list) else 0
+        inferred_sprites = len(sprites) if isinstance(sprites, list) else 0
+        if isinstance(render_2d, dict):
+            inferred_sprites = max(
+                inferred_sprites,
+                int(render_2d.get("sprite_count", 0) or 0),
+            )
+
+        return {
+            "entity_count": max(entity_count_metric, inferred_entities),
+            "sprite_count": max(sprite_count_metric, inferred_sprites),
+            "draw_calls": draw_calls,
+        }
+
+    scene_complexity = _estimate_scene_complexity()
+    entity_count = int(scene_complexity.get("entity_count", 0) or 0)
+    sprite_count = int(scene_complexity.get("sprite_count", 0) or 0)
+    has_inventory_system = _has_system_node("inventory_system")
+    has_inventory_recipes = _has_system_node("inventory_recipes")
+    has_heavy_post = _node_enabled("post_processing") or _node_enabled("post_process")
+    has_particle_stack = _node_enabled("particle_system") or _node_enabled("weather_system")
+    has_realtime_shadowing = _node_enabled("lighting_system") or _node_enabled("light_system")
+    recent_summary = " ".join(str(change.get("summary", "")) for change in recent_changes[:4]).lower()
+    duplicate_hint = "duplicate" in recent_summary or "duplication" in recent_summary
+    profile_scale = {"potato": 1.2, "balanced": 1.0, "high_fidelity": 0.8}.get(target_profile, 1.0)
+
+    pruning_candidates: list[dict[str, object]] = []
+
+    def _add_pruning_candidate(
+        *,
+        candidate_id: str,
+        priority: int,
+        title: str,
+        description: str,
+        alternative: str,
+        estimated_win: dict[str, float | int],
+        trigger: bool,
+        patch: list[dict[str, object]],
+    ) -> None:
+        if not trigger:
+            return
+        pruning_candidates.append(
+            {
+                "id": candidate_id,
+                "priority": priority,
+                "kind": "prune",
+                "title": title,
+                "summary": description,
+                "description": description,
+                "lightweight_alternative": alternative,
+                "safety": "safe",
+                "reversible": True,
+                "confidence": 0.74,
+                "impact": "medium" if priority > 1 else "high",
+                "estimated_win": estimated_win,
+                "preview": f"Alternative: {alternative}",
+                "patch": patch,
+                "rollback_patch": [
+                    {"op": "remove", "path": op["path"]}
+                    for op in patch
+                    if isinstance(op, dict) and str(op.get("op", "")).lower() == "set"
+                ],
+            }
+        )
+
+    _add_pruning_candidate(
+        candidate_id="pr-001",
+        priority=1,
+        title="Replace heavy rain particles with sprite-sheet weather overlay",
+        description="Particle/weather stack appears expensive for current scene complexity; suggest lightweight weather overlay.",
+        alternative="Use animated sprite billboards or screen-space weather sprite sheet.",
+        estimated_win={
+            "fps_gain_pct": round(6.0 * profile_scale, 1),
+            "vram_saved_mb": int(round(96 * profile_scale)),
+        },
+        trigger=has_particle_stack and (draw_calls > 380 or sprite_count > 800),
+        patch=[
+            {"op": "set", "path": "/weather_system/use_sprite_sheet_overlay", "value": True},
+            {"op": "set", "path": "/weather_system/particle_emission_scale", "value": 0.35},
+            {"op": "set", "path": "/optimization_overrides/pruning/particle_weather_mode", "value": "sprite_sheet_overlay"},
+        ],
+    )
+    _add_pruning_candidate(
+        candidate_id="pr-002",
+        priority=1,
+        title="Scope real-time shadows to nearby gameplay-critical entities",
+        description="Real-time shadowing can be pruned on distant/background entities without harming readability.",
+        alternative="Switch distant lights/occluders to baked or static shadow mode.",
+        estimated_win={
+            "fps_gain_pct": round(7.5 * profile_scale, 1),
+            "draw_call_reduction_pct": int(round(12 * profile_scale)),
+        },
+        trigger=has_realtime_shadowing and (draw_calls > 420 or fps_avg < target_fps),
+        patch=[
+            {"op": "set", "path": "/render_2d/realtime_shadows_distance_m", "value": 18},
+            {"op": "set", "path": "/lighting_system/distant_shadow_mode", "value": "baked"},
+            {"op": "set", "path": "/optimization_overrides/pruning/realtime_shadow_scope", "value": "nearby_only"},
+        ],
+    )
+    _add_pruning_candidate(
+        candidate_id="pr-003",
+        priority=2,
+        title="Reduce heavy post-processing chain for target hardware",
+        description="Current post-processing is likely over budget for the target profile.",
+        alternative="Use selective bloom-only pass or LUT-only color grading.",
+        estimated_win={
+            "fps_gain_pct": round(5.5 * profile_scale, 1),
+            "vram_saved_mb": int(round(128 * profile_scale)),
+        },
+        trigger=has_heavy_post and (vram_mb > 3072 or fps_avg < target_fps or "post" in recent_summary),
+        patch=[
+            {"op": "set", "path": "/post_processing/quality_tier", "value": "low"},
+            {"op": "set", "path": "/post_processing/enable_motion_blur", "value": False},
+            {"op": "set", "path": "/optimization_overrides/pruning/post_processing_profile", "value": "light"},
+        ],
+    )
+    _add_pruning_candidate(
+        candidate_id="pr-004",
+        priority=2,
+        title="Merge duplicate behavior systems into shared canonical controller",
+        description="Recent changes and systems indicate duplicated runtime behavior ownership.",
+        alternative="Delegate to one canonical system with data-driven variants.",
+        estimated_win={
+            "update_time_ms_reduction": round(0.8 * profile_scale, 2),
+            "entity_update_reduction_pct": int(round(9 * profile_scale)),
+        },
+        trigger=duplicate_hint or (has_inventory_system and has_inventory_recipes) or entity_count > 500,
+        patch=[
+            {"op": "set", "path": "/optimization_overrides/pruning/merge_duplicate_behaviors", "value": True},
+            {"op": "set", "path": "/optimization_overrides/pruning/canonical_behavior_owner", "value": "inventory_system"},
+        ],
+    )
+
     pass_one_context = {
         "recent_change_count": len(recent_changes),
         "latest_change_action": recent_changes[0].get("action_type", "unknown") if recent_changes else "none",
@@ -1624,7 +1772,10 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             "draw_calls": draw_calls,
             "vram_usage_mb": vram_mb,
             "update_time_ms": update_time_ms,
+            "entity_count": entity_count,
+            "sprite_count": sprite_count,
         },
+        "scene_complexity": scene_complexity,
         "scene_systems": sorted(
             key
             for key, value in scene_payload.items()
@@ -1666,8 +1817,6 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
                 "impact": "medium",
             }
         )
-    has_inventory_system = _has_system_node("inventory_system")
-    has_inventory_recipes = _has_system_node("inventory_recipes")
     if has_inventory_system and has_inventory_recipes:
         critique_findings.append(
             {
@@ -1772,6 +1921,8 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             ],
         }
     )
+    pruned = sorted(pruning_candidates, key=lambda item: int(item.get("priority", 99)))[:4]
+    suggestions.extend(pruned)
 
     # Pass 3: refine into lighter JSON patch set and keep highest impact first.
     refined_suggestions = sorted(suggestions, key=lambda item: int(item.get("priority", 99)))
@@ -1794,10 +1945,16 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         },
         "recent_changes": recent_changes,
         "suggestions": refined_suggestions,
+        "pruning_suggestions": pruned,
         "source_model": "forgeguard" if forgeguard_available else "heuristic-fallback",
         "critique_passes": {
             "pass_1": pass_one_context,
             "pass_2": {"findings": critique_findings, "model": "forgeguard" if forgeguard_available else "heuristic"},
+            "prune_pass": {
+                "candidate_count": len(pruning_candidates),
+                "selected_count": len(pruned),
+                "model": "forgeguard" if forgeguard_available else "heuristic",
+            },
             "pass_3": {"refined_suggestion_count": len(refined_suggestions), "max_suggestions": max_suggestions},
         },
         "signals": {
