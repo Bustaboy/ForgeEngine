@@ -121,6 +121,7 @@ public sealed partial class MainWindowViewModel
     private string _storyStatus = "Story tools ready.";
     private bool _combatModeEnabledEditor;
     private string _realtimeCombatSelectionSummary = "Realtime entities enabled: 0";
+    private string _realtimeCombatAnimationPreview = "Animation Preview: idle";
     private string _livingNpcsStatus = "Living NPC settings ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
@@ -545,6 +546,7 @@ public sealed partial class MainWindowViewModel
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
     public bool CombatModeEnabledEditor { get => _combatModeEnabledEditor; set { _combatModeEnabledEditor = value; OnPropertyChanged(); } }
     public string RealtimeCombatSelectionSummary { get => _realtimeCombatSelectionSummary; private set { _realtimeCombatSelectionSummary = value; OnPropertyChanged(); } }
+    public string RealtimeCombatAnimationPreview { get => _realtimeCombatAnimationPreview; private set { _realtimeCombatAnimationPreview = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
     public CoCreatorSuggestion? SelectedStoryBeatSuggestion
@@ -860,13 +862,17 @@ public sealed partial class MainWindowViewModel
                     realtime["max_health"] = realtime["max_health"]?.GetValue<float>() ?? 100f;
                     realtime["stamina"] = realtime["stamina"]?.GetValue<float>() ?? 100f;
                     realtime["max_stamina"] = realtime["max_stamina"]?.GetValue<float>() ?? 100f;
+                    realtime["hit_reaction_timer"] = realtime["hit_reaction_timer"]?.GetValue<float>() ?? 0f;
                     realtime["action_state"] = realtime["action_state"]?.GetValue<string>() ?? "idle";
+                    realtime["animation_state"] = realtime["animation_state"]?.GetValue<string>() ?? "idle";
                 }
 
                 var enabledCount = entities
                     .OfType<JsonObject>()
                     .Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false);
                 RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledCount}";
+                var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
+                RealtimeCombatAnimationPreview = $"Animation Preview: {preview}";
                 StoryStatus = nextEnabled
                     ? "Realtime combat enabled for selected entities. Use /realtime_combat_start in runtime."
                     : "Realtime combat disabled for selected entities.";
@@ -1940,6 +1946,11 @@ public sealed partial class MainWindowViewModel
                 ? entityArray.OfType<JsonObject>().Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false)
                 : 0;
             RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledRealtimeCount}";
+            var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
+            var hitEntity = root["realtime_combat"]?["last_hit_entity_id"]?.GetValue<ulong>() ?? 0UL;
+            RealtimeCombatAnimationPreview = hitEntity > 0
+                ? $"Animation Preview: {preview} (last hit: {hitEntity})"
+                : $"Animation Preview: {preview}";
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)

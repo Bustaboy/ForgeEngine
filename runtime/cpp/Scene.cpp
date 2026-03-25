@@ -311,6 +311,9 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
     RealTimeCombatSystem::Update(*this, safe_dt);
+    if (!realtime_combat.active && realtime_combat.animation_preview.empty()) {
+        realtime_combat.animation_preview = "idle";
+    }
     ApplyMemoryGuardrails(*this);
     EmitQualityGuardrailWarnings(*this);
     EmitRuntimeOptimizationWarnings(*this);
