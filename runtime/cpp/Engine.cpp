@@ -85,10 +85,12 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("  Save: /validate_scene [path]");
 }
 
 void ProcessConsoleCommands(
     Scene& scene,
+    const std::string& scene_path,
     bool& debug_overlay_enabled,
     std::string& overlay_status_message,
     Engine::PerfGuardrailsState& perf_state) {
@@ -163,6 +165,19 @@ void ProcessConsoleCommands(
                << " combat_units=" << scene.combat.units.size() << "/" << kCombatHistoryCap;
         GF_LOG_INFO(memory.str());
         SetOverlayStatusMessage(overlay_status_message, "Perf stats logged");
+        return;
+    }
+
+    if (command == "/validate_scene") {
+        std::string target_path;
+        parser >> target_path;
+        if (target_path.empty()) {
+            target_path = scene_path;
+        }
+        std::string report;
+        const bool valid = SceneLoader::Validate(target_path, report);
+        GF_LOG_INFO(report);
+        SetOverlayStatusMessage(overlay_status_message, valid ? "Scene validation passed" : "Scene validation failed");
         return;
     }
 
@@ -736,7 +751,7 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
         was_dialog_choice_pressed_[i] = choice_pressed;
     }
 
-    ProcessConsoleCommands(scene_, debug_overlay_enabled_, overlay_status_message_, perf_state_);
+    ProcessConsoleCommands(scene_, scene_path_, debug_overlay_enabled_, overlay_status_message_, perf_state_);
     scene_.Update(dt_seconds);
     CoCreatorSystem::TrimHistory(scene_);
     if (!scene_.recent_actions.empty()) {

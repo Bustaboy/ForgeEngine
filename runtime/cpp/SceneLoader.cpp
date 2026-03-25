@@ -1,9 +1,16 @@
 #include "SceneLoader.h"
 
 #include "Logger.h"
-#include <fstream>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <set>
+#include <sstream>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -1208,24 +1215,268 @@ SettlementState SettlementStateFromJson(const json& node, const SettlementState&
         std::max(0.0F, settlement.shared_resources.count("stockpile") > 0 ? settlement.shared_resources["stockpile"] : 45.0F);
     return settlement;
 }
-}  // namespace
 
-bool SceneLoader::Load(const std::string& path, Scene& scene) {
+constexpr int kCurrentSceneSchemaVersion = 2;
+constexpr std::size_t kMaxEntityCount = 10000U;
+constexpr std::size_t kMaxRecentActionsCount = 5000U;
+constexpr std::size_t kMaxActiveNpcCount = 5000U;
+
+std::set<std::string> RootFieldAllowList() {
+    return {
+        "schema_version",
+        "entities",
+        "elapsed_seconds",
+        "day_progress",
+        "day_cycle_speed",
+        "day_count",
+        "world_time",
+        "biome",
+        "world_style_guide",
+        "weather",
+        "settlement",
+        "combat",
+        "build_mode_enabled",
+        "active_dialog_npc_id",
+        "player_inventory",
+        "npc_relationships",
+        "relationships",
+        "factions",
+        "player_reputation",
+        "economy",
+        "navmesh",
+        "active_npc_ids",
+        "npc_navigation",
+        "player_proxy_position",
+        "directional_light",
+        "recent_actions",
+        "co_creator_queue",
+        "story",
+        "narrator",
+        "cutscene",
+        "free_will",
+    };
+}
+
+void AppendDiagnostic(std::vector<std::string>& diagnostics, const std::string& message) {
+    diagnostics.push_back(message);
+}
+
+bool ReadSceneDocument(const std::string& path, json& out_document, std::string& out_error) {
     std::ifstream file(path);
+    if (!file.is_open()) {
+        out_error = "unable to open file";
+        return false;
+    }
+
+    try {
+        file >> out_document;
+    } catch (const std::exception& exception) {
+        out_error = std::string("JSON parse error: ") + exception.what();
+        return false;
+    }
+
+    if (!out_document.is_object()) {
+        out_error = "root node must be a JSON object";
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateSceneDocument(
+    const json& document,
+    std::vector<std::string>& warnings,
+    std::vector<std::string>& errors) {
+    const std::set<std::string> allow_list = RootFieldAllowList();
+
+    if (!document.contains("entities")) {
+        AppendDiagnostic(errors, "Missing required field: entities");
+    } else if (!document["entities"].is_array()) {
+        AppendDiagnostic(errors, "Field 'entities' must be an array");
+    } else if (document["entities"].size() > kMaxEntityCount) {
+        AppendDiagnostic(
+            errors,
+            "Field 'entities' exceeds limit (" + std::to_string(document["entities"].size()) + " > " +
+                std::to_string(kMaxEntityCount) + ")");
+    }
+
+    if (document.contains("recent_actions") && document["recent_actions"].is_array() &&
+        document["recent_actions"].size() > kMaxRecentActionsCount) {
+        AppendDiagnostic(
+            warnings,
+            "Field 'recent_actions' exceeds recommended limit (" + std::to_string(document["recent_actions"].size()) + ")");
+    }
+
+    if (document.contains("active_npc_ids") && document["active_npc_ids"].is_array() &&
+        document["active_npc_ids"].size() > kMaxActiveNpcCount) {
+        AppendDiagnostic(
+            warnings,
+            "Field 'active_npc_ids' exceeds recommended limit (" + std::to_string(document["active_npc_ids"].size()) + ")");
+    }
+
+    if (document.contains("schema_version") && !document["schema_version"].is_number_integer()) {
+        AppendDiagnostic(warnings, "Field 'schema_version' should be an integer; treating as legacy schema.");
+    }
+
+    for (const auto& [field, _] : document.items()) {
+        if (allow_list.find(field) == allow_list.end()) {
+            AppendDiagnostic(warnings, "Unknown root field: " + field);
+        }
+    }
+
+    return errors.empty();
+}
+
+std::string BuildBackupPath(const std::string& path) {
+    namespace fs = std::filesystem;
+    const fs::path source(path);
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+    std::tm utc{};
+#if defined(_WIN32)
+    gmtime_s(&utc, &now_time);
+#else
+    gmtime_r(&now_time, &utc);
+#endif
+    std::ostringstream stamp;
+    stamp << std::put_time(&utc, "%Y%m%dT%H%M%SZ");
+    return source.string() + ".v" + stamp.str() + ".bak";
+}
+
+bool CreateBackupFile(const std::string& source_path, std::string& out_backup_path) {
+    namespace fs = std::filesystem;
+    out_backup_path = BuildBackupPath(source_path);
+    std::error_code copy_error{};
+    fs::copy_file(source_path, out_backup_path, fs::copy_options::overwrite_existing, copy_error);
+    return !copy_error;
+}
+
+bool SaveMigratedDocument(const std::string& path, const json& document) {
+    std::ofstream file(path);
     if (!file.is_open()) {
         return false;
     }
+    file << document.dump(4) << '\n';
+    return static_cast<bool>(file);
+}
 
-    json document;
-    try {
-        file >> document;
-    } catch (const std::exception& exception) {
-        GF_LOG_INFO("Scene JSON parse failed: " + std::string(exception.what()));
+int ReadSchemaVersion(const json& document) {
+    if (!document.contains("schema_version") || !document["schema_version"].is_number_integer()) {
+        return 1;
+    }
+    return std::max(1, document["schema_version"].get<int>());
+}
+
+bool MigrateV1ToV2(json& document, std::vector<std::string>& diagnostics) {
+    bool changed = false;
+    if (!document.contains("world_time") || !document["world_time"].is_object()) {
+        const float elapsed = document.value("elapsed_seconds", 0.0F);
+        const float progress = Clamp01(document.value("day_progress", 0.25F));
+        const float cycle_speed = std::max(0.0F, document.value("day_cycle_speed", 0.01F));
+        const std::uint32_t day_count = std::max(1U, document.value("day_count", 1U));
+        document["world_time"] = WorldTimeToJson(WorldTime{elapsed, progress, cycle_speed, day_count, 1440U});
+        changed = true;
+    }
+
+    if (!document.contains("relationships") && document.contains("npc_relationships") && document["npc_relationships"].is_object()) {
+        json relationships = json::object();
+        for (const auto& [npc_id_key, trust_node] : document["npc_relationships"].items()) {
+            if (!trust_node.is_number()) {
+                continue;
+            }
+            const float trust = trust_node.get<float>();
+            relationships[npc_id_key] = RelationshipProfileToJson(RelationshipProfile{
+                trust,
+                trust * 0.75F,
+                std::max(0.0F, -trust),
+                0.0F,
+                trust * 0.60F,
+                0U,
+                {}});
+        }
+        document["relationships"] = relationships;
+        changed = true;
+    }
+
+    if (changed) {
+        AppendDiagnostic(diagnostics, "Applied migration v1 -> v2");
+    }
+    document["schema_version"] = kCurrentSceneSchemaVersion;
+    return changed;
+}
+
+bool MigrateToCurrentSchema(
+    const std::string& path,
+    json& document,
+    std::vector<std::string>& diagnostics,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& warnings) {
+    int schema_version = ReadSchemaVersion(document);
+    if (schema_version > kCurrentSceneSchemaVersion) {
+        AppendDiagnostic(
+            warnings,
+            "Save schema " + std::to_string(schema_version) +
+                " is newer than runtime schema " + std::to_string(kCurrentSceneSchemaVersion) + "; attempting best-effort load.");
         return false;
     }
 
-    if (!document.contains("entities") || !document["entities"].is_array()) {
+    if (schema_version == kCurrentSceneSchemaVersion) {
         return false;
+    }
+
+    std::string backup_path;
+    if (!CreateBackupFile(path, backup_path)) {
+        AppendDiagnostic(errors, "Migration aborted: failed to create backup for '" + path + "'");
+        return false;
+    }
+    AppendDiagnostic(diagnostics, "Backup created: " + backup_path);
+
+    bool changed = false;
+    if (schema_version < 2) {
+        changed = MigrateV1ToV2(document, diagnostics) || changed;
+    }
+
+    if (changed && !SaveMigratedDocument(path, document)) {
+        AppendDiagnostic(errors, "Migration failed: unable to write migrated scene to '" + path + "'");
+        return false;
+    }
+    if (changed) {
+        AppendDiagnostic(diagnostics, "Migrated scene saved to: " + path);
+    }
+    return changed;
+}
+}  // namespace
+
+bool SceneLoader::Load(const std::string& path, Scene& scene) {
+    json document;
+    std::string read_error;
+    if (!ReadSceneDocument(path, document, read_error)) {
+        GF_LOG_WARN("Scene load failed for '" + path + "': " + read_error);
+        return false;
+    }
+
+    std::vector<std::string> validation_warnings;
+    std::vector<std::string> validation_errors;
+    if (!ValidateSceneDocument(document, validation_warnings, validation_errors)) {
+        for (const std::string& error : validation_errors) {
+            GF_LOG_WARN("Scene validation error: " + error);
+        }
+        return false;
+    }
+    std::vector<std::string> migration_diagnostics;
+    if (MigrateToCurrentSchema(path, document, migration_diagnostics, validation_errors, validation_warnings)) {
+        for (const std::string& diagnostic : migration_diagnostics) {
+            GF_LOG_INFO(diagnostic);
+        }
+    }
+    if (!validation_errors.empty()) {
+        for (const std::string& error : validation_errors) {
+            GF_LOG_WARN("Scene migration error: " + error);
+        }
+        return false;
+    }
+    for (const std::string& warning : validation_warnings) {
+        GF_LOG_WARN("Scene migration warning: " + warning);
     }
 
     scene.entities.clear();
@@ -1486,6 +1737,7 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
 
 bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     json document;
+    document["schema_version"] = kCurrentSceneSchemaVersion;
     document["entities"] = json::array();
     document["entities"].reserve(scene.entities.size());
 
@@ -1598,4 +1850,28 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
 
     file << document.dump(4) << '\n';
     return true;
+}
+
+bool SceneLoader::Validate(const std::string& path, std::string& report) {
+    json document;
+    std::string read_error;
+    if (!ReadSceneDocument(path, document, read_error)) {
+        report = "Validation failed: " + read_error;
+        return false;
+    }
+
+    std::vector<std::string> warnings;
+    std::vector<std::string> errors;
+    ValidateSceneDocument(document, warnings, errors);
+    std::ostringstream summary;
+    summary << "scene='" << path << "' schema_version=" << ReadSchemaVersion(document)
+            << " warnings=" << warnings.size() << " errors=" << errors.size();
+    for (const std::string& warning : warnings) {
+        summary << "\n  warning: " << warning;
+    }
+    for (const std::string& error : errors) {
+        summary << "\n  error: " << error;
+    }
+    report = summary.str();
+    return errors.empty();
 }
