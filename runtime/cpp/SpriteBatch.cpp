@@ -45,6 +45,26 @@ void SpriteBatch::LoadApprovedAssets(const std::string& approved_assets_root) {
     }
 }
 
+std::string SpriteBatch::ResolveAssetId(const Scene& scene, const SceneSprite2D& sprite) const {
+    if (!sprite.asset_id.empty()) {
+        return sprite.asset_id;
+    }
+    if (sprite.entity_type.empty()) {
+        return {};
+    }
+
+    const auto scene_override_it = scene.render_2d.entity_sprite_map.find(sprite.entity_type);
+    if (scene_override_it != scene.render_2d.entity_sprite_map.end()) {
+        return scene_override_it->second;
+    }
+
+    const auto default_it = default_entity_type_to_asset_id_.find(sprite.entity_type);
+    if (default_it != default_entity_type_to_asset_id_.end()) {
+        return default_it->second;
+    }
+    return {};
+}
+
 bool SpriteBatch::RebuildTextureIndexForScene(const Scene& scene) {
     std::unordered_map<std::string, std::uint32_t> new_index_by_asset_id{};
     std::vector<std::string> new_asset_ids{};
@@ -76,7 +96,7 @@ bool SpriteBatch::RebuildTextureIndexForScene(const Scene& scene) {
 
     if (scene.render_2d.enabled) {
         for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
-            register_if_approved(sprite.asset_id);
+            register_if_approved(ResolveAssetId(scene, sprite));
         }
 
         for (const SceneTilemap2D& tilemap : scene.render_2d.tilemaps) {
@@ -121,7 +141,8 @@ SpriteBatch::BuildResult SpriteBatch::Build(const Scene& scene) const {
         packet.model = model;
         packet.tint = sprite.tint;
 
-        const auto it = bindless_index_by_asset_id_.find(sprite.asset_id);
+        const std::string resolved_asset_id = ResolveAssetId(scene, sprite);
+        const auto it = bindless_index_by_asset_id_.find(resolved_asset_id);
         packet.texture_index = (it != bindless_index_by_asset_id_.end()) ? it->second : 0U;
         result.draws.push_back(packet);
     }

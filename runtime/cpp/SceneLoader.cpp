@@ -44,7 +44,7 @@ json Vec4ToJson(const glm::vec4& value) {
 }
 
 json SceneSprite2DToJson(const SceneSprite2D& sprite) {
-    return json{
+    json node = json{
         {"asset_id", sprite.asset_id},
         {"position", Vec2ToJson(sprite.position)},
         {"size", Vec2ToJson(sprite.size)},
@@ -52,11 +52,16 @@ json SceneSprite2DToJson(const SceneSprite2D& sprite) {
         {"rotation_radians", sprite.rotation_radians},
         {"layer", sprite.layer},
     };
+    if (!sprite.entity_type.empty()) {
+        node["entity_type"] = sprite.entity_type;
+    }
+    return node;
 }
 
 SceneSprite2D SceneSprite2DFromJson(const json& node, const SceneSprite2D& fallback) {
     SceneSprite2D sprite = fallback;
     sprite.asset_id = node.value("asset_id", sprite.asset_id);
+    sprite.entity_type = node.value("entity_type", sprite.entity_type);
     if (node.contains("position") && node["position"].is_object()) {
         sprite.position = Vec2FromJson(node["position"], sprite.position);
     }
@@ -1835,6 +1840,18 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
                 }
             }
         }
+        if (render_2d.contains("entity_sprite_map") && render_2d["entity_sprite_map"].is_object()) {
+            for (const auto& [entity_type, asset_id_node] : render_2d["entity_sprite_map"].items()) {
+                if (!asset_id_node.is_string()) {
+                    continue;
+                }
+                const std::string asset_id = asset_id_node.get<std::string>();
+                if (entity_type.empty() || asset_id.empty()) {
+                    continue;
+                }
+                scene.render_2d.entity_sprite_map[entity_type] = asset_id;
+            }
+        }
         if (render_2d.contains("tilemaps") && render_2d["tilemaps"].is_array()) {
             for (const json& tilemap_node : render_2d["tilemaps"]) {
                 if (tilemap_node.is_object()) {
@@ -1966,6 +1983,13 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     render_2d["sprites"] = json::array();
     for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
         render_2d["sprites"].push_back(SceneSprite2DToJson(sprite));
+    }
+    render_2d["entity_sprite_map"] = json::object();
+    for (const auto& [entity_type, asset_id] : scene.render_2d.entity_sprite_map) {
+        if (entity_type.empty() || asset_id.empty()) {
+            continue;
+        }
+        render_2d["entity_sprite_map"][entity_type] = asset_id;
     }
     render_2d["tilemaps"] = json::array();
     for (const SceneTilemap2D& tilemap : scene.render_2d.tilemaps) {

@@ -82,6 +82,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
 
@@ -536,6 +537,21 @@ void ProcessConsoleCommands(
                 "  " + std::to_string(entry.start_minute) + "-" + std::to_string(entry.end_minute) + " " +
                 entry.activity + " @ " + entry.location);
         }
+        return;
+    }
+
+    if (command == "/map_entity") {
+        std::string entity_type;
+        std::string asset_id;
+        parser >> entity_type >> asset_id;
+        if (entity_type.empty() || asset_id.empty()) {
+            GF_LOG_INFO("Usage: /map_entity <entity_type> <asset_id>");
+            return;
+        }
+
+        scene.render_2d.entity_sprite_map[entity_type] = asset_id;
+        GF_LOG_INFO("Mapped entity type '" + entity_type + "' to asset '" + asset_id + "'.");
+        SetOverlayStatusMessage(overlay_status_message, "Entity sprite mapped");
         return;
     }
 

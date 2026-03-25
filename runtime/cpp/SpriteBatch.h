@@ -30,8 +30,15 @@ public:
     [[nodiscard]] const std::vector<std::string>& BindlessTexturePaths() const;
 
 private:
+    [[nodiscard]] std::string ResolveAssetId(const Scene& scene, const SceneSprite2D& sprite) const;
+
     std::unordered_map<std::string, std::string> approved_texture_path_by_asset_id_{};
     std::unordered_map<std::string, std::uint32_t> bindless_index_by_asset_id_{};
+    std::unordered_map<std::string, std::string> default_entity_type_to_asset_id_{
+        {"Villager", "villager"},
+        {"TreeOak", "tree_oak"},
+        {"RockSmall", "rock_small"},
+    };
     std::vector<std::string> bindless_asset_ids_{};
     std::vector<std::string> bindless_texture_paths_{};
 

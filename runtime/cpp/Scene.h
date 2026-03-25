@@ -215,6 +215,7 @@ struct WorldTime {
 
 struct SceneSprite2D {
     std::string asset_id{};
+    std::string entity_type{};
     glm::vec2 position{0.0F, 0.0F};
     glm::vec2 size{1.0F, 1.0F};
     glm::vec4 tint{1.0F, 1.0F, 1.0F, 1.0F};
@@ -243,6 +244,7 @@ struct SceneCamera2D {
 struct SceneRender2D {
     bool enabled = false;
     SceneCamera2D camera{};
+    std::map<std::string, std::string> entity_sprite_map{};
     std::vector<SceneSprite2D> sprites{};
     std::vector<SceneTilemap2D> tilemaps{};
 };
