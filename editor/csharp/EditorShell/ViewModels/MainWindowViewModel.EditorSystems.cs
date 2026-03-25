@@ -2635,11 +2635,11 @@ public sealed partial class MainWindowViewModel
 
         ProjectHealthScore = payload["health_score"]?.GetValue<int>() ?? ProjectHealthScore;
         LightweightMode = payload["lightweight_mode"]?.GetValue<string>() ?? LightweightMode;
-        var suggestionNode = payload["lightweight_mode_suggestion"] as JsonObject;
-        if (suggestionNode is not null)
+        var currentSuggestionNode = payload["lightweight_mode_suggestion"] as JsonObject;
+        if (currentSuggestionNode is not null)
         {
-            var suggested = suggestionNode["suggested"]?.GetValue<string>() ?? LightweightMode;
-            var current = suggestionNode["current"]?.GetValue<string>() ?? LightweightMode;
+            var suggested = currentSuggestionNode["suggested"]?.GetValue<string>() ?? LightweightMode;
+            var current = currentSuggestionNode["current"]?.GetValue<string>() ?? LightweightMode;
             LightweightModeSuggestion = $"ForgeGuard: {current} → {suggested} (manual confirmation required).";
         }
         var guardrails = payload["guardrails"] as JsonObject;
