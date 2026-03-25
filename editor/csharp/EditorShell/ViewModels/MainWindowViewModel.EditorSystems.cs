@@ -952,6 +952,50 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    public async Task SetupFreeWillModelAsync()
+    {
+        IsModelManagerBusy = true;
+        _modelDownloadsInProgress.Add("freewill");
+        RebuildModelManagerEntries(null);
+        try
+        {
+            await RunAiHookAsync("setup-freewill");
+            await SyncLivingNpcModelPathFromModelsAsync();
+            ModelManagerStatus = "Free-Will model ready and enabled in Scene.";
+            await RefreshModelManagerAsync();
+        }
+        finally
+        {
+            _modelDownloadsInProgress.Remove("freewill");
+            IsModelManagerBusy = false;
+            RebuildModelManagerEntries(null);
+        }
+    }
+
+    public async Task RemoveManagedModelAsync(string friendlyName)
+    {
+        if (string.IsNullOrWhiteSpace(friendlyName))
+        {
+            return;
+        }
+
+        IsModelManagerBusy = true;
+        try
+        {
+            await RunAiHookAsync("remove-model", friendlyName.Trim().ToLowerInvariant());
+            if (string.Equals(friendlyName.Trim(), "forgeguard", StringComparison.OrdinalIgnoreCase))
+            {
+                ForgeGuardKeepInstalledMessage = "ForgeGuard removed. You can reinstall it anytime from Models.";
+            }
+            ModelManagerStatus = $"{friendlyName} removed from local managed models.";
+            await RefreshModelManagerAsync();
+        }
+        finally
+        {
+            IsModelManagerBusy = false;
+        }
+    }
+
     private void RebuildModelManagerEntries(JsonObject? modelsPayload)
     {
         if (modelsPayload is null)
@@ -1000,13 +1044,15 @@ public sealed partial class MainWindowViewModel
             var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
             var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
+            var removable = string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
             _modelManagerEntries.Add(new ModelManagerEntry(
                 model.Friendly,
                 model.Display,
                 status,
                 estimatedSize,
                 $"{profileLead}: {reason}",
-                shouldDownload));
+                shouldDownload,
+                removable));
         }
 
         ModelRecommendationSummary = _modelManagerEntries.FirstOrDefault(item => item.FriendlyName == "freewill")?.Recommendation
@@ -1027,7 +1073,28 @@ public sealed partial class MainWindowViewModel
         string Status,
         string EstimatedSize,
         string Recommendation,
-        bool ShouldDownloadByDefault);
+        bool ShouldDownloadByDefault,
+        bool IsRemovable);
+
+    private async Task SyncLivingNpcModelPathFromModelsAsync()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+        if (!File.Exists(modelsJsonPath))
+        {
+            return;
+        }
+
+        var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+        var freewillPath = payload?["models"]?["freewill"]?["path"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(freewillPath))
+        {
+            return;
+        }
+
+        LivingNpcsModelPathEditor = freewillPath;
+        await SaveLivingNpcsSettingsAsync();
+    }
 
     public async Task SaveCoCreatorSettingsAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(

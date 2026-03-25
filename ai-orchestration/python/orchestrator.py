@@ -36,7 +36,13 @@ from art_bible import ArtBible, default_art_bible, default_asset_review_metadata
 from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
-from model_manager import download_model, list_installed_models, run_onboarding
+from model_manager import (
+    download_model,
+    ensure_freewill_model,
+    list_installed_models,
+    remove_model,
+    run_onboarding,
+)
 
 
 UNCERTAINTY_CUES = {
@@ -3216,6 +3222,22 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
 
     if command in {"onboarding-run", "/onboarding_run"}:
         result = run_onboarding(orchestrator_file=Path(__file__).resolve())
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"setup-freewill", "/setup_freewill"}:
+        scene_path = Path(raw_args[1]) if len(raw_args) >= 2 else None
+        result = ensure_freewill_model(
+            orchestrator_file=Path(__file__).resolve(),
+            scene_path=scene_path,
+        )
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"remove-model", "/remove_model"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /remove_model <friendly_name>")
+        result = remove_model(raw_args[1])
         print(json.dumps(result, indent=2))
         return 0
 

@@ -1232,6 +1232,28 @@ public partial class MainWindow : Window
         await _viewModel.SetupRecommendedModelsAsync();
     }
 
+    private async void OnSetupFreeWillModelClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetupFreeWillModelAsync();
+    }
+
+    private async void OnRemoveManagedModelClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string friendlyName || string.IsNullOrWhiteSpace(friendlyName))
+        {
+            return;
+        }
+
+        var confirmed = await ShowModelRemovalConfirmationAsync(friendlyName);
+        if (!confirmed)
+        {
+            _viewModel.SetStatusMessage($"Canceled removal for {friendlyName}.");
+            return;
+        }
+
+        await _viewModel.RemoveManagedModelAsync(friendlyName);
+    }
+
     private async void OnRefreshModelsClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RefreshModelManagerAsync();
@@ -1734,6 +1756,85 @@ public partial class MainWindow : Window
                                 {
                                     Content = "Upload (Stub)",
                                     MinWidth = 120,
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        };
+
+        if (modal.Content is Border { Child: StackPanel panel }
+            && panel.Children[^1] is StackPanel actions
+            && actions.Children.Count == 2
+            && actions.Children[0] is Button cancel
+            && actions.Children[1] is Button confirm)
+        {
+            cancel.Click += (_, _) =>
+            {
+                decision = false;
+                modal.Close();
+            };
+            confirm.Click += (_, _) =>
+            {
+                decision = true;
+                modal.Close();
+            };
+        }
+
+        await modal.ShowDialog(this);
+        return decision;
+    }
+
+    private async Task<bool> ShowModelRemovalConfirmationAsync(string friendlyName)
+    {
+        var decision = false;
+        var modelLabel = string.IsNullOrWhiteSpace(friendlyName) ? "this model" : friendlyName.Trim();
+        var modal = new Window
+        {
+            Width = 500,
+            Height = 240,
+            Title = "Remove Model",
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new Border
+            {
+                Padding = new Thickness(18),
+                Background = new SolidColorBrush(Color.Parse("#0D1320")),
+                Child = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = $"Remove {modelLabel} from managed models?",
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                            FontSize = 16,
+                        },
+                        new TextBlock
+                        {
+                            Text = "This updates models.json only. Downloaded cache files can be reused if you install again later.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children =
+                            {
+                                new Button
+                                {
+                                    Content = "Cancel",
+                                    MinWidth = 90,
+                                },
+                                new Button
+                                {
+                                    Content = "Remove",
+                                    MinWidth = 90,
                                 },
                             }
                         },

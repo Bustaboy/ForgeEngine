@@ -1168,19 +1168,20 @@
                   <StackPanel Spacing="6">
                     <TextBlock Text="Models" Foreground="#D6E9FF" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
                       <Button Content="Run Onboarding"
                               Click="OnRunModelOnboardingClick" />
                       <Button Grid.Column="1"
                               Content="Setup Recommended Models"
                               Click="OnSetupRecommendedModelsClick" />
-                      <Button Grid.Column="2" Content="Refresh Models" Click="OnRefreshModelsClick" />
+                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" />
+                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
                           <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,4">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                               <StackPanel Spacing="2">
                                 <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
@@ -1191,6 +1192,12 @@
                                       Content="Download"
                                       Tag="{Binding FriendlyName}"
                                       Click="OnDownloadManagedModelClick"
+                                      VerticalAlignment="Top" />
+                              <Button Grid.Column="2"
+                                      Content="Remove"
+                                      Tag="{Binding FriendlyName}"
+                                      Click="OnRemoveManagedModelClick"
+                                      IsVisible="{Binding IsRemovable}"
                                       VerticalAlignment="Top" />
                             </Grid>
                           </Border>
