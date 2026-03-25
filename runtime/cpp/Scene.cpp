@@ -187,6 +187,35 @@ void EmitRuntimeOptimizationWarnings(const Scene& scene) {
     }
 }
 
+void EmitProjectHealthGuardrails(const Scene& scene) {
+    static bool soft_warned = false;
+    static bool hard_warned = false;
+    const int score = std::clamp(scene.optimization_overrides.project_health_score, 0, 100);
+    const int soft_threshold = std::clamp(scene.optimization_overrides.guardrails.soft_warning_threshold, 20, 95);
+    const int hard_threshold = std::clamp(scene.optimization_overrides.guardrails.hard_block_threshold, 10, 90);
+    const bool soft_violation = score <= soft_threshold;
+    const bool hard_violation = scene.optimization_overrides.guardrails.hard_block_enabled && score <= hard_threshold;
+
+    if (soft_violation && !soft_warned) {
+        GF_LOG_WARN(
+            "ProjectHealthGuardrail: score=" + std::to_string(score) +
+            " is below soft_warning_threshold=" + std::to_string(soft_threshold));
+        soft_warned = true;
+    } else if (!soft_violation) {
+        soft_warned = false;
+    }
+
+    if (hard_violation && !hard_warned) {
+        GF_LOG_WARN(
+            "ProjectHealthGuardrail: score=" + std::to_string(score) +
+            " is below hard_block_threshold=" + std::to_string(hard_threshold) +
+            " (hard_block_enabled=true)");
+        hard_warned = true;
+    } else if (!hard_violation) {
+        hard_warned = false;
+    }
+}
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
@@ -279,6 +308,7 @@ void Scene::Update(float dt_seconds) {
     ApplyMemoryGuardrails(*this);
     EmitQualityGuardrailWarnings(*this);
     EmitRuntimeOptimizationWarnings(*this);
+    EmitProjectHealthGuardrails(*this);
 }
 
 bool Scene::ToggleBuildMode() {
@@ -407,6 +437,21 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
 
     const json optimization_patch = changes.value("optimization_overrides", json::object());
     if (optimization_patch.is_object()) {
+        optimization_overrides.project_health_score = std::clamp(
+            optimization_patch.value("project_health_score", optimization_overrides.project_health_score), 0, 100);
+        const std::string next_mode = optimization_patch.value("lightweight_mode", optimization_overrides.lightweight_mode);
+        if (next_mode == "performance" || next_mode == "balanced" || next_mode == "quality") {
+            optimization_overrides.lightweight_mode = next_mode;
+        }
+        const json guardrails_patch = optimization_patch.value("guardrails", json::object());
+        if (guardrails_patch.is_object()) {
+            optimization_overrides.guardrails.hard_block_enabled =
+                guardrails_patch.value("hard_block_enabled", optimization_overrides.guardrails.hard_block_enabled);
+            optimization_overrides.guardrails.soft_warning_threshold = std::clamp(
+                guardrails_patch.value("soft_warning_threshold", optimization_overrides.guardrails.soft_warning_threshold), 20, 95);
+            optimization_overrides.guardrails.hard_block_threshold = std::clamp(
+                guardrails_patch.value("hard_block_threshold", optimization_overrides.guardrails.hard_block_threshold), 10, 90);
+        }
         const json runtime_patch = optimization_patch.value("runtime", json::object());
         if (runtime_patch.is_object()) {
             optimization_overrides.runtime.enabled =

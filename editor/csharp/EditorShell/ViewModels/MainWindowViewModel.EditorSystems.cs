@@ -67,6 +67,12 @@ public sealed partial class MainWindowViewModel
     private int _projectHealthScore = 50;
     private string _projectHealthBand = "Yellow";
     private IBrush _projectHealthBrush = Brushes.Goldenrod;
+    private string _lightweightMode = "balanced";
+    private string _lightweightModeSuggestion = "Run Optimization Check to get ForgeGuard lightweight recommendation.";
+    private string _guardrailStatus = "Guardrails idle.";
+    private bool _hardGuardrailsEnabled;
+    private int _softGuardrailThreshold = 50;
+    private int _hardGuardrailThreshold = 30;
     private string _selectedOptimizationPreview = "Run Optimization Check to see suggestions.";
     private bool _isModelManagerBusy;
     private string _biomeEditor = "temperate";
@@ -461,6 +467,12 @@ public sealed partial class MainWindowViewModel
     }
     public string ProjectHealthBand { get => _projectHealthBand; private set { _projectHealthBand = value; OnPropertyChanged(); } }
     public IBrush ProjectHealthBrush { get => _projectHealthBrush; private set { _projectHealthBrush = value; OnPropertyChanged(); } }
+    public string LightweightMode { get => _lightweightMode; private set { _lightweightMode = value; OnPropertyChanged(); } }
+    public string LightweightModeSuggestion { get => _lightweightModeSuggestion; private set { _lightweightModeSuggestion = value; OnPropertyChanged(); } }
+    public string GuardrailStatus { get => _guardrailStatus; private set { _guardrailStatus = value; OnPropertyChanged(); } }
+    public bool HardGuardrailsEnabled { get => _hardGuardrailsEnabled; private set { _hardGuardrailsEnabled = value; OnPropertyChanged(); } }
+    public int SoftGuardrailThreshold { get => _softGuardrailThreshold; private set { _softGuardrailThreshold = value; OnPropertyChanged(); } }
+    public int HardGuardrailThreshold { get => _hardGuardrailThreshold; private set { _hardGuardrailThreshold = value; OnPropertyChanged(); } }
     public string SelectedOptimizationPreview { get => _selectedOptimizationPreview; private set { _selectedOptimizationPreview = value; OnPropertyChanged(); } }
     public bool IsModelManagerBusy { get => _isModelManagerBusy; private set { _isModelManagerBusy = value; OnPropertyChanged(); } }
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
@@ -615,6 +627,22 @@ public sealed partial class MainWindowViewModel
         OptimizationStatus = $"Optimize Project applied {safeSuggestions.Length} safe suggestion(s).";
     }
 
+    public async Task SwitchToLightweightModeAsync()
+    {
+        await RunOptimizationCheckAsync();
+        var suggestion = _optimizationSuggestions.FirstOrDefault(item =>
+            item.Id.StartsWith("sg-010", StringComparison.OrdinalIgnoreCase) ||
+            item.Title.Contains("lightweight mode", StringComparison.OrdinalIgnoreCase));
+        if (suggestion is null)
+        {
+            OptimizationStatus = "No lightweight mode update recommended right now.";
+            return;
+        }
+
+        await ApplyOptimizationSuggestionAsync(suggestion.Id, autoApplied: true);
+        OptimizationStatus = $"Lightweight mode switched to {LightweightMode}.";
+    }
+
     public void PreviewOptimizationSuggestion(string suggestionId)
     {
         var suggestion = _optimizationSuggestions.FirstOrDefault(item => string.Equals(item.Id, suggestionId, StringComparison.Ordinal));
@@ -637,6 +665,12 @@ public sealed partial class MainWindowViewModel
         var suggestion = _optimizationSuggestions.FirstOrDefault(item => string.Equals(item.Id, suggestionId, StringComparison.Ordinal));
         if (suggestion is null)
         {
+            return;
+        }
+
+        if (HardGuardrailsEnabled && ProjectHealthScore <= HardGuardrailThreshold && LooksLikeHeavyFeatureAddition(suggestion.PatchOperations))
+        {
+            OptimizationStatus = $"Blocked by hard guardrail: score {ProjectHealthScore}/100 ≤ {HardGuardrailThreshold}.";
             return;
         }
 
@@ -2404,6 +2438,9 @@ public sealed partial class MainWindowViewModel
             _optimizationSuggestions.Clear();
             PerformanceHealthSummary = "Performance health unavailable (no prototype scene yet).";
             ProjectHealthScore = 50;
+            LightweightMode = "balanced";
+            LightweightModeSuggestion = "Run Optimization Check to get ForgeGuard lightweight recommendation.";
+            GuardrailStatus = "Guardrails idle.";
             SetHealthBand();
             return;
         }
@@ -2417,6 +2454,14 @@ public sealed partial class MainWindowViewModel
             }
 
             var changesPath = Path.Combine(projectRoot, "changes.log.json");
+            var sceneRoot = JsonNode.Parse(File.ReadAllText(scenePath)) as JsonObject;
+            var optimizationNode = sceneRoot?["optimization_overrides"] as JsonObject;
+            LightweightMode = optimizationNode?["lightweight_mode"]?.GetValue<string>() ?? "balanced";
+            ProjectHealthScore = optimizationNode?["project_health_score"]?.GetValue<int>() ?? ProjectHealthScore;
+            var guardrailsNode = optimizationNode?["guardrails"] as JsonObject;
+            HardGuardrailsEnabled = guardrailsNode?["hard_block_enabled"]?.GetValue<bool>() ?? false;
+            SoftGuardrailThreshold = guardrailsNode?["soft_warning_threshold"]?.GetValue<int>() ?? 50;
+            HardGuardrailThreshold = guardrailsNode?["hard_block_threshold"]?.GetValue<int>() ?? 30;
             _recentOptimizationChanges.Clear();
             if (File.Exists(changesPath))
             {
@@ -2468,6 +2513,7 @@ public sealed partial class MainWindowViewModel
 
             PerformanceHealthSummary = summary;
             ProjectHealthScore = score;
+            GuardrailStatus = BuildGuardrailStatus(ProjectHealthScore, HardGuardrailsEnabled, SoftGuardrailThreshold, HardGuardrailThreshold);
             SetHealthBand();
             OnPropertyChanged(nameof(RecentOptimizationChanges));
             OnPropertyChanged(nameof(OptimizationSuggestions));
@@ -2476,6 +2522,8 @@ public sealed partial class MainWindowViewModel
         {
             PerformanceHealthSummary = "Performance health unavailable.";
             ProjectHealthScore = 50;
+            LightweightMode = "balanced";
+            GuardrailStatus = "Guardrails idle.";
             SetHealthBand();
         }
     }
@@ -2586,6 +2634,26 @@ public sealed partial class MainWindowViewModel
         }
 
         ProjectHealthScore = payload["health_score"]?.GetValue<int>() ?? ProjectHealthScore;
+        LightweightMode = payload["lightweight_mode"]?.GetValue<string>() ?? LightweightMode;
+        var suggestionNode = payload["lightweight_mode_suggestion"] as JsonObject;
+        if (suggestionNode is not null)
+        {
+            var suggested = suggestionNode["suggested"]?.GetValue<string>() ?? LightweightMode;
+            var current = suggestionNode["current"]?.GetValue<string>() ?? LightweightMode;
+            LightweightModeSuggestion = $"ForgeGuard: {current} → {suggested} (manual confirmation required).";
+        }
+        var guardrails = payload["guardrails"] as JsonObject;
+        if (guardrails is not null)
+        {
+            HardGuardrailsEnabled = guardrails["hard_block_enabled"]?.GetValue<bool>() ?? HardGuardrailsEnabled;
+            SoftGuardrailThreshold = guardrails["soft_warning_threshold"]?.GetValue<int>() ?? SoftGuardrailThreshold;
+            HardGuardrailThreshold = guardrails["hard_block_threshold"]?.GetValue<int>() ?? HardGuardrailThreshold;
+            GuardrailStatus = BuildGuardrailStatus(
+                ProjectHealthScore,
+                HardGuardrailsEnabled,
+                SoftGuardrailThreshold,
+                HardGuardrailThreshold);
+        }
         SetHealthBand();
         var summaryNode = payload["health_summary"] as JsonObject;
         if (summaryNode is not null)
@@ -2603,6 +2671,21 @@ public sealed partial class MainWindowViewModel
 
         OnPropertyChanged(nameof(RecentOptimizationChanges));
         OnPropertyChanged(nameof(OptimizationSuggestions));
+    }
+
+    private static string BuildGuardrailStatus(int score, bool hardEnabled, int softThreshold, int hardThreshold)
+    {
+        if (hardEnabled && score <= hardThreshold)
+        {
+            return $"Hard guardrail active (≤{hardThreshold}). Heavy additions blocked.";
+        }
+
+        if (score <= softThreshold)
+        {
+            return $"Soft warning (≤{softThreshold}). Consider lightweight mode.";
+        }
+
+        return "Guardrails healthy.";
     }
 
     private static string SummarizeEstimatedWin(JsonNode? estimatedWinNode)
@@ -2641,6 +2724,36 @@ public sealed partial class MainWindowViewModel
         }
 
         return preview;
+    }
+
+    private static bool LooksLikeHeavyFeatureAddition(IReadOnlyList<OptimizationPatchOperation> operations)
+    {
+        foreach (var operation in operations)
+        {
+            if (!string.Equals(operation.Op, "set", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var path = operation.Path.ToLowerInvariant();
+            var enablesHeavySystem = path.Contains("/post_processing/enabled")
+                || path.Contains("/lighting_system")
+                || path.Contains("/particle_system")
+                || path.Contains("/weather_system/particle");
+            if (!enablesHeavySystem)
+            {
+                continue;
+            }
+
+            if (operation.Value is JsonValue value &&
+                value.TryGetValue<bool>(out var boolValue) &&
+                boolValue)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool ApplyOptimizationPatchOperations(JsonObject root, IReadOnlyList<OptimizationPatchOperation> operations)

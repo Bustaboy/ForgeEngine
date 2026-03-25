@@ -2022,6 +2022,21 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.optimization_overrides = SceneOptimizationOverrides{};
     if (document.contains("optimization_overrides") && document["optimization_overrides"].is_object()) {
         const json& overrides = document["optimization_overrides"];
+        scene.optimization_overrides.project_health_score =
+            std::clamp(overrides.value("project_health_score", scene.optimization_overrides.project_health_score), 0, 100);
+        const std::string lightweight_mode = overrides.value("lightweight_mode", scene.optimization_overrides.lightweight_mode);
+        if (lightweight_mode == "performance" || lightweight_mode == "balanced" || lightweight_mode == "quality") {
+            scene.optimization_overrides.lightweight_mode = lightweight_mode;
+        }
+        if (overrides.contains("guardrails") && overrides["guardrails"].is_object()) {
+            const json& guardrails = overrides["guardrails"];
+            scene.optimization_overrides.guardrails.hard_block_enabled =
+                guardrails.value("hard_block_enabled", scene.optimization_overrides.guardrails.hard_block_enabled);
+            scene.optimization_overrides.guardrails.soft_warning_threshold = std::clamp(
+                guardrails.value("soft_warning_threshold", scene.optimization_overrides.guardrails.soft_warning_threshold), 20, 95);
+            scene.optimization_overrides.guardrails.hard_block_threshold = std::clamp(
+                guardrails.value("hard_block_threshold", scene.optimization_overrides.guardrails.hard_block_threshold), 10, 90);
+        }
         if (overrides.contains("runtime") && overrides["runtime"].is_object()) {
             const json& runtime = overrides["runtime"];
             scene.optimization_overrides.runtime.enabled = runtime.value("enabled", scene.optimization_overrides.runtime.enabled);
@@ -2217,6 +2232,13 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         {"warnings", scene.quality_metadata.warnings},
     };
     document["optimization_overrides"] = json{
+        {"project_health_score", scene.optimization_overrides.project_health_score},
+        {"lightweight_mode", scene.optimization_overrides.lightweight_mode},
+        {"guardrails", json{
+            {"hard_block_enabled", scene.optimization_overrides.guardrails.hard_block_enabled},
+            {"soft_warning_threshold", scene.optimization_overrides.guardrails.soft_warning_threshold},
+            {"hard_block_threshold", scene.optimization_overrides.guardrails.hard_block_threshold},
+        }},
         {"runtime", json{
             {"enabled", scene.optimization_overrides.runtime.enabled},
             {"lod_distance_culling_enabled", scene.optimization_overrides.runtime.lod_distance_culling_enabled},

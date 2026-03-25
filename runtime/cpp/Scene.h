@@ -294,6 +294,13 @@ struct RuntimeOptimizationSettings {
 };
 
 struct SceneOptimizationOverrides {
+    int project_health_score = 50;
+    std::string lightweight_mode = "balanced";
+    struct GuardrailSettings {
+        bool hard_block_enabled = false;
+        int soft_warning_threshold = 50;
+        int hard_block_threshold = 30;
+    } guardrails{};
     RuntimeOptimizationSettings runtime{};
 };
 
