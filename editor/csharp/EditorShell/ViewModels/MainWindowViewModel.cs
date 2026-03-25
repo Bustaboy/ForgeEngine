@@ -1190,6 +1190,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         : $"File: {SelectedGeneratedAssetReviewItem.DisplayName}\n" +
           $"Type: {SelectedGeneratedAssetReviewItem.AssetType}\n" +
           $"Quality: {SelectedGeneratedAssetReviewItem.QualityScoreLabel}\n" +
+          $"Consistency: {SelectedGeneratedAssetReviewItem.ConsistencyScoreLabel}\n" +
           $"Status: {SelectedGeneratedAssetReviewItem.ReviewStatusLabel}\n" +
           $"Metadata: {SelectedGeneratedAssetReviewItem.MetadataPath}";
 
@@ -2522,6 +2523,9 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                 var qualityScore = root.TryGetProperty("quality_score", out var qualityEl) && qualityEl.TryGetDouble(out var parsedQuality)
                     ? parsedQuality
                     : 0d;
+                var consistencyScore = root.TryGetProperty("consistency_score", out var consistencyEl) && consistencyEl.TryGetDouble(out var parsedConsistency)
+                    ? parsedConsistency
+                    : 0d;
                 if (string.IsNullOrWhiteSpace(outputPath))
                 {
                     continue;
@@ -2534,7 +2538,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                     assetType,
                     reviewStatus,
                     prompt,
-                    qualityScore));
+                    qualityScore,
+                    consistencyScore));
             }
 
             SelectedGeneratedAssetReviewItem = _generatedAssetReviewQueue.FirstOrDefault(item =>
@@ -6389,7 +6394,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         string AssetType,
         string ReviewStatus,
         string Prompt,
-        double QualityScore)
+        double QualityScore,
+        double ConsistencyScore)
     {
         public string PromptSnippet => string.IsNullOrWhiteSpace(Prompt)
             ? "(no prompt recorded)"
@@ -6398,6 +6404,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                 : $"{Prompt[..64]}…";
 
         public string QualityScoreLabel => $"{Math.Clamp(QualityScore, 0d, 100d).ToString("0.0", CultureInfo.InvariantCulture)}/100";
+        public string ConsistencyScoreLabel => $"{Math.Clamp(ConsistencyScore, 0d, 100d).ToString("0.0", CultureInfo.InvariantCulture)}/100";
 
         public string ReviewStatusLabel => string.Equals(ReviewStatus, "approved", StringComparison.OrdinalIgnoreCase)
             ? "Approved"

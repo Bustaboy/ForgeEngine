@@ -35,6 +35,9 @@ class TestAssetImportPipeline(unittest.TestCase):
                 metadata_payload = json.loads(generated_metadata.read_text(encoding="utf-8"))
                 self.assertEqual("pending-review", metadata_payload["review_status"])
                 self.assertFalse(metadata_payload["approved_for_runtime"])
+                self.assertIn("consistency_score", metadata_payload)
+                self.assertIn("variants", metadata_payload)
+                self.assertGreaterEqual(len(metadata_payload["variants"]), 1)
 
                 reviewed = orchestrator.review_asset(str(generated_asset), decision="approve", reviewer="qa")
                 approved_path = Path(reviewed.destination_asset_path)
@@ -72,6 +75,28 @@ class TestAssetImportPipeline(unittest.TestCase):
             self.assertEqual("rejected", payload["review_status"])
             self.assertFalse(payload["production_ready"])
             self.assertFalse(payload["approved_for_runtime"])
+
+    def test_generate_asset_batch_writes_variant_outputs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            previous_cwd = Path.cwd()
+            os_environ_backup = dict(os.environ)
+            try:
+                os.chdir(project_root)
+                os.environ["GAMEFORGE_GRAPHICS_BACKEND"] = "debug-local"
+                os.environ["GAMEFORGE_GRAPHICS_SEED"] = "777"
+                generated = orchestrator.generate_asset("stylized blacksmith hammer", type="sprite", count=3)
+                metadata_payload = json.loads(Path(generated.metadata_path).read_text(encoding="utf-8"))
+                self.assertEqual(3, metadata_payload["variant_count"])
+                self.assertEqual(3, len(metadata_payload["variants"]))
+                for variant in metadata_payload["variants"]:
+                    self.assertTrue(Path(variant["output_path"]).exists())
+                    self.assertIn("consistency_score", variant)
+            finally:
+                os.chdir(previous_cwd)
+                os.environ.clear()
+                os.environ.update(os_environ_backup)
 
     def test_imported_assets_are_auto_tagged_and_searchable(self):
         with tempfile.TemporaryDirectory() as temp_dir:

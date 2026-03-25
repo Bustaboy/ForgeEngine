@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from art_bible import ArtBible, default_art_bible
+from consistency import batch_generate, consistency_score
 
 
 @dataclass(frozen=True)
@@ -310,11 +311,15 @@ def quality_score(payload: dict[str, Any], art_bible: ArtBible | None = None) ->
     estimated_vram_mb = round((base_texture_bytes + sprite_bytes + tilemap_bytes) / (1024.0 * 1024.0), 2)
     vram_score = max(35.0, min(100.0, 100.0 - max(0.0, estimated_vram_mb - 256.0) * 0.22))
 
+    consistency = consistency_score(payload, art_bible=art_bible) if art_bible is not None else {"score": 72.0, "components": {}}
+    consistency_numeric = float(consistency.get("score", 72.0))
+
     weighted = (
         resolution_score * 0.25
-        + complexity_score * 0.25
-        + art_score * 0.30
-        + vram_score * 0.20
+        + complexity_score * 0.2
+        + art_score * 0.25
+        + vram_score * 0.15
+        + consistency_numeric * 0.15
     )
     final_score = int(round(max(0.0, min(100.0, weighted))))
 
@@ -331,10 +336,14 @@ def quality_score(payload: dict[str, Any], art_bible: ArtBible | None = None) ->
             "complexity": round(complexity_score, 2),
             "art_bible_adherence": round(art_score, 2),
             "vram_efficiency": round(vram_score, 2),
+            "consistency_with_art_bible": round(consistency_numeric, 2),
         },
         "estimated_vram_mb": estimated_vram_mb,
         "sprite_count": sprite_count,
         "warnings": warnings,
+        "consistency_score": round(consistency_numeric, 2),
+        "consistency_components": consistency.get("components", {}),
+        "consistency_details": consistency,
     }
 
 
@@ -350,6 +359,8 @@ def _upsert_scene_quality_metadata(scene_payload: dict[str, Any], quality: dict[
     quality_node["estimated_vram_mb"] = float(quality.get("estimated_vram_mb", 0.0))
     quality_node["sprite_count"] = int(quality.get("sprite_count", 0))
     quality_node["warnings"] = quality.get("warnings", [])
+    quality_node["consistency_score"] = float(quality.get("consistency_score", 0.0))
+    quality_node["consistency_components"] = quality.get("consistency_components", {})
     quality_node["source"] = source
     if prompt:
         quality_node["prompt"] = prompt
@@ -665,7 +676,13 @@ def bash_scene(prompt: str, art_bible: ArtBible, existing_modules: list[dict[str
     }
 
 
-def apply_kit_bash_to_scene(scene_path: Path, prompt: str, art_bible_path: Path | None = None, kits_path: Path | None = None) -> dict[str, object]:
+def apply_kit_bash_to_scene(
+    scene_path: Path,
+    prompt: str,
+    art_bible_path: Path | None = None,
+    kits_path: Path | None = None,
+    variant_count: int = 1,
+) -> dict[str, object]:
     scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
     if not isinstance(scene_payload, dict):
         raise ValueError("Scene payload must be a JSON object")
@@ -693,6 +710,26 @@ def apply_kit_bash_to_scene(scene_path: Path, prompt: str, art_bible_path: Path 
     result = bash_scene(prompt, art_bible, existing_modules=existing_modules, kits_path=kits_path)
     variation_seed = _seed_for_prompt(prompt, len(existing_modules))
     varied_instances = apply_variations(result["module_instances"], prompt, art_bible, variation_seed)
+    safe_variant_count = max(1, int(variant_count))
+
+    variant_batch = batch_generate([prompt], art_bible=art_bible, count=safe_variant_count)
+    scene_variants = scene_payload.get("generated_asset_variants")
+    if not isinstance(scene_variants, list):
+        scene_variants = []
+        scene_payload["generated_asset_variants"] = scene_variants
+    scene_variants.append(
+        {
+            "schema": "gameforge.scene_asset_variants.v1",
+            "source": "kit-bash-scene",
+            "prompt": prompt,
+            "variant_count": safe_variant_count,
+            "shared_seed": variant_batch.get("shared_seed", variation_seed),
+            "control_profile": variant_batch.get("control_profile", {}),
+            "hooks": variant_batch.get("hooks", {}),
+            "generated_at_utc": variant_batch.get("generated_at_utc"),
+            "variants": variant_batch.get("items", []),
+        }
+    )
 
     for instance in varied_instances:
         sprite_node = {
@@ -717,6 +754,7 @@ def apply_kit_bash_to_scene(scene_path: Path, prompt: str, art_bible_path: Path 
     result["variation_seed"] = variation_seed
     result["module_instances"] = varied_instances
     result["sprites_added"] = len(varied_instances)
+    result["variant_batch"] = variant_batch
     return result
 
 

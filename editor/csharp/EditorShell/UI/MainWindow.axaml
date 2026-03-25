@@ -428,6 +428,7 @@
                                 <TextBlock Text="{Binding ReviewStateIcon}" FontSize="10" />
                                 <TextBlock Text="{Binding ReviewStatusLabel}" Foreground="#8EA5C7" FontSize="10" />
                                 <TextBlock Text="{Binding QualityScoreLabel, StringFormat=Q {0}}" Foreground="#6FA8FF" FontSize="10" />
+                                <TextBlock Text="{Binding ConsistencyScoreLabel, StringFormat=C {0}}" Foreground="#95C8FF" FontSize="10" />
                               </StackPanel>
                             </StackPanel>
                             <Button Grid.Column="2" Content="Approve" Click="OnApproveGeneratedAssetClick" Tag="{Binding AssetPath}" />
