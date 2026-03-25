@@ -107,27 +107,39 @@ setup_apt_dotnet_repo_if_needed() {
   distro_id="$ID"
   distro_version="$VERSION_ID"
 
+  local deb_url=""
   case "$distro_id" in
-    ubuntu)
-      wget -q "https://packages.microsoft.com/config/ubuntu/${distro_version}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb
-      if [[ "${EUID}" -ne 0 ]]; then
-        sudo dpkg -i /tmp/packages-microsoft-prod.deb
-      else
-        dpkg -i /tmp/packages-microsoft-prod.deb
-      fi
-      ;;
-    debian)
-      wget -q "https://packages.microsoft.com/config/debian/${distro_version}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb
-      if [[ "${EUID}" -ne 0 ]]; then
-        sudo dpkg -i /tmp/packages-microsoft-prod.deb
-      else
-        dpkg -i /tmp/packages-microsoft-prod.deb
-      fi
-      ;;
+    ubuntu) deb_url="https://packages.microsoft.com/config/ubuntu/${distro_version}/packages-microsoft-prod.deb" ;;
+    debian) deb_url="https://packages.microsoft.com/config/debian/${distro_version}/packages-microsoft-prod.deb" ;;
     *)
-      warn "Unsupported apt distro for automatic .NET repo bootstrap. Will try apt package directly."
+      warn "Unsupported distro '${distro_id}' for automatic .NET repo setup. Will attempt apt package directly."
+      return
       ;;
   esac
+
+  local deb_ok=1
+  wget -q "$deb_url" -O /tmp/packages-microsoft-prod.deb || deb_ok=0
+
+  if [[ "$deb_ok" -eq 0 ]]; then
+    warn "Failed to download the Microsoft package installer (packages-microsoft-prod.deb)."
+    warn "  URL tried: ${deb_url}"
+    warn "  dotnet-sdk-8.0 will likely fail to install. Install .NET manually from:"
+    warn "  https://learn.microsoft.com/en-us/dotnet/core/install/linux"
+    return
+  fi
+
+  local dpkg_ok=1
+  if [[ "${EUID}" -ne 0 ]]; then
+    sudo dpkg -i /tmp/packages-microsoft-prod.deb || dpkg_ok=0
+  else
+    dpkg -i /tmp/packages-microsoft-prod.deb || dpkg_ok=0
+  fi
+
+  if [[ "$dpkg_ok" -eq 0 ]]; then
+    warn "Microsoft package installer ran but reported an error."
+    warn "  dotnet-sdk-8.0 may fail to install. If it does, install .NET manually from:"
+    warn "  https://learn.microsoft.com/en-us/dotnet/core/install/linux"
+  fi
 }
 
 setup_apt_lunarg_repo_if_needed() {
