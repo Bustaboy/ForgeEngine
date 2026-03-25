@@ -46,6 +46,10 @@ class ArtBible:
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
+    def enhance_prompt(self, raw_prompt: str) -> str:
+        """Enhance a raw prompt using this art bible instance."""
+        return enhance_prompt(raw_prompt, self)
+
 
 def default_art_bible(project_name: str = "GameForge Project") -> ArtBible:
     return ArtBible(
