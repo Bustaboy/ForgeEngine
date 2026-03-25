@@ -1607,61 +1607,164 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         score += 5 if quality_score_value >= 70 else -4
     score = max(0, min(100, int(round(score))))
 
-    suggestions: list[dict[str, object]] = []
+    recent_changes = get_recent_changes(scene_path, limit=8)
+    has_changes_log = changes_path.exists()
+
+    def _has_system_node(name: str) -> bool:
+        return isinstance(scene_payload.get(name), dict)
+
+    pass_one_context = {
+        "recent_change_count": len(recent_changes),
+        "latest_change_action": recent_changes[0].get("action_type", "unknown") if recent_changes else "none",
+        "snapshot_count": len(snapshots) if isinstance(snapshots, list) else 0,
+        "target_profile": target_profile,
+        "metrics": {
+            "fps_avg": fps_avg,
+            "fps_delta": fps_delta,
+            "draw_calls": draw_calls,
+            "vram_usage_mb": vram_mb,
+            "update_time_ms": update_time_ms,
+        },
+        "scene_systems": sorted(
+            key
+            for key, value in scene_payload.items()
+            if isinstance(value, dict) and key.endswith("_system")
+        ),
+    }
+
+    critique_findings: list[dict[str, object]] = []
     if fps_avg > 0 and fps_avg < target_fps:
-        suggestions.append(
+        critique_findings.append(
             {
-                "id": "sg-001",
+                "id": "fg-low-fps",
                 "priority": 1,
-                "title": "Enable conservative runtime optimization hints",
-                "summary": f"Average FPS ({fps_avg:.1f}) is below target ({target_fps:.0f}) for profile '{target_profile}'.",
-                "safety": "safe",
-                "preview": "Adds optimization_overrides.runtime_hints with low-risk defaults.",
-                "patch": [
-                    {"op": "set", "path": "/optimization_overrides/runtime_hints/prefer_low_cost_shaders", "value": True},
-                    {"op": "set", "path": "/optimization_overrides/runtime_hints/target_fps", "value": target_fps},
-                ],
+                "kind": "performance",
+                "title": "Frame pacing under target profile",
+                "rationale": f"Average FPS ({fps_avg:.1f}) is below target ({target_fps:.0f}) for '{target_profile}'.",
+                "impact": "high",
             }
         )
-
     if draw_calls > 450:
-        suggestions.append(
+        critique_findings.append(
             {
-                "id": "sg-002",
+                "id": "fg-draw-call-bloat",
                 "priority": 2,
-                "title": "Cap dynamic lights for heavy scenes",
-                "summary": f"Draw calls are elevated ({draw_calls}); lowering dynamic light count usually stabilizes frame pacing.",
-                "safety": "safe",
-                "preview": "Sets render_2d.max_dynamic_lights to 6 and enables occlusion hints.",
-                "patch": [
-                    {"op": "set", "path": "/render_2d/max_dynamic_lights", "value": 6},
-                    {"op": "set", "path": "/optimization_overrides/render_hints/occlusion_culling", "value": True},
-                ],
+                "kind": "bloat",
+                "title": "Draw-call bloat detected",
+                "rationale": f"Draw calls ({draw_calls}) exceed conservative V1 budget.",
+                "impact": "medium",
+            }
+        )
+    if vram_mb > 0 and vram_mb > 4096:
+        critique_findings.append(
+            {
+                "id": "fg-vram-pressure",
+                "priority": 3,
+                "kind": "performance",
+                "title": "VRAM pressure detected",
+                "rationale": f"VRAM usage ({vram_mb:.0f} MB) is above V1 default guardrail.",
+                "impact": "medium",
+            }
+        )
+    has_inventory_system = _has_system_node("inventory_system")
+    has_inventory_recipes = _has_system_node("inventory_recipes")
+    if has_inventory_system and has_inventory_recipes:
+        critique_findings.append(
+            {
+                "id": "fg-dup-inventory-systems",
+                "priority": 2,
+                "kind": "architecture",
+                "title": "Inventory system duplication risk",
+                "rationale": "Reuse InventorySystem as the single source to avoid split ownership.",
+                "impact": "medium",
             }
         )
 
-    if vram_mb > 0 and vram_mb > 4096:
-        suggestions.append(
-            {
-                "id": "sg-003",
-                "priority": 3,
-                "title": "Enable texture streaming hints",
-                "summary": f"VRAM usage ({vram_mb:.0f} MB) is high for V1 defaults.",
-                "safety": "safe",
-                "preview": "Sets render_2d.texture_streaming_enabled to true.",
-                "patch": [
-                    {"op": "set", "path": "/render_2d/texture_streaming_enabled", "value": True},
-                ],
-            }
-        )
+    suggestions: list[dict[str, object]] = []
+    for finding in sorted(critique_findings, key=lambda item: int(item.get("priority", 99))):
+        finding_id = str(finding.get("id", "fg-suggestion"))
+        if finding_id == "fg-low-fps":
+            suggestions.append(
+                {
+                    "id": "sg-001",
+                    "priority": 1,
+                    "title": "Enable conservative runtime optimization hints",
+                    "summary": str(finding.get("rationale", "")),
+                    "safety": "safe",
+                    "confidence": 0.86,
+                    "impact": "high",
+                    "estimated_win": {"fps_gain_pct": 10.0, "frame_time_ms_reduction": 2.3},
+                    "preview": "Adds runtime hints and avoids creating new systems.",
+                    "patch": [
+                        {"op": "set", "path": "/optimization_overrides/runtime_hints/prefer_low_cost_shaders", "value": True},
+                        {"op": "set", "path": "/optimization_overrides/runtime_hints/target_fps", "value": target_fps},
+                    ],
+                }
+            )
+        elif finding_id == "fg-draw-call-bloat":
+            suggestions.append(
+                {
+                    "id": "sg-002",
+                    "priority": 2,
+                    "title": "Cap dynamic lights for heavy scenes",
+                    "summary": str(finding.get("rationale", "")),
+                    "safety": "safe",
+                    "confidence": 0.81,
+                    "impact": "medium",
+                    "estimated_win": {"fps_gain_pct": 6.0, "draw_call_reduction_pct": 14.0},
+                    "preview": "Sets render_2d.max_dynamic_lights=6 and enables occlusion hints.",
+                    "patch": [
+                        {"op": "set", "path": "/render_2d/max_dynamic_lights", "value": 6},
+                        {"op": "set", "path": "/optimization_overrides/render_hints/occlusion_culling", "value": True},
+                    ],
+                }
+            )
+        elif finding_id == "fg-vram-pressure":
+            suggestions.append(
+                {
+                    "id": "sg-003",
+                    "priority": 3,
+                    "title": "Enable texture streaming hints",
+                    "summary": str(finding.get("rationale", "")),
+                    "safety": "safe",
+                    "confidence": 0.78,
+                    "impact": "medium",
+                    "estimated_win": {"vram_reduction_mb": 512.0},
+                    "preview": "Turns on texture streaming and lowers memory spikes.",
+                    "patch": [
+                        {"op": "set", "path": "/render_2d/texture_streaming_enabled", "value": True},
+                    ],
+                }
+            )
+        elif finding_id == "fg-dup-inventory-systems":
+            suggestions.append(
+                {
+                    "id": "sg-004",
+                    "priority": 2,
+                    "title": "Consolidate inventory ownership",
+                    "summary": str(finding.get("rationale", "")),
+                    "safety": "safe",
+                    "confidence": 0.73,
+                    "impact": "medium",
+                    "estimated_win": {"update_time_ms_reduction": 0.5},
+                    "preview": "Flags InventorySystem as canonical to prevent duplicated logic.",
+                    "patch": [
+                        {"op": "set", "path": "/inventory_system/is_primary", "value": True},
+                        {"op": "set", "path": "/inventory_recipes/delegates_to", "value": "inventory_system"},
+                    ],
+                }
+            )
 
     suggestions.append(
         {
-            "id": "sg-004",
-            "priority": 4,
+            "id": "sg-900",
+            "priority": 99,
             "title": "Stamp optimization checkpoint metadata",
-            "summary": "Tracks a local checkpoint so trend regressions can be compared between passes.",
+            "summary": "Tracks local checkpoint metadata for the next critique pass.",
             "safety": "safe",
+            "confidence": 0.9,
+            "impact": "low",
+            "estimated_win": {"regression_detection": "improved"},
             "preview": "Writes optimization_overrides.last_checkpoint_utc and score baseline.",
             "patch": [
                 {"op": "set", "path": "/optimization_overrides/last_checkpoint_utc", "value": datetime.now(timezone.utc).isoformat()},
@@ -1670,9 +1773,11 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         }
     )
 
-    suggestions = sorted(suggestions, key=lambda item: int(item.get("priority", 99)))[: max(3, min(max_suggestions, 5))]
-    recent_changes = get_recent_changes(scene_path, limit=8)
-    has_changes_log = changes_path.exists()
+    # Pass 3: refine into lighter JSON patch set and keep highest impact first.
+    refined_suggestions = sorted(suggestions, key=lambda item: int(item.get("priority", 99)))
+    refined_suggestions = refined_suggestions[: max(3, min(max_suggestions, 5))]
+    for suggestion in refined_suggestions:
+        suggestion["passes"] = ["pass-1-context", "pass-2-critique", "pass-3-refine"]
 
     return {
         "scene_path": str(scene_path),
@@ -1688,8 +1793,13 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             "quality_score": quality_score_value,
         },
         "recent_changes": recent_changes,
-        "suggestions": suggestions,
+        "suggestions": refined_suggestions,
         "source_model": "forgeguard" if forgeguard_available else "heuristic-fallback",
+        "critique_passes": {
+            "pass_1": pass_one_context,
+            "pass_2": {"findings": critique_findings, "model": "forgeguard" if forgeguard_available else "heuristic"},
+            "pass_3": {"refined_suggestion_count": len(refined_suggestions), "max_suggestions": max_suggestions},
+        },
         "signals": {
             "has_performance_history": bool(snapshots),
             "has_changes_log": has_changes_log,
@@ -3452,7 +3562,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         print(json.dumps(result, indent=2))
         return 0
 
-    if command in {"optimization-critique", "/optimization_critique"}:
+    if command in {"optimization-critique", "/optimization_critique", "critique-pass", "/critique_pass"}:
         if len(raw_args) < 2:
             raise ValueError("Usage: orchestrator.py /optimization_critique <scene_json_path> [max_suggestions]")
         max_suggestions = int(raw_args[2]) if len(raw_args) >= 3 else 5

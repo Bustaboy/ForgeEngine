@@ -622,7 +622,13 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        SelectedOptimizationPreview = $"{suggestion.Title}{Environment.NewLine}{suggestion.Summary}{Environment.NewLine}{suggestion.Preview}";
+        var confidenceText = suggestion.Confidence > 0
+            ? $"{Environment.NewLine}Confidence: {suggestion.Confidence:0.00} • Impact: {suggestion.Impact}"
+            : string.Empty;
+        var estimatedWinText = string.IsNullOrWhiteSpace(suggestion.EstimatedWinSummary)
+            ? string.Empty
+            : $"{Environment.NewLine}Estimated Win: {suggestion.EstimatedWinSummary}";
+        SelectedOptimizationPreview = $"{suggestion.Title}{Environment.NewLine}{suggestion.Summary}{confidenceText}{estimatedWinText}{Environment.NewLine}{suggestion.Preview}";
     }
 
     public async Task ApplyOptimizationSuggestionAsync(string suggestionId, bool autoApplied = false)
@@ -2557,7 +2563,10 @@ public sealed partial class MainWindowViewModel
                     suggestionNode["summary"]?.GetValue<string>() ?? string.Empty,
                     suggestionNode["preview"]?.GetValue<string>() ?? "No preview available.",
                     string.Equals(suggestionNode["safety"]?.GetValue<string>(), "safe", StringComparison.OrdinalIgnoreCase),
-                    patch));
+                    patch,
+                    suggestionNode["confidence"]?.GetValue<double>() ?? 0d,
+                    suggestionNode["impact"]?.GetValue<string>() ?? "unknown",
+                    SummarizeEstimatedWin(suggestionNode["estimated_win"])));
             }
         }
 
@@ -2586,8 +2595,32 @@ public sealed partial class MainWindowViewModel
             PreviewOptimizationSuggestion(_optimizationSuggestions[0].Id);
         }
 
+        var sourceModel = payload["source_model"]?.GetValue<string>() ?? "heuristic-fallback";
+        OptimizationStatus = $"Optimization critique source: {sourceModel}. Suggestions: {_optimizationSuggestions.Count}.";
+
         OnPropertyChanged(nameof(RecentOptimizationChanges));
         OnPropertyChanged(nameof(OptimizationSuggestions));
+    }
+
+    private static string SummarizeEstimatedWin(JsonNode? estimatedWinNode)
+    {
+        if (estimatedWinNode is not JsonObject estimated || estimated.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        foreach (var kvp in estimated)
+        {
+            if (kvp.Value is null)
+            {
+                continue;
+            }
+
+            parts.Add($"{kvp.Key}={kvp.Value.ToJsonString()}");
+        }
+
+        return string.Join(", ", parts);
     }
 
     private static bool ApplyOptimizationPatchOperations(JsonObject root, IReadOnlyList<OptimizationPatchOperation> operations)
@@ -2677,5 +2710,8 @@ public sealed partial class MainWindowViewModel
         string Summary,
         string Preview,
         bool IsSafeToAutoApply,
-        IReadOnlyList<OptimizationPatchOperation> PatchOperations);
+        IReadOnlyList<OptimizationPatchOperation> PatchOperations,
+        double Confidence,
+        string Impact,
+        string EstimatedWinSummary);
 }
