@@ -1195,6 +1195,11 @@ public partial class MainWindow : Window
         await _viewModel.RunAiHookAsync("modify-scene");
     }
 
+    private async void OnGenerateKitBashClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunAiHookAsync("kit-bash-scene");
+    }
+
     private async void OnSaveCoCreatorContextClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveCoCreatorSettingsAsync();

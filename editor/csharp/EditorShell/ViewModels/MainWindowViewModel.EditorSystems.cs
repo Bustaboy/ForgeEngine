@@ -725,6 +725,11 @@ public sealed partial class MainWindowViewModel
             finalArgs.Add(scenePath);
             finalArgs.Add(string.IsNullOrWhiteSpace(AiPromptEditor) ? "Add 3 Houses" : AiPromptEditor);
         }
+        else if (string.Equals(command, "kit-bash-scene", StringComparison.Ordinal))
+        {
+            finalArgs.Add(scenePath);
+            finalArgs.Add(string.IsNullOrWhiteSpace(AiPromptEditor) ? "build a farmhouse" : AiPromptEditor);
+        }
 
         if (string.Equals(command, "add-npc", StringComparison.Ordinal) && args.Length == 0)
         {
