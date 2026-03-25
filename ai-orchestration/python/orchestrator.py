@@ -20,7 +20,7 @@ PYTHON_ROOT = Path(__file__).resolve().parent
 if str(PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_ROOT))
 
-from benchmark import run_benchmark_as_dict
+from benchmark import record_performance_snapshot, run_benchmark_as_dict, should_run_idle_benchmark
 from forge_hooks import (
     apply_to_scene_file,
     co_creator_tick,
@@ -2999,6 +2999,12 @@ def run_bot_playtest_with_report(prototype_root: Path, scenario_path: Path, outp
     report_dir.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(asdict(report), indent=2), encoding="utf-8")
     _write_playtest_report_markdown(report, markdown_path)
+    scene_path = prototype_root / "scene" / "scene_scaffold.json"
+    if scene_path.exists():
+        try:
+            record_performance_snapshot(scene_path=scene_path, session_name="post_playtest")
+        except Exception:  # noqa: BLE001 - background benchmark should never block playtest output
+            pass
     return result, report, json_path, markdown_path
 
 
@@ -3239,6 +3245,33 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
             raise ValueError("Usage: orchestrator.py /remove_model <friendly_name>")
         result = remove_model(raw_args[1])
         print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"benchmark-now", "/benchmark_now"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /benchmark_now <scene_json_path> [session_name]")
+        session_name = raw_args[2] if len(raw_args) >= 3 else "manual"
+        result = record_performance_snapshot(Path(raw_args[1]), session_name=session_name)
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"scene-saved", "/scene_saved"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /scene_saved <scene_json_path>")
+        result = record_performance_snapshot(Path(raw_args[1]), session_name="scene_save")
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if command in {"idle-tick", "/idle_tick"}:
+        if len(raw_args) < 2:
+            raise ValueError("Usage: orchestrator.py /idle_tick <scene_json_path> [interval_minutes]")
+        scene_path = Path(raw_args[1])
+        interval_minutes = int(raw_args[2]) if len(raw_args) >= 3 else 10
+        if should_run_idle_benchmark(scene_path=scene_path, interval_minutes=interval_minutes):
+            result = record_performance_snapshot(scene_path, session_name="idle")
+            print(json.dumps(result, indent=2))
+        else:
+            print(json.dumps({"recorded": False, "reason": "idle_interval_not_reached"}, indent=2))
         return 0
 
     return None
