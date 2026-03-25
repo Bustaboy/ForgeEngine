@@ -44,7 +44,7 @@ def _filter_models_by_vram(catalog: tuple[ModelSpec, ...], vram_gb: int, allow_c
     selected = [model for model in catalog if model.min_vram_gb <= vram_gb]
     if selected:
         return selected
-    if allow_cpu_fallback:
+    if allow_cpu_fallback and catalog:
         return [catalog[0]]
     return []
 
@@ -72,7 +72,12 @@ def prepare_models(orchestrator_file: Path | None = None) -> ModelPreparationRes
     downloads: list[DownloadResult] = []
     runtimes: list[ModelRuntimeConfig] = []
     for spec in selected:
-        download = ensure_model_file(spec, models_root)
+        try:
+            download = ensure_model_file(spec, models_root)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to prepare model '{spec.model_id}' ({spec.filename}): {exc}"
+            ) from exc
         downloads.append(download)
         runtimes.append(
             ModelRuntimeConfig(

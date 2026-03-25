@@ -90,20 +90,25 @@ void VulkanRenderer::Init() {
     glfwSetWindowUserPointer(window_, this);
     glfwSetFramebufferSizeCallback(window_, FramebufferResizeCallback);
 
-    CreateInstance();
-    CreateDebugMessenger();
-    CreateSurface();
-    PickPhysicalDevice();
-    CreateLogicalDevice();
-    CreateSwapChain();
-    CreateImageViews();
-    CreateRenderPass();
-    CreateGraphicsPipeline();
-    CreateFramebuffers();
-    CreateOffscreenResources();
-    CreateCommandPool();
-    CreateCommandBuffers();
-    CreateSyncObjects();
+    try {
+        CreateInstance();
+        CreateDebugMessenger();
+        CreateSurface();
+        PickPhysicalDevice();
+        CreateLogicalDevice();
+        CreateSwapChain();
+        CreateImageViews();
+        CreateRenderPass();
+        CreateGraphicsPipeline();
+        CreateFramebuffers();
+        CreateOffscreenResources();
+        CreateCommandPool();
+        CreateCommandBuffers();
+        CreateSyncObjects();
+    } catch (...) {
+        Shutdown();
+        throw;
+    }
 }
 
 void VulkanRenderer::Shutdown() {

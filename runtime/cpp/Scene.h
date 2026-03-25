@@ -9,10 +9,18 @@
 
 #include <string>
 #include <cstdint>
+#include <cstddef>
 #include <deque>
 #include <map>
 #include <optional>
 #include <vector>
+
+// Memory guardrail caps shared between Scene.cpp (enforcement) and Engine.cpp (reporting).
+namespace SceneLimits {
+    inline constexpr std::size_t kRecentActionsCap = 160U;
+    inline constexpr std::size_t kFreeWillMapCap   = 512U;
+    inline constexpr std::size_t kCombatStateCap   = 48U;
+}
 
 struct CoCreatorQueuedMutation {
     std::string suggestion_id{};
