@@ -25,16 +25,24 @@ Write-Host "GameForge V1 bootstrap (Windows)"
 Write-Host "Mode: local-first, single-player, no-code-first"
 Write-Host "== Repository Structure =="
 
+$missingPaths = @()
 foreach ($path in $requiredPaths) {
+    $display = $path.Replace($repoRoot + [IO.Path]::DirectorySeparatorChar, "")
     if (Test-Path $path -PathType Container) {
-        $display = $path.Replace($repoRoot + [IO.Path]::DirectorySeparatorChar, "")
         Write-Host "OK - $display"
     }
     else {
-        $display = $path.Replace($repoRoot + [IO.Path]::DirectorySeparatorChar, "")
         Write-Host "MISSING - $display"
-        exit 1
+        $missingPaths += $display
     }
+}
+if ($missingPaths.Count -gt 0) {
+    Write-Host ""
+    Write-Host "ERROR: Repository structure is incomplete. Missing directories:"
+    foreach ($p in $missingPaths) { Write-Host "  - $p" }
+    Write-Host "  This usually means the repository was not cloned correctly."
+    Write-Host "  Fix: re-clone the full repository and retry."
+    exit 1
 }
 
 Write-Host "== Runtime JSON Header =="
@@ -44,14 +52,26 @@ if (Test-Path $jsonHeader -PathType Leaf) {
 else {
     New-Item -ItemType Directory -Force -Path (Split-Path $jsonHeader -Parent) | Out-Null
     Write-Host "Downloading nlohmann/json single header..."
-    Invoke-WebRequest -Uri $jsonUrl -OutFile $jsonHeader
+    try {
+        Invoke-WebRequest -Uri $jsonUrl -OutFile $jsonHeader -UseBasicParsing
+    }
+    catch {
+        Write-Host "ERROR: Failed to download nlohmann/json header."
+        Write-Host "  URL: $jsonUrl"
+        Write-Host "  Error: $($_.Exception.Message)"
+        Write-Host "  Fix options:"
+        Write-Host "    1. Check your network connection and retry: pwsh -f scripts/bootstrap.ps1"
+        Write-Host "    2. Download manually and place at: runtime\cpp\external\nlohmann\json.hpp"
+        exit 1
+    }
     Write-Host "Installed - runtime/cpp/external/nlohmann/json.hpp"
 }
 
 $gpp = Get-Command g++ -ErrorAction SilentlyContinue
 if (-not $gpp) {
-    Write-Host "Missing required compiler: g++"
-    Write-Host "Install MinGW-w64 g++ and rerun: pwsh -f scripts/bootstrap.ps1"
+    Write-Host "ERROR: Missing required compiler: g++"
+    Write-Host "  If you ran Setup-Alpha.ps1, try opening a new PowerShell window and retrying."
+    Write-Host "  Or run the full setup again: pwsh -f scripts/Setup-Alpha.ps1"
     exit 1
 }
 

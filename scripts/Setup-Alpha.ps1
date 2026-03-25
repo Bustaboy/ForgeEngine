@@ -10,17 +10,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$script:CurrentStep = 'initializing'
 
 # ------------------------------------------------------------
 # Colored output helpers for clean, friendly progress messages.
 # ------------------------------------------------------------
-function Write-Step([string]$Message) { Write-Host "🔷 $Message" -ForegroundColor Cyan }
+function Write-Step([string]$Message) { $script:CurrentStep = $Message; Write-Host "🔷 $Message" -ForegroundColor Cyan }
 function Write-Ok([string]$Message) { Write-Host "✅ $Message" -ForegroundColor Green }
 function Write-Warn([string]$Message) { Write-Host "⚠️  $Message" -ForegroundColor Yellow }
 function Write-Fail([string]$Message) { Write-Host "❌ $Message" -ForegroundColor Red }
 
 trap {
-    Write-Fail "Setup failed: $($_.Exception.Message)"
+    Write-Fail "Setup failed during: $script:CurrentStep"
+    Write-Fail "Error: $($_.Exception.Message)"
+    Write-Warn '  → Check the output above for details on what went wrong.'
+    Write-Warn '  → Fix the issue, then re-run: pwsh -f scripts/Setup-Alpha.ps1'
+    Write-Warn '  → To start completely fresh: pwsh -f scripts/Setup-Alpha.ps1 -Fresh'
     exit 1
 }
 
@@ -133,9 +138,16 @@ function Add-MsysToPathCurrentSession {
 
 function Ensure-MsysGpp {
     Write-Step 'Ensuring MSYS2 + MinGW g++ are installed'
-    Ensure-WingetPackage -Id 'MSYS2.MSYS2' -DisplayName 'MSYS2'
 
     $msysRoot = Find-MsysRoot
+    if ($msysRoot) {
+        Write-Ok "MSYS2 already installed at $msysRoot — skipping winget install."
+    }
+    else {
+        Ensure-WingetPackage -Id 'MSYS2.MSYS2' -DisplayName 'MSYS2'
+        $msysRoot = Find-MsysRoot
+    }
+
     if (-not $msysRoot) {
         throw @"
 MSYS2 installation was not found after winget finished.
@@ -151,7 +163,16 @@ Next steps:
     $msysBash = (Join-Path $msysRoot 'usr\bin\bash.exe').TrimEnd(' ')
     Write-Step "Using MSYS2 root: $msysRoot"
 
+    # Initialise the pacman GPG keyring explicitly before syncing.
+    # Without this, pacman spawns gpg-agent in a separate window on first run
+    # which can stall or confuse the installer if the window is closed.
+    Write-Step 'Initialising MSYS2 package keyring (one-time step, may take a moment)'
+    Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman-key --init && pacman-key --populate msys2') -FailureMessage 'MSYS2 keyring initialisation failed'
+
+    Write-Step 'Syncing MSYS2 package index'
     Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman --noconfirm -Sy') -FailureMessage 'MSYS2 package index sync failed'
+
+    Write-Step 'Installing MinGW g++ via MSYS2'
     Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman --noconfirm --needed -S mingw-w64-ucrt-x86_64-gcc make') -FailureMessage 'MSYS2 MinGW g++ install failed'
 
     Add-MsysToPathCurrentSession -MsysRoot $msysRoot
@@ -295,25 +316,55 @@ function Run-OrchestratorStep {
 # ------------------------------------------------------------
 # Main setup flow.
 # ------------------------------------------------------------
+Write-Host ''
+Write-Host '╔══════════════════════════════════════════════════╗' -ForegroundColor Cyan
+Write-Host '║       ForgeEngine Alpha Setup — Windows          ║' -ForegroundColor Cyan
+Write-Host '╚══════════════════════════════════════════════════╝' -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'This script will install the following (skipping anything already present):' -ForegroundColor White
+Write-Host '  • .NET 8 SDK          — runs the ForgeEngine editor' -ForegroundColor Gray
+Write-Host '  • CMake + Ninja       — C++ build system' -ForegroundColor Gray
+Write-Host '  • Python 3.12         — AI orchestration layer' -ForegroundColor Gray
+Write-Host '  • Vulkan SDK          — graphics API' -ForegroundColor Gray
+Write-Host '  • MSYS2 + MinGW g++   — C++ compiler for the runtime' -ForegroundColor Gray
+Write-Host ''
+Write-Host 'Estimated time: 5–15 minutes depending on internet speed.' -ForegroundColor DarkGray
+Write-Host 'You may be prompted for administrator permission during installation.' -ForegroundColor DarkGray
+Write-Host ''
+
+$script:SetupStartTime = Get-Date
+
 Write-Step 'Starting ForgeEngine Alpha setup for Windows 10/11'
 Ensure-Command -Command 'winget' -Hint 'Install/enable App Installer from Microsoft Store, then rerun this script.'
 
+Write-Host ''
+Write-Host '── Installing dependencies ─────────────────────────' -ForegroundColor DarkGray
 Ensure-WingetPackage -Id 'Microsoft.DotNet.SDK.8' -DisplayName '.NET 8 SDK'
 Ensure-WingetPackage -Id 'Kitware.CMake' -DisplayName 'CMake'
 Ensure-WingetPackage -Id 'Ninja-build.Ninja' -DisplayName 'Ninja'
 Ensure-WingetPackage -Id 'Python.Python.3.12' -DisplayName 'Python 3.12'
 
+# Refresh PATH so tools installed above are visible in this session.
+Write-Step 'Refreshing environment PATH for newly installed tools'
+Refresh-ProcessEnvironment
+
 Ensure-VulkanSdk
 Ensure-MsysGpp
 
-Write-Step 'Running existing ForgeEngine bootstrap.ps1'
+Write-Host ''
+Write-Host '── Building runtime ────────────────────────────────' -ForegroundColor DarkGray
+Write-Step 'Running ForgeEngine bootstrap (compiling C++ runtime)'
 Invoke-CheckedNative -FilePath 'pwsh' -Arguments @('-f', $BootstrapScript) -FailureMessage 'bootstrap.ps1 failed'
-Write-Ok 'bootstrap.ps1 completed.'
+Write-Ok 'Bootstrap completed.'
 
+Write-Host ''
+Write-Host '── Setting up Python environment ───────────────────' -ForegroundColor DarkGray
 Set-Location $RepoRoot
 $venvInfo = Ensure-Venv
 
 if ($venvInfo.CreatedFresh) {
+    Write-Host ''
+    Write-Host '── Preparing AI models ─────────────────────────────' -ForegroundColor DarkGray
     Run-OrchestratorStep -VenvPython $venvInfo.VenvPython -Argument '--prepare-models' -StepLabel 'Preparing AI models (fresh venv)'
     Run-OrchestratorStep -VenvPython $venvInfo.VenvPython -Argument '--benchmark' -StepLabel 'Running AI benchmark (fresh venv)'
     Write-Ok 'Model preparation and benchmark complete.'
@@ -322,11 +373,20 @@ else {
     Write-Warn 'Skipped model prep/benchmark because existing .venv was reused. Use -Fresh to force rerun.'
 }
 
-Write-Ok 'ForgeEngine Alpha setup is complete. 🎉'
+$elapsed = [math]::Round(((Get-Date) - $script:SetupStartTime).TotalMinutes, 1)
+
 Write-Host ''
-Write-Host 'Launch the editor with one of these commands:' -ForegroundColor Green
-Write-Host '  pwsh -f scripts/bootstrap.ps1' -ForegroundColor White
-Write-Host '  dotnet run --project editor/csharp/GameForge.Editor.csproj' -ForegroundColor White
+Write-Host '╔══════════════════════════════════════════════════╗' -ForegroundColor Green
+Write-Host '║         Setup complete!  Time: ' -ForegroundColor Green -NoNewline
+Write-Host ('{0} min' -f $elapsed).PadRight(17) -ForegroundColor Green -NoNewline
+Write-Host '║' -ForegroundColor Green
+Write-Host '╚══════════════════════════════════════════════════╝' -ForegroundColor Green
 Write-Host ''
-Write-Host 'If you want a full clean Python/model reset next time:' -ForegroundColor DarkGray
-Write-Host '  pwsh -f scripts/Setup-Alpha.ps1 -Fresh' -ForegroundColor White
+Write-Host 'To launch the editor:' -ForegroundColor White
+Write-Host '  dotnet run --project editor/csharp/GameForge.Editor.csproj' -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'To launch just the runtime:' -ForegroundColor White
+Write-Host '  pwsh -f scripts/bootstrap.ps1' -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'To do a full clean reinstall next time:' -ForegroundColor DarkGray
+Write-Host '  pwsh -f scripts/Setup-Alpha.ps1 -Fresh' -ForegroundColor DarkGray
