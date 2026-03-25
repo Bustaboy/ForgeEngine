@@ -116,3 +116,13 @@ def write_default_art_bible(destination: Path, project_name: str = "GameForge Pr
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(art_bible.to_dict(), indent=2) + "\n", encoding="utf-8")
     return art_bible
+
+
+def default_asset_review_metadata() -> dict[str, object]:
+    """Default review block for newly generated graphics assets."""
+    return {
+        "status": "pending-review",
+        "decision": "pending",
+        "reviewer": "",
+        "timestamp_utc": None,
+    }

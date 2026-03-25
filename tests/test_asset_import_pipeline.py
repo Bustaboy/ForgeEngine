@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import importlib.util
@@ -16,6 +17,62 @@ spec.loader.exec_module(orchestrator)
 
 
 class TestAssetImportPipeline(unittest.TestCase):
+    def test_generated_asset_starts_in_pending_review_and_can_be_approved(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            previous_cwd = Path.cwd()
+            os_environ_backup = dict(os.environ)
+            try:
+                os.chdir(project_root)
+                os.environ["GAMEFORGE_GRAPHICS_BACKEND"] = "debug-local"
+                os.environ["GAMEFORGE_GRAPHICS_SEED"] = "12345"
+                generated = orchestrator.generate_asset("stylized forge anvil", type="sprite")
+                generated_asset = Path(generated.output_path)
+                generated_metadata = Path(generated.metadata_path)
+                self.assertTrue(generated_asset.exists())
+                self.assertTrue(generated_metadata.exists())
+                metadata_payload = json.loads(generated_metadata.read_text(encoding="utf-8"))
+                self.assertEqual("pending-review", metadata_payload["review_status"])
+                self.assertFalse(metadata_payload["approved_for_runtime"])
+
+                reviewed = orchestrator.review_asset(str(generated_asset), decision="approve", reviewer="qa")
+                approved_path = Path(reviewed.destination_asset_path)
+                approved_metadata_path = Path(reviewed.metadata_path)
+                self.assertTrue(approved_path.exists())
+                self.assertTrue(approved_metadata_path.exists())
+                self.assertFalse(generated_asset.exists())
+                approved_payload = json.loads(approved_metadata_path.read_text(encoding="utf-8"))
+                self.assertEqual("approved", approved_payload["review_status"])
+                self.assertTrue(approved_payload["approved_for_runtime"])
+                self.assertTrue(approved_payload["production_ready"])
+            finally:
+                os.chdir(previous_cwd)
+                os.environ.clear()
+                os.environ.update(os_environ_backup)
+
+    def test_review_asset_reject_moves_to_rejected_and_marks_not_production_ready(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            project_root.mkdir(parents=True, exist_ok=True)
+            generated_root = project_root / "Assets" / "Generated"
+            generated_root.mkdir(parents=True, exist_ok=True)
+            asset_path = generated_root / "texture-1.svg"
+            metadata_path = generated_root / "texture-1.metadata.json"
+            asset_path.write_text("<svg/>", encoding="utf-8")
+            metadata_path.write_text(json.dumps({"output_path": str(asset_path), "review_status": "pending-review"}), encoding="utf-8")
+
+            result = orchestrator.review_asset(str(asset_path), decision="reject", reviewer="qa")
+            rejected_path = Path(result.destination_asset_path)
+            rejected_metadata_path = Path(result.metadata_path)
+            self.assertTrue(rejected_path.exists())
+            self.assertTrue(rejected_metadata_path.exists())
+            self.assertFalse(asset_path.exists())
+            payload = json.loads(rejected_metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual("rejected", payload["review_status"])
+            self.assertFalse(payload["production_ready"])
+            self.assertFalse(payload["approved_for_runtime"])
+
     def test_imported_assets_are_auto_tagged_and_searchable(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir) / "project"

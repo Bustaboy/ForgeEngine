@@ -84,6 +84,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private ImportedAsset? _selectedImportedAsset;
     private readonly ObservableCollection<ImportedAsset> _filteredImportedAssets = new();
     private readonly ReadOnlyObservableCollection<ImportedAsset> _readonlyFilteredImportedAssets;
+    private readonly ObservableCollection<GeneratedAssetReviewItem> _generatedAssetReviewQueue = new();
+    private readonly ReadOnlyObservableCollection<GeneratedAssetReviewItem> _readonlyGeneratedAssetReviewQueue;
     private string _assetSearchText = string.Empty;
     private string _selectedAssetKindFilter = AssetFilterAll;
     private string _assetDragGhostTitle = string.Empty;
@@ -165,6 +167,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         _readonlyTimelineMarkers = new ReadOnlyObservableCollection<TimelineMarker>(_timelineMarkers);
         _readonlyExportChecklistItems = new ReadOnlyObservableCollection<ExportChecklistItem>(_exportChecklistItems);
         _readonlyFilteredImportedAssets = new ReadOnlyObservableCollection<ImportedAsset>(_filteredImportedAssets);
+        _readonlyGeneratedAssetReviewQueue = new ReadOnlyObservableCollection<GeneratedAssetReviewItem>(_generatedAssetReviewQueue);
         ResetExportChecklistItems();
         AddPlayerEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("player"));
         AddNpcEntityCommand = new AsyncRelayCommand(() => AddEntityAndRelaunchAsync("npc"));
@@ -207,6 +210,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanDeleteSelection));
         };
         EnforceHistoryLimit();
+        _ = RefreshGeneratedAssetReviewQueueAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -216,6 +220,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ImportedAsset> ImportedAssets { get; } = new();
     public ReadOnlyObservableCollection<ImportedAsset> FilteredImportedAssets => _readonlyFilteredImportedAssets;
+    public ReadOnlyObservableCollection<GeneratedAssetReviewItem> GeneratedAssetReviewQueue => _readonlyGeneratedAssetReviewQueue;
 
     public ReadOnlyObservableCollection<HierarchyNode> HierarchyRoots => _readonlyHierarchyRoots;
 
@@ -1126,6 +1131,14 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public string AssetLastRefreshLabel => _assetCatalogLastRefreshedAtUtc is null
         ? "Not refreshed yet."
         : $"Updated {ToRelativeAgeLabel(_assetCatalogLastRefreshedAtUtc.Value)}";
+
+    public bool HasGeneratedAssetReviewItems => GeneratedAssetReviewQueue.Count > 0;
+
+    public bool HasNoGeneratedAssetReviewItems => !HasGeneratedAssetReviewItems;
+
+    public string GeneratedAssetReviewSummary => HasGeneratedAssetReviewItems
+        ? $"{GeneratedAssetReviewQueue.Count} pending review"
+        : "No generated assets pending review.";
 
     public bool IsAssetDragGhostVisible
     {
@@ -2425,6 +2438,87 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                 "Retry",
                 () => RefreshImportedAssetsAsync(CancellationToken.None));
         }
+    }
+
+    public Task RefreshGeneratedAssetReviewQueueAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var generatedRoot = Path.Combine(Environment.CurrentDirectory, "Assets", "Generated");
+            _generatedAssetReviewQueue.Clear();
+            if (!Directory.Exists(generatedRoot))
+            {
+                OnPropertyChanged(nameof(HasGeneratedAssetReviewItems));
+                OnPropertyChanged(nameof(HasNoGeneratedAssetReviewItems));
+                OnPropertyChanged(nameof(GeneratedAssetReviewSummary));
+                return Task.CompletedTask;
+            }
+
+            foreach (var metadataPath in Directory.EnumerateFiles(generatedRoot, "*.metadata.json", SearchOption.TopDirectoryOnly)
+                         .OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var content = File.ReadAllText(metadataPath);
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                var outputPath = root.TryGetProperty("output_path", out var outputEl) ? outputEl.GetString() ?? string.Empty : string.Empty;
+                var reviewStatus = root.TryGetProperty("review_status", out var statusEl) ? statusEl.GetString() ?? "pending-review" : "pending-review";
+                var assetType = root.TryGetProperty("asset_type", out var typeEl) ? typeEl.GetString() ?? "asset" : "asset";
+                var prompt = root.TryGetProperty("prompt", out var promptEl) ? promptEl.GetString() ?? string.Empty : string.Empty;
+                if (string.IsNullOrWhiteSpace(outputPath))
+                {
+                    continue;
+                }
+
+                _generatedAssetReviewQueue.Add(new GeneratedAssetReviewItem(
+                    outputPath,
+                    metadataPath,
+                    Path.GetFileName(outputPath),
+                    assetType,
+                    reviewStatus,
+                    prompt));
+            }
+            OnPropertyChanged(nameof(HasGeneratedAssetReviewItems));
+            OnPropertyChanged(nameof(HasNoGeneratedAssetReviewItems));
+            OnPropertyChanged(nameof(GeneratedAssetReviewSummary));
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to refresh generated assets: {ex.Message}";
+            ShowToast("Generated asset review queue refresh failed.");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async Task ReviewGeneratedAssetAsync(string assetPath, string decision, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        var orchestratorPath = Path.Combine(Environment.CurrentDirectory, "ai-orchestration", "python", "orchestrator.py");
+        if (!File.Exists(orchestratorPath))
+        {
+            StatusMessage = "orchestrator.py not found for asset review command.";
+            ShowToast("Asset review command unavailable.");
+            return;
+        }
+
+        var fileName = OperatingSystem.IsWindows() ? "python" : "python3";
+        var arguments = $"\"{orchestratorPath}\" review-asset \"{assetPath}\" {decision}";
+        var result = await _runtimeSupervisor.RunProcessAsync(fileName, arguments, Environment.CurrentDirectory, cancellationToken);
+        if (result.ExitCode == 0)
+        {
+            StatusMessage = $"Asset reviewed ({decision}): {Path.GetFileName(assetPath)}";
+            await RefreshGeneratedAssetReviewQueueAsync(cancellationToken);
+            ShowToast("Generated asset review updated.");
+            return;
+        }
+
+        StatusMessage = $"Asset review failed: {result.Stderr}";
+        ShowToast("Generated asset review failed.");
     }
 
     public bool SetAssetDragGhost(string assetId, float worldX, float worldY)
@@ -6224,6 +6318,14 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
                     ? "✅"
                     : "•";
     }
+
+    public sealed record GeneratedAssetReviewItem(
+        string AssetPath,
+        string MetadataPath,
+        string DisplayName,
+        string AssetType,
+        string ReviewStatus,
+        string Prompt);
 
     private sealed record UploadTimelineEntry(DateTimeOffset TimestampUtc, string Stage, string Message);
 

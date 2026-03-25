@@ -921,6 +921,31 @@ public partial class MainWindow : Window
         await _viewModel.RefreshImportedAssetsAsync();
     }
 
+    private async void OnRefreshGeneratedReviewQueueClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RefreshGeneratedAssetReviewQueueAsync();
+    }
+
+    private async void OnApproveGeneratedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string assetPath } || string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        await _viewModel.ReviewGeneratedAssetAsync(assetPath, "approve");
+    }
+
+    private async void OnRejectGeneratedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string assetPath } || string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        await _viewModel.ReviewGeneratedAssetAsync(assetPath, "reject");
+    }
+
     private void OnWindowAssetDragOver(object? sender, DragEventArgs e)
     {
         var assetId = e.Data.Get(AssetDragFormat) as string;
