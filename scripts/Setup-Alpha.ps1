@@ -10,17 +10,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$script:CurrentStep = 'initializing'
 
 # ------------------------------------------------------------
 # Colored output helpers for clean, friendly progress messages.
 # ------------------------------------------------------------
-function Write-Step([string]$Message) { Write-Host "🔷 $Message" -ForegroundColor Cyan }
+function Write-Step([string]$Message) { $script:CurrentStep = $Message; Write-Host "🔷 $Message" -ForegroundColor Cyan }
 function Write-Ok([string]$Message) { Write-Host "✅ $Message" -ForegroundColor Green }
 function Write-Warn([string]$Message) { Write-Host "⚠️  $Message" -ForegroundColor Yellow }
 function Write-Fail([string]$Message) { Write-Host "❌ $Message" -ForegroundColor Red }
 
 trap {
-    Write-Fail "Setup failed: $($_.Exception.Message)"
+    Write-Fail "Setup failed during: $script:CurrentStep"
+    Write-Fail "Error: $($_.Exception.Message)"
+    Write-Warn '  → Check the output above for details on what went wrong.'
+    Write-Warn '  → Fix the issue, then re-run: pwsh -f scripts/Setup-Alpha.ps1'
+    Write-Warn '  → To start completely fresh: pwsh -f scripts/Setup-Alpha.ps1 -Fresh'
     exit 1
 }
 
@@ -151,7 +156,16 @@ Next steps:
     $msysBash = (Join-Path $msysRoot 'usr\bin\bash.exe').TrimEnd(' ')
     Write-Step "Using MSYS2 root: $msysRoot"
 
+    # Initialise the pacman GPG keyring explicitly before syncing.
+    # Without this, pacman spawns gpg-agent in a separate window on first run
+    # which can stall or confuse the installer if the window is closed.
+    Write-Step 'Initialising MSYS2 package keyring (this runs silently in the background)'
+    Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman-key --init && pacman-key --populate msys2') -FailureMessage 'MSYS2 keyring initialisation failed'
+
+    Write-Step 'Syncing MSYS2 package index'
     Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman --noconfirm -Sy') -FailureMessage 'MSYS2 package index sync failed'
+
+    Write-Step 'Installing MinGW g++ via MSYS2'
     Invoke-CheckedNative -FilePath $msysBash -Arguments @('-lc', 'pacman --noconfirm --needed -S mingw-w64-ucrt-x86_64-gcc make') -FailureMessage 'MSYS2 MinGW g++ install failed'
 
     Add-MsysToPathCurrentSession -MsysRoot $msysRoot
