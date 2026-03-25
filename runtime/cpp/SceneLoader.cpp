@@ -495,6 +495,14 @@ json EntityToJson(const Entity& entity) {
     if (entity.dialog.IsValid()) {
         node["dialog"] = DialogComponentToJson(entity.dialog);
     }
+    if (entity.mesh.IsValid()) {
+        node["mesh"] = json{
+            {"source", entity.mesh.source},
+            {"primitive_index", entity.mesh.primitive_index},
+            {"bounds_min", Vec3ToJson(entity.mesh.bounds_min)},
+            {"bounds_max", Vec3ToJson(entity.mesh.bounds_max)},
+        };
+    }
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
     node["schedule"] = ScheduleComponentToJson(entity.schedule);
     node["needs"] = NeedsToJson(entity.needs);
@@ -570,6 +578,17 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("dialog") && node["dialog"].is_object()) {
         entity.dialog = DialogComponentFromJson(node["dialog"], entity.dialog);
+    }
+    if (node.contains("mesh") && node["mesh"].is_object()) {
+        const json& mesh = node["mesh"];
+        entity.mesh.source = mesh.value("source", entity.mesh.source);
+        entity.mesh.primitive_index = mesh.value("primitive_index", entity.mesh.primitive_index);
+        if (mesh.contains("bounds_min") && mesh["bounds_min"].is_object()) {
+            entity.mesh.bounds_min = Vec3FromJson(mesh["bounds_min"], entity.mesh.bounds_min);
+        }
+        if (mesh.contains("bounds_max") && mesh["bounds_max"].is_object()) {
+            entity.mesh.bounds_max = Vec3FromJson(mesh["bounds_max"], entity.mesh.bounds_max);
+        }
     }
     if (node.contains("voice_profile") && node["voice_profile"].is_object()) {
         entity.voice_profile = VoiceProfileFromJson(node["voice_profile"], entity.voice_profile);
@@ -1818,6 +1837,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.render_2d = SceneRender2D{};
     if (document.contains("render_2d") && document["render_2d"].is_object()) {
         const json& render_2d = document["render_2d"];
+        scene.render_2d.render_mode = render_2d.value("render_mode", scene.render_2d.render_mode);
+        if (scene.render_2d.render_mode != "3D") {
+            scene.render_2d.render_mode = "2D";
+        }
         scene.render_2d.enabled = render_2d.value("enabled", scene.render_2d.enabled);
         if (render_2d.contains("camera") && render_2d["camera"].is_object()) {
             const json& camera_2d = render_2d["camera"];
@@ -1973,6 +1996,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
     document["free_will"] = FreeWillStateToJson(scene.free_will);
     json render_2d = json::object();
+    render_2d["render_mode"] = scene.render_2d.render_mode == "3D" ? "3D" : "2D";
     render_2d["enabled"] = scene.render_2d.enabled;
     render_2d["camera"] = json{
         {"center", Vec2ToJson(scene.render_2d.camera.center)},

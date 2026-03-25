@@ -21,6 +21,9 @@ void main() {
     vec3 lightDir = normalize(pc.lightDir.xyz);
     vec3 normal = normalize(inNormal);
     float diffuse = max(0.0, dot(normal, lightDir));
+    if (pc.textureInfo.y == 1u) {
+        diffuse = floor(diffuse * 3.0) / 3.0;
+    }
     float ambient = 0.2;
     vec3 lit = inColor.rgb * (ambient + diffuse * pc.lightColor.rgb);
     vec4 textureColor = texture(bindlessTextures[inTextureIndex], inUv);

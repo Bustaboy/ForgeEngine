@@ -2,6 +2,7 @@
 
 #include "Scene.h"
 #include "SpriteBatch.h"
+#include "MeshLoader.h"
 #include "TilemapChunk.h"
 #include "src/core/Camera.h"
 
@@ -60,6 +61,12 @@ public:
     void SetWindowTitle(const std::string& title) const;
 
 private:
+    struct MeshCacheEntry {
+        LoadedMesh mesh{};
+        bool loaded = false;
+        std::string error{};
+    };
+
     struct QueueFamilyIndices {
         std::optional<std::uint32_t> graphics_family;
         std::optional<std::uint32_t> present_family;
@@ -95,6 +102,7 @@ private:
     void DrawFrame(const Scene& scene, const Camera& camera);
     void RecordCommandBuffer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
     void Render2DLayer(std::uint32_t image_index, const Scene& scene);
+    void Render3DLayer(std::uint32_t image_index, const Scene& scene, const Camera& camera);
     void SyncBindlessTexturesForScene(const Scene& scene);
     void DestroyBindlessTextures();
     void UploadBindlessTextures();
@@ -218,4 +226,5 @@ private:
     bool framebuffer_resized_ = false;
     bool enable_validation_layers_ = false;
     std::string last_overlay_text_{};
+    std::unordered_map<std::string, MeshCacheEntry> mesh_cache_{};
 };

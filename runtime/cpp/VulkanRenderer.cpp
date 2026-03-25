@@ -1677,35 +1677,8 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
         sizeof(PerFramePushConstants),
         &per_frame_push);
 
-    for (const Entity& entity : scene.entities) {
-        glm::mat4 model(1.0F);
-        model = glm::translate(model, entity.transform.pos);
-        model = glm::rotate(model, entity.transform.rot.x, glm::vec3(1.0F, 0.0F, 0.0F));
-        model = glm::rotate(model, entity.transform.rot.y, glm::vec3(0.0F, 1.0F, 0.0F));
-        model = glm::rotate(model, entity.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
-        model = glm::scale(model, entity.transform.scale);
-
-        PerDrawPushConstants per_draw_push{};
-        per_draw_push.model = model;
-        per_draw_push.color = entity.renderable.color;
-
-        vkCmdPushConstants(
-            command_buffers_[image_index],
-            pipeline_layout_,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            sizeof(PerFramePushConstants),
-            sizeof(PerDrawPushConstants),
-            &per_draw_push);
-        TexturePushConstants texture_push{};
-        texture_push.texture_index = 0;
-        vkCmdPushConstants(
-            command_buffers_[image_index],
-            pipeline_layout_,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
-            sizeof(TexturePushConstants),
-            &texture_push);
-        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+    if (scene.render_2d.render_mode == "3D") {
+        Render3DLayer(image_index, scene, camera);
     }
     if (scene.build_ghost_preview.has_value()) {
         const Entity& ghost = scene.build_ghost_preview.value();
@@ -1738,7 +1711,39 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
             &texture_push);
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
-    Render2DLayer(image_index, scene);
+    if (scene.render_2d.render_mode != "3D") {
+        for (const Entity& entity : scene.entities) {
+            glm::mat4 model(1.0F);
+            model = glm::translate(model, entity.transform.pos);
+            model = glm::rotate(model, entity.transform.rot.x, glm::vec3(1.0F, 0.0F, 0.0F));
+            model = glm::rotate(model, entity.transform.rot.y, glm::vec3(0.0F, 1.0F, 0.0F));
+            model = glm::rotate(model, entity.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
+            model = glm::scale(model, entity.transform.scale);
+
+            PerDrawPushConstants per_draw_push{};
+            per_draw_push.model = model;
+            per_draw_push.color = entity.renderable.color;
+
+            vkCmdPushConstants(
+                command_buffers_[image_index],
+                pipeline_layout_,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                sizeof(PerFramePushConstants),
+                sizeof(PerDrawPushConstants),
+                &per_draw_push);
+            TexturePushConstants texture_push{};
+            texture_push.texture_index = 0;
+            vkCmdPushConstants(
+                command_buffers_[image_index],
+                pipeline_layout_,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+                sizeof(TexturePushConstants),
+                &texture_push);
+            vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        }
+        Render2DLayer(image_index, scene);
+    }
 
     vkCmdEndRenderPass(command_buffers_[image_index]);
 
@@ -2509,6 +2514,74 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
             &per_draw_push);
         TexturePushConstants texture_push{};
         texture_push.texture_index = packet.texture_index;
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+            sizeof(TexturePushConstants),
+            &texture_push);
+        vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+    }
+}
+
+void VulkanRenderer::Render3DLayer(std::uint32_t image_index, const Scene& scene, const Camera& camera) {
+    const glm::mat4 view_proj = camera.GetProjectionMatrix() * camera.GetViewMatrix();
+    PerFramePushConstants per_frame_push{};
+    per_frame_push.view_proj = view_proj;
+    per_frame_push.light_dir = glm::vec4(glm::normalize(scene.directional_light.direction), 0.0F);
+    const glm::vec3 light_color = scene.directional_light.color * scene.directional_light.intensity;
+    per_frame_push.light_color = glm::vec4(light_color, 1.0F);
+
+    vkCmdPushConstants(
+        command_buffers_[image_index],
+        pipeline_layout_,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        0,
+        sizeof(PerFramePushConstants),
+        &per_frame_push);
+
+    for (const Entity& entity : scene.entities) {
+        glm::mat4 model(1.0F);
+        model = glm::translate(model, entity.transform.pos);
+        model = glm::rotate(model, entity.transform.rot.x, glm::vec3(1.0F, 0.0F, 0.0F));
+        model = glm::rotate(model, entity.transform.rot.y, glm::vec3(0.0F, 1.0F, 0.0F));
+        model = glm::rotate(model, entity.transform.rot.z, glm::vec3(0.0F, 0.0F, 1.0F));
+        model = glm::scale(model, entity.transform.scale);
+
+        PerDrawPushConstants per_draw_push{};
+        per_draw_push.model = model;
+        per_draw_push.color = entity.renderable.color;
+        TexturePushConstants texture_push{};
+        texture_push.texture_index = 0;
+        texture_push.padding0 = 1;  // toon flag in shader
+
+        if (entity.mesh.IsValid()) {
+            auto [it, inserted] = mesh_cache_.try_emplace(entity.mesh.source);
+            if (inserted) {
+                it->second.loaded = MeshLoader::LoadSimpleGltf(
+                    entity.mesh.source,
+                    entity.mesh.primitive_index,
+                    it->second.mesh,
+                    it->second.error);
+                if (!it->second.loaded) {
+                    GF_LOG_WARN("Mesh load failed: " + entity.mesh.source + " (" + it->second.error + ")");
+                }
+            }
+            if (it->second.loaded) {
+                const glm::vec3 mesh_size = glm::max(it->second.mesh.bounds_max - it->second.mesh.bounds_min, glm::vec3(0.01F));
+                const float approx_scale = std::max({mesh_size.x, mesh_size.y, mesh_size.z});
+                per_draw_push.model = glm::scale(per_draw_push.model, glm::vec3(approx_scale, approx_scale, approx_scale));
+            }
+        }
+
+        vkCmdPushConstants(
+            command_buffers_[image_index],
+            pipeline_layout_,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            sizeof(PerFramePushConstants),
+            sizeof(PerDrawPushConstants),
+            &per_draw_push);
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,

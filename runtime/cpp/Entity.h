@@ -19,6 +19,17 @@ struct Renderable {
     glm::vec4 color{0.35F, 0.85F, 0.65F, 1.0F};
 };
 
+struct MeshComponent {
+    std::string source{};
+    std::uint32_t primitive_index = 0;
+    glm::vec3 bounds_min{-0.5F, -0.5F, -0.5F};
+    glm::vec3 bounds_max{0.5F, 0.5F, 0.5F};
+
+    [[nodiscard]] bool IsValid() const {
+        return !source.empty();
+    }
+};
+
 struct BuildableComponent {
     std::string type{};
     glm::ivec2 grid_size{1, 1};
@@ -158,6 +169,7 @@ struct Entity {
     NeedsComponent needs{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
+    MeshComponent mesh{};
 };
 
 struct DirectionalLight {

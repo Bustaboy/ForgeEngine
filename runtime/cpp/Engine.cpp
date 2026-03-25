@@ -85,7 +85,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
-    GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /edit_scene <scene.json> <prompt>");
+    GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
 
@@ -647,6 +647,19 @@ void ProcessConsoleCommands(
         scene.render_2d.entity_sprite_map[entity_type] = asset_id;
         GF_LOG_INFO("Mapped entity type '" + entity_type + "' to asset '" + asset_id + "'.");
         SetOverlayStatusMessage(overlay_status_message, "Entity sprite mapped");
+        return;
+    }
+
+    if (command == "/render_mode") {
+        std::string mode;
+        parser >> mode;
+        if (mode != "2D" && mode != "3D") {
+            GF_LOG_INFO("Usage: /render_mode <2D|3D> (current: " + scene.render_2d.render_mode + ")");
+            return;
+        }
+        scene.render_2d.render_mode = mode;
+        GF_LOG_INFO("Render mode set to " + mode + ".");
+        SetOverlayStatusMessage(overlay_status_message, "Render mode: " + mode);
         return;
     }
 
