@@ -34,9 +34,6 @@
 #include <thread>
 
 namespace {
-constexpr std::size_t kRecentActionsCap = 160U;
-constexpr std::size_t kCombatHistoryCap = 48U;
-constexpr std::size_t kFreeWillCounterCap = 512U;
 
 bool TryComputeCursorRay(GLFWwindow* window, const Camera& camera, glm::vec3& out_ray_direction) {
     int framebuffer_width = 0;
@@ -160,9 +157,9 @@ void ProcessConsoleCommands(
         GF_LOG_INFO(stats.str());
 
         std::ostringstream memory;
-        memory << "MemoryGuardrails recent_actions=" << scene.recent_actions.size() << "/" << kRecentActionsCap
-               << " spark_counters=" << scene.free_will.daily_spark_count.size() << "/" << kFreeWillCounterCap
-               << " combat_units=" << scene.combat.units.size() << "/" << kCombatHistoryCap;
+        memory << "MemoryGuardrails recent_actions=" << scene.recent_actions.size() << "/" << SceneLimits::kRecentActionsCap
+               << " spark_counters=" << scene.free_will.daily_spark_count.size() << "/" << SceneLimits::kFreeWillMapCap
+               << " combat_units=" << scene.combat.units.size() << "/" << SceneLimits::kCombatStateCap;
         GF_LOG_INFO(memory.str());
         SetOverlayStatusMessage(overlay_status_message, "Perf stats logged");
         return;
@@ -607,6 +604,8 @@ void Engine::Run() {
                 std::floor(accumulator / perf_state_.current_fixed_dt_seconds));
             perf_state_.dropped_simulation_steps += dropped;
             accumulator = std::fmod(accumulator, perf_state_.current_fixed_dt_seconds);
+            GF_LOG_WARN("Dropped " + std::to_string(dropped) + " simulation step(s) this frame. "
+                        "Total dropped: " + std::to_string(perf_state_.dropped_simulation_steps));
         }
         perf_state_.simulation_steps_last_frame = steps_this_frame;
         perf_state_.total_frames += 1U;

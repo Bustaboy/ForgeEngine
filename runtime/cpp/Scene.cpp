@@ -25,10 +25,6 @@
 #include <glm/gtc/constants.hpp>
 
 namespace {
-constexpr std::size_t kRecentActionsCap = 160U;
-constexpr std::size_t kFreeWillMapCap = 512U;
-constexpr std::size_t kCombatStateCap = 48U;
-
 float Clamp01(float value) {
     return std::clamp(value, 0.0F, 1.0F);
 }
@@ -85,11 +81,11 @@ void TrimFront(TContainer& container, std::size_t max_size) {
 }
 
 void ApplyMemoryGuardrails(Scene& scene) {
-    TrimFront(scene.recent_actions, kRecentActionsCap);
-    TrimFront(scene.narrator.spoken_history, kRecentActionsCap);
+    TrimFront(scene.recent_actions, SceneLimits::kRecentActionsCap);
+    TrimFront(scene.narrator.spoken_history, SceneLimits::kRecentActionsCap);
 
-    if (scene.free_will.daily_spark_count.size() > kFreeWillMapCap) {
-        std::size_t to_remove = scene.free_will.daily_spark_count.size() - kFreeWillMapCap;
+    if (scene.free_will.daily_spark_count.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.daily_spark_count.size() - SceneLimits::kFreeWillMapCap;
         for (auto it = scene.free_will.daily_spark_count.begin();
              it != scene.free_will.daily_spark_count.end() && to_remove > 0;
              ) {
@@ -97,8 +93,8 @@ void ApplyMemoryGuardrails(Scene& scene) {
             --to_remove;
         }
     }
-    if (scene.free_will.last_spark_line_by_npc.size() > kFreeWillMapCap) {
-        std::size_t to_remove = scene.free_will.last_spark_line_by_npc.size() - kFreeWillMapCap;
+    if (scene.free_will.last_spark_line_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_line_by_npc.size() - SceneLimits::kFreeWillMapCap;
         for (auto it = scene.free_will.last_spark_line_by_npc.begin();
              it != scene.free_will.last_spark_line_by_npc.end() && to_remove > 0;
              ) {
@@ -107,11 +103,11 @@ void ApplyMemoryGuardrails(Scene& scene) {
         }
     }
 
-    if (scene.combat.units.size() > kCombatStateCap) {
-        scene.combat.units.resize(kCombatStateCap);
+    if (scene.combat.units.size() > SceneLimits::kCombatStateCap) {
+        scene.combat.units.resize(SceneLimits::kCombatStateCap);
     }
-    if (scene.combat.turn_order.size() > kCombatStateCap) {
-        scene.combat.turn_order.resize(kCombatStateCap);
+    if (scene.combat.turn_order.size() > SceneLimits::kCombatStateCap) {
+        scene.combat.turn_order.resize(SceneLimits::kCombatStateCap);
     }
 }
 

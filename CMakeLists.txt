@@ -84,14 +84,30 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
     runtime/cpp/Engine.cpp
     runtime/cpp/Timer.cpp
+    runtime/cpp/Scene.cpp
     runtime/cpp/VulkanRenderer.cpp
     runtime/cpp/SceneLoader.cpp
-    runtime/cpp/CoCreatorSystem.cpp
+    runtime/cpp/BuildingSystem.cpp
+    runtime/cpp/InventorySystem.cpp
+    runtime/cpp/EconomySystem.cpp
+    runtime/cpp/SettlementSystem.cpp
+    runtime/cpp/CombatSystem.cpp
+    runtime/cpp/WeatherSystem.cpp
+    runtime/cpp/NavmeshSystem.cpp
+    runtime/cpp/AnimationSystem.cpp
+    runtime/cpp/LivingNpcSystem.cpp
+    runtime/cpp/NPCController.cpp
+    runtime/cpp/FreeWillSystem.cpp
+    runtime/cpp/DialogSystem.cpp
+    runtime/cpp/DialogEvolutionSystem.cpp
+    runtime/cpp/FactionSystem.cpp
     runtime/cpp/RelationshipSystem.cpp
     runtime/cpp/StorySystem.cpp
-    runtime/cpp/WeatherSystem.cpp
-    runtime/cpp/CombatSystem.cpp
     runtime/cpp/NarratorSystem.cpp
+    runtime/cpp/VoiceSystem.cpp
+    runtime/cpp/CutsceneSystem.cpp
+    runtime/cpp/CoCreatorSystem.cpp
+    runtime/cpp/src/input/InputManager.cpp
 )
 
 add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
@@ -125,8 +141,11 @@ find_program(GLSLC_EXECUTABLE glslc
 set(FORGE_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/shaders)
 set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES
-    ${FORGE_SHADER_DIR}/basic.vert
-    ${FORGE_SHADER_DIR}/basic.frag
+    ${FORGE_SHADER_DIR}/vertex.vert
+    ${FORGE_SHADER_DIR}/fragment.frag
+    ${FORGE_SHADER_DIR}/bloom_extract.frag
+    ${FORGE_SHADER_DIR}/gaussian_blur.frag
+    ${FORGE_SHADER_DIR}/combine_tonemap.frag
 )
 
 if(GLSLC_EXECUTABLE)
