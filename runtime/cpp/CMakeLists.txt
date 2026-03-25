@@ -169,6 +169,9 @@ set(FORGE_SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 set(FORGE_SHADER_SOURCES
     ${FORGE_SHADER_DIR}/vertex.vert
     ${FORGE_SHADER_DIR}/fragment.frag
+    ${FORGE_SHADER_DIR}/bloom_extract.frag
+    ${FORGE_SHADER_DIR}/gaussian_blur.frag
+    ${FORGE_SHADER_DIR}/combine_tonemap.frag
 )
 
 if(GLSLC_EXECUTABLE)
