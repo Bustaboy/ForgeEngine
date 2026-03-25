@@ -97,6 +97,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
     GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
+    GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -534,6 +535,22 @@ void ProcessConsoleCommands(
         const bool ok = RealTimeCombatSystem::SetControlledWeapon(scene, weapon_type, message);
         GF_LOG_INFO(message);
         SetOverlayStatusMessage(overlay_status_message, ok ? "Weapon switched" : "Weapon switch failed");
+        return;
+    }
+
+    if (command == "/combat_squad_test") {
+        std::string message;
+        const bool ok = RealTimeCombatSystem::RunSquadTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Squad AI test primed" : "Squad AI test unavailable");
+        return;
+    }
+
+    if (command == "/combat_cover_test") {
+        std::string message;
+        const bool ok = RealTimeCombatSystem::RunCoverTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Cover test detected cover" : "Cover test no cover");
         return;
     }
 

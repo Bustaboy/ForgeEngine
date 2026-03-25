@@ -195,6 +195,12 @@ struct RealTimeCombatComponent {
     float dodge_remaining = 0.0F;
     float hit_reaction_remaining = 0.0F;
     float hit_reaction_timer = 0.0F;
+    bool in_cover = false;
+    float cover_defense_bonus = 0.16F;
+    float cover_accuracy_bonus = 0.12F;
+    float cover_search_radius = 3.8F;
+    std::uint64_t last_assist_target_id = 0;
+    float squad_call_for_help_cooldown = 0.0F;
     std::string action_state = "idle";
     std::string animation_state = "idle";
 };

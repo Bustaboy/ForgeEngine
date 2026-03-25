@@ -20,6 +20,8 @@ RuntimeState& MutableRuntimeState() {
     return state;
 }
 
+void ApplyHitReaction(Scene& scene, Entity& target, const Entity& attacker, float damage);
+
 bool IsPerformanceMode(const Scene& scene) {
     const std::string mode = scene.optimization_overrides.lightweight_mode;
     return mode == "performance" || mode == "aggressive" || mode == "ultra";
@@ -76,6 +78,37 @@ float WeatherDamageMultiplier(const Scene& scene) {
     return 1.0F;
 }
 
+float WeatherAccuracyMultiplier(const Scene& scene, bool ranged) {
+    const std::string weather = scene.weather.current_weather;
+    if (weather == "rain") {
+        return ranged ? 0.76F : 0.90F;
+    }
+    if (weather == "storm" || weather == "sandstorm") {
+        return ranged ? 0.70F : 0.85F;
+    }
+    if (weather == "windy") {
+        return ranged ? 0.78F : 0.96F;
+    }
+    if (weather == "snow") {
+        return ranged ? 0.88F : 0.92F;
+    }
+    return 1.0F;
+}
+
+float WeatherMovementMultiplier(const Scene& scene) {
+    const std::string weather = scene.weather.current_weather;
+    if (weather == "snow") {
+        return 0.78F;
+    }
+    if (weather == "storm" || weather == "sandstorm") {
+        return 0.88F;
+    }
+    if (weather == "rain") {
+        return 0.93F;
+    }
+    return 1.0F;
+}
+
 float RelationshipDamageMultiplier(const Scene& scene, const Entity& attacker) {
     const float respect = RelationshipSystem::GetDimension(scene, attacker.id, "respect");
     const float grudge = RelationshipSystem::GetDimension(scene, attacker.id, "grudge");
@@ -84,6 +117,10 @@ float RelationshipDamageMultiplier(const Scene& scene, const Entity& attacker) {
 
 float MoraleDamageMultiplier(const Scene& scene) {
     return std::clamp(0.8F + (scene.settlement.morale / 100.0F) * 0.4F, 0.75F, 1.2F);
+}
+
+float MoraleCombatFocusMultiplier(const Scene& scene) {
+    return std::clamp(0.65F + (scene.settlement.morale / 100.0F) * 0.55F, 0.55F, 1.2F);
 }
 
 bool IsNpcEntity(const Entity& entity) {
@@ -111,6 +148,51 @@ Entity* FindClosestHostile(Scene& scene, const Entity& attacker, float max_range
         }
     }
     return best;
+}
+
+bool IsPotentialCoverObject(const Entity& entity) {
+    if (entity.buildable.IsValid()) {
+        return true;
+    }
+    if (!entity.mesh.source.empty()) {
+        const std::string& source = entity.mesh.source;
+        return source.find("cover") != std::string::npos || source.find("wall") != std::string::npos ||
+            source.find("rock") != std::string::npos || source.find("crate") != std::string::npos;
+    }
+    return false;
+}
+
+bool IsEntityInCover(const Scene& scene, const Entity& entity, float search_radius) {
+    const float radius = std::max(1.0F, search_radius);
+    const float radius_sq = radius * radius;
+    for (const Entity& candidate : scene.entities) {
+        if (candidate.id == entity.id) {
+            continue;
+        }
+        if (!IsPotentialCoverObject(candidate)) {
+            continue;
+        }
+        glm::vec3 delta = candidate.transform.pos - entity.transform.pos;
+        delta.y = 0.0F;
+        if (glm::dot(delta, delta) <= radius_sq) {
+            return true;
+        }
+    }
+    return false;
+}
+
+float IncomingDamageMultiplierFromCover(const Entity& target) {
+    if (!target.realtime_combat.in_cover) {
+        return 1.0F;
+    }
+    return std::clamp(1.0F - target.realtime_combat.cover_defense_bonus, 0.55F, 1.0F);
+}
+
+void ApplyCombatDamage(Scene& scene, Entity& target, const Entity& attacker, float raw_damage) {
+    const float damage = std::max(0.0F, raw_damage * IncomingDamageMultiplierFromCover(target));
+    target.realtime_combat.health = std::max(0.0F, target.realtime_combat.health - damage);
+    target.realtime_combat.alive = target.realtime_combat.health > 0.0F;
+    ApplyHitReaction(scene, target, attacker, damage);
 }
 
 std::size_t MaxRealtimeActors(const Scene& scene) {
@@ -162,6 +244,10 @@ void SanitizeComponent(RealTimeCombatComponent& rtc) {
     rtc.dodge_remaining = std::max(0.0F, rtc.dodge_remaining);
     rtc.hit_reaction_remaining = std::max(0.0F, rtc.hit_reaction_remaining);
     rtc.hit_reaction_timer = std::max(0.0F, rtc.hit_reaction_timer);
+    rtc.cover_defense_bonus = std::clamp(rtc.cover_defense_bonus, 0.0F, 0.5F);
+    rtc.cover_accuracy_bonus = std::clamp(rtc.cover_accuracy_bonus, 0.0F, 0.35F);
+    rtc.cover_search_radius = std::clamp(rtc.cover_search_radius, 1.0F, 8.0F);
+    rtc.squad_call_for_help_cooldown = std::max(0.0F, rtc.squad_call_for_help_cooldown);
     rtc.alive = rtc.health > 0.0F;
     if (rtc.animation_state.empty()) {
         rtc.animation_state = "idle";
@@ -182,7 +268,8 @@ void UpdateAnimationState(RealTimeCombatComponent& rtc) {
         rtc.animation_state = "hit_reaction";
     } else if (rtc.action_state == "attacking" || rtc.action_state.rfind("attack_", 0) == 0 ||
                rtc.action_state == "dodging" || rtc.action_state.rfind("dodge_", 0) == 0 ||
-               rtc.action_state == "moving") {
+               rtc.action_state == "moving" || rtc.action_state.rfind("cover_", 0) == 0 ||
+               rtc.action_state.rfind("squad_", 0) == 0 || rtc.action_state == "call_help") {
         rtc.animation_state = rtc.action_state;
     } else {
         rtc.animation_state = "idle";
@@ -312,6 +399,8 @@ bool Start(Scene& scene, const std::string& source) {
     scene.realtime_combat.animation_preview = "idle";
     scene.realtime_combat.combo_preview = "none";
     scene.realtime_combat.weapon_preview = "melee";
+    scene.realtime_combat.squad_status_preview = "squad_idle";
+    scene.realtime_combat.cover_status_preview = "cover_none";
     scene.realtime_combat.last_hit_entity_id = 0;
     scene.realtime_combat.last_resolution.clear();
     if (scene.realtime_combat.controlled_entity_id == 0) {
@@ -417,9 +506,7 @@ bool HitTest(Scene& scene, std::uint64_t entity_id, std::string& out_message) {
     }
 
     const float damage = std::clamp(attacker->realtime_combat.attack_damage * 0.8F, 4.0F, 24.0F);
-    target->realtime_combat.health = std::max(0.0F, target->realtime_combat.health - damage);
-    target->realtime_combat.alive = target->realtime_combat.health > 0.0F;
-    ApplyHitReaction(scene, *target, *attacker, damage);
+    ApplyCombatDamage(scene, *target, *attacker, damage);
     scene.realtime_combat.animation_preview = target->realtime_combat.animation_state;
     out_message = "Hit test applied to entity " + std::to_string(entity_id) + ".";
     return true;
@@ -442,6 +529,49 @@ bool SetControlledWeapon(Scene& scene, const std::string& weapon_type, std::stri
     return true;
 }
 
+bool RunSquadTest(Scene& scene, std::string& out_message) {
+    EnsureDefaults(scene);
+    if (!scene.realtime_combat.active) {
+        out_message = "Start realtime combat first.";
+        return false;
+    }
+
+    const std::uint64_t controlled_id = scene.realtime_combat.controlled_entity_id;
+    std::size_t assisted = 0U;
+    for (Entity& entity : scene.entities) {
+        if (!entity.realtime_combat.enabled || !entity.realtime_combat.alive) {
+            continue;
+        }
+        if (entity.id == controlled_id || entity.realtime_combat.team_id != 0U) {
+            continue;
+        }
+        entity.realtime_combat.last_assist_target_id = controlled_id;
+        entity.realtime_combat.action_state = "squad_assist";
+        ++assisted;
+    }
+    scene.realtime_combat.squad_status_preview = assisted > 0U ? "squad_assist_ready" : "squad_no_allies";
+    out_message = assisted > 0U
+        ? ("Squad assist primed for " + std::to_string(assisted) + " allies.")
+        : "No allied squad members available.";
+    return assisted > 0U;
+}
+
+bool RunCoverTest(Scene& scene, std::string& out_message) {
+    EnsureDefaults(scene);
+    Entity* actor = FindEntity(scene, scene.realtime_combat.controlled_entity_id);
+    if (actor == nullptr || !actor->realtime_combat.enabled) {
+        out_message = "Realtime actor unavailable.";
+        return false;
+    }
+
+    const bool in_cover = IsEntityInCover(scene, *actor, actor->realtime_combat.cover_search_radius);
+    actor->realtime_combat.in_cover = in_cover;
+    actor->realtime_combat.action_state = in_cover ? "cover_idle" : "idle";
+    scene.realtime_combat.cover_status_preview = in_cover ? "cover_detected" : "cover_not_found";
+    out_message = in_cover ? "Cover detected near controlled actor." : "No nearby cover detected.";
+    return in_cover;
+}
+
 void Update(Scene& scene, float dt_seconds) {
     EnsureDefaults(scene);
     if (!scene.realtime_combat.active) {
@@ -459,6 +589,8 @@ void Update(Scene& scene, float dt_seconds) {
         return;
     }
     scene.realtime_combat.animation_preview = actor->realtime_combat.animation_state;
+    scene.realtime_combat.squad_status_preview = "squad_idle";
+    scene.realtime_combat.cover_status_preview = "cover_none";
 
     std::size_t alive_team0 = 0U;
     std::size_t alive_hostiles = 0U;
@@ -485,6 +617,12 @@ void Update(Scene& scene, float dt_seconds) {
         }
         const float regen_scale = IsPerformanceMode(scene) ? 0.80F : 1.0F;
         rtc.stamina = std::clamp(rtc.stamina + rtc.stamina_regen_per_second * regen_scale * safe_dt, 0.0F, rtc.max_stamina);
+        rtc.squad_call_for_help_cooldown = std::max(0.0F, rtc.squad_call_for_help_cooldown - safe_dt);
+        if (!IsPerformanceMode(scene) || entity.id == scene.realtime_combat.controlled_entity_id) {
+            rtc.in_cover = IsEntityInCover(scene, entity, rtc.cover_search_radius);
+        } else {
+            rtc.in_cover = false;
+        }
         if (IsNpcEntity(entity) && rtc.max_stamina > 0.0F) {
             const float stamina_ratio = rtc.stamina / rtc.max_stamina;
             if (stamina_ratio < 0.25F) {
@@ -513,16 +651,17 @@ void Update(Scene& scene, float dt_seconds) {
                 if (rtc.dodge_remaining > 0.0F) {
                     axis = rtc.dodge_direction;
                 }
+                const float weather_move_multiplier = WeatherMovementMultiplier(scene);
                 const float movement_multiplier = rtc.dodge_remaining > 0.0F ? 2.1F : 1.0F;
-                entity.transform.pos.x += axis.x * rtc.move_speed * movement_multiplier * safe_dt;
-                entity.transform.pos.z += axis.y * rtc.move_speed * movement_multiplier * safe_dt;
+                entity.transform.pos.x += axis.x * rtc.move_speed * weather_move_multiplier * movement_multiplier * safe_dt;
+                entity.transform.pos.z += axis.y * rtc.move_speed * weather_move_multiplier * movement_multiplier * safe_dt;
                 if (glm::dot(axis, axis) > 0.0001F) {
                     rtc.action_state = rtc.dodge_remaining > 0.0F
                         ? (std::abs(axis.x) > std::abs(axis.y) ? (axis.x < 0.0F ? "dodge_left" : "dodge_right")
                                                                 : (axis.y < 0.0F ? "dodge_back" : "dodge_forward"))
-                        : "moving";
+                        : (rtc.in_cover ? "cover_move" : "moving");
                 } else if (rtc.action_state == "moving") {
-                    rtc.action_state = "idle";
+                    rtc.action_state = rtc.in_cover ? "cover_idle" : "idle";
                 }
             }
 
@@ -576,23 +715,87 @@ void Update(Scene& scene, float dt_seconds) {
                 const float range = (rtc.ranged_enabled ? rtc.ranged_range : rtc.melee_range) * rtc.weapon_range_multiplier;
                 Entity* target = FindClosestHostile(scene, entity, range);
                 if (target != nullptr && target->realtime_combat.dodge_invulnerability_remaining <= 0.0F) {
-                    const float base_damage = rtc.attack_damage;
-                    const float damage = base_damage * rtc.weapon_damage_multiplier * damage_multiplier * WeatherDamageMultiplier(scene) *
-                        RelationshipDamageMultiplier(scene, entity) * MoraleDamageMultiplier(scene);
-                    target->realtime_combat.health = std::max(0.0F, target->realtime_combat.health - damage);
-                    target->realtime_combat.alive = target->realtime_combat.health > 0.0F;
-                    ApplyHitReaction(scene, *target, entity, damage);
-                    scene.realtime_combat.last_action = "attack_" + attack_variant + "_hit";
-                    if (attack_variant == "heavy" || attack_variant == "finisher") {
-                        RelationshipSystem::SetDimension(scene, entity.id, "respect", attack_variant == "finisher" ? 5.0F : 2.0F, false);
-                        RelationshipSystem::SetDimension(scene, entity.id, "trust", attack_variant == "finisher" ? 2.0F : 1.0F, false);
-                        if (IsNpcEntity(entity)) {
-                            entity.needs.social = std::clamp(entity.needs.social + 3.0F, 0.0F, 100.0F);
+                    const float accuracy = WeatherAccuracyMultiplier(scene, rtc.ranged_enabled) *
+                        MoraleCombatFocusMultiplier(scene) *
+                        (rtc.in_cover ? 1.0F + rtc.cover_accuracy_bonus : 1.0F);
+                    if (accuracy < 0.6F && scene.world_time.day_count % 2U == 0U) {
+                        scene.realtime_combat.last_action = "attack_" + attack_variant + "_miss_weather";
+                    } else {
+                        const float base_damage = rtc.attack_damage;
+                        const float damage = base_damage * rtc.weapon_damage_multiplier * damage_multiplier * WeatherDamageMultiplier(scene) *
+                            RelationshipDamageMultiplier(scene, entity) * MoraleDamageMultiplier(scene);
+                        ApplyCombatDamage(scene, *target, entity, damage * std::clamp(accuracy, 0.55F, 1.2F));
+                        scene.realtime_combat.last_action = "attack_" + attack_variant + "_hit";
+                        if (attack_variant == "heavy" || attack_variant == "finisher") {
+                            RelationshipSystem::SetDimension(scene, entity.id, "respect", attack_variant == "finisher" ? 5.0F : 2.0F, false);
+                            RelationshipSystem::SetDimension(scene, entity.id, "trust", attack_variant == "finisher" ? 2.0F : 1.0F, false);
+                            if (IsNpcEntity(entity)) {
+                                entity.needs.social = std::clamp(entity.needs.social + 3.0F, 0.0F, 100.0F);
+                            }
                         }
                     }
                 } else {
                     scene.realtime_combat.last_action = "attack_" + attack_variant + "_miss";
                 }
+            }
+        }
+        if (entity.id != scene.realtime_combat.controlled_entity_id && rtc.alive && rtc.hit_reaction_remaining <= 0.0F) {
+            const float morale_focus = MoraleCombatFocusMultiplier(scene);
+            const float respect = RelationshipSystem::GetDimension(scene, entity.id, "respect");
+            const float grudge = RelationshipSystem::GetDimension(scene, entity.id, "grudge");
+            const float trust = RelationshipSystem::GetDimension(scene, entity.id, "trust");
+            const float weather_move_multiplier = WeatherMovementMultiplier(scene);
+            const float base_speed = rtc.move_speed * weather_move_multiplier * (scene.settlement.morale < 30.0F ? 0.82F : 1.0F);
+            Entity* target = FindClosestHostile(scene, entity, (rtc.ranged_enabled ? rtc.ranged_range : rtc.melee_range) * rtc.weapon_range_multiplier * 1.5F);
+            if (target != nullptr) {
+                glm::vec3 to_target = target->transform.pos - entity.transform.pos;
+                to_target.y = 0.0F;
+                const float distance = glm::length(to_target);
+                glm::vec3 move_dir = distance > 0.001F ? (to_target / distance) : glm::vec3(0.0F, 0.0F, 0.0F);
+
+                const bool low_morale_flee = scene.settlement.morale < 25.0F && rtc.health < rtc.max_health * 0.45F;
+                if (low_morale_flee) {
+                    move_dir *= -1.0F;
+                    rtc.action_state = "flee";
+                } else {
+                    const bool protect_player = rtc.team_id == 0U && respect >= 45.0F && trust >= 20.0F;
+                    const bool aggressive = grudge >= 40.0F || (scene.settlement.morale > 70.0F && grudge > 15.0F);
+                    if (protect_player) {
+                        rtc.action_state = "squad_assist";
+                        rtc.last_assist_target_id = scene.realtime_combat.controlled_entity_id;
+                        scene.realtime_combat.squad_status_preview = "assist";
+                    } else if (aggressive) {
+                        const glm::vec3 flank(-move_dir.z, 0.0F, move_dir.x);
+                        const glm::vec3 flank_mix = move_dir + flank * 0.45F;
+                        move_dir = glm::length(flank_mix) > 0.001F ? glm::normalize(flank_mix) : move_dir;
+                        rtc.action_state = "squad_flank";
+                        scene.realtime_combat.squad_status_preview = "flank";
+                    } else {
+                        rtc.action_state = rtc.in_cover ? "cover_idle" : "moving";
+                    }
+                }
+
+                entity.transform.pos += move_dir * base_speed * safe_dt;
+                const float attack_range = (rtc.ranged_enabled ? rtc.ranged_range : rtc.melee_range) * rtc.weapon_range_multiplier;
+                const float weather_accuracy = WeatherAccuracyMultiplier(scene, rtc.ranged_enabled);
+                if (distance <= attack_range && rtc.attack_cooldown_remaining <= 0.0F && rtc.stamina >= rtc.stamina_attack_cost &&
+                    morale_focus * weather_accuracy >= 0.58F) {
+                    rtc.stamina -= rtc.stamina_attack_cost;
+                    rtc.attack_cooldown_remaining = rtc.attack_cooldown_seconds / std::max(0.5F, rtc.weapon_speed_multiplier);
+                    rtc.action_state = "attack_light";
+                    const float attack_accuracy = weather_accuracy * morale_focus * (rtc.in_cover ? 1.0F + rtc.cover_accuracy_bonus : 1.0F);
+                    const float damage = rtc.attack_damage * rtc.weapon_damage_multiplier * WeatherDamageMultiplier(scene) *
+                        MoraleDamageMultiplier(scene) * RelationshipDamageMultiplier(scene, entity) * std::clamp(attack_accuracy, 0.5F, 1.2F);
+                    ApplyCombatDamage(scene, *target, entity, damage);
+                }
+            }
+
+            if (rtc.health < rtc.max_health * 0.30F && rtc.squad_call_for_help_cooldown <= 0.0F &&
+                (trust > 10.0F || entity.needs.social > 40.0F)) {
+                rtc.squad_call_for_help_cooldown = 6.0F;
+                rtc.action_state = "call_help";
+                scene.recent_actions.push_back("npc_call_for_help:" + std::to_string(entity.id));
+                scene.realtime_combat.squad_status_preview = "call_for_help";
             }
         }
 
@@ -609,6 +812,7 @@ void Update(Scene& scene, float dt_seconds) {
             scene.realtime_combat.animation_preview = rtc.animation_state;
             scene.realtime_combat.combo_preview = ComboName(rtc);
             scene.realtime_combat.weapon_preview = rtc.weapon_type;
+            scene.realtime_combat.cover_status_preview = rtc.in_cover ? "cover_detected" : "cover_none";
         }
     }
 

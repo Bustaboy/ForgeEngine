@@ -205,6 +205,8 @@ struct RealTimeCombatState {
     std::string animation_preview = "idle";
     std::string combo_preview = "none";
     std::string weapon_preview = "melee";
+    std::string squad_status_preview = "squad_idle";
+    std::string cover_status_preview = "cover_none";
     std::string last_resolution{};
 };
 
