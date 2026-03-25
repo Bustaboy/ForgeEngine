@@ -386,6 +386,12 @@ json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
         {"dodge_remaining", combat.dodge_remaining},
         {"hit_reaction_remaining", combat.hit_reaction_remaining},
         {"hit_reaction_timer", combat.hit_reaction_timer},
+        {"in_cover", combat.in_cover},
+        {"cover_defense_bonus", combat.cover_defense_bonus},
+        {"cover_accuracy_bonus", combat.cover_accuracy_bonus},
+        {"cover_search_radius", combat.cover_search_radius},
+        {"last_assist_target_id", combat.last_assist_target_id},
+        {"squad_call_for_help_cooldown", combat.squad_call_for_help_cooldown},
         {"action_state", combat.action_state},
         {"animation_state", combat.animation_state},
     };
@@ -435,6 +441,12 @@ RealTimeCombatComponent RealTimeCombatComponentFromJson(const json& node, const 
     combat.dodge_remaining = node.value("dodge_remaining", combat.dodge_remaining);
     combat.hit_reaction_remaining = node.value("hit_reaction_remaining", combat.hit_reaction_remaining);
     combat.hit_reaction_timer = node.value("hit_reaction_timer", combat.hit_reaction_timer);
+    combat.in_cover = node.value("in_cover", combat.in_cover);
+    combat.cover_defense_bonus = node.value("cover_defense_bonus", combat.cover_defense_bonus);
+    combat.cover_accuracy_bonus = node.value("cover_accuracy_bonus", combat.cover_accuracy_bonus);
+    combat.cover_search_radius = node.value("cover_search_radius", combat.cover_search_radius);
+    combat.last_assist_target_id = node.value("last_assist_target_id", combat.last_assist_target_id);
+    combat.squad_call_for_help_cooldown = node.value("squad_call_for_help_cooldown", combat.squad_call_for_help_cooldown);
     combat.action_state = node.value("action_state", combat.action_state);
     combat.animation_state = node.value("animation_state", combat.animation_state);
     return combat;
@@ -1455,6 +1467,8 @@ json RealTimeCombatStateToJson(const RealTimeCombatState& combat) {
         {"animation_preview", combat.animation_preview},
         {"combo_preview", combat.combo_preview},
         {"weapon_preview", combat.weapon_preview},
+        {"squad_status_preview", combat.squad_status_preview},
+        {"cover_status_preview", combat.cover_status_preview},
         {"last_resolution", combat.last_resolution},
     };
 }
@@ -1507,6 +1521,8 @@ RealTimeCombatState RealTimeCombatStateFromJson(const json& node, const RealTime
     state.animation_preview = node.value("animation_preview", state.animation_preview);
     state.combo_preview = node.value("combo_preview", state.combo_preview);
     state.weapon_preview = node.value("weapon_preview", state.weapon_preview);
+    state.squad_status_preview = node.value("squad_status_preview", state.squad_status_preview);
+    state.cover_status_preview = node.value("cover_status_preview", state.cover_status_preview);
     state.last_resolution = node.value("last_resolution", state.last_resolution);
     return state;
 }

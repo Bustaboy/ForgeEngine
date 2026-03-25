@@ -80,6 +80,13 @@ void Update(Scene& scene, float dt_seconds) {
             } else if (entity.realtime_combat.animation_state == "dodging" ||
                        entity.realtime_combat.animation_state.rfind("dodge_", 0) == 0) {
                 entity.animation.motion_phase += safe_dt * 8.4F;
+            } else if (entity.realtime_combat.animation_state.rfind("cover_", 0) == 0) {
+                entity.animation.motion_phase += safe_dt * 3.2F;
+                entity.transform.rot.x = 0.05F;
+            } else if (entity.realtime_combat.animation_state.rfind("squad_", 0) == 0 ||
+                       entity.realtime_combat.animation_state == "call_help" ||
+                       entity.realtime_combat.animation_state == "flee") {
+                entity.animation.motion_phase += safe_dt * 6.9F;
             } else if (entity.realtime_combat.animation_state == "hit_reaction") {
                 entity.animation.motion_phase += safe_dt * 10.0F;
                 const float flinch = std::sin(entity.animation.motion_phase * 2.0F) * 0.06F;

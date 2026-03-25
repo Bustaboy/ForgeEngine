@@ -122,6 +122,7 @@ public sealed partial class MainWindowViewModel
     private bool _combatModeEnabledEditor;
     private string _realtimeCombatSelectionSummary = "Realtime entities enabled: 0";
     private string _realtimeCombatAnimationPreview = "Animation Preview: idle";
+    private string _realtimeCombatWorldIntegrationPreview = "Squad: squad_idle | Cover: cover_none";
     private string _livingNpcsStatus = "Living NPC settings ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
@@ -547,6 +548,7 @@ public sealed partial class MainWindowViewModel
     public bool CombatModeEnabledEditor { get => _combatModeEnabledEditor; set { _combatModeEnabledEditor = value; OnPropertyChanged(); } }
     public string RealtimeCombatSelectionSummary { get => _realtimeCombatSelectionSummary; private set { _realtimeCombatSelectionSummary = value; OnPropertyChanged(); } }
     public string RealtimeCombatAnimationPreview { get => _realtimeCombatAnimationPreview; private set { _realtimeCombatAnimationPreview = value; OnPropertyChanged(); } }
+    public string RealtimeCombatWorldIntegrationPreview { get => _realtimeCombatWorldIntegrationPreview; private set { _realtimeCombatWorldIntegrationPreview = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
     public CoCreatorSuggestion? SelectedStoryBeatSuggestion
@@ -872,6 +874,9 @@ public sealed partial class MainWindowViewModel
                     realtime["finisher_stamina_multiplier"] = realtime["finisher_stamina_multiplier"]?.GetValue<float>() ?? 1.55f;
                     realtime["dodge_invulnerability_seconds"] = realtime["dodge_invulnerability_seconds"]?.GetValue<float>() ?? 0.11f;
                     realtime["hit_reaction_timer"] = realtime["hit_reaction_timer"]?.GetValue<float>() ?? 0f;
+                    realtime["cover_defense_bonus"] = realtime["cover_defense_bonus"]?.GetValue<float>() ?? 0.16f;
+                    realtime["cover_accuracy_bonus"] = realtime["cover_accuracy_bonus"]?.GetValue<float>() ?? 0.12f;
+                    realtime["cover_search_radius"] = realtime["cover_search_radius"]?.GetValue<float>() ?? 3.8f;
                     realtime["action_state"] = realtime["action_state"]?.GetValue<string>() ?? "idle";
                     realtime["animation_state"] = realtime["animation_state"]?.GetValue<string>() ?? "idle";
                 }
@@ -883,7 +888,10 @@ public sealed partial class MainWindowViewModel
                 var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
                 var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
                 var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
+                var squadPreview = root["realtime_combat"]?["squad_status_preview"]?.GetValue<string>() ?? "squad_idle";
+                var coverPreview = root["realtime_combat"]?["cover_status_preview"]?.GetValue<string>() ?? "cover_none";
                 RealtimeCombatAnimationPreview = $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
+                RealtimeCombatWorldIntegrationPreview = $"Squad: {squadPreview} | Cover: {coverPreview}";
                 StoryStatus = nextEnabled
                     ? "Realtime combat enabled for selected entities. Use /realtime_combat_start in runtime."
                     : "Realtime combat disabled for selected entities.";
@@ -1960,10 +1968,13 @@ public sealed partial class MainWindowViewModel
             var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
             var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
             var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
+            var squadPreview = root["realtime_combat"]?["squad_status_preview"]?.GetValue<string>() ?? "squad_idle";
+            var coverPreview = root["realtime_combat"]?["cover_status_preview"]?.GetValue<string>() ?? "cover_none";
             var hitEntity = root["realtime_combat"]?["last_hit_entity_id"]?.GetValue<ulong>() ?? 0UL;
             RealtimeCombatAnimationPreview = hitEntity > 0
                 ? $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview} (last hit: {hitEntity})"
                 : $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
+            RealtimeCombatWorldIntegrationPreview = $"Squad: {squadPreview} | Cover: {coverPreview}";
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)
