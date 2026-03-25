@@ -27,11 +27,14 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
+#include <cstdio>
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -82,8 +85,35 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
-    GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id>");
+    GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
+}
+
+std::string Trim(const std::string& value) {
+    std::size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])) != 0) {
+        ++start;
+    }
+    std::size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0) {
+        --end;
+    }
+    return value.substr(start, end - start);
+}
+
+std::filesystem::path FindOrchestratorScript() {
+    std::filesystem::path cursor = std::filesystem::current_path();
+    for (int i = 0; i < 8; ++i) {
+        const std::filesystem::path candidate = cursor / "ai-orchestration" / "python" / "orchestrator.py";
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+        if (!cursor.has_parent_path()) {
+            break;
+        }
+        cursor = cursor.parent_path();
+    }
+    return {};
 }
 
 void ProcessConsoleCommands(
@@ -536,6 +566,71 @@ void ProcessConsoleCommands(
             GF_LOG_INFO(
                 "  " + std::to_string(entry.start_minute) + "-" + std::to_string(entry.end_minute) + " " +
                 entry.activity + " @ " + entry.location);
+        }
+        return;
+    }
+
+    if (command == "/edit_scene") {
+        std::string target_scene_path;
+        parser >> target_scene_path;
+        std::string prompt;
+        std::getline(parser, prompt);
+        prompt = Trim(prompt);
+        if (!prompt.empty() && prompt.front() == '"' && prompt.back() == '"' && prompt.size() >= 2) {
+            prompt = prompt.substr(1, prompt.size() - 2);
+        }
+        if (target_scene_path.empty() || prompt.empty()) {
+            GF_LOG_INFO("Usage: /edit_scene <scene_json_path> <prompt>");
+            SetOverlayStatusMessage(overlay_status_message, "Usage: /edit_scene <scene_json_path> <prompt>");
+            return;
+        }
+
+        const std::filesystem::path orchestrator_script = FindOrchestratorScript();
+        if (orchestrator_script.empty()) {
+            GF_LOG_WARN("Unable to locate ai-orchestration/python/orchestrator.py for /edit_scene.");
+            SetOverlayStatusMessage(overlay_status_message, "orchestrator.py not found");
+            return;
+        }
+
+#if defined(_WIN32)
+        const std::string python_executable = "python";
+#else
+        const std::string python_executable = "python3";
+#endif
+        const std::string command_line =
+            python_executable + " \"" + orchestrator_script.string() + "\" /edit_scene \"" + target_scene_path + "\" \"" + prompt + "\"";
+
+        std::array<char, 4096> buffer{};
+        std::string stdout_text;
+        FILE* pipe = popen(command_line.c_str(), "r");
+        if (pipe == nullptr) {
+            GF_LOG_WARN("Failed to start orchestrator process for /edit_scene.");
+            SetOverlayStatusMessage(overlay_status_message, "edit scene failed");
+            return;
+        }
+        while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+            stdout_text += buffer.data();
+        }
+        const int exit_code = pclose(pipe);
+        if (exit_code != 0) {
+            GF_LOG_WARN("/edit_scene command failed with exit code " + std::to_string(exit_code));
+            SetOverlayStatusMessage(overlay_status_message, "edit scene failed");
+            return;
+        }
+
+        try {
+            const nlohmann::json response = nlohmann::json::parse(stdout_text);
+            if (response.contains("patch") && response["patch"].is_object()) {
+                if (!scene.ApplyPatch(response["patch"].dump())) {
+                    GF_LOG_WARN("Live patch parse failed, reloading scene from disk.");
+                }
+            }
+            const bool reloaded = scene.Load(target_scene_path);
+            SetOverlayStatusMessage(overlay_status_message, reloaded ? "Scene edited + reloaded" : "Scene edited but reload failed");
+            GF_LOG_INFO(reloaded ? "Scene edited and hot reloaded." : "Scene edited, reload failed.");
+        } catch (...) {
+            GF_LOG_WARN("/edit_scene produced invalid JSON output.");
+            SetOverlayStatusMessage(overlay_status_message, "edit scene parse failed");
         }
         return;
     }

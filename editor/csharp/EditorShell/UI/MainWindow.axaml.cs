@@ -1205,6 +1205,11 @@ public partial class MainWindow : Window
         await _viewModel.RunAiHookAsync("generate-loot");
     }
 
+    private async void OnLiveEditSceneClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RunAiHookAsync("edit-scene");
+    }
+
     private async void OnSaveCoCreatorContextClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.SaveCoCreatorSettingsAsync();

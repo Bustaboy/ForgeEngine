@@ -291,6 +291,7 @@ struct Scene {
     [[nodiscard]] bool TryPlaceBuildingFromRay(const glm::vec3& ray_origin, const glm::vec3& ray_direction);
     bool Save(const std::string& path) const;
     bool Load(const std::string& path);
+    bool ApplyPatch(const std::string& patch_json);
     void MarkNavmeshDirty();
     [[nodiscard]] std::uint32_t MinuteOfDay() const;
 };
