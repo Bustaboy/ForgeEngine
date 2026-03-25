@@ -738,6 +738,11 @@ public sealed partial class MainWindowViewModel
             finalArgs.Add("player");
             finalArgs.Add("weapon");
         }
+        else if (string.Equals(command, "edit-scene", StringComparison.Ordinal))
+        {
+            finalArgs.Add(scenePath);
+            finalArgs.Add(string.IsNullOrWhiteSpace(AiPromptEditor) ? "make the farm feel more melancholic at dusk with glowing lanterns and autumn leaves" : AiPromptEditor);
+        }
 
         if (string.Equals(command, "add-npc", StringComparison.Ordinal) && args.Length == 0)
         {

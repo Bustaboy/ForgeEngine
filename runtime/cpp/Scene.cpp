@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <nlohmann/json.hpp>
 
 #include <glm/gtc/constants.hpp>
 
@@ -225,6 +226,105 @@ bool Scene::Save(const std::string& path) const {
 
 bool Scene::Load(const std::string& path) {
     return SceneLoader::Load(path, *this);
+}
+
+bool Scene::ApplyPatch(const std::string& patch_json) {
+    using json = nlohmann::json;
+
+    json patch_payload;
+    try {
+        patch_payload = json::parse(patch_json);
+    } catch (...) {
+        return false;
+    }
+
+    const json changes = patch_payload.value("changes", json::object());
+    if (!changes.is_object()) {
+        return false;
+    }
+
+    const json render_patch = changes.value("render_2d", json::object());
+    if (!render_patch.is_object()) {
+        return false;
+    }
+
+    render_2d.enabled = render_patch.value("enabled", render_2d.enabled);
+
+    if (render_patch.contains("entity_sprite_map_set") && render_patch["entity_sprite_map_set"].is_object()) {
+        for (const auto& [entity_type, asset_id_node] : render_patch["entity_sprite_map_set"].items()) {
+            if (!asset_id_node.is_string()) {
+                continue;
+            }
+            render_2d.entity_sprite_map[entity_type] = asset_id_node.get<std::string>();
+        }
+    }
+
+    if (render_patch.contains("sprites_add") && render_patch["sprites_add"].is_array()) {
+        for (const json& sprite_node : render_patch["sprites_add"]) {
+            if (!sprite_node.is_object()) {
+                continue;
+            }
+            SceneSprite2D sprite{};
+            sprite.asset_id = sprite_node.value("asset_id", "");
+            sprite.entity_type = sprite_node.value("entity_type", "");
+            if (sprite_node.contains("position") && sprite_node["position"].is_object()) {
+                sprite.position.x = sprite_node["position"].value("x", sprite.position.x);
+                sprite.position.y = sprite_node["position"].value("y", sprite.position.y);
+            }
+            if (sprite_node.contains("size") && sprite_node["size"].is_object()) {
+                sprite.size.x = sprite_node["size"].value("x", sprite.size.x);
+                sprite.size.y = sprite_node["size"].value("y", sprite.size.y);
+            }
+            if (sprite_node.contains("tint") && sprite_node["tint"].is_object()) {
+                sprite.tint.r = sprite_node["tint"].value("r", sprite.tint.r);
+                sprite.tint.g = sprite_node["tint"].value("g", sprite.tint.g);
+                sprite.tint.b = sprite_node["tint"].value("b", sprite.tint.b);
+                sprite.tint.a = sprite_node["tint"].value("a", sprite.tint.a);
+            }
+            sprite.rotation_radians = sprite_node.value("rotation_radians", sprite.rotation_radians);
+            sprite.layer = sprite_node.value("layer", sprite.layer);
+            if (!sprite.asset_id.empty()) {
+                render_2d.sprites.push_back(sprite);
+            }
+        }
+    }
+
+    if (render_patch.contains("sprites_update") && render_patch["sprites_update"].is_array()) {
+        for (const json& update_node : render_patch["sprites_update"]) {
+            if (!update_node.is_object()) {
+                continue;
+            }
+            const json match_node = update_node.value("match", json::object());
+            const json set_node = update_node.value("set", json::object());
+            if (!match_node.is_object() || !set_node.is_object()) {
+                continue;
+            }
+            const std::string match_entity_type = match_node.value("entity_type", "");
+            const std::string match_asset_id = match_node.value("asset_id", "");
+            const int limit = update_node.value("limit", 1000000);
+            int touched = 0;
+            for (SceneSprite2D& sprite : render_2d.sprites) {
+                if (!match_entity_type.empty() && sprite.entity_type != match_entity_type) {
+                    continue;
+                }
+                if (!match_asset_id.empty() && sprite.asset_id != match_asset_id) {
+                    continue;
+                }
+                if (set_node.contains("tint") && set_node["tint"].is_object()) {
+                    sprite.tint.r = set_node["tint"].value("r", sprite.tint.r);
+                    sprite.tint.g = set_node["tint"].value("g", sprite.tint.g);
+                    sprite.tint.b = set_node["tint"].value("b", sprite.tint.b);
+                    sprite.tint.a = set_node["tint"].value("a", sprite.tint.a);
+                }
+                ++touched;
+                if (touched >= std::max(0, limit)) {
+                    break;
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 
