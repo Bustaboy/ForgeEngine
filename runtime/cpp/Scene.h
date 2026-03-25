@@ -273,6 +273,30 @@ struct SceneQualityMetadata {
     int sprite_warning_threshold = 280;
     std::vector<std::string> warnings{};
 };
+
+struct RuntimeOptimizationSettings {
+    bool enabled = false;
+    bool lod_distance_culling_enabled = false;
+    bool draw_call_batching_enabled = false;
+    bool shader_variant_cache_enabled = false;
+    bool memory_guardrails_enabled = false;
+    bool texture_atlas_enabled = false;
+    bool texture_compression_enabled = false;
+    float lod_near_distance_m = 16.0F;
+    float lod_far_distance_m = 42.0F;
+    float sprite_cull_distance_m = 52.0F;
+    float mesh_cull_distance_m = 70.0F;
+    int safe_entity_count = 1400;
+    int safe_texture_count = 320;
+    int safe_vram_mb = 2048;
+    std::string texture_atlas_manifest = "Assets/Generated/runtime_atlas/atlas_manifest.v1.json";
+    std::string shader_variant_manifest = "Assets/Generated/shaders/shader_variant_cache.v1.json";
+};
+
+struct SceneOptimizationOverrides {
+    RuntimeOptimizationSettings runtime{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -308,6 +332,7 @@ struct Scene {
     SceneRender2D render_2d{};
     ScenePostProcessingSettings post_processing{};
     SceneQualityMetadata quality_metadata{};
+    SceneOptimizationOverrides optimization_overrides{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();
