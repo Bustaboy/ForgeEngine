@@ -369,7 +369,9 @@ json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
         {"dodge_cooldown_remaining", combat.dodge_cooldown_remaining},
         {"dodge_remaining", combat.dodge_remaining},
         {"hit_reaction_remaining", combat.hit_reaction_remaining},
+        {"hit_reaction_timer", combat.hit_reaction_timer},
         {"action_state", combat.action_state},
+        {"animation_state", combat.animation_state},
     };
 }
 
@@ -398,7 +400,9 @@ RealTimeCombatComponent RealTimeCombatComponentFromJson(const json& node, const 
     combat.dodge_cooldown_remaining = node.value("dodge_cooldown_remaining", combat.dodge_cooldown_remaining);
     combat.dodge_remaining = node.value("dodge_remaining", combat.dodge_remaining);
     combat.hit_reaction_remaining = node.value("hit_reaction_remaining", combat.hit_reaction_remaining);
+    combat.hit_reaction_timer = node.value("hit_reaction_timer", combat.hit_reaction_timer);
     combat.action_state = node.value("action_state", combat.action_state);
+    combat.animation_state = node.value("animation_state", combat.animation_state);
     return combat;
 }
 
@@ -1411,8 +1415,10 @@ json RealTimeCombatStateToJson(const RealTimeCombatState& combat) {
     return json{
         {"active", combat.active},
         {"controlled_entity_id", combat.controlled_entity_id},
+        {"last_hit_entity_id", combat.last_hit_entity_id},
         {"trigger_source", combat.trigger_source},
         {"last_action", combat.last_action},
+        {"animation_preview", combat.animation_preview},
         {"last_resolution", combat.last_resolution},
     };
 }
@@ -1459,8 +1465,10 @@ RealTimeCombatState RealTimeCombatStateFromJson(const json& node, const RealTime
     RealTimeCombatState state = fallback;
     state.active = node.value("active", state.active);
     state.controlled_entity_id = node.value("controlled_entity_id", state.controlled_entity_id);
+    state.last_hit_entity_id = node.value("last_hit_entity_id", state.last_hit_entity_id);
     state.trigger_source = node.value("trigger_source", state.trigger_source);
     state.last_action = node.value("last_action", state.last_action);
+    state.animation_preview = node.value("animation_preview", state.animation_preview);
     state.last_resolution = node.value("last_resolution", state.last_resolution);
     return state;
 }

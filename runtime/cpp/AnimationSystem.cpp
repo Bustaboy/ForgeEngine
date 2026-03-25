@@ -67,6 +67,23 @@ void Update(Scene& scene, float dt_seconds) {
         }
 
         const float planar_speed = std::sqrt(entity.velocity.x * entity.velocity.x + entity.velocity.z * entity.velocity.z);
+        if (entity.realtime_combat.enabled) {
+            if (entity.realtime_combat.animation_state.empty()) {
+                entity.realtime_combat.animation_state = "idle";
+            }
+
+            if (entity.realtime_combat.animation_state == "attacking") {
+                entity.animation.motion_phase += safe_dt * 6.0F;
+            } else if (entity.realtime_combat.animation_state == "dodging") {
+                entity.animation.motion_phase += safe_dt * 8.0F;
+            } else if (entity.realtime_combat.animation_state == "hit_reaction") {
+                entity.animation.motion_phase += safe_dt * 10.0F;
+                const float flinch = std::sin(entity.animation.motion_phase * 2.0F) * 0.06F;
+                entity.transform.rot.x = flinch;
+                entity.transform.rot.z = -flinch * 0.5F;
+                continue;
+            }
+        }
         entity.animation.motion_phase += safe_dt * (2.2F + planar_speed * 3.4F);
         const float gait = std::sin(entity.animation.motion_phase);
         const float opposite_gait = std::sin(entity.animation.motion_phase + 3.14159265F);

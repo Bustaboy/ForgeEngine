@@ -87,6 +87,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
+    GF_LOG_INFO("           /combat_hit_test <entity_id>");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -484,6 +485,21 @@ void ProcessConsoleCommands(
         const bool ok = RealTimeCombatSystem::QueueAction(scene, action, message);
         GF_LOG_INFO(message);
         SetOverlayStatusMessage(overlay_status_message, ok ? "Realtime action queued" : "Realtime action failed");
+        return;
+    }
+
+    if (command == "/combat_hit_test") {
+        std::uint64_t entity_id = 0;
+        parser >> entity_id;
+        if (entity_id == 0) {
+            GF_LOG_INFO("Usage: /combat_hit_test <entity_id>");
+            return;
+        }
+
+        std::string message;
+        const bool ok = RealTimeCombatSystem::HitTest(scene, entity_id, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Combat hit test applied" : "Combat hit test failed");
         return;
     }
 

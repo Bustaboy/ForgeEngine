@@ -21,5 +21,6 @@ void SetInput(Scene& scene, const InputFrame& input);
 void Update(Scene& scene, float dt_seconds);
 bool Start(Scene& scene, const std::string& source);
 bool QueueAction(Scene& scene, const std::string& action, std::string& out_message);
+bool HitTest(Scene& scene, std::uint64_t entity_id, std::string& out_message);
 
 }  // namespace RealTimeCombatSystem

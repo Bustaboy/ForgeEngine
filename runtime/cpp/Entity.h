@@ -178,7 +178,9 @@ struct RealTimeCombatComponent {
     float dodge_cooldown_remaining = 0.0F;
     float dodge_remaining = 0.0F;
     float hit_reaction_remaining = 0.0F;
+    float hit_reaction_timer = 0.0F;
     std::string action_state = "idle";
+    std::string animation_state = "idle";
 };
 
 struct Entity {

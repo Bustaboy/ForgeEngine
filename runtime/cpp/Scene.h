@@ -199,8 +199,10 @@ struct CombatState {
 struct RealTimeCombatState {
     bool active = false;
     std::uint64_t controlled_entity_id = 0;
+    std::uint64_t last_hit_entity_id = 0;
     std::string trigger_source{};
     std::string last_action{};
+    std::string animation_preview = "idle";
     std::string last_resolution{};
 };
 
