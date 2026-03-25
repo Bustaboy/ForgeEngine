@@ -17,6 +17,7 @@
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
 #include "templates/generated_gameplay.h"
+#include "Logger.h"
 
 #include <algorithm>
 #include <cmath>
@@ -112,6 +113,32 @@ void ApplyMemoryGuardrails(Scene& scene) {
     }
 }
 
+
+void EmitQualityGuardrailWarnings(const Scene& scene) {
+    static bool vram_warned = false;
+    static bool sprite_warned = false;
+    const bool vram_high = scene.quality_metadata.estimated_vram_mb > static_cast<float>(scene.quality_metadata.vram_warning_threshold_mb);
+    const bool sprites_high = scene.quality_metadata.sprite_count > scene.quality_metadata.sprite_warning_threshold;
+
+    if (vram_high && !vram_warned) {
+        GF_LOG_WARN(
+            "QualityGuardrail: estimated_vram_mb=" + std::to_string(scene.quality_metadata.estimated_vram_mb) +
+            " exceeds threshold_mb=" + std::to_string(scene.quality_metadata.vram_warning_threshold_mb));
+        vram_warned = true;
+    } else if (!vram_high) {
+        vram_warned = false;
+    }
+
+    if (sprites_high && !sprite_warned) {
+        GF_LOG_WARN(
+            "QualityGuardrail: sprite_count=" + std::to_string(scene.quality_metadata.sprite_count) +
+            " exceeds threshold=" + std::to_string(scene.quality_metadata.sprite_warning_threshold));
+        sprite_warned = true;
+    } else if (!sprites_high) {
+        sprite_warned = false;
+    }
+}
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
@@ -202,6 +229,7 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
     ApplyMemoryGuardrails(*this);
+    EmitQualityGuardrailWarnings(*this);
 }
 
 bool Scene::ToggleBuildMode() {

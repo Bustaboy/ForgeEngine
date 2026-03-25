@@ -827,9 +827,29 @@ public sealed partial class MainWindowViewModel
             ReloadSystemPanelsFromScene();
         }
 
-        StatusMessage = string.IsNullOrWhiteSpace(stderr)
+        var completion = string.IsNullOrWhiteSpace(stderr)
             ? $"AI hook complete: {command}"
             : $"AI hook complete with warnings: {stderr.Trim()}";
+
+        if (string.Equals(command, "edit-scene", StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(stdout))
+        {
+            try
+            {
+                var output = JsonNode.Parse(stdout) as JsonObject;
+                var qualityScore = output?["applied"]?["quality_score"]?.GetValue<double?>();
+                if (qualityScore is double q)
+                {
+                    completion = $"{completion} • Quality {Math.Clamp(q, 0d, 100d):0.0}/100";
+                }
+            }
+            catch
+            {
+                // Preserve backward-compatible behavior if hook output shape changes.
+            }
+        }
+
+        StatusMessage = completion;
     }
 
     public async Task SaveCoCreatorSettingsAsync(CancellationToken cancellationToken = default)

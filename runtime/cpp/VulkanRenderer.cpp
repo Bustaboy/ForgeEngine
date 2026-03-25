@@ -1588,6 +1588,8 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     VK_CHECK(vkBeginCommandBuffer(command_buffers_[image_index], &begin_info));
 
+    post_process_enabled_ = scene.post_processing.enabled;
+
     if (post_process_enabled_) {
         VkImageMemoryBarrier offscreen_color_to_attachment{};
         offscreen_color_to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1817,7 +1819,8 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
             0,
             nullptr);
         BloomExtractPushConstants bloom_extract_push_constants{};
-        bloom_extract_push_constants.threshold = glm::vec4(1.0F, 0.0F, 0.0F, 0.0F);
+        const float bloom_threshold = scene.post_processing.bloom_enabled ? 1.0F : 16.0F;
+        bloom_extract_push_constants.threshold = glm::vec4(bloom_threshold, scene.post_processing.outline_enabled ? scene.post_processing.outline_strength : 0.0F, 0.0F, 0.0F);
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,
@@ -2135,7 +2138,11 @@ void VulkanRenderer::RecordCommandBuffer(std::uint32_t image_index, const Scene&
             0,
             nullptr);
         CombineTonemapPushConstants combine_push_constants{};
-        combine_push_constants.params = glm::vec4(0.20F, 1.0F, 0.0F, 0.0F);
+        const float bloom_strength = scene.post_processing.bloom_enabled ? scene.post_processing.bloom_strength : 0.0F;
+        const float vignette_strength = scene.post_processing.vignette_enabled ? scene.post_processing.vignette_strength : 0.0F;
+        const float saturation = scene.post_processing.color_grading_enabled ? scene.post_processing.color_grade_saturation : 1.0F;
+        const float exposure = scene.post_processing.color_grading_enabled ? scene.post_processing.color_grade_contrast : 1.0F;
+        combine_push_constants.params = glm::vec4(bloom_strength, exposure, vignette_strength, saturation);
         vkCmdPushConstants(
             command_buffers_[image_index],
             pipeline_layout_,

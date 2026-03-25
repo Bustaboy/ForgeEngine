@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from art_bible import ArtBible, default_art_bible
-from kit_bashing import apply_variations, bash_scene
+from kit_bashing import apply_variations, bash_scene, quality_score, _upsert_scene_quality_metadata
 
 
 _PATCH_SCHEMA = "gameforge.scene_live_edit_patch.v1"
@@ -216,9 +216,14 @@ def apply_scene_patch(scene_json_path: Path, patch: dict[str, Any]) -> dict[str,
                     tilemap[set_key] = set_value
                 break
 
+    quality = quality_score(payload)
+    _upsert_scene_quality_metadata(payload, quality, source="edit-scene", prompt=str(patch.get("prompt", "")))
+
     scene_json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return {
         "applied": True,
+        "quality_score": quality.get("score", 0),
+        "quality_metadata": quality,
         "scene_path": str(scene_json_path),
         "sprites_added": added,
         "sprites_updated": updated,

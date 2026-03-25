@@ -200,7 +200,7 @@ private:
     VkImageView offscreen_depth_image_view_ = VK_NULL_HANDLE;
     VkFramebuffer offscreen_framebuffer_ = VK_NULL_HANDLE;
     VkFormat offscreen_depth_format_ = VK_FORMAT_UNDEFINED;
-    bool post_process_enabled_ = true;
+    bool post_process_enabled_ = false;
     SpriteBatch sprite_batch_{};
     TilemapChunk tilemap_chunk_{};
     struct BindlessTextureGpuResource {
