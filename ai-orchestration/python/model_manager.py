@@ -5,10 +5,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+PYTHON_ROOT = Path(__file__).resolve().parent
+if str(PYTHON_ROOT) not in sys.path:
+    sys.path.insert(0, str(PYTHON_ROOT))
+
+from benchmark import run_benchmark_as_dict
 
 try:
     from huggingface_hub import snapshot_download
@@ -27,7 +34,14 @@ FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
     "orchestrator": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
     "assetgen": "stabilityai/stable-diffusion-2-1-base",
+    "forgeguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
 }
+
+ONBOARDING_KEEP_MESSAGE = (
+    "ForgeGuard (tiny helper model) has been installed. "
+    "It will be used later for code critique, guardrails, and optimization suggestions. "
+    "You can remove it anytime from the Model Manager if you prefer."
+)
 
 
 @dataclass(frozen=True)
@@ -245,3 +259,132 @@ def get_model_path(friendly_name: str, models_json_path: Path | None = None) -> 
     if env_path:
         return env_path
     return None
+
+
+def _recommendation_size_band(vram_gb: int) -> str:
+    if vram_gb >= 12:
+        return "large"
+    if vram_gb >= 8:
+        return "medium"
+    return "small"
+
+
+def generate_recommendations(
+    hardware: dict[str, Any],
+    answers: dict[str, str],
+) -> dict[str, dict[str, Any]]:
+    """Generate onboarding recommendations for Free-Will, Coding, and Asset-Gen."""
+
+    vram_gb = int(hardware.get("gpu_vram_gb", 0) or 0)
+    size_band = _recommendation_size_band(vram_gb)
+    game_type = answers.get("game_type", "hybrid")
+    npc_importance = answers.get("npc_importance", "medium")
+    code_vs_asset = answers.get("code_vs_asset", "balanced")
+    target = answers.get("target_profile", "balanced")
+
+    if size_band == "large":
+        freewill_repo = "bartowski/Llama-3.2-8B-Instruct-GGUF"
+        coding_repo = "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF"
+        freewill_size = "4.8GB (Q4)"
+        coding_size = "4.5GB (Q4)"
+    elif size_band == "medium":
+        freewill_repo = "bartowski/Llama-3.2-3B-Instruct-GGUF"
+        coding_repo = "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF"
+        freewill_size = "2.0GB (Q4)"
+        coding_size = "2.4GB (Q4)"
+    else:
+        freewill_repo = "bartowski/Qwen2.5-1.5B-Instruct-GGUF"
+        coding_repo = "bartowski/Qwen2.5-Coder-1.5B-Instruct-GGUF"
+        freewill_size = "1.1GB (Q4)"
+        coding_size = "1.2GB (Q4)"
+
+    assetgen_repo = "stabilityai/stable-diffusion-2-1-base"
+    assetgen_size = "5.2GB fp16"
+    if code_vs_asset == "asset-heavy":
+        assetgen_reason = "You prioritized asset generation, so a stronger local diffusion baseline is recommended."
+    else:
+        assetgen_reason = "Balanced asset generation baseline suitable for V1 local-first workflows."
+
+    return {
+        "freewill": {
+            "repo_id": freewill_repo,
+            "estimated_size": freewill_size,
+            "reason": (
+                f"Selected for {game_type} gameplay with {npc_importance} NPC focus "
+                f"on a {target} profile with ~{vram_gb}GB VRAM."
+            ),
+        },
+        "coding": {
+            "repo_id": coding_repo,
+            "estimated_size": coding_size,
+            "reason": (
+                f"Matched to {code_vs_asset} production emphasis and {size_band} hardware tier "
+                f"(~{vram_gb}GB VRAM)."
+            ),
+        },
+        "assetgen": {
+            "repo_id": assetgen_repo,
+            "estimated_size": assetgen_size,
+            "reason": assetgen_reason,
+        },
+        "forgeguard": {
+            "repo_id": FRIENDLY_MODEL_REPOS["forgeguard"],
+            "estimated_size": "2.2GB (Q4)",
+            "reason": "Tiny helper model used for onboarding plus future guardrail and critique passes.",
+            "kept_installed": True,
+        },
+    }
+
+
+def run_onboarding(
+    orchestrator_file: Path | None = None,
+    models_json_path: Path | None = None,
+    auto_prepare_models: bool = True,
+    input_fn: Callable[[str], str] = input,
+) -> dict[str, Any]:
+    """Run first-run onboarding with benchmark + ForgeGuard Q&A + persisted recommendations."""
+
+    benchmark = run_benchmark_as_dict(orchestrator_file=orchestrator_file, auto_prepare_models=auto_prepare_models)
+    config = _load_models_config(models_json_path=models_json_path)
+    resolved_models_path = _models_json_path(models_json_path)
+
+    print("ForgeGuard onboarding started. Answer 4 quick questions.")
+    questions = [
+        ("game_type", "Primary game type (rts/sim/rpg/hybrid): ", "hybrid"),
+        ("npc_importance", "How important are NPC depth and dialogue? (low/medium/high): ", "medium"),
+        ("code_vs_asset", "What do you need more right now? (code-heavy/asset-heavy/balanced): ", "balanced"),
+        ("target_profile", "Target profile (quality/balanced/performance): ", "balanced"),
+    ]
+    answers: dict[str, str] = {}
+    for key, prompt, default in questions:
+        value = str(input_fn(prompt) or "").strip().lower()
+        answers[key] = value or default
+
+    forgeguard_record = download_model(
+        friendly_name="forgeguard",
+        quantization=DEFAULT_QUANTIZATION,
+        models_json_path=resolved_models_path,
+    )
+    config = _load_models_config(models_json_path=resolved_models_path)
+
+    recommendations = generate_recommendations(hardware=benchmark.get("hardware", {}), answers=answers)
+    config["onboarding"] = {
+        "completed": True,
+        "completed_at_unix": int(time.time()),
+        "schema": "gameforge.onboarding.v1",
+        "benchmark": benchmark,
+        "answers": answers,
+        "recommendations": recommendations,
+        "forgeguard_keep_message": ONBOARDING_KEEP_MESSAGE,
+    }
+    _save_models_config(config, models_json_path=resolved_models_path)
+
+    print(ONBOARDING_KEEP_MESSAGE)
+    return {
+        "benchmark": benchmark,
+        "answers": answers,
+        "recommendations": recommendations,
+        "forgeguard": forgeguard_record,
+        "message": ONBOARDING_KEEP_MESSAGE,
+        "models_json": str(resolved_models_path),
+    }

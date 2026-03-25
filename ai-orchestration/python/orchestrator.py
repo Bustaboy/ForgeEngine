@@ -36,7 +36,7 @@ from art_bible import ArtBible, default_art_bible, default_asset_review_metadata
 from consistency import batch_generate, consistency_score
 from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, apply_variations_to_scene, quality_score
 from live_edit import edit_scene_from_prompt
-from model_manager import download_model, list_installed_models
+from model_manager import download_model, list_installed_models, run_onboarding
 
 
 UNCERTAINTY_CUES = {
@@ -3212,6 +3212,11 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if command in {"list-models", "/list_models"}:
         result = list_installed_models()
         print(json.dumps({"models": result}, indent=2))
+        return 0
+
+    if command in {"onboarding-run", "/onboarding_run"}:
+        result = run_onboarding(orchestrator_file=Path(__file__).resolve())
+        print(json.dumps(result, indent=2))
         return 0
 
     return None
