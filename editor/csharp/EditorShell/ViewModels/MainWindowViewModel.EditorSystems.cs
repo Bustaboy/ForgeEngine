@@ -36,8 +36,13 @@ public sealed partial class MainWindowViewModel
     private readonly ObservableCollection<OptimizationSuggestion> _optimizationSuggestions = [];
     private readonly HashSet<string> _modelDownloadsInProgress = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _modelDownloadProgressByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _modelLastErrorByName = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _activeModelOperationCts;
     private string? _activeModelCancelFilePath;
+    private string? _activeModelOperationLabel;
+    private string? _activeModelCommand;
+    private List<string> _activeModelArgs = [];
+    private List<string> _activeTrackedModelNames = [];
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
     private CoCreatorSuggestion? _selectedCoCreatorSuggestion;
@@ -73,6 +78,11 @@ public sealed partial class MainWindowViewModel
     private string _downloadProgressSummary = "Starting...";
     private string _downloadProgressSpeed = "Speed: --";
     private string _downloadProgressEta = "ETA: --";
+    private bool _isDownloadErrorVisible;
+    private string _downloadErrorTitle = "Model setup needs attention";
+    private string _downloadErrorMessage = string.Empty;
+    private string _downloadErrorGuidance = string.Empty;
+    private bool _isModelErrorRetryEnabled;
     private string _optimizationStatus = "Optimization insights idle.";
     private string _performanceHealthSummary = "Performance health unavailable.";
     private int _projectHealthScore = 50;
@@ -508,6 +518,11 @@ public sealed partial class MainWindowViewModel
     public string DownloadProgressSummary { get => _downloadProgressSummary; private set { _downloadProgressSummary = value; OnPropertyChanged(); } }
     public string DownloadProgressSpeed { get => _downloadProgressSpeed; private set { _downloadProgressSpeed = value; OnPropertyChanged(); } }
     public string DownloadProgressEta { get => _downloadProgressEta; private set { _downloadProgressEta = value; OnPropertyChanged(); } }
+    public bool IsDownloadErrorVisible { get => _isDownloadErrorVisible; private set { _isDownloadErrorVisible = value; OnPropertyChanged(); } }
+    public string DownloadErrorTitle { get => _downloadErrorTitle; private set { _downloadErrorTitle = value; OnPropertyChanged(); } }
+    public string DownloadErrorMessage { get => _downloadErrorMessage; private set { _downloadErrorMessage = value; OnPropertyChanged(); } }
+    public string DownloadErrorGuidance { get => _downloadErrorGuidance; private set { _downloadErrorGuidance = value; OnPropertyChanged(); } }
+    public bool IsModelErrorRetryEnabled { get => _isModelErrorRetryEnabled; private set { _isModelErrorRetryEnabled = value; OnPropertyChanged(); } }
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
     public string SelectedFactionIdEditor { get => _selectedFactionIdEditor; set { _selectedFactionIdEditor = value; OnPropertyChanged(); } }
@@ -1377,6 +1392,7 @@ public sealed partial class MainWindowViewModel
             var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
             var progressStatus = _modelDownloadProgressByName.TryGetValue(model.Friendly, out var progress) ? progress : "Downloading";
             var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
+            var lastError = _modelLastErrorByName.TryGetValue(model.Friendly, out var errorText) ? errorText : string.Empty;
             var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
             var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
@@ -1388,7 +1404,9 @@ public sealed partial class MainWindowViewModel
                 estimatedSize,
                 $"{profileLead}: {reason}",
                 shouldDownload,
-                removable));
+                removable,
+                lastError,
+                !string.IsNullOrWhiteSpace(lastError)));
         }
 
         ModelRecommendationSummary = _modelManagerEntries.FirstOrDefault(item => item.FriendlyName == "freewill")?.Recommendation
@@ -1424,6 +1442,28 @@ public sealed partial class MainWindowViewModel
         _activeModelOperationCts.Cancel();
     }
 
+    public async Task RetryLastModelOperationAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_activeModelCommand) || _activeTrackedModelNames.Count == 0)
+        {
+            return;
+        }
+
+        IsDownloadErrorVisible = false;
+        await RunManagedModelOperationWithProgressAsync(
+            operationLabel: _activeModelOperationLabel ?? "Retrying model operation",
+            trackedModelNames: _activeTrackedModelNames,
+            command: _activeModelCommand,
+            args: _activeModelArgs);
+    }
+
+    public void DismissModelErrorDialog()
+    {
+        IsDownloadErrorVisible = false;
+        IsDownloadProgressVisible = false;
+        IsModelErrorRetryEnabled = false;
+    }
+
     private async Task<bool> RunManagedModelOperationWithProgressAsync(
         string operationLabel,
         IReadOnlyList<string> trackedModelNames,
@@ -1439,7 +1479,14 @@ public sealed partial class MainWindowViewModel
         {
             _modelDownloadsInProgress.Add(modelName);
             _modelDownloadProgressByName[modelName] = "Downloading 0%";
+            _modelLastErrorByName.Remove(modelName);
         }
+        _activeModelOperationLabel = operationLabel;
+        _activeModelCommand = command;
+        _activeModelArgs = args.ToList();
+        _activeTrackedModelNames = trackedModelNames.Select(item => item.ToLowerInvariant()).ToList();
+        IsDownloadErrorVisible = false;
+        IsModelErrorRetryEnabled = false;
         RebuildModelManagerEntries(null);
         IsModelManagerBusy = true;
         IsDownloadProgressVisible = true;
@@ -1470,10 +1517,27 @@ public sealed partial class MainWindowViewModel
 
             if (result.ExitCode != 0)
             {
-                ModelManagerStatus = $"Model operation failed: {result.Stderr}";
+                var operationError = ParseModelOperationError(result.Stdout, result.Stderr);
+                var errorMessage = operationError?.UserMessage ?? "Model operation could not complete.";
+                var guidance = operationError?.SuggestedAction ?? "Retry from Models & LLM settings or check local network/disk access.";
+                ModelManagerStatus = errorMessage;
+                DownloadErrorTitle = "Model setup needs attention";
+                DownloadErrorMessage = errorMessage;
+                DownloadErrorGuidance = guidance;
+                IsModelErrorRetryEnabled = operationError?.Retryable ?? false;
+                IsDownloadErrorVisible = true;
+                foreach (var modelName in trackedModelNames)
+                {
+                    _modelLastErrorByName[modelName] = errorMessage;
+                }
+                RebuildModelManagerEntries(null);
                 return false;
             }
 
+            foreach (var modelName in trackedModelNames)
+            {
+                _modelLastErrorByName.Remove(modelName);
+            }
             await RefreshModelManagerAsync();
             return true;
         }
@@ -1490,7 +1554,10 @@ public sealed partial class MainWindowViewModel
             }
             _activeModelCancelFilePath = null;
             _activeModelOperationCts = null;
-            IsDownloadProgressVisible = false;
+            if (!IsDownloadErrorVisible)
+            {
+                IsDownloadProgressVisible = false;
+            }
             IsModelManagerBusy = false;
             foreach (var modelName in trackedModelNames)
             {
@@ -1567,7 +1634,11 @@ public sealed partial class MainWindowViewModel
 
         var eventName = SafeGetString(payload, "event");
         if (!string.Equals(eventName, "progress", StringComparison.Ordinal) &&
-            !string.Equals(eventName, "cancelled", StringComparison.Ordinal))
+            !string.Equals(eventName, "cancelled", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "error", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "download_progress", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "download_started", StringComparison.Ordinal))
         {
             return false;
         }
@@ -1608,7 +1679,83 @@ public sealed partial class MainWindowViewModel
         {
             DownloadProgressSummary = "Canceled by user.";
         }
+        else if (string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal))
+        {
+            var retryInSeconds = SafeGetInt(payload, "retry_in_seconds") ?? 0;
+            DownloadProgressSummary = $"{friendlyName}: temporary issue detected. Retrying in {Math.Max(1, retryInSeconds)}s…";
+            DownloadProgressEta = $"Retry in: {Math.Max(1, retryInSeconds)}s";
+            _modelDownloadProgressByName[friendlyName] = $"Retrying in {Math.Max(1, retryInSeconds)}s";
+            RebuildModelManagerEntries(null);
+        }
+        else if (string.Equals(eventName, "error", StringComparison.Ordinal))
+        {
+            var errorState = ParseModelErrorPayload(payload["error"] as JsonObject);
+            if (errorState is not null)
+            {
+                DownloadErrorTitle = "Model setup needs attention";
+                DownloadErrorMessage = errorState.UserMessage;
+                DownloadErrorGuidance = errorState.SuggestedAction;
+                IsModelErrorRetryEnabled = errorState.Retryable;
+                IsDownloadErrorVisible = true;
+            }
+        }
         return true;
+    }
+
+    private ModelOperationErrorState? ParseModelOperationError(string stdout, string stderr)
+    {
+        foreach (var candidate in EnumerateJsonObjects(stdout).Concat(EnumerateJsonObjects(stderr)))
+        {
+            if (ParseModelErrorPayload(candidate["error"] as JsonObject) is ModelOperationErrorState state)
+            {
+                return state;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<JsonObject> EnumerateJsonObjects(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield break;
+        }
+
+        var lines = text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var line in lines)
+        {
+            JsonObject? payload = null;
+            try
+            {
+                payload = JsonNode.Parse(line) as JsonObject;
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (payload is not null)
+            {
+                yield return payload;
+            }
+        }
+    }
+
+    private static ModelOperationErrorState? ParseModelErrorPayload(JsonObject? payload)
+    {
+        if (payload is null)
+        {
+            return null;
+        }
+
+        var userMessage = SafeGetString(payload, "user_message")
+            ?? SafeGetString(payload, "message")
+            ?? "Model setup failed.";
+        var suggestedAction = SafeGetString(payload, "suggested_action")
+            ?? "Retry from Models & LLM settings.";
+        var retryable = payload["retryable"]?.GetValue<bool?>() == true;
+        return new ModelOperationErrorState(userMessage, suggestedAction, retryable);
     }
 
     private static string? SafeGetString(JsonObject payload, string key)
@@ -1654,7 +1801,11 @@ public sealed partial class MainWindowViewModel
         string EstimatedSize,
         string Recommendation,
         bool ShouldDownloadByDefault,
-        bool IsRemovable);
+        bool IsRemovable,
+        string LastError,
+        bool CanRetry);
+
+    private sealed record ModelOperationErrorState(string UserMessage, string SuggestedAction, bool Retryable);
 
     private async Task SyncLivingNpcModelPathFromModelsAsync()
     {

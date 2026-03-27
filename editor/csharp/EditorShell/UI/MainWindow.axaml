@@ -1283,6 +1283,7 @@
                                 <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
                                 <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" />
                                 <TextBlock Text="{Binding Recommendation}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding LastError}" Foreground="#FFB39F" FontSize="10" TextWrapping="Wrap" IsVisible="{Binding CanRetry}" />
                               </StackPanel>
                               <Button Grid.Column="1"
                                       Content="Download"
@@ -1290,13 +1291,18 @@
                                       Click="OnDownloadManagedModelClick"
                                       IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
                                       VerticalAlignment="Top" />
-                              <Button Grid.Column="2"
-                                      Content="Remove"
-                                      Tag="{Binding FriendlyName}"
-                                      Click="OnRemoveManagedModelClick"
-                                      IsVisible="{Binding IsRemovable}"
-                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
-                                      VerticalAlignment="Top" />
+                              <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Top">
+                                <Button Content="Retry"
+                                        Tag="{Binding FriendlyName}"
+                                        Click="OnRetryManagedModelClick"
+                                        IsVisible="{Binding CanRetry}"
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
+                                <Button Content="Remove"
+                                        Tag="{Binding FriendlyName}"
+                                        Click="OnRemoveManagedModelClick"
+                                        IsVisible="{Binding IsRemovable}"
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
+                              </StackPanel>
                             </Grid>
                           </Border>
                         </DataTemplate>
@@ -1764,6 +1770,33 @@
           <Button Content="Cancel Download"
                   HorizontalAlignment="Left"
                   Click="OnCancelModelDownloadClick" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid Grid.RowSpan="5"
+          IsVisible="{Binding IsDownloadErrorVisible}"
+          Background="#050C15CC"
+          ZIndex="25">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="680"
+              MaxWidth="760"
+              Background="#1B1113F5"
+              BorderBrush="#FF8A73"
+              BorderThickness="1.2"
+              CornerRadius="12"
+              Padding="18">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding DownloadErrorTitle}" Foreground="#FFD9D1" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="{Binding DownloadErrorMessage}" Foreground="#FFE5DD" FontSize="13" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding DownloadErrorGuidance}" Foreground="#FBCABF" FontSize="12" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Click="OnDismissModelErrorClick" />
+            <Button Content="Retry"
+                    Click="OnRetryModelOperationClick"
+                    IsEnabled="{Binding IsModelErrorRetryEnabled}" />
+          </StackPanel>
         </StackPanel>
       </Border>
     </Grid>

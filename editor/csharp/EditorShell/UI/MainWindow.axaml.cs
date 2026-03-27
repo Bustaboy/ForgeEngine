@@ -1486,6 +1486,16 @@ public partial class MainWindow : Window
         await _viewModel.DownloadManagedModelAsync(friendlyName);
     }
 
+    private async void OnRetryManagedModelClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string friendlyName)
+        {
+            return;
+        }
+
+        await _viewModel.DownloadManagedModelAsync(friendlyName);
+    }
+
     private async void OnRunModelOnboardingClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RunModelOnboardingAsync();
@@ -1535,6 +1545,16 @@ public partial class MainWindow : Window
     private void OnCancelModelDownloadClick(object? sender, RoutedEventArgs e)
     {
         _viewModel.CancelActiveModelOperation();
+    }
+
+    private async void OnRetryModelOperationClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RetryLastModelOperationAsync();
+    }
+
+    private void OnDismissModelErrorClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.DismissModelErrorDialog();
     }
 
     private async void OnRunOptimizationCheckClick(object? sender, RoutedEventArgs e)
