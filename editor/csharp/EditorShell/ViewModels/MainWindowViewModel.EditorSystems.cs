@@ -145,6 +145,9 @@ public sealed partial class MainWindowViewModel
     private string _realtimeCombatAnimationPreview = "Animation Preview: idle";
     private string _realtimeCombatWorldIntegrationPreview = "Squad: squad_idle | Cover: cover_none";
     private string _livingNpcsStatus = "Living NPC settings ready.";
+    private string _scriptedBehaviorStateEditor = "patrol";
+    private string _scriptedBehaviorParamsEditor = "duration_hours=0.25";
+    private string _scriptedBehaviorStatus = "Scripted behavior assignment ready.";
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
     private readonly IReadOnlyList<string> _voiceBuildOptions = ["average", "light", "heavy"];
@@ -473,6 +476,9 @@ public sealed partial class MainWindowViewModel
     public float SettlementFoodEditor { get => _livingNpcs.FoodStockpile; set { _livingNpcs.FoodStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public float SettlementStockpileEditor { get => _livingNpcs.SharedStockpile; set { _livingNpcs.SharedStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorStateEditor { get => _scriptedBehaviorStateEditor; set { _scriptedBehaviorStateEditor = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorParamsEditor { get => _scriptedBehaviorParamsEditor; set { _scriptedBehaviorParamsEditor = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorStatus { get => _scriptedBehaviorStatus; private set { _scriptedBehaviorStatus = value; OnPropertyChanged(); } }
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public IReadOnlyList<ModelManagerEntry> ModelManagerEntries => _modelManagerEntries;
     public IReadOnlyList<OptimizationChangeEntry> RecentOptimizationChanges => _recentOptimizationChanges;
@@ -845,6 +851,71 @@ public sealed partial class MainWindowViewModel
                 LivingNpcsStatus = updatedCount == 0
                     ? "No NPCs matched the current selection for re-seed."
                     : $"Re-seeded living defaults for {updatedCount} NPC(s).";
+                return updatedCount > 0;
+            },
+            cancellationToken);
+
+    public async Task AssignScriptedBehaviorToSelectionAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Scripted behavior assigned",
+            root =>
+            {
+                if (root["entities"] is not JsonArray entities)
+                {
+                    return false;
+                }
+
+                var state = (ScriptedBehaviorStateEditor ?? string.Empty).Trim().ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(state))
+                {
+                    ScriptedBehaviorStatus = "Enter a scripted behavior state first.";
+                    return false;
+                }
+
+                var selectedNpcIds = _selectedViewportEntities
+                    .Where(entity => string.Equals(entity.Type, "npc", StringComparison.OrdinalIgnoreCase))
+                    .Select(entity => TryParseEntityId(entity.Id))
+                    .Where(id => id > 0UL)
+                    .ToHashSet();
+                if (SelectedDialogEntityId > 0)
+                {
+                    selectedNpcIds.Add(SelectedDialogEntityId);
+                }
+
+                var parameters = ParseKeyValueNumbers(ScriptedBehaviorParamsEditor);
+                var updatedCount = 0;
+                foreach (var entity in entities.OfType<JsonObject>())
+                {
+                    var entityType = entity["type"]?.GetValue<string>() ?? string.Empty;
+                    if (!string.Equals(entityType, "npc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var npcId = ReadUlong(entity["id"], 0);
+                    if (selectedNpcIds.Count > 0 && !selectedNpcIds.Contains(npcId))
+                    {
+                        continue;
+                    }
+
+                    var scripted = entity["scripted_behavior"] as JsonObject ?? new JsonObject();
+                    entity["scripted_behavior"] = scripted;
+                    scripted["enabled"] = true;
+                    scripted["current_state"] = state;
+                    scripted["target_entity_id"] = ReadUlong(scripted["target_entity_id"], 0);
+                    scripted["schedule_override"] = true;
+                    var paramsNode = new JsonObject();
+                    foreach (var kvp in parameters)
+                    {
+                        paramsNode[kvp.Key] = kvp.Value;
+                    }
+                    scripted["parameters"] = paramsNode;
+                    updatedCount++;
+                }
+
+                ScriptedBehaviorStatus = updatedCount == 0
+                    ? "No NPCs selected for scripted behavior assignment."
+                    : $"Assigned '{state}' scripted behavior to {updatedCount} NPC(s).";
                 return updatedCount > 0;
             },
             cancellationToken);
@@ -2609,6 +2680,9 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
             OnPropertyChanged(nameof(LivingNpcsSparksToday));
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
+            OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
+            OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));
+            OnPropertyChanged(nameof(ScriptedBehaviorStatus));
             OnPropertyChanged(nameof(SettlementVillageNameEditor));
             OnPropertyChanged(nameof(SettlementPopulation));
             OnPropertyChanged(nameof(SettlementMoraleEditor));
@@ -2716,6 +2790,39 @@ public sealed partial class MainWindowViewModel
             ["y"] = 0f,
             ["z"] = y,
         };
+
+    private static Dictionary<string, float> ParseKeyValueNumbers(string text)
+    {
+        var result = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return result;
+        }
+
+        var segments = text.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var segment in segments)
+        {
+            var separator = segment.IndexOf('=');
+            if (separator <= 0 || separator >= segment.Length - 1)
+            {
+                continue;
+            }
+
+            var key = segment[..separator].Trim();
+            var valueRaw = segment[(separator + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            if (float.TryParse(valueRaw, out var value))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
 
     private static ulong TryParseEntityId(string? entityId)
         => ulong.TryParse(entityId, out var parsed) ? parsed : 0UL;

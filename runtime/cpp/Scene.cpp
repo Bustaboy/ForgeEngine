@@ -6,6 +6,7 @@
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
 #include "NPCController.h"
+#include "LivingNpcSystem.h"
 #include "FreeWillSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
@@ -227,7 +228,7 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::EnsureSceneRelationships(*this);
     WeatherSystem::EnsureDefaults(*this);
     SettlementSystem::EnsureDefaults(*this);
-    NPCController::EnsureDefaults(*this);
+    LivingNpcSystem::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
     RealTimeCombatSystem::EnsureDefaults(*this);
@@ -300,7 +301,7 @@ void Scene::Update(float dt_seconds) {
     }
 
     AnimationSystem::Update(*this, safe_dt);
-    NPCController::Update(*this, safe_dt);
+    LivingNpcSystem::Update(*this, safe_dt);
     FreeWillSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);

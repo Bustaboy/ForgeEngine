@@ -1430,6 +1430,11 @@ public partial class MainWindow : Window
         await _viewModel.ReseedLivingNpcDefaultsAsync();
     }
 
+    private async void OnAssignScriptedBehaviorClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.AssignScriptedBehaviorToSelectionAsync();
+    }
+
     private async void OnApplyBuildableClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.ApplyBuildableSelectionAsync();

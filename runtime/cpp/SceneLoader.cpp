@@ -344,6 +344,39 @@ json NeedsToJson(const NeedsComponent& needs) {
     };
 }
 
+json ScriptedBehaviorComponentToJson(const ScriptedBehaviorComponent& scripted) {
+    json node = json{
+        {"enabled", scripted.enabled},
+        {"current_state", scripted.current_state},
+        {"target_entity_id", scripted.target_entity_id},
+        {"schedule_override", scripted.schedule_override},
+    };
+    json parameters = json::object();
+    for (const auto& [key, value] : scripted.parameters) {
+        parameters[key] = value;
+    }
+    node["parameters"] = parameters;
+    return node;
+}
+
+ScriptedBehaviorComponent ScriptedBehaviorComponentFromJson(const json& node, const ScriptedBehaviorComponent& fallback) {
+    ScriptedBehaviorComponent scripted = fallback;
+    scripted.enabled = node.value("enabled", scripted.enabled);
+    scripted.current_state = node.value("current_state", scripted.current_state);
+    scripted.target_entity_id = node.value("target_entity_id", scripted.target_entity_id);
+    scripted.schedule_override = node.value("schedule_override", scripted.schedule_override);
+    scripted.parameters.clear();
+    if (node.contains("parameters") && node["parameters"].is_object()) {
+        for (const auto& [key, value_node] : node["parameters"].items()) {
+            if (!value_node.is_number()) {
+                continue;
+            }
+            scripted.parameters[key] = value_node.get<float>();
+        }
+    }
+    return scripted;
+}
+
 json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
     return json{
         {"enabled", combat.enabled},
@@ -702,6 +735,9 @@ json EntityToJson(const Entity& entity) {
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
     node["schedule"] = ScheduleComponentToJson(entity.schedule);
     node["needs"] = NeedsToJson(entity.needs);
+    if (entity.scripted_behavior.enabled || !entity.scripted_behavior.current_state.empty()) {
+        node["scripted_behavior"] = ScriptedBehaviorComponentToJson(entity.scripted_behavior);
+    }
     if (entity.realtime_combat.enabled) {
         node["realtime_combat"] = RealTimeCombatComponentToJson(entity.realtime_combat);
     }
@@ -797,6 +833,9 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("needs") && node["needs"].is_object()) {
         entity.needs = NeedsFromJson(node["needs"], entity.needs);
+    }
+    if (node.contains("scripted_behavior") && node["scripted_behavior"].is_object()) {
+        entity.scripted_behavior = ScriptedBehaviorComponentFromJson(node["scripted_behavior"], entity.scripted_behavior);
     }
     if (node.contains("realtime_combat") && node["realtime_combat"].is_object()) {
         entity.realtime_combat = RealTimeCombatComponentFromJson(node["realtime_combat"], entity.realtime_combat);
@@ -1310,6 +1349,13 @@ json FreeWillStateToJson(const FreeWillState& free_will) {
     return node;
 }
 
+json ScriptedBehaviorStateToJson(const ScriptedBehaviorState& scripted) {
+    return json{
+        {"enabled", scripted.enabled},
+        {"definitions_path", scripted.definitions_path},
+    };
+}
+
 FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallback) {
     FreeWillState free_will = fallback;
     free_will.enabled = node.value("enabled", free_will.enabled);
@@ -1354,6 +1400,16 @@ FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallb
 
     free_will.pending_sparks.clear();
     return free_will;
+}
+
+ScriptedBehaviorState ScriptedBehaviorStateFromJson(const json& node, const ScriptedBehaviorState& fallback) {
+    ScriptedBehaviorState scripted = fallback;
+    scripted.enabled = node.value("enabled", scripted.enabled);
+    scripted.definitions_path = node.value("definitions_path", scripted.definitions_path);
+    scripted.definitions_loaded = false;
+    scripted.update_accumulator_seconds = 0.0F;
+    scripted.update_tick = 0;
+    return scripted;
 }
 
 json NavmeshToJson(const NavmeshData& navmesh) {
@@ -2181,6 +2237,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             scene.free_will.model_path.clear();
         }
     }
+    scene.scripted_behavior = ScriptedBehaviorState{};
+    if (document.contains("scripted_behavior") && document["scripted_behavior"].is_object()) {
+        scene.scripted_behavior = ScriptedBehaviorStateFromJson(document["scripted_behavior"], scene.scripted_behavior);
+    }
     scene.render_2d = SceneRender2D{};
     if (document.contains("render_2d") && document["render_2d"].is_object()) {
         const json& render_2d = document["render_2d"];
@@ -2433,6 +2493,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["narrator"] = NarratorStateToJson(scene.narrator);
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
     document["free_will"] = FreeWillStateToJson(scene.free_will);
+    document["scripted_behavior"] = ScriptedBehaviorStateToJson(scene.scripted_behavior);
     json render_2d = json::object();
     render_2d["render_mode"] = scene.render_2d.render_mode == "3D" ? "3D" : "2D";
     render_2d["enabled"] = scene.render_2d.enabled;

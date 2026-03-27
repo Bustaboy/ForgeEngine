@@ -147,6 +147,13 @@ struct NeedsComponent {
     float fun = 55.0F;
 };
 
+struct ScriptedBehaviorComponent {
+    bool enabled = false;
+    std::string current_state{};
+    std::uint64_t target_entity_id = 0;
+    bool schedule_override = false;
+    std::map<std::string, float> parameters{};
+};
 
 struct ProceduralAnimationComponent {
     float motion_phase = 0.0F;
@@ -218,6 +225,7 @@ struct Entity {
     VoiceProfileComponent voice_profile{};
     ScheduleComponent schedule{};
     NeedsComponent needs{};
+    ScriptedBehaviorComponent scripted_behavior{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
     MeshComponent mesh{};

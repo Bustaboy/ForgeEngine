@@ -170,6 +170,23 @@ struct FreeWillState {
     std::deque<FreeWillSparkRequest> pending_sparks{};
 };
 
+struct ScriptedBehaviorDefinition {
+    std::string name{};
+    std::string activity = "idle";
+    std::string location = "anywhere";
+    float duration_hours = 0.25F;
+    bool complex = false;
+};
+
+struct ScriptedBehaviorState {
+    bool enabled = true;
+    std::string definitions_path = "scripted_behaviors.json";
+    bool definitions_loaded = false;
+    float update_accumulator_seconds = 0.0F;
+    std::uint32_t update_tick = 0;
+    std::map<std::string, ScriptedBehaviorDefinition> definitions{};
+};
+
 
 struct CombatUnitState {
     std::uint64_t entity_id = 0;
@@ -412,6 +429,7 @@ struct Scene {
     NarratorState narrator{};
     CutsceneState cutscene{};
     FreeWillState free_will{};
+    ScriptedBehaviorState scripted_behavior{};
     CombatState combat{};
     RealTimeCombatState realtime_combat{};
     AudioState audio{};
