@@ -26,6 +26,7 @@ constexpr float kHighImpactNeedsThreshold = 18.0F;
 constexpr float kRelationshipShiftThreshold = 16.0F;
 constexpr float kScriptedSparkSuppressionScale = 0.08F;
 constexpr float kPerformanceScriptedSparkSuppressionScale = 0.03F;
+constexpr std::uint32_t kPerformanceRagRetrieveStride = 2U;
 
 struct SparkDirective {
     std::string line{};
@@ -218,29 +219,57 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
         return false;
     }
 
-    std::optional<SparkDirective> directive{};
-    std::string source = "rag";
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const bool should_try_rag = !performance_mode ||
+        request.forced_by_console ||
+        ((scene.free_will.rag_retrieve_tick++ % kPerformanceRagRetrieveStride) == 0U);
 
-    if (const std::optional<RAGSparkDirective> rag_directive = RAGSystem::RetrieveSparkFlavor(scene, *npc); rag_directive.has_value()) {
-        directive = SparkDirective{rag_directive->line, rag_directive->activity, rag_directive->location, rag_directive->duration_hours};
+    std::optional<SparkDirective> directive{};
+    std::string source = "scripted";
+
+    if (should_try_rag) {
+        if (const std::optional<RAGSparkDirective> rag_directive = RAGSystem::RetrieveSparkFlavor(scene, *npc); rag_directive.has_value()) {
+            directive = SparkDirective{rag_directive->line, rag_directive->activity, rag_directive->location, rag_directive->duration_hours};
+            source = "rag";
+            ++scene.free_will.rag_hits_by_npc[request.npc_id];
+        } else {
+            ++scene.free_will.rag_misses_by_npc[request.npc_id];
+        }
     }
 
     if (!directive.has_value()) {
-        source = "llm";
-        if (scene.rag.enabled && !scene.rag.live_fallback_enabled) {
-            source = "deterministic";
-            directive = DeterministicFallback(*npc, rng);
-        } else {
+        directive = DeterministicFallback(*npc, rng);
+        source = "scripted";
+    }
+
+    const bool llm_fallback_allowed =
+        scene.free_will.llm_enabled &&
+        !scene.free_will.model_path.empty() &&
+        scene.rag.live_fallback_enabled &&
+        !performance_mode;
+    if (!should_try_rag && performance_mode) {
+        scene.rag.last_source = "throttled";
+    }
+
+    if (source == "scripted" && llm_fallback_allowed && !scene.rag.enabled) {
+        if (const std::optional<SparkDirective> llm_directive = TryRunLlama(scene, *npc, rng); llm_directive.has_value()) {
+            directive = llm_directive;
+            source = "llm";
+            ++scene.rag.live_fallback_calls;
+        }
+    } else if (source == "scripted" && llm_fallback_allowed && should_try_rag) {
+        if (scene.rag.cache_misses > 0U || scene.rag.spark_cache.empty()) {
             directive = TryRunLlama(scene, *npc, rng);
             if (directive.has_value()) {
+                source = "llm";
                 ++scene.rag.live_fallback_calls;
             }
         }
     }
 
     if (!directive.has_value()) {
-        source = "deterministic";
         directive = DeterministicFallback(*npc, rng);
+        source = "scripted";
     }
 
     const bool applied = NPCController::ForceActivity(
@@ -259,6 +288,7 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     ScriptedBehaviorSystem::RecordSparkDecision(scene);
 
     scene.free_will.last_spark_line_by_npc[request.npc_id] = directive->line;
+    scene.free_will.last_spark_source_by_npc[request.npc_id] = source;
     scene.recent_actions.push_back("NPC " + std::to_string(request.npc_id) + " free-will: " + directive->line);
     if (scene.recent_actions.size() > 64U) {
         scene.recent_actions.erase(scene.recent_actions.begin());
@@ -284,6 +314,7 @@ void FreeWillSystem::EnsureDefaults(Scene& scene) {
         scene.free_will.last_processed_day = scene.day_count;
         scene.free_will.daily_spark_count.clear();
         scene.free_will.pending_sparks.clear();
+        scene.free_will.rag_retrieve_tick = 0U;
     }
 
     if (scene.free_will.daily_spark_count.size() > kSparkMapCap) {
@@ -298,6 +329,28 @@ void FreeWillSystem::EnsureDefaults(Scene& scene) {
         for (auto it = scene.free_will.last_spark_line_by_npc.begin();
              it != scene.free_will.last_spark_line_by_npc.end() && to_remove > 0;) {
             it = scene.free_will.last_spark_line_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.last_spark_source_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_source_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.last_spark_source_by_npc.begin();
+             it != scene.free_will.last_spark_source_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.last_spark_source_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_hits_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.rag_hits_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.rag_hits_by_npc.begin(); it != scene.free_will.rag_hits_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.rag_hits_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_misses_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.rag_misses_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.rag_misses_by_npc.begin(); it != scene.free_will.rag_misses_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.rag_misses_by_npc.erase(it);
             --to_remove;
         }
     }
@@ -430,5 +483,7 @@ std::string FreeWillSystem::BuildHybridDecisionSummary(Scene& scene, std::uint64
         << " rag_enabled=" << (scene.rag.enabled ? "yes" : "no")
         << " rag_entries=" << scene.rag.spark_cache.size()
         << " rag_hit_rate=" << ((scene.rag.cache_hits + scene.rag.cache_misses) > 0U ? (static_cast<float>(scene.rag.cache_hits) / static_cast<float>(scene.rag.cache_hits + scene.rag.cache_misses)) : 0.0F);
+    const auto source_it = scene.free_will.last_spark_source_by_npc.find(npc_id);
+    out << " last_source=" << (source_it != scene.free_will.last_spark_source_by_npc.end() ? source_it->second : "none");
     return out.str();
 }

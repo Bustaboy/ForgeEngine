@@ -100,7 +100,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
-    GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id>");
+    GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id> | /spark_test <entity_id>");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -749,6 +749,30 @@ void ProcessConsoleCommands(
         GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
         const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
         GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        return;
+    }
+
+    if (command == "/spark_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /spark_test <entity_id>");
+            return;
+        }
+
+        Entity* npc = FindEntityById(scene, npc_id);
+        if (npc == nullptr || npc->buildable.IsValid()) {
+            GF_LOG_INFO("Spark test failed: npc not found.");
+            return;
+        }
+
+        GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
+        const std::optional<RAGSparkDirective> rag = RAGSystem::RetrieveSparkFlavor(scene, *npc);
+        GF_LOG_INFO(rag.has_value() ? ("Spark priority check: RAG hit -> " + rag->line) : "Spark priority check: RAG miss -> scripted fallback path.");
+        const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
+        GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        GF_LOG_INFO(RAGSystem::BuildDebugSummary(scene, npc_id));
+        SetOverlayStatusMessage(overlay_status_message, queued ? "Spark test queued" : "Spark test failed");
         return;
     }
 

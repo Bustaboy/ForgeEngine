@@ -166,8 +166,12 @@ struct FreeWillState {
     std::uint32_t last_processed_day = 1;
     float global_cooldown_remaining = 0.0F;
     std::uint32_t rng_seed = 0xC0FFEEU;
+    std::uint32_t rag_retrieve_tick = 0;
     std::map<std::uint64_t, std::uint32_t> daily_spark_count{};
     std::map<std::uint64_t, std::string> last_spark_line_by_npc{};
+    std::map<std::uint64_t, std::string> last_spark_source_by_npc{};
+    std::map<std::uint64_t, std::uint32_t> rag_hits_by_npc{};
+    std::map<std::uint64_t, std::uint32_t> rag_misses_by_npc{};
     std::deque<FreeWillSparkRequest> pending_sparks{};
 };
 

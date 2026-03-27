@@ -24,6 +24,11 @@ public sealed class LivingNpcsPanelState
     public string PerformanceReason { get; private set; } = "monitoring_off";
     public int RagCacheSize { get; private set; }
     public float RagHitRate { get; private set; }
+    public string SparkSourcePreference { get; private set; } = "rag > scripted > llm";
+    public bool LightweightPerformanceMode { get; private set; }
+    private Dictionary<ulong, string> LastSparkSourceByNpc { get; } = [];
+    private Dictionary<ulong, int> RagHitsByNpc { get; } = [];
+    private Dictionary<ulong, int> RagMissesByNpc { get; } = [];
 
     public static LivingNpcsPanelState FromScene(JsonObject root)
     {
@@ -62,6 +67,42 @@ public sealed class LivingNpcsPanelState
                 .Take(12)
                 .ToArray();
         }
+        if (freeWill["last_spark_source_by_npc"] is JsonObject lastSparkSources)
+        {
+            foreach (var entry in lastSparkSources)
+            {
+                if (!ulong.TryParse(entry.Key, out var npcId))
+                {
+                    continue;
+                }
+
+                var source = entry.Value?.GetValue<string>() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(source))
+                {
+                    state.LastSparkSourceByNpc[npcId] = source;
+                }
+            }
+        }
+        if (freeWill["rag_hits_by_npc"] is JsonObject ragHitsByNpc)
+        {
+            foreach (var entry in ragHitsByNpc)
+            {
+                if (ulong.TryParse(entry.Key, out var npcId))
+                {
+                    state.RagHitsByNpc[npcId] = Math.Max(0, ReadInt32(entry.Value, 0));
+                }
+            }
+        }
+        if (freeWill["rag_misses_by_npc"] is JsonObject ragMissesByNpc)
+        {
+            foreach (var entry in ragMissesByNpc)
+            {
+                if (ulong.TryParse(entry.Key, out var npcId))
+                {
+                    state.RagMissesByNpc[npcId] = Math.Max(0, ReadInt32(entry.Value, 0));
+                }
+            }
+        }
 
         var scriptedBehavior = root["scripted_behavior"] as JsonObject;
         if (scriptedBehavior is not null)
@@ -82,6 +123,12 @@ public sealed class LivingNpcsPanelState
             var misses = Math.Max(0, ReadInt32(rag["cache_misses"], 0));
             state.RagHitRate = hits + misses > 0 ? (float)hits / (hits + misses) : 0f;
         }
+        if (root["optimization_overrides"] is JsonObject optimization
+            && string.Equals(optimization["lightweight_mode"]?.GetValue<string>(), "performance", StringComparison.OrdinalIgnoreCase))
+        {
+            state.LightweightPerformanceMode = true;
+            state.SparkSourcePreference = "rag > scripted (llm disabled in performance mode)";
+        }
 
         var settlement = root["settlement"] as JsonObject;
         state.VillageName = settlement?["village_name"]?.GetValue<string>() ?? "River Town";
@@ -94,6 +141,28 @@ public sealed class LivingNpcsPanelState
         }
 
         return state;
+    }
+
+    public string SparkSourceForNpc(ulong npcId)
+    {
+        if (npcId == 0)
+        {
+            return "none";
+        }
+
+        return LastSparkSourceByNpc.TryGetValue(npcId, out var source) ? source : "none";
+    }
+
+    public float RagHitRateForNpc(ulong npcId)
+    {
+        if (npcId == 0)
+        {
+            return 0f;
+        }
+
+        var hits = RagHitsByNpc.TryGetValue(npcId, out var npcHits) ? Math.Max(0, npcHits) : 0;
+        var misses = RagMissesByNpc.TryGetValue(npcId, out var npcMisses) ? Math.Max(0, npcMisses) : 0;
+        return hits + misses > 0 ? (float)hits / (hits + misses) : 0f;
     }
 
     public void ApplyToScene(JsonObject root)

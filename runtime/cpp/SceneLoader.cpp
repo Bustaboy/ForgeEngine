@@ -1415,6 +1415,7 @@ json FreeWillStateToJson(const FreeWillState& free_will) {
         {"last_processed_day", free_will.last_processed_day},
         {"global_cooldown_remaining", free_will.global_cooldown_remaining},
         {"rng_seed", free_will.rng_seed},
+        {"rag_retrieve_tick", free_will.rag_retrieve_tick},
     };
 
     json daily_counts = json::object();
@@ -1428,6 +1429,24 @@ json FreeWillStateToJson(const FreeWillState& free_will) {
         last_lines[std::to_string(npc_id)] = line;
     }
     node["last_spark_line_by_npc"] = last_lines;
+
+    json last_sources = json::object();
+    for (const auto& [npc_id, source] : free_will.last_spark_source_by_npc) {
+        last_sources[std::to_string(npc_id)] = source;
+    }
+    node["last_spark_source_by_npc"] = last_sources;
+
+    json rag_hits = json::object();
+    for (const auto& [npc_id, hits] : free_will.rag_hits_by_npc) {
+        rag_hits[std::to_string(npc_id)] = hits;
+    }
+    node["rag_hits_by_npc"] = rag_hits;
+
+    json rag_misses = json::object();
+    for (const auto& [npc_id, misses] : free_will.rag_misses_by_npc) {
+        rag_misses[std::to_string(npc_id)] = misses;
+    }
+    node["rag_misses_by_npc"] = rag_misses;
 
     return node;
 }
@@ -1464,6 +1483,7 @@ FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallb
     free_will.last_processed_day = std::max(1U, node.value("last_processed_day", free_will.last_processed_day));
     free_will.global_cooldown_remaining = std::max(0.0F, node.value("global_cooldown_remaining", free_will.global_cooldown_remaining));
     free_will.rng_seed = node.value("rng_seed", free_will.rng_seed);
+    free_will.rag_retrieve_tick = node.value("rag_retrieve_tick", free_will.rag_retrieve_tick);
 
     free_will.daily_spark_count.clear();
     if (node.contains("daily_spark_count") && node["daily_spark_count"].is_object()) {
@@ -1489,6 +1509,51 @@ FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallb
             try {
                 const std::uint64_t npc_id = std::stoull(npc_id_key);
                 free_will.last_spark_line_by_npc[npc_id] = line_node.get<std::string>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.last_spark_source_by_npc.clear();
+    if (node.contains("last_spark_source_by_npc") && node["last_spark_source_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, source_node] : node["last_spark_source_by_npc"].items()) {
+            if (!source_node.is_string()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.last_spark_source_by_npc[npc_id] = source_node.get<std::string>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.rag_hits_by_npc.clear();
+    if (node.contains("rag_hits_by_npc") && node["rag_hits_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, hits_node] : node["rag_hits_by_npc"].items()) {
+            if (!hits_node.is_number_unsigned()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.rag_hits_by_npc[npc_id] = hits_node.get<std::uint32_t>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.rag_misses_by_npc.clear();
+    if (node.contains("rag_misses_by_npc") && node["rag_misses_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, misses_node] : node["rag_misses_by_npc"].items()) {
+            if (!misses_node.is_number_unsigned()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.rag_misses_by_npc[npc_id] = misses_node.get<std::uint32_t>();
             } catch (const std::exception&) {
                 continue;
             }

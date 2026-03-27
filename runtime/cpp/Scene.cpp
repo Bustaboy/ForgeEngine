@@ -110,6 +110,33 @@ void ApplyMemoryGuardrails(Scene& scene) {
             --to_remove;
         }
     }
+    if (scene.free_will.last_spark_source_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_source_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.last_spark_source_by_npc.begin();
+             it != scene.free_will.last_spark_source_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.last_spark_source_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_hits_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.rag_hits_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.rag_hits_by_npc.begin();
+             it != scene.free_will.rag_hits_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.rag_hits_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_misses_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.rag_misses_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.rag_misses_by_npc.begin();
+             it != scene.free_will.rag_misses_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.rag_misses_by_npc.erase(it);
+            --to_remove;
+        }
+    }
 
     if (scene.combat.units.size() > SceneLimits::kCombatStateCap) {
         scene.combat.units.resize(SceneLimits::kCombatStateCap);
