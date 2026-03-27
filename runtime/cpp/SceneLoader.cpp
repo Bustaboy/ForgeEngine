@@ -1538,6 +1538,61 @@ json SettlementStateToJson(const SettlementState& settlement) {
     };
 }
 
+json AudioStateToJson(const AudioState& audio) {
+    return json{
+        {"current_music_track", audio.current_music_track},
+        {"ambient_track", audio.ambient_track},
+        {"exploration_music_track", audio.exploration_music_track},
+        {"combat_music_track", audio.combat_music_track},
+        {"last_ui_sound", audio.last_ui_sound},
+        {"mood_tag", audio.mood_tag},
+        {"last_transition_reason", audio.last_transition_reason},
+        {"master_volume", audio.master_volume},
+        {"music_volume", audio.music_volume},
+        {"ambient_volume", audio.ambient_volume},
+        {"ui_volume", audio.ui_volume},
+        {"sfx_volume", audio.sfx_volume},
+        {"weather_influence", audio.weather_influence},
+        {"enabled", audio.enabled},
+        {"music_enabled", audio.music_enabled},
+        {"ambient_enabled", audio.ambient_enabled},
+        {"spatial_audio_enabled", audio.spatial_audio_enabled},
+        {"combat_music_override", audio.combat_music_override},
+        {"disable_music_in_performance_mode", audio.disable_music_in_performance_mode},
+        {"max_spatial_voices", audio.max_spatial_voices},
+        {"performance_spatial_voices", audio.performance_spatial_voices},
+    };
+}
+
+AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
+    AudioState audio = fallback;
+    audio.current_music_track = node.value("current_music_track", audio.current_music_track);
+    audio.ambient_track = node.value("ambient_track", audio.ambient_track);
+    audio.exploration_music_track = node.value("exploration_music_track", audio.exploration_music_track);
+    audio.combat_music_track = node.value("combat_music_track", audio.combat_music_track);
+    audio.last_ui_sound = node.value("last_ui_sound", audio.last_ui_sound);
+    audio.mood_tag = node.value("mood_tag", audio.mood_tag);
+    audio.last_transition_reason = node.value("last_transition_reason", audio.last_transition_reason);
+    audio.master_volume = Clamp01(node.value("master_volume", audio.master_volume));
+    audio.music_volume = Clamp01(node.value("music_volume", audio.music_volume));
+    audio.ambient_volume = Clamp01(node.value("ambient_volume", audio.ambient_volume));
+    audio.ui_volume = Clamp01(node.value("ui_volume", audio.ui_volume));
+    audio.sfx_volume = Clamp01(node.value("sfx_volume", audio.sfx_volume));
+    audio.weather_influence = Clamp01(node.value("weather_influence", audio.weather_influence));
+    audio.enabled = node.value("enabled", audio.enabled);
+    audio.music_enabled = node.value("music_enabled", audio.music_enabled);
+    audio.ambient_enabled = node.value("ambient_enabled", audio.ambient_enabled);
+    audio.spatial_audio_enabled = node.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+    audio.combat_music_override = node.value("combat_music_override", audio.combat_music_override);
+    audio.disable_music_in_performance_mode = node.value("disable_music_in_performance_mode", audio.disable_music_in_performance_mode);
+    audio.max_spatial_voices = std::clamp(node.value("max_spatial_voices", audio.max_spatial_voices), 4, 64);
+    audio.performance_spatial_voices = std::clamp(
+        node.value("performance_spatial_voices", audio.performance_spatial_voices),
+        2,
+        audio.max_spatial_voices);
+    return audio;
+}
+
 SettlementState SettlementStateFromJson(const json& node, const SettlementState& fallback) {
     SettlementState settlement = fallback;
     settlement.village_name = node.value("village_name", settlement.village_name);
@@ -1574,6 +1629,7 @@ std::set<std::string> RootFieldAllowList() {
         "settlement",
         "combat",
         "realtime_combat",
+        "audio",
         "build_mode_enabled",
         "active_dialog_npc_id",
         "player_inventory",
@@ -1862,6 +1918,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.realtime_combat = RealTimeCombatState{};
     if (document.contains("realtime_combat") && document["realtime_combat"].is_object()) {
         scene.realtime_combat = RealTimeCombatStateFromJson(document["realtime_combat"], scene.realtime_combat);
+    }
+    scene.audio = AudioState{};
+    if (document.contains("audio") && document["audio"].is_object()) {
+        scene.audio = AudioStateFromJson(document["audio"], scene.audio);
     }
     scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
@@ -2249,6 +2309,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["settlement"] = SettlementStateToJson(scene.settlement);
     document["combat"] = CombatStateToJson(scene.combat);
     document["realtime_combat"] = RealTimeCombatStateToJson(scene.realtime_combat);
+    document["audio"] = AudioStateToJson(scene.audio);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);

@@ -25,6 +25,16 @@ public sealed class EditorPreferences
             {
                 VulkanResolution = Runtime.VulkanResolution,
                 FpsLimit = Runtime.FpsLimit,
+                Audio = new RuntimePreferences.AudioPreferences
+                {
+                    MusicTrack = Runtime.Audio.MusicTrack,
+                    AmbientTrack = Runtime.Audio.AmbientTrack,
+                    CombatMusicOverride = Runtime.Audio.CombatMusicOverride,
+                    MasterVolume = Runtime.Audio.MasterVolume,
+                    MusicVolume = Runtime.Audio.MusicVolume,
+                    AmbientVolume = Runtime.Audio.AmbientVolume,
+                    UiVolume = Runtime.Audio.UiVolume,
+                },
             },
             Editor = new EditorPanePreferences
             {
@@ -51,6 +61,12 @@ public sealed class EditorPreferences
         var normalizedTemplate = string.IsNullOrWhiteSpace(Editor.DefaultTemplateId)
             ? "cozy-colony"
             : Editor.DefaultTemplateId.Trim();
+        var normalizedMusicTrack = string.IsNullOrWhiteSpace(Runtime.Audio.MusicTrack)
+            ? "music_exploration"
+            : Runtime.Audio.MusicTrack.Trim();
+        var normalizedAmbientTrack = string.IsNullOrWhiteSpace(Runtime.Audio.AmbientTrack)
+            ? "ambient_exploration_loop"
+            : Runtime.Audio.AmbientTrack.Trim();
 
         return new EditorPreferences
         {
@@ -63,6 +79,16 @@ public sealed class EditorPreferences
             {
                 VulkanResolution = normalizedResolution,
                 FpsLimit = Math.Clamp(Runtime.FpsLimit, 30, 240),
+                Audio = new RuntimePreferences.AudioPreferences
+                {
+                    MusicTrack = normalizedMusicTrack,
+                    AmbientTrack = normalizedAmbientTrack,
+                    CombatMusicOverride = Runtime.Audio.CombatMusicOverride,
+                    MasterVolume = Math.Clamp(Runtime.Audio.MasterVolume, 0, 100),
+                    MusicVolume = Math.Clamp(Runtime.Audio.MusicVolume, 0, 100),
+                    AmbientVolume = Math.Clamp(Runtime.Audio.AmbientVolume, 0, 100),
+                    UiVolume = Math.Clamp(Runtime.Audio.UiVolume, 0, 100),
+                },
             },
             Editor = new EditorPanePreferences
             {
@@ -112,6 +138,25 @@ public sealed class EditorPreferences
         public string VulkanResolution { get; init; } = "1920x1080";
 
         public int FpsLimit { get; init; } = 60;
+
+        public AudioPreferences Audio { get; init; } = new();
+
+        public sealed class AudioPreferences
+        {
+            public string MusicTrack { get; init; } = "music_exploration";
+
+            public string AmbientTrack { get; init; } = "ambient_exploration_loop";
+
+            public bool CombatMusicOverride { get; init; } = true;
+
+            public int MasterVolume { get; init; } = 85;
+
+            public int MusicVolume { get; init; } = 75;
+
+            public int AmbientVolume { get; init; } = 60;
+
+            public int UiVolume { get; init; } = 80;
+        }
     }
 
     public sealed class EditorPanePreferences
