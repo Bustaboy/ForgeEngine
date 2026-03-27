@@ -73,6 +73,11 @@ PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.
 dotnet run --project editor/csharp/GameForge.Editor.csproj
 ```
 
+For a terminal-only launcher smoke check used by CI/release evidence:
+```bash
+dotnet run --project editor/csharp/GameForge.Editor.csproj -- --launcher-smoke
+```
+
 ### 4. Generate your first asset or scene
 Run the full generation pipeline from a design brief:
 ```bash
@@ -165,6 +170,7 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 | [`GAMEFORGE_EXECUTION_PLAN.md`](GAMEFORGE_EXECUTION_PLAN.md) | Sprint-level milestone map, risk register, KPI targets, and team operating rhythm |
 | [`GAMEFORGE_UX_FOUNDATIONS.md`](GAMEFORGE_UX_FOUNDATIONS.md) | UX wireframe baseline, interaction patterns, and no-coder-first labeling standards |
 | [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) | Zero-guesswork setup, prerequisites, and release flow |
+| [`docs/testing/TEST_POLICY.md`](docs/testing/TEST_POLICY.md) | Required test layers, CI gates, and merge expectations |
 
 ---
 

@@ -392,6 +392,8 @@ main() {
   printf "  ./scripts/bootstrap.sh\n"
   printf "  # Or run editor directly:\n"
   printf "  dotnet run --project editor/csharp/GameForge.Editor.csproj\n"
+  printf "  # CI/headless launcher smoke:\n"
+  printf "  ./scripts/bootstrap.sh --launcher-smoke\n"
 }
 
 main "$@"

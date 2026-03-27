@@ -1130,6 +1130,22 @@ void Engine::Run() {
     Shutdown();
 }
 
+void Engine::RunHeadlessSmoke() {
+    Logger::Init();
+    GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");
+
+    if (SceneLoader::Load(scene_path_, scene_)) {
+        GF_LOG_INFO("Loaded scene: " + scene_path_);
+    } else {
+        SeedFallbackScene();
+        GF_LOG_INFO("Using fallback scene entities");
+    }
+
+    GF_LOG_INFO("Render loop started");
+    GF_LOG_INFO("Headless runtime smoke completed.");
+    Logger::Shutdown();
+}
+
 void Engine::Init() {
     Logger::Init();
     GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");

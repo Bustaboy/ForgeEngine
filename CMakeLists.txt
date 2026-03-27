@@ -8,20 +8,30 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-set(FORGE_JSON_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp")
-if(NOT EXISTS "${FORGE_JSON_HEADER_PATH}")
+set(FORGE_JSON_HEADER_CANDIDATES
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann/json.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp"
+)
+set(FORGE_JSON_HEADER_PATH "")
+foreach(candidate ${FORGE_JSON_HEADER_CANDIDATES})
+    if(EXISTS "${candidate}")
+        set(FORGE_JSON_HEADER_PATH "${candidate}")
+        break()
+    endif()
+endforeach()
+if(FORGE_JSON_HEADER_PATH STREQUAL "")
     message(FATAL_ERROR
-        "Missing vendored nlohmann/json header at runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp\n"
+        "Missing vendored nlohmann/json header under runtime/cpp/external.\n"
         "Download once, then re-run CMake:\n"
         "Windows (curl):\n"
-        "  mkdir runtime\\cpp\\external\\nlohmann_json\\single_include\\nlohmann\n"
-        "  curl -L https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -o runtime\\cpp\\external\\nlohmann_json\\single_include\\nlohmann\\json.hpp\n"
+        "  mkdir runtime\\cpp\\external\\nlohmann\n"
+        "  curl -L https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -o runtime\\cpp\\external\\nlohmann\\json.hpp\n"
         "Windows (PowerShell):\n"
-        "  New-Item -ItemType Directory -Force runtime/cpp/external/nlohmann_json/single_include/nlohmann | Out-Null\n"
-        "  Invoke-WebRequest -Uri https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -OutFile runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp\n"
+        "  New-Item -ItemType Directory -Force runtime/cpp/external/nlohmann | Out-Null\n"
+        "  Invoke-WebRequest -Uri https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -OutFile runtime/cpp/external/nlohmann/json.hpp\n"
         "Ubuntu:\n"
-        "  mkdir -p runtime/cpp/external/nlohmann_json/single_include/nlohmann\n"
-        "  wget -O runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp")
+        "  mkdir -p runtime/cpp/external/nlohmann\n"
+        "  wget -O runtime/cpp/external/nlohmann/json.hpp https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp")
 endif()
 
 set(FORGE_VULKAN_HINT_PATHS)
@@ -77,8 +87,20 @@ endif()
 FetchContent_Declare(
     glm
     URL https://github.com/g-truc/glm/releases/download/1.0.1/glm-1.0.1-light.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(glm)
+
+set(FORGE_GLM_INCLUDE_ROOT "${glm_SOURCE_DIR}")
+if(EXISTS "${glm_SOURCE_DIR}/glm/vec3.hpp")
+    set(FORGE_GLM_INCLUDE_ROOT "${glm_SOURCE_DIR}")
+elseif(EXISTS "${glm_SOURCE_DIR}/vec3.hpp")
+    set(FORGE_GLM_INCLUDE_ROOT "${CMAKE_BINARY_DIR}/_deps/glm-normalized")
+    file(MAKE_DIRECTORY "${FORGE_GLM_INCLUDE_ROOT}")
+    file(COPY "${glm_SOURCE_DIR}/" DESTINATION "${FORGE_GLM_INCLUDE_ROOT}/glm")
+else()
+    message(FATAL_ERROR "Unable to locate GLM headers in fetched content at ${glm_SOURCE_DIR}")
+endif()
 
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
@@ -94,6 +116,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/EconomySystem.cpp
     runtime/cpp/SettlementSystem.cpp
     runtime/cpp/CombatSystem.cpp
+    runtime/cpp/RealTimeCombatSystem.cpp
     runtime/cpp/AudioSystem.cpp
     runtime/cpp/WeatherSystem.cpp
     runtime/cpp/NavmeshSystem.cpp
@@ -101,6 +124,8 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/LivingNpcSystem.cpp
     runtime/cpp/NPCController.cpp
     runtime/cpp/FreeWillSystem.cpp
+    runtime/cpp/RAGSystem.cpp
+    runtime/cpp/ScriptedBehaviorSystem.cpp
     runtime/cpp/DialogSystem.cpp
     runtime/cpp/DialogEvolutionSystem.cpp
     runtime/cpp/FactionSystem.cpp
@@ -110,6 +135,8 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/VoiceSystem.cpp
     runtime/cpp/CutsceneSystem.cpp
     runtime/cpp/CoCreatorSystem.cpp
+    runtime/cpp/MeshLoader.cpp
+    runtime/cpp/TextureLoader.cpp
     runtime/cpp/src/input/InputManager.cpp
 )
 
@@ -118,8 +145,9 @@ add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
 target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
+        runtime/cpp/external
         runtime/cpp/external/nlohmann_json/single_include
-        ${glm_SOURCE_DIR}
+        ${FORGE_GLM_INCLUDE_ROOT}
 )
 
 target_link_libraries(forge_runtime

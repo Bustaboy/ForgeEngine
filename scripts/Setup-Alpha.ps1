@@ -386,7 +386,10 @@ Write-Host 'To launch the editor:' -ForegroundColor White
 Write-Host '  dotnet run --project editor/csharp/GameForge.Editor.csproj' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'To launch just the runtime:' -ForegroundColor White
-Write-Host '  pwsh -f scripts/bootstrap.ps1' -ForegroundColor Cyan
+Write-Host '  pwsh -f scripts/bootstrap.ps1 -RuntimeOnly' -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'For CI/headless launcher smoke:' -ForegroundColor White
+Write-Host '  pwsh -f scripts/bootstrap.ps1 -LauncherSmoke' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'To do a full clean reinstall next time:' -ForegroundColor DarkGray
 Write-Host '  pwsh -f scripts/Setup-Alpha.ps1 -Fresh' -ForegroundColor DarkGray

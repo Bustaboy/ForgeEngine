@@ -1,13 +1,13 @@
 param(
-    [switch]$RuntimeOnly
+    [switch]$RuntimeOnly,
+    [switch]$LauncherSmoke
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$buildDir = Join-Path $repoRoot "build/runtime"
-$runtimeSrc = Join-Path $repoRoot "runtime/cpp/main.cpp"
-$runtimeBin = Join-Path $buildDir "gameforge_runtime.exe"
+$buildDir = Join-Path $repoRoot "build"
+$runtimeBin = Join-Path $buildDir "bin\forge_runtime.exe"
 $editorProject = Join-Path $repoRoot "editor/csharp/GameForge.Editor.csproj"
 $jsonHeader = Join-Path $repoRoot "runtime/cpp/external/nlohmann/json.hpp"
 $jsonUrl = "https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp"
@@ -24,6 +24,113 @@ $requiredPaths = @(
 Write-Host "GameForge V1 bootstrap (Windows)"
 Write-Host "Mode: local-first, single-player, no-code-first"
 Write-Host "== Repository Structure =="
+
+function Invoke-CheckedNative {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$Arguments = @(),
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$FailureMessage (exit code $LASTEXITCODE)"
+    }
+}
+
+function Add-ToPathIfPresent {
+    param([Parameter(Mandatory)][string]$PathEntry)
+
+    if ((Test-Path $PathEntry) -and (-not ($env:PATH.Split(';') -contains $PathEntry))) {
+        $env:PATH = "$PathEntry;$env:PATH"
+    }
+}
+
+function Resolve-MsysPrefixFromCompiler([string]$CompilerPath) {
+    if (-not $CompilerPath) {
+        return $null
+    }
+
+    $compilerDir = Split-Path $CompilerPath -Parent
+    if (-not $compilerDir) {
+        return $null
+    }
+
+    $prefix = Split-Path $compilerDir -Parent
+    if (-not $prefix) {
+        return $null
+    }
+
+    if (Test-Path (Join-Path $prefix 'include\GLFW\glfw3.h')) {
+        return $prefix
+    }
+
+    return $null
+}
+
+function Configure-RuntimeBuild {
+    $cachePath = Join-Path $buildDir 'CMakeCache.txt'
+    $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+    if (-not $cmake) {
+        Write-Host "ERROR: Missing required build tool: cmake"
+        Write-Host "  Install CMake or run the full setup again: pwsh -f scripts/Setup-Alpha.ps1"
+        exit 1
+    }
+
+    $gpp = Get-Command g++ -ErrorAction SilentlyContinue
+    if (-not $gpp) {
+        Write-Host "ERROR: Missing required compiler: g++"
+        Write-Host "  If you ran Setup-Alpha.ps1, try opening a new PowerShell window and retrying."
+        Write-Host "  Or run the full setup again: pwsh -f scripts/Setup-Alpha.ps1"
+        exit 1
+    }
+
+    $mingwPrefix = Resolve-MsysPrefixFromCompiler $gpp.Source
+    if ($mingwPrefix) {
+        Add-ToPathIfPresent -PathEntry (Join-Path $mingwPrefix 'bin')
+        $env:GLFW_DIR = $mingwPrefix.Replace('\', '/')
+    }
+
+    $cmakeArgs = @('-S', $repoRoot, '-B', $buildDir, '-DCMAKE_BUILD_TYPE=Release')
+    if (-not (Test-Path $cachePath)) {
+        $ninja = Get-Command ninja -ErrorAction SilentlyContinue
+        if ($ninja) {
+            $cmakeArgs += @('-G', 'Ninja')
+        }
+        else {
+            $mingwMake = Get-Command mingw32-make -ErrorAction SilentlyContinue
+            if (-not $mingwMake -and $mingwPrefix) {
+                $fallbackMake = Join-Path $mingwPrefix 'bin\mingw32-make.exe'
+                if (Test-Path $fallbackMake) {
+                    Add-ToPathIfPresent -PathEntry (Split-Path $fallbackMake -Parent)
+                    $mingwMake = Get-Command mingw32-make -ErrorAction SilentlyContinue
+                }
+            }
+
+            if (-not $mingwMake) {
+                Write-Host "ERROR: Missing required build tool: ninja or mingw32-make"
+                Write-Host "  Install Ninja or ensure MSYS2 mingw32-make is available in PATH."
+                exit 1
+            }
+
+            $cmakeArgs += @('-G', 'MinGW Makefiles', "-DCMAKE_MAKE_PROGRAM=$($mingwMake.Source)")
+        }
+
+        if ($mingwPrefix) {
+            $gccPath = Join-Path $mingwPrefix 'bin\gcc.exe'
+            $gxxPath = Join-Path $mingwPrefix 'bin\g++.exe'
+            if (Test-Path $gccPath) {
+                $cmakeArgs += "-DCMAKE_C_COMPILER=$gccPath"
+            }
+            if (Test-Path $gxxPath) {
+                $cmakeArgs += "-DCMAKE_CXX_COMPILER=$gxxPath"
+            }
+        }
+    }
+
+    $null = Invoke-CheckedNative -FilePath $cmake.Source -Arguments $cmakeArgs -FailureMessage 'CMake configure failed'
+    return $cmake.Source
+}
 
 $missingPaths = @()
 foreach ($path in $requiredPaths) {
@@ -67,32 +174,18 @@ else {
     Write-Host "Installed - runtime/cpp/external/nlohmann/json.hpp"
 }
 
-$gpp = Get-Command g++ -ErrorAction SilentlyContinue
-if (-not $gpp) {
-    Write-Host "ERROR: Missing required compiler: g++"
-    Write-Host "  If you ran Setup-Alpha.ps1, try opening a new PowerShell window and retrying."
-    Write-Host "  Or run the full setup again: pwsh -f scripts/Setup-Alpha.ps1"
-    exit 1
-}
-
-New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
-
 Write-Host "== Building Runtime Entrypoint (C++) =="
-$runtimeBuildOk = $true
-& $gpp.Source "-std=c++17" $runtimeSrc "-o" $runtimeBin
-if ($LASTEXITCODE -ne 0) {
-    $runtimeBuildOk = $false
-    Write-Host "WARNING: Runtime build failed (Vulkan/GLFW dependencies may be missing)."
-    Write-Host "Continuing bootstrap in degraded mode."
-}
+$cmakePath = Configure-RuntimeBuild
+Invoke-CheckedNative -FilePath $cmakePath -Arguments @('--build', $buildDir, '--config', 'Release', '--target', 'forge_runtime', '-j', '4') -FailureMessage 'Runtime build failed'
 
 if ($RuntimeOnly) {
-    if ($runtimeBuildOk -and (Test-Path $runtimeBin)) {
+    if (Test-Path $runtimeBin) {
         Write-Host "== Starting Runtime Only =="
         & $runtimeBin $repoRoot
     }
     else {
-        Write-Host "== Runtime-only launch skipped (runtime binary unavailable) =="
+        Write-Host "ERROR: Runtime binary unavailable after successful build."
+        exit 1
     }
     Write-Host "Bootstrap completed successfully (runtime-only)."
     exit 0
@@ -106,6 +199,11 @@ if (-not $dotnet) {
 }
 
 Write-Host "== Starting C# App Entrypoint =="
-& $dotnet.Source "run" "--project" $editorProject "--" $runtimeBin
+if ($LauncherSmoke) {
+    & $dotnet.Source "run" "--project" $editorProject "--" "--launcher-smoke" $runtimeBin
+}
+else {
+    & $dotnet.Source "run" "--project" $editorProject "--" "--editor-ui" $runtimeBin
+}
 
 Write-Host "Bootstrap completed successfully."

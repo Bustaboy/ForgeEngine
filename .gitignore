@@ -10,3 +10,15 @@ ai-orchestration/python/.env
 
 # Local virtual environment
 .venv/
+
+# Local build output
+build/
+editor/csharp/bin/
+editor/csharp/obj/
+editor/csharp/tests/bin/
+editor/csharp/tests/obj/
+.tmp/
+.tmp_pytest/
+.tmp_python/
+app/samples/generated-prototype/*/performance_history.json
+app/samples/generated-prototype/*/testing/reports/
