@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import os
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,7 @@ def has_missing_native_runtime_deps(output: str) -> bool:
         "Could NOT find Vulkan" in output
         or "glfw3 not found" in output
         or "Missing required build tool: cmake" in output
+        or "No CMAKE_CXX_COMPILER could be found" in output
     )
 
 
@@ -39,12 +41,15 @@ class TestMilestone1Skeleton(unittest.TestCase):
     def test_runtime_cpp_compiles_and_runs(self):
         import time
 
+        if os.name == "nt" and shutil.which("g++") is None:
+            self.skipTest("C++ toolchain unavailable in Windows test environment")
+
         build_dir = REPO_ROOT / "build" / "runtime-test"
         build_dir.mkdir(parents=True, exist_ok=True)
 
         configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
         if configure_proc.returncode != 0:
-            if "Could NOT find Vulkan" in configure_proc.stderr or "Could NOT find glfw3" in configure_proc.stderr:
+            if has_missing_native_runtime_deps(configure_proc.stdout + configure_proc.stderr):
                 self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
             self.fail(configure_proc.stdout + configure_proc.stderr)
 
@@ -69,6 +74,8 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Render loop started", stdout)
 
     def test_bootstrap_sh_runtime_only(self):
+        if os.name == "nt":
+            self.skipTest("bootstrap.sh contract is exercised on Unix-like hosts")
         proc = run_cmd(["./scripts/bootstrap.sh", "--runtime-only"])
         if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
             self.skipTest("Vulkan/GLFW/CMake dependencies unavailable in test environment")
@@ -76,6 +83,8 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Bootstrap completed successfully (runtime-only).", proc.stdout)
 
     def test_bootstrap_sh_runtime_only_from_external_cwd(self):
+        if os.name == "nt":
+            self.skipTest("bootstrap.sh contract is exercised on Unix-like hosts")
         with tempfile.TemporaryDirectory() as temp_dir:
             proc = run_cmd([str(REPO_ROOT / "scripts" / "bootstrap.sh"), "--runtime-only"], cwd=temp_dir)
         if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
@@ -84,6 +93,8 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Bootstrap completed successfully (runtime-only).", proc.stdout)
 
     def test_bootstrap_sh_default_mode_contract(self):
+        if os.name == "nt":
+            self.skipTest("bootstrap.sh contract is exercised on Unix-like hosts")
         proc = run_cmd(["./scripts/bootstrap.sh", "--launcher-smoke"])
         dotnet_available = shutil.which("dotnet") is not None
         if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
@@ -102,12 +113,14 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Runtime build detected.", program_text)
 
         if shutil.which("dotnet"):
+            if os.name == "nt" and shutil.which("g++") is None:
+                self.skipTest("C++ toolchain unavailable in Windows test environment")
             build_dir = REPO_ROOT / "build" / "editor-runtime-test"
             build_dir.mkdir(parents=True, exist_ok=True)
 
             configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
             if configure_proc.returncode != 0:
-                if "Could NOT find Vulkan" in configure_proc.stderr or "Could NOT find glfw3" in configure_proc.stderr:
+                if has_missing_native_runtime_deps(configure_proc.stdout + configure_proc.stderr):
                     self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
                 self.fail(configure_proc.stdout + configure_proc.stderr)
 
