@@ -1231,49 +1231,15 @@
                 </Border>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,6,0,0">
                   <StackPanel Spacing="6">
-                    <TextBlock Text="Models" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
-                      <Button Content="Run Onboarding"
-                              Click="OnRunModelOnboardingClick"
-                              IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="1"
-                              Content="Setup Recommended Models"
-                              Click="OnSetupRecommendedModelsClick"
-                              IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                          <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,4">
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                              <StackPanel Spacing="2">
-                                <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
-                                <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" />
-                                <TextBlock Text="{Binding Recommendation}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
-                              </StackPanel>
-                              <Button Grid.Column="1"
-                                      Content="Download"
-                                      Tag="{Binding FriendlyName}"
-                                      Click="OnDownloadManagedModelClick"
-                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
-                                      VerticalAlignment="Top" />
-                              <Button Grid.Column="2"
-                                      Content="Remove"
-                                      Tag="{Binding FriendlyName}"
-                                      Click="OnRemoveManagedModelClick"
-                                      IsVisible="{Binding IsRemovable}"
-                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
-                                      VerticalAlignment="Top" />
-                            </Grid>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Text="{Binding ForgeGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="Models &amp; LLM Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="Download models, run onboarding, and manage LLM setup from Settings."
+                               Foreground="#9FC2E5"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <Button Content="Open Models &amp; LLM Settings"
+                            Click="OnSystemTabClick"
+                            Tag="Settings"
+                            HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
@@ -1289,7 +1255,7 @@
                   <StackPanel Spacing="6">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                       <TextBlock Text="Models &amp; LLM" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                      <Button Grid.Column="1" Content="Open AI Quick Access" Click="OnSystemTabClick" Tag="AI" />
+                      <Button Grid.Column="1" Content="Open AI Quick Access" Click="OnSystemTabClick" Tag="AI" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
