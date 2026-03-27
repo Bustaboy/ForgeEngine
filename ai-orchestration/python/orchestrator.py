@@ -271,6 +271,16 @@ class ActionablePlaytestReport:
 
 
 @dataclass(frozen=True)
+class OrchestrationResult:
+    orchestration_type: str
+    target: str
+    source: str
+    confidence: float
+    suggested_scene_patch: list[dict[str, object]]
+    summary: str
+
+
+@dataclass(frozen=True)
 class OperationFailureFallbackState:
     operation_id: str
     consecutive_failures: int
@@ -1545,6 +1555,123 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
     )
     scene_path.write_text(json.dumps(scene_payload, indent=2) + "\n", encoding="utf-8")
     return {"scene_path": str(scene_path), "quality": quality, "consistency": consistency, "persisted": True}
+
+
+def _safe_scene_patch(candidate_patch: list[dict[str, object]]) -> list[dict[str, object]]:
+    safe_patch: list[dict[str, object]] = []
+    for operation in candidate_patch:
+        if not isinstance(operation, dict):
+            continue
+        op = str(operation.get("op", "")).strip().lower()
+        path = str(operation.get("path", "")).strip()
+        if op not in {"set", "add", "remove"}:
+            continue
+        if not path.startswith("/") or path.startswith("/_internal"):
+            continue
+        safe_operation: dict[str, object] = {"op": op, "path": path}
+        if op != "remove" and "value" in operation:
+            safe_operation["value"] = operation.get("value")
+        safe_patch.append(safe_operation)
+    return safe_patch
+
+
+def _coerce_orchestration_type(orchestration_type: str) -> str:
+    normalized = orchestration_type.strip().lower()
+    if normalized not in {"narrative_checkpoint", "npc_day", "scene_review"}:
+        raise ValueError(
+            "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]"
+        )
+    return normalized
+
+
+def _build_orchestration_result(
+    *,
+    orchestration_type: str,
+    scene_path: Path,
+    target: str | None = None,
+) -> OrchestrationResult:
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    if not isinstance(scene_payload, dict):
+        raise ValueError("Scene payload must be a JSON object")
+
+    normalized_type = _coerce_orchestration_type(orchestration_type)
+    normalized_target = (target or "default").strip() or "default"
+    recent_changes = get_recent_changes(scene_path, limit=6)
+    latest_snapshot = record_performance_snapshot(scene_path, session_name=f"orchestrate_{normalized_type}")["snapshot"]
+    metrics = latest_snapshot.get("metrics", {}) if isinstance(latest_snapshot, dict) else {}
+    fps_avg = float(metrics.get("fps_avg", 0.0) or 0.0)
+
+    if normalized_type == "narrative_checkpoint":
+        source = "rag"
+        confidence = 0.81 if recent_changes else 0.65
+        recent_summary = recent_changes[0]["summary"] if recent_changes else "No recent changes logged."
+        patch = _safe_scene_patch(
+            [
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/last_checkpoint",
+                    "value": normalized_target,
+                },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/source",
+                    "value": "rag",
+                },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/checkpoint_summary",
+                    "value": str(recent_summary)[:240],
+                },
+            ]
+        )
+        summary = f"RAG-backed checkpoint '{normalized_target}' prepared using recent change-log context."
+    elif normalized_type == "npc_day":
+        source = "scripted"
+        confidence = 0.76
+        npcs = scene_payload.get("npcs")
+        npc_count = len(npcs) if isinstance(npcs, list) else 0
+        patch = _safe_scene_patch(
+            [
+                {
+                    "op": "set",
+                    "path": "/free_will/orchestration/day_plan_target",
+                    "value": normalized_target,
+                },
+                {
+                    "op": "set",
+                    "path": "/free_will/orchestration/day_plan_status",
+                    "value": "scripted_ready",
+                },
+                {
+                    "op": "set",
+                    "path": "/free_will/orchestration/day_plan_npc_count",
+                    "value": npc_count,
+                },
+            ]
+        )
+        summary = f"Scripted day-plan drafted for '{normalized_target}' across {npc_count} NPC(s)."
+    else:
+        source = "deterministic"
+        confidence = 0.79
+        optimization = optimization_critique(scene_path, max_suggestions=1)
+        suggestions = optimization.get("suggestions", []) if isinstance(optimization, dict) else []
+        first_patch = []
+        if isinstance(suggestions, list) and suggestions and isinstance(suggestions[0], dict):
+            first_patch = suggestions[0].get("patch", [])
+        patch = _safe_scene_patch(list(first_patch) if isinstance(first_patch, list) else [])
+        summary = (
+            f"Deterministic scene review completed (fps_avg={fps_avg:.1f}); "
+            "recommendation patch sourced from optimization critique."
+        )
+
+    return OrchestrationResult(
+        orchestration_type=normalized_type,
+        target=normalized_target,
+        source=source,
+        confidence=round(confidence, 2),
+        suggested_scene_patch=patch,
+        summary=summary,
+    )
 
 
 def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[str, object]:
@@ -4059,6 +4186,36 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         print(json.dumps(result, indent=2))
         return 0
 
+    if command in {"orchestrate", "/orchestrate"}:
+        if len(raw_args) < 3:
+            raise ValueError(
+                "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]"
+            )
+        try:
+            result = _build_orchestration_result(
+                orchestration_type=raw_args[1],
+                scene_path=Path(raw_args[2]),
+                target=raw_args[3] if len(raw_args) >= 4 else None,
+            )
+            print(json.dumps({"orchestration_result": asdict(result)}, indent=2))
+            return 0
+        except ValueError as exc:
+            print(
+                json.dumps(
+                    {
+                        "event": "error",
+                        "command": "/orchestrate",
+                        "error": {
+                            "code": "invalid_orchestration_request",
+                            "message": str(exc),
+                            "remediation": "Use /orchestrate <type> <scene_json_path> [target].",
+                        },
+                    },
+                    indent=2,
+                )
+            )
+            return 1
+
     if command in {"idle-tick", "/idle_tick"}:
         if len(raw_args) < 2:
             raise ValueError("Usage: orchestrator.py /idle_tick <scene_json_path> [interval_minutes]")
@@ -4299,6 +4456,7 @@ def main() -> int:
 
     print("GameForge V1 AI orchestration skeleton (Python)")
     print("Local-first orchestration placeholder")
+    print("Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]")
     return 0
 
 

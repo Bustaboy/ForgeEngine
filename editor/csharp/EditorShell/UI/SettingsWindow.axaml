@@ -96,6 +96,18 @@
             <NumericUpDown Name="ProceduralIntensityNumeric" Minimum="0" Maximum="100" Increment="5" Value="55" />
           </StackPanel>
         </TabItem>
+
+        <TabItem Header="🧠 AI Orchestration">
+          <StackPanel Margin="16" Spacing="12">
+            <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock
+              Name="AiOrchestrationStatusLineText"
+              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]"
+              Foreground="#97AECC"
+              TextWrapping="Wrap" />
+          </StackPanel>
+        </TabItem>
+
         <TabItem Header="🧰 Editor">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />
