@@ -20,6 +20,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabLivingNpcs = "LivingNpcs";
     private const string SystemTabSettlement = "Settlement";
     private const string SystemTabCombat = "Combat";
+    private const string SystemTabSettings = "Settings";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -165,6 +166,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsLivingNpcsTabActive));
             OnPropertyChanged(nameof(IsSettlementTabActive));
             OnPropertyChanged(nameof(IsCombatTabActive));
+            OnPropertyChanged(nameof(IsSettingsTabActive));
         }
     }
 
@@ -179,6 +181,7 @@ public sealed partial class MainWindowViewModel
     public bool IsLivingNpcsTabActive => string.Equals(ActiveSystemTab, SystemTabLivingNpcs, StringComparison.Ordinal);
     public bool IsSettlementTabActive => string.Equals(ActiveSystemTab, SystemTabSettlement, StringComparison.Ordinal);
     public bool IsCombatTabActive => string.Equals(ActiveSystemTab, SystemTabCombat, StringComparison.Ordinal);
+    public bool IsSettingsTabActive => string.Equals(ActiveSystemTab, SystemTabSettings, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
