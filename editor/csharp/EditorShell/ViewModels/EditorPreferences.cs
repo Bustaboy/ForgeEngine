@@ -34,6 +34,8 @@ public sealed class EditorPreferences
                     MusicVolume = Runtime.Audio.MusicVolume,
                     AmbientVolume = Runtime.Audio.AmbientVolume,
                     UiVolume = Runtime.Audio.UiVolume,
+                    SfxVolume = Runtime.Audio.SfxVolume,
+                    SpatialVoiceLimit = Runtime.Audio.SpatialVoiceLimit,
                 },
             },
             Editor = new EditorPanePreferences
@@ -88,6 +90,8 @@ public sealed class EditorPreferences
                     MusicVolume = Math.Clamp(Runtime.Audio.MusicVolume, 0, 100),
                     AmbientVolume = Math.Clamp(Runtime.Audio.AmbientVolume, 0, 100),
                     UiVolume = Math.Clamp(Runtime.Audio.UiVolume, 0, 100),
+                    SfxVolume = Math.Clamp(Runtime.Audio.SfxVolume, 0, 100),
+                    SpatialVoiceLimit = Math.Clamp(Runtime.Audio.SpatialVoiceLimit, 4, 64),
                 },
             },
             Editor = new EditorPanePreferences
@@ -156,6 +160,10 @@ public sealed class EditorPreferences
             public int AmbientVolume { get; init; } = 60;
 
             public int UiVolume { get; init; } = 80;
+
+            public int SfxVolume { get; init; } = 80;
+
+            public int SpatialVoiceLimit { get; init; } = 24;
         }
     }
 

@@ -193,6 +193,7 @@ struct CombatState {
     std::size_t active_turn_index = 0;
     std::uint32_t round_index = 0;
     std::string trigger_source{};
+    std::string last_action{};
     std::string last_resolution{};
 };
 
@@ -285,6 +286,7 @@ struct AudioState {
     bool music_enabled = true;
     bool ambient_enabled = true;
     bool spatial_audio_enabled = true;
+    bool disable_distant_spatial_in_performance_mode = true;
     bool combat_music_override = true;
     bool disable_music_in_performance_mode = true;
     bool combat_override_active = false;
@@ -292,6 +294,19 @@ struct AudioState {
     int max_spatial_voices = 24;
     int performance_spatial_voices = 8;
     int runtime_spatial_voice_limit = 24;
+    int spatial_voice_hard_limit = 32;
+    float spatial_max_distance = 28.0F;
+    float performance_spatial_max_distance = 12.0F;
+    float ambient_weather_timer_seconds = 0.0F;
+    std::uint64_t last_spatial_test_seed = 0;
+    std::uint32_t sfx_play_counter = 0;
+    std::uint32_t runtime_active_spatial_voices = 0;
+    std::uint32_t runtime_dropped_spatial_voices = 0;
+    std::string last_sfx_event{};
+    std::string last_weather_for_audio = "sunny";
+    std::string last_realtime_action{};
+    std::string last_combat_action{};
+    std::map<std::uint64_t, float> npc_footstep_cooldowns{};
     std::uint32_t transition_counter = 0;
 };
 
