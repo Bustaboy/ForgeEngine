@@ -77,6 +77,23 @@
               <NumericUpDown Name="SfxVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
               <NumericUpDown Grid.Column="1" Name="SpatialVoiceLimitNumeric" Minimum="4" Maximum="64" Increment="2" Value="24" />
             </Grid>
+
+            <TextBlock Text="Ducking strength (combat / UI)" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+              <NumericUpDown Name="CombatDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="35" />
+              <NumericUpDown Grid.Column="1" Name="UiDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="15" />
+            </Grid>
+
+            <TextBlock Text="Reverb zone preset" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <ComboBox Name="ReverbZoneComboBox">
+              <ComboBoxItem Content="outdoor" />
+              <ComboBoxItem Content="indoor" />
+              <ComboBoxItem Content="cave" />
+              <ComboBoxItem Content="workshop" />
+            </ComboBox>
+
+            <TextBlock Text="Procedural intensity" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <NumericUpDown Name="ProceduralIntensityNumeric" Minimum="0" Maximum="100" Increment="5" Value="55" />
           </StackPanel>
         </TabItem>
         <TabItem Header="🧰 Editor">
