@@ -23,6 +23,14 @@ struct RAGNarrativeFlavor {
     std::string source{"none"};
 };
 
+struct RAGLegacyRecall {
+    std::string summary{};
+    std::string event_type{"major_event"};
+    std::uint32_t generation = 1;
+    float similarity = -1.0F;
+    std::string source{"none"};
+};
+
 namespace RAGSystem {
 
 void EnsureDefaults(Scene& scene);
@@ -33,6 +41,8 @@ void Update(Scene& scene, float dt_seconds);
     const std::string& checkpoint,
     const Entity* focus_npc = nullptr);
 [[nodiscard]] bool EvaluateNarrativeCheckpoint(Scene& scene, const std::string& checkpoint);
+void RecordLegacyEvent(Scene& scene, const std::string& event_type, const std::string& summary, std::uint32_t seed = 0U);
+[[nodiscard]] std::optional<RAGLegacyRecall> RetrieveLegacyRecall(Scene& scene, const std::string& event_hint);
 [[nodiscard]] std::string BuildDebugSummary(Scene& scene, std::uint64_t npc_id);
 
 }  // namespace RAGSystem

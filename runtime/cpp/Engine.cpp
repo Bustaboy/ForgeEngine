@@ -101,7 +101,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
     GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id> | /spark_test <entity_id>");
-    GF_LOG_INFO("             /narrative_flavor_test <checkpoint>");
+    GF_LOG_INFO("             /narrative_flavor_test <checkpoint> | /legacy_recall_test <event>");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -820,6 +820,30 @@ void ProcessConsoleCommands(
             " similarity=" + std::to_string(scene.rag.last_narrative_similarity);
         GF_LOG_INFO(summary);
         SetOverlayStatusMessage(overlay_status_message, rag_hit ? "Narrative flavor: RAG hit" : "Narrative flavor: fallback");
+        return;
+    }
+
+    if (command == "/legacy_recall_test") {
+        std::string event_hint;
+        std::getline(parser, event_hint);
+        event_hint = Trim(event_hint);
+        if (event_hint.empty()) {
+            GF_LOG_INFO("Usage: /legacy_recall_test <event>");
+            return;
+        }
+        RAGSystem::RecordLegacyEvent(scene, "major_legacy_trigger", event_hint);
+        const std::optional<RAGLegacyRecall> recall = RAGSystem::RetrieveLegacyRecall(scene, event_hint);
+        if (recall.has_value()) {
+            GF_LOG_INFO(
+                "Legacy recall hit: generation=" + std::to_string(recall->generation) +
+                " type=" + recall->event_type +
+                " similarity=" + std::to_string(recall->similarity) +
+                " summary=\"" + recall->summary + "\"");
+            SetOverlayStatusMessage(overlay_status_message, "Legacy recall: hit");
+        } else {
+            GF_LOG_INFO("Legacy recall miss for event: " + event_hint);
+            SetOverlayStatusMessage(overlay_status_message, "Legacy recall: miss");
+        }
         return;
     }
 

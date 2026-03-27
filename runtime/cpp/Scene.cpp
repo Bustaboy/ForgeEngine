@@ -154,6 +154,11 @@ void ApplyMemoryGuardrails(Scene& scene) {
             scene.rag.narrative_cache.begin(),
             scene.rag.narrative_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.narrative_cache.size() - SceneLimits::kRagEntriesCap));
     }
+    if (scene.compressed_event_log.size() > SceneLimits::kLegacyEventLogCap) {
+        scene.compressed_event_log.erase(
+            scene.compressed_event_log.begin(),
+            scene.compressed_event_log.begin() + static_cast<std::ptrdiff_t>(scene.compressed_event_log.size() - SceneLimits::kLegacyEventLogCap));
+    }
 }
 
 

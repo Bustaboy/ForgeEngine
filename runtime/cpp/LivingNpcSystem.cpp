@@ -48,6 +48,7 @@ void LivingNpcSystem::Update(Scene& scene, float dt_seconds) {
     if (scene.day_count != last_seen_day) {
         last_seen_day = scene.day_count;
         RAGSystem::EvaluateNarrativeCheckpoint(scene, "workshop_milestone");
+        (void)RAGSystem::RetrieveLegacyRecall(scene, "daily continuity generation " + std::to_string(scene.current_generation));
     }
 
     const std::uint32_t season_bucket = LastSeasonBucket(scene);
@@ -58,6 +59,7 @@ void LivingNpcSystem::Update(Scene& scene, float dt_seconds) {
 
     if (HasRelationshipThresholdEvent(scene)) {
         RAGSystem::EvaluateNarrativeCheckpoint(scene, "relationship_threshold");
+        (void)RAGSystem::RetrieveLegacyRecall(scene, "relationship legacy arc generation " + std::to_string(scene.current_generation));
     }
 
     if (!scene.recent_actions.empty()) {
