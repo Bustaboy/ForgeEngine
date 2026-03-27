@@ -558,6 +558,97 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task AssignScriptedBehaviorToSelection_PersistsStateAndPreview()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+        await File.WriteAllTextAsync(
+            Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"),
+            """
+            {
+              "player_spawn": { "x": 0, "y": 0 },
+              "scripted_behavior": { "definitions_path": "scripted_behaviors.json" },
+              "entities": [
+                { "id": 7, "type": "npc", "name": "Pella", "x": 2, "y": 1, "z": 0 }
+              ]
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(prototypeRoot, "scripted_behaviors.json"),
+            """
+            {
+              "states": [
+                { "name": "guard", "activity": "guard", "location": "work", "duration_hours": 0.5, "complex": false }
+              ]
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        viewModel.SelectedDialogEntityId = 7;
+        viewModel.ScriptedBehaviorStateEditor = "guard";
+        viewModel.ScriptedBehaviorParamsEditor = "duration_hours=0.75";
+
+        await viewModel.AssignScriptedBehaviorToSelectionAsync();
+        viewModel.ReloadSystemPanelsFromScene();
+
+        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(scenePath));
+        var scripted = document.RootElement.GetProperty("entities")[0].GetProperty("scripted_behavior");
+        Assert.True(scripted.GetProperty("enabled").GetBoolean());
+        Assert.Equal("guard", scripted.GetProperty("current_state").GetString());
+        Assert.Equal(0.75f, scripted.GetProperty("parameters").GetProperty("duration_hours").GetSingle());
+        Assert.Contains("guard", viewModel.AvailableScriptedBehaviorStates);
+        Assert.Contains(viewModel.ScriptedBehaviorNpcPreview, line => line.Contains("Pella") && line.Contains("guard"));
+    }
+
+    [Fact]
+    public async Task AssignScriptedBehaviorToSelection_WarnsOnComplexStateInPerformanceMode()
+    {
+        var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "scene"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "cpp"));
+        Directory.CreateDirectory(Path.Combine(prototypeRoot, "generated", "build"));
+        await File.WriteAllTextAsync(
+            Path.Combine(prototypeRoot, "scene", "scene_scaffold.json"),
+            """
+            {
+              "player_spawn": { "x": 0, "y": 0 },
+              "optimization_overrides": { "lightweight_mode": "performance" },
+              "scripted_behavior": { "definitions_path": "scripted_behaviors.json" },
+              "entities": [
+                { "id": 9, "type": "npc", "name": "Garr", "x": 2, "y": 1, "z": 0 }
+              ]
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(prototypeRoot, "scripted_behaviors.json"),
+            """
+            {
+              "states": [
+                { "name": "socialize", "activity": "socialize", "location": "town", "duration_hours": 0.2, "complex": true }
+              ]
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(prototypeRoot, "generated", "cpp", "scene.cpp"), "// runtime scene code");
+
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot);
+        viewModel.ReloadSystemPanelsFromScene();
+        viewModel.SelectedDialogEntityId = 9;
+        viewModel.ScriptedBehaviorStateEditor = "socialize";
+
+        await viewModel.AssignScriptedBehaviorToSelectionAsync();
+
+        Assert.Contains("Lightweight mode is set to performance", viewModel.ScriptedBehaviorStatus);
+    }
+
+    [Fact]
     public async Task AcceptCoCreatorSuggestion_AppliesLivingNpcAdjustments()
     {
         var prototypeRoot = Path.Combine(_tempRoot, Guid.NewGuid().ToString("N"));

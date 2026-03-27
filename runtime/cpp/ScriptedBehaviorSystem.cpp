@@ -111,6 +111,12 @@ void ScriptedBehaviorSystem::EnsureDefaults(Scene& scene) {
     scene.scripted_behavior.update_accumulator_seconds = std::max(0.0F, scene.scripted_behavior.update_accumulator_seconds);
 }
 
+void ScriptedBehaviorSystem::RefreshDefinitions(Scene& scene) {
+    scene.scripted_behavior.definitions.clear();
+    scene.scripted_behavior.definitions_loaded = false;
+    EnsureDefaults(scene);
+}
+
 void ScriptedBehaviorSystem::Update(Scene& scene, float dt_seconds) {
     EnsureDefaults(scene);
     if (!scene.scripted_behavior.enabled) {
@@ -197,9 +203,25 @@ bool ScriptedBehaviorSystem::SetBehavior(
     return true;
 }
 
-std::vector<std::string> ScriptedBehaviorSystem::ListBehaviors(const Scene& scene) {
+std::vector<std::string> ScriptedBehaviorSystem::ListBehaviors(Scene& scene) {
+    EnsureDefaults(scene);
+
     std::vector<std::string> rows{};
-    rows.reserve(scene.entities.size());
+    rows.reserve(scene.entities.size() + scene.scripted_behavior.definitions.size() + 4U);
+
+    rows.push_back("Available scripted states:");
+    if (scene.scripted_behavior.definitions.empty()) {
+        rows.push_back("  (none)");
+    } else {
+        for (const auto& [name, def] : scene.scripted_behavior.definitions) {
+            rows.push_back(
+                "  " + name + " activity=" + def.activity + " location=" + def.location +
+                " duration_hours=" + std::to_string(def.duration_hours) +
+                " complex=" + (def.complex ? "true" : "false"));
+        }
+    }
+
+    rows.push_back("NPC scripted behavior preview:");
 
     for (const Entity& entity : scene.entities) {
         if (entity.buildable.IsValid()) {

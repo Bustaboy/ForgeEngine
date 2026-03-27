@@ -786,6 +786,7 @@ void ProcessConsoleCommands(
     }
 
     if (command == "/behavior_list") {
+        ScriptedBehaviorSystem::RefreshDefinitions(scene);
         const std::vector<std::string> rows = ScriptedBehaviorSystem::ListBehaviors(scene);
         if (rows.empty()) {
             GF_LOG_INFO("No NPC behaviors to list.");
