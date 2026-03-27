@@ -494,6 +494,8 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
 
     const json audio_patch = changes.value("audio", json::object());
     if (audio_patch.is_object()) {
+        audio.reverb_zone_type = audio_patch.value("reverb_zone_type", audio.reverb_zone_type);
+        audio.runtime_reverb_preset = audio_patch.value("runtime_reverb_preset", audio.runtime_reverb_preset);
         audio.current_music_track = audio_patch.value("current_music_track", audio.current_music_track);
         audio.ambient_track = audio_patch.value("ambient_track", audio.ambient_track);
         audio.exploration_music_track = audio_patch.value("exploration_music_track", audio.exploration_music_track);
@@ -504,10 +506,17 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
         audio.ui_volume = std::clamp(audio_patch.value("ui_volume", audio.ui_volume), 0.0F, 1.0F);
         audio.sfx_volume = std::clamp(audio_patch.value("sfx_volume", audio.sfx_volume), 0.0F, 1.0F);
         audio.weather_influence = std::clamp(audio_patch.value("weather_influence", audio.weather_influence), 0.0F, 1.0F);
+        audio.combat_ducking_strength = std::clamp(audio_patch.value("combat_ducking_strength", audio.combat_ducking_strength), 0.0F, 1.0F);
+        audio.ui_ducking_strength = std::clamp(audio_patch.value("ui_ducking_strength", audio.ui_ducking_strength), 0.0F, 1.0F);
+        audio.procedural_intensity = std::clamp(audio_patch.value("procedural_intensity", audio.procedural_intensity), 0.0F, 1.0F);
+        audio.reverb_wet_mix = std::clamp(audio_patch.value("reverb_wet_mix", audio.reverb_wet_mix), 0.0F, 1.0F);
         audio.combat_music_override = audio_patch.value("combat_music_override", audio.combat_music_override);
         audio.music_enabled = audio_patch.value("music_enabled", audio.music_enabled);
         audio.ambient_enabled = audio_patch.value("ambient_enabled", audio.ambient_enabled);
         audio.spatial_audio_enabled = audio_patch.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+        audio.ducking_enabled = audio_patch.value("ducking_enabled", audio.ducking_enabled);
+        audio.reverb_enabled = audio_patch.value("reverb_enabled", audio.reverb_enabled);
+        audio.procedural_audio_enabled = audio_patch.value("procedural_audio_enabled", audio.procedural_audio_enabled);
         audio.disable_distant_spatial_in_performance_mode = audio_patch.value(
             "disable_distant_spatial_in_performance_mode",
             audio.disable_distant_spatial_in_performance_mode);
@@ -520,6 +529,7 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
             audio_patch.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
             4.0F,
             audio.spatial_max_distance);
+        audio.ui_duck_timer_seconds = std::max(0.0F, audio_patch.value("ui_duck_timer_seconds", audio.ui_duck_timer_seconds));
     }
 
     return true;

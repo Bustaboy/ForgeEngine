@@ -269,6 +269,8 @@ struct SceneRender2D {
 
 
 struct AudioState {
+    std::string reverb_zone_type = "outdoor";
+    std::string runtime_reverb_preset = "open";
     std::string current_music_track{};
     std::string ambient_track = "ambient_exploration_loop";
     std::string exploration_music_track = "music_exploration";
@@ -282,15 +284,31 @@ struct AudioState {
     float ui_volume = 0.80F;
     float sfx_volume = 0.80F;
     float weather_influence = 0.40F;
+    float combat_ducking_strength = 0.35F;
+    float ui_ducking_strength = 0.15F;
+    float procedural_intensity = 0.55F;
+    float reverb_wet_mix = 0.30F;
     bool enabled = true;
     bool music_enabled = true;
     bool ambient_enabled = true;
     bool spatial_audio_enabled = true;
+    bool ducking_enabled = true;
+    bool reverb_enabled = true;
+    bool procedural_audio_enabled = true;
+    bool runtime_duck_test = false;
     bool disable_distant_spatial_in_performance_mode = true;
     bool combat_music_override = true;
     bool disable_music_in_performance_mode = true;
     bool combat_override_active = false;
     bool runtime_music_suppressed = false;
+    float runtime_music_duck_gain = 1.0F;
+    float runtime_ambient_duck_gain = 1.0F;
+    float runtime_reverb_send = 0.0F;
+    float runtime_procedural_wind_gain = 0.0F;
+    float runtime_procedural_rain_gain = 0.0F;
+    float runtime_procedural_rumble_gain = 0.0F;
+    std::string runtime_duck_state = "none";
+    std::string runtime_procedural_state = "idle";
     int max_spatial_voices = 24;
     int performance_spatial_voices = 8;
     int runtime_spatial_voice_limit = 24;
@@ -298,6 +316,7 @@ struct AudioState {
     float spatial_max_distance = 28.0F;
     float performance_spatial_max_distance = 12.0F;
     float ambient_weather_timer_seconds = 0.0F;
+    float ui_duck_timer_seconds = 0.0F;
     std::uint64_t last_spatial_test_seed = 0;
     std::uint32_t sfx_play_counter = 0;
     std::uint32_t runtime_active_spatial_voices = 0;

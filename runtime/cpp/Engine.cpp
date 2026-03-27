@@ -98,6 +98,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
+    GF_LOG_INFO("         /audio_duck test | /audio_reverb_zone <outdoor|indoor|cave|workshop>");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
     GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
     GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
@@ -266,6 +267,29 @@ void ProcessConsoleCommands(
         const bool ok = AudioSystem::SetVolume(scene, bus, value, message);
         GF_LOG_INFO(message);
         SetOverlayStatusMessage(overlay_status_message, ok ? ("Audio " + bus + " volume set") : "Audio volume invalid");
+        return;
+    }
+
+    if (command == "/audio_duck") {
+        std::string arg;
+        parser >> arg;
+        std::string message;
+        const bool ok = (arg == "test") && AudioSystem::TriggerDuckTest(scene, message);
+        if (!ok) {
+            message = "Usage: /audio_duck test";
+        }
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio duck test toggled" : "Audio duck usage invalid");
+        return;
+    }
+
+    if (command == "/audio_reverb_zone") {
+        std::string zone;
+        parser >> zone;
+        std::string message;
+        const bool ok = AudioSystem::SetReverbZone(scene, zone, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio reverb zone updated" : "Audio reverb usage invalid");
         return;
     }
 

@@ -36,6 +36,10 @@ public sealed class EditorPreferences
                     UiVolume = Runtime.Audio.UiVolume,
                     SfxVolume = Runtime.Audio.SfxVolume,
                     SpatialVoiceLimit = Runtime.Audio.SpatialVoiceLimit,
+                    CombatDuckingStrength = Runtime.Audio.CombatDuckingStrength,
+                    UiDuckingStrength = Runtime.Audio.UiDuckingStrength,
+                    ReverbZonePreset = Runtime.Audio.ReverbZonePreset,
+                    ProceduralIntensity = Runtime.Audio.ProceduralIntensity,
                 },
             },
             Editor = new EditorPanePreferences
@@ -69,6 +73,13 @@ public sealed class EditorPreferences
         var normalizedAmbientTrack = string.IsNullOrWhiteSpace(Runtime.Audio.AmbientTrack)
             ? "ambient_exploration_loop"
             : Runtime.Audio.AmbientTrack.Trim();
+        var normalizedReverbZone = string.IsNullOrWhiteSpace(Runtime.Audio.ReverbZonePreset)
+            ? "outdoor"
+            : Runtime.Audio.ReverbZonePreset.Trim().ToLowerInvariant();
+        if (normalizedReverbZone is not ("outdoor" or "indoor" or "cave" or "workshop"))
+        {
+            normalizedReverbZone = "outdoor";
+        }
 
         return new EditorPreferences
         {
@@ -92,6 +103,10 @@ public sealed class EditorPreferences
                     UiVolume = Math.Clamp(Runtime.Audio.UiVolume, 0, 100),
                     SfxVolume = Math.Clamp(Runtime.Audio.SfxVolume, 0, 100),
                     SpatialVoiceLimit = Math.Clamp(Runtime.Audio.SpatialVoiceLimit, 4, 64),
+                    CombatDuckingStrength = Math.Clamp(Runtime.Audio.CombatDuckingStrength, 0, 100),
+                    UiDuckingStrength = Math.Clamp(Runtime.Audio.UiDuckingStrength, 0, 100),
+                    ReverbZonePreset = normalizedReverbZone,
+                    ProceduralIntensity = Math.Clamp(Runtime.Audio.ProceduralIntensity, 0, 100),
                 },
             },
             Editor = new EditorPanePreferences
@@ -164,6 +179,14 @@ public sealed class EditorPreferences
             public int SfxVolume { get; init; } = 80;
 
             public int SpatialVoiceLimit { get; init; } = 24;
+
+            public int CombatDuckingStrength { get; init; } = 35;
+
+            public int UiDuckingStrength { get; init; } = 15;
+
+            public string ReverbZonePreset { get; init; } = "outdoor";
+
+            public int ProceduralIntensity { get; init; } = 55;
         }
     }
 

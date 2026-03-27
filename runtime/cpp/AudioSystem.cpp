@@ -87,6 +87,59 @@ std::string WeatherAmbientTrack(const Scene& scene) {
     return "ambient_exploration_loop";
 }
 
+float CombatSignal(const Scene& scene) {
+    float signal = 0.0F;
+    if (scene.combat.active) {
+        signal += 0.6F;
+    }
+    if (scene.realtime_combat.active) {
+        signal += 0.6F;
+    }
+    if (!scene.realtime_combat.last_action.empty() || !scene.combat.last_action.empty()) {
+        signal += 0.2F;
+    }
+    return Clamp01(signal);
+}
+
+std::string ZoneFromScene(const Scene& scene) {
+    if (!scene.audio.reverb_zone_type.empty()) {
+        return scene.audio.reverb_zone_type;
+    }
+    if (scene.biome.find("cave") != std::string::npos) {
+        return "cave";
+    }
+    if (scene.biome.find("indoor") != std::string::npos || scene.biome.find("city") != std::string::npos) {
+        return "indoor";
+    }
+    return "outdoor";
+}
+
+float BaseReverbForZone(const std::string& zone) {
+    if (zone == "indoor") {
+        return 0.45F;
+    }
+    if (zone == "cave") {
+        return 0.70F;
+    }
+    if (zone == "workshop") {
+        return 0.32F;
+    }
+    return 0.12F;
+}
+
+std::string ReverbPresetForZone(const std::string& zone) {
+    if (zone == "indoor") {
+        return "room";
+    }
+    if (zone == "cave") {
+        return "cavern";
+    }
+    if (zone == "workshop") {
+        return "metallic_short";
+    }
+    return "open";
+}
+
 float RelationshipMoodScore(const Scene& scene) {
     if (scene.relationships.empty()) {
         return 0.0F;
@@ -145,6 +198,10 @@ void EnsureDefaults(Scene& scene) {
     scene.audio.ui_volume = Clamp01(scene.audio.ui_volume);
     scene.audio.sfx_volume = Clamp01(scene.audio.sfx_volume);
     scene.audio.weather_influence = Clamp01(scene.audio.weather_influence);
+    scene.audio.combat_ducking_strength = Clamp01(scene.audio.combat_ducking_strength);
+    scene.audio.ui_ducking_strength = Clamp01(scene.audio.ui_ducking_strength);
+    scene.audio.procedural_intensity = Clamp01(scene.audio.procedural_intensity);
+    scene.audio.reverb_wet_mix = Clamp01(scene.audio.reverb_wet_mix);
     scene.audio.max_spatial_voices = std::clamp(scene.audio.max_spatial_voices, 4, 64);
     scene.audio.performance_spatial_voices = std::clamp(scene.audio.performance_spatial_voices, 2, scene.audio.max_spatial_voices);
     scene.audio.spatial_voice_hard_limit = std::clamp(scene.audio.spatial_voice_hard_limit, 4, 96);
@@ -152,6 +209,7 @@ void EnsureDefaults(Scene& scene) {
     scene.audio.performance_spatial_max_distance =
         std::clamp(scene.audio.performance_spatial_max_distance, 4.0F, scene.audio.spatial_max_distance);
     scene.audio.ambient_weather_timer_seconds = std::max(0.0F, scene.audio.ambient_weather_timer_seconds);
+    scene.audio.ui_duck_timer_seconds = std::max(0.0F, scene.audio.ui_duck_timer_seconds);
 
     if (scene.audio.exploration_music_track.empty()) {
         scene.audio.exploration_music_track = "music_exploration";
@@ -165,6 +223,12 @@ void EnsureDefaults(Scene& scene) {
     if (scene.audio.last_weather_for_audio.empty()) {
         scene.audio.last_weather_for_audio = scene.weather.current_weather.empty() ? "sunny" : scene.weather.current_weather;
     }
+    if (scene.audio.reverb_zone_type.empty()) {
+        scene.audio.reverb_zone_type = "outdoor";
+    }
+    if (scene.audio.runtime_reverb_preset.empty()) {
+        scene.audio.runtime_reverb_preset = "open";
+    }
 }
 
 void Update(Scene& scene, float dt_seconds) {
@@ -174,12 +238,22 @@ void Update(Scene& scene, float dt_seconds) {
     scene.audio.mood_tag = MoodTag(scene);
     const bool combat_active = scene.combat.active || scene.realtime_combat.active;
     const bool perf_mode = IsPerformanceLikeMode(scene);
+    const bool reduced_audio_mode = perf_mode || scene.optimization_overrides.lightweight_mode == "balanced";
     scene.audio.runtime_spatial_voice_limit = perf_mode ? scene.audio.performance_spatial_voices : scene.audio.max_spatial_voices;
     scene.audio.runtime_active_spatial_voices = 0U;
     scene.audio.runtime_dropped_spatial_voices = 0U;
     scene.audio.runtime_music_suppressed = perf_mode && scene.audio.disable_music_in_performance_mode;
+    scene.audio.runtime_music_duck_gain = 1.0F;
+    scene.audio.runtime_ambient_duck_gain = 1.0F;
+    scene.audio.runtime_reverb_send = 0.0F;
+    scene.audio.runtime_duck_state = "none";
+    scene.audio.runtime_procedural_wind_gain = 0.0F;
+    scene.audio.runtime_procedural_rain_gain = 0.0F;
+    scene.audio.runtime_procedural_rumble_gain = 0.0F;
+    scene.audio.runtime_procedural_state = "idle";
 
     scene.audio.ambient_weather_timer_seconds = std::max(0.0F, scene.audio.ambient_weather_timer_seconds - safe_dt);
+    scene.audio.ui_duck_timer_seconds = std::max(0.0F, scene.audio.ui_duck_timer_seconds - safe_dt);
     if (scene.weather.current_weather != scene.audio.last_weather_for_audio) {
         const std::string weather_effect = scene.weather.current_weather == "storm" ? "weather_thunder_roll" :
             scene.weather.current_weather == "rain" ? "weather_rain_spatter" :
@@ -258,6 +332,47 @@ void Update(Scene& scene, float dt_seconds) {
         scene.audio.current_music_track = next_music;
         LogTransition(scene, "music", scene.audio.current_music_track);
     }
+
+    const float combat_signal = scene.audio.runtime_duck_test ? 1.0F : CombatSignal(scene);
+    const bool ui_recent = scene.audio.ui_duck_timer_seconds > 0.0F;
+    const bool ducking_runtime_enabled = scene.audio.ducking_enabled && !reduced_audio_mode;
+    if (ducking_runtime_enabled) {
+        scene.audio.runtime_ambient_duck_gain = 1.0F - (combat_signal * scene.audio.combat_ducking_strength);
+        scene.audio.runtime_music_duck_gain = 1.0F - ((ui_recent ? 1.0F : 0.0F) * scene.audio.ui_ducking_strength);
+        scene.audio.runtime_duck_state = combat_signal > 0.1F ? "combat_duck" : (ui_recent ? "ui_duck" : "none");
+    } else {
+        scene.audio.runtime_duck_state = reduced_audio_mode ? "disabled_perf" : "disabled";
+    }
+
+    const bool reverb_runtime_enabled = scene.audio.reverb_enabled && !reduced_audio_mode;
+    const std::string zone = ZoneFromScene(scene);
+    scene.audio.reverb_zone_type = zone;
+    if (reverb_runtime_enabled) {
+        scene.audio.runtime_reverb_send = BaseReverbForZone(zone) * scene.audio.reverb_wet_mix;
+        scene.audio.runtime_reverb_preset = ReverbPresetForZone(zone);
+    } else {
+        scene.audio.runtime_reverb_send = 0.0F;
+        scene.audio.runtime_reverb_preset = "disabled";
+    }
+
+    const bool procedural_runtime_enabled = scene.audio.procedural_audio_enabled && !perf_mode;
+    if (procedural_runtime_enabled) {
+        const float intensity = scene.audio.procedural_intensity;
+        const float gust_seed = std::sin(scene.world_time.elapsed_seconds * 0.47F) * 0.5F + 0.5F;
+        scene.audio.runtime_procedural_wind_gain = intensity * gust_seed;
+        const float rain_weight = (scene.weather.current_weather == "rain" || scene.weather.current_weather == "storm")
+            ? scene.weather.intensity
+            : 0.0F;
+        scene.audio.runtime_procedural_rain_gain = intensity * Clamp01(rain_weight);
+        scene.audio.runtime_procedural_rumble_gain = intensity * 0.5F * combat_signal;
+        scene.audio.runtime_procedural_state = "wind/rain/rumble";
+        if (reduced_audio_mode) {
+            scene.audio.runtime_procedural_rumble_gain = 0.0F;
+            scene.audio.runtime_procedural_state = "wind/rain";
+        }
+    } else {
+        scene.audio.runtime_procedural_state = perf_mode ? "disabled_perf" : "disabled";
+    }
 }
 
 bool PlayTrack(Scene& scene, const std::string& bus, const std::string& track, std::string& out_message) {
@@ -285,6 +400,7 @@ bool PlayTrack(Scene& scene, const std::string& bus, const std::string& track, s
 
     if (bus == "ui") {
         scene.audio.last_ui_sound = track;
+        scene.audio.ui_duck_timer_seconds = 0.35F;
         LogTransition(scene, bus, track);
         out_message = "UI sound queued: '" + track + "'.";
         return true;
@@ -316,6 +432,24 @@ bool SpatialTest(Scene& scene, std::string& out_message) {
     RecordSfxEvent(scene, "spatial_test_right", ComputeSpatialMix(scene, scene.player_proxy_position + glm::vec3(offset, 0.0F, 0.0F), perf_mode), false);
     out_message = "Spatial test emitted (seed=" + std::to_string(seed) + ", voices=" +
         std::to_string(scene.audio.runtime_active_spatial_voices) + "/" + std::to_string(scene.audio.runtime_spatial_voice_limit) + ").";
+    return true;
+}
+
+bool TriggerDuckTest(Scene& scene, std::string& out_message) {
+    EnsureDefaults(scene);
+    scene.audio.runtime_duck_test = !scene.audio.runtime_duck_test;
+    out_message = std::string("Audio duck test: ") + (scene.audio.runtime_duck_test ? "ON" : "OFF");
+    return true;
+}
+
+bool SetReverbZone(Scene& scene, const std::string& zone_type, std::string& out_message) {
+    EnsureDefaults(scene);
+    if (zone_type != "outdoor" && zone_type != "indoor" && zone_type != "cave" && zone_type != "workshop") {
+        out_message = "Usage: /audio_reverb_zone <outdoor|indoor|cave|workshop>";
+        return false;
+    }
+    scene.audio.reverb_zone_type = zone_type;
+    out_message = "Reverb zone set to '" + zone_type + "'.";
     return true;
 }
 
@@ -354,6 +488,12 @@ std::string Summary(const Scene& scene) {
             << "' ambient='" << scene.audio.ambient_track
             << "' mood=" << scene.audio.mood_tag
             << " combat_override=" << (scene.audio.combat_music_override ? "on" : "off")
+            << " duck=" << scene.audio.runtime_duck_state
+            << " music_gain=" << std::round(scene.audio.runtime_music_duck_gain * 100.0F)
+            << " ambient_gain=" << std::round(scene.audio.runtime_ambient_duck_gain * 100.0F)
+            << " reverb=" << scene.audio.runtime_reverb_preset
+            << " reverb_send=" << std::round(scene.audio.runtime_reverb_send * 100.0F)
+            << " procedural=" << scene.audio.runtime_procedural_state
             << " spatial_voices=" << scene.audio.runtime_active_spatial_voices << "/" << scene.audio.runtime_spatial_voice_limit
             << " dropped=" << scene.audio.runtime_dropped_spatial_voices
             << " last_sfx='" << (scene.audio.last_sfx_event.empty() ? "none" : scene.audio.last_sfx_event) << "'";

@@ -1542,6 +1542,8 @@ json SettlementStateToJson(const SettlementState& settlement) {
 
 json AudioStateToJson(const AudioState& audio) {
     return json{
+        {"reverb_zone_type", audio.reverb_zone_type},
+        {"runtime_reverb_preset", audio.runtime_reverb_preset},
         {"current_music_track", audio.current_music_track},
         {"ambient_track", audio.ambient_track},
         {"exploration_music_track", audio.exploration_music_track},
@@ -1555,10 +1557,17 @@ json AudioStateToJson(const AudioState& audio) {
         {"ui_volume", audio.ui_volume},
         {"sfx_volume", audio.sfx_volume},
         {"weather_influence", audio.weather_influence},
+        {"combat_ducking_strength", audio.combat_ducking_strength},
+        {"ui_ducking_strength", audio.ui_ducking_strength},
+        {"procedural_intensity", audio.procedural_intensity},
+        {"reverb_wet_mix", audio.reverb_wet_mix},
         {"enabled", audio.enabled},
         {"music_enabled", audio.music_enabled},
         {"ambient_enabled", audio.ambient_enabled},
         {"spatial_audio_enabled", audio.spatial_audio_enabled},
+        {"ducking_enabled", audio.ducking_enabled},
+        {"reverb_enabled", audio.reverb_enabled},
+        {"procedural_audio_enabled", audio.procedural_audio_enabled},
         {"disable_distant_spatial_in_performance_mode", audio.disable_distant_spatial_in_performance_mode},
         {"combat_music_override", audio.combat_music_override},
         {"disable_music_in_performance_mode", audio.disable_music_in_performance_mode},
@@ -1567,11 +1576,14 @@ json AudioStateToJson(const AudioState& audio) {
         {"spatial_voice_hard_limit", audio.spatial_voice_hard_limit},
         {"spatial_max_distance", audio.spatial_max_distance},
         {"performance_spatial_max_distance", audio.performance_spatial_max_distance},
+        {"ui_duck_timer_seconds", audio.ui_duck_timer_seconds},
     };
 }
 
 AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
     AudioState audio = fallback;
+    audio.reverb_zone_type = node.value("reverb_zone_type", audio.reverb_zone_type);
+    audio.runtime_reverb_preset = node.value("runtime_reverb_preset", audio.runtime_reverb_preset);
     audio.current_music_track = node.value("current_music_track", audio.current_music_track);
     audio.ambient_track = node.value("ambient_track", audio.ambient_track);
     audio.exploration_music_track = node.value("exploration_music_track", audio.exploration_music_track);
@@ -1585,10 +1597,17 @@ AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
     audio.ui_volume = Clamp01(node.value("ui_volume", audio.ui_volume));
     audio.sfx_volume = Clamp01(node.value("sfx_volume", audio.sfx_volume));
     audio.weather_influence = Clamp01(node.value("weather_influence", audio.weather_influence));
+    audio.combat_ducking_strength = Clamp01(node.value("combat_ducking_strength", audio.combat_ducking_strength));
+    audio.ui_ducking_strength = Clamp01(node.value("ui_ducking_strength", audio.ui_ducking_strength));
+    audio.procedural_intensity = Clamp01(node.value("procedural_intensity", audio.procedural_intensity));
+    audio.reverb_wet_mix = Clamp01(node.value("reverb_wet_mix", audio.reverb_wet_mix));
     audio.enabled = node.value("enabled", audio.enabled);
     audio.music_enabled = node.value("music_enabled", audio.music_enabled);
     audio.ambient_enabled = node.value("ambient_enabled", audio.ambient_enabled);
     audio.spatial_audio_enabled = node.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+    audio.ducking_enabled = node.value("ducking_enabled", audio.ducking_enabled);
+    audio.reverb_enabled = node.value("reverb_enabled", audio.reverb_enabled);
+    audio.procedural_audio_enabled = node.value("procedural_audio_enabled", audio.procedural_audio_enabled);
     audio.disable_distant_spatial_in_performance_mode = node.value(
         "disable_distant_spatial_in_performance_mode",
         audio.disable_distant_spatial_in_performance_mode);
@@ -1605,6 +1624,7 @@ AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
         node.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
         4.0F,
         audio.spatial_max_distance);
+    audio.ui_duck_timer_seconds = std::max(0.0F, node.value("ui_duck_timer_seconds", audio.ui_duck_timer_seconds));
     return audio;
 }
 

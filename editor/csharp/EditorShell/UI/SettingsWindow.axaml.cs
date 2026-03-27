@@ -57,6 +57,10 @@ public partial class SettingsWindow : Window
         this.FindControl<NumericUpDown>("UiVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("SfxVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("SpatialVoiceLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("CombatDuckingNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("UiDuckingNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("ReverbZoneComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("ProceduralIntensityNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -86,6 +90,10 @@ public partial class SettingsWindow : Window
         SetNumericValue("UiVolumeNumeric", preferences.Runtime.Audio.UiVolume);
         SetNumericValue("SfxVolumeNumeric", preferences.Runtime.Audio.SfxVolume);
         SetNumericValue("SpatialVoiceLimitNumeric", preferences.Runtime.Audio.SpatialVoiceLimit);
+        SetNumericValue("CombatDuckingNumeric", preferences.Runtime.Audio.CombatDuckingStrength);
+        SetNumericValue("UiDuckingNumeric", preferences.Runtime.Audio.UiDuckingStrength);
+        SetComboText("ReverbZoneComboBox", preferences.Runtime.Audio.ReverbZonePreset);
+        SetNumericValue("ProceduralIntensityNumeric", preferences.Runtime.Audio.ProceduralIntensity);
 
         var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
         if (templateCombo is not null)
@@ -170,6 +178,10 @@ public partial class SettingsWindow : Window
                     UiVolume = GetNumericValue("UiVolumeNumeric", 80),
                     SfxVolume = GetNumericValue("SfxVolumeNumeric", 80),
                     SpatialVoiceLimit = GetNumericValue("SpatialVoiceLimitNumeric", 24),
+                    CombatDuckingStrength = GetNumericValue("CombatDuckingNumeric", 35),
+                    UiDuckingStrength = GetNumericValue("UiDuckingNumeric", 15),
+                    ReverbZonePreset = GetComboText("ReverbZoneComboBox"),
+                    ProceduralIntensity = GetNumericValue("ProceduralIntensityNumeric", 55),
                 },
             },
             Editor = new EditorPreferences.EditorPanePreferences
