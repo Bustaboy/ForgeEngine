@@ -2,6 +2,7 @@
 
 #include "Logger.h"
 #include "NPCController.h"
+#include "RAGSystem.h"
 #include "Scene.h"
 #include "ScriptedBehaviorSystem.h"
 
@@ -217,8 +218,28 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
         return false;
     }
 
-    std::optional<SparkDirective> directive = TryRunLlama(scene, *npc, rng);
+    std::optional<SparkDirective> directive{};
+    std::string source = "rag";
+
+    if (const std::optional<RAGSparkDirective> rag_directive = RAGSystem::RetrieveSparkFlavor(scene, *npc); rag_directive.has_value()) {
+        directive = SparkDirective{rag_directive->line, rag_directive->activity, rag_directive->location, rag_directive->duration_hours};
+    }
+
     if (!directive.has_value()) {
+        source = "llm";
+        if (scene.rag.enabled && !scene.rag.live_fallback_enabled) {
+            source = "deterministic";
+            directive = DeterministicFallback(*npc, rng);
+        } else {
+            directive = TryRunLlama(scene, *npc, rng);
+            if (directive.has_value()) {
+                ++scene.rag.live_fallback_calls;
+            }
+        }
+    }
+
+    if (!directive.has_value()) {
+        source = "deterministic";
         directive = DeterministicFallback(*npc, rng);
     }
 
@@ -244,7 +265,7 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     }
 
     GF_LOG_INFO("FreeWill spark npc=" + std::to_string(request.npc_id) + " activity=" + directive->activity +
-                " location=" + directive->location + " note=\"" + directive->line + "\"");
+                " location=" + directive->location + " source=" + source + " note=\"" + directive->line + "\"");
     return true;
 }
 
@@ -405,6 +426,9 @@ std::string FreeWillSystem::BuildHybridDecisionSummary(Scene& scene, std::uint64
         << " spark_allowed=" << (spark_allowed ? "yes" : "no")
         << " override_chance=" << override_chance
         << " last_spark_t=" << npc->scripted_behavior.last_spark_timestamp
-        << " mode=" << scene.optimization_overrides.lightweight_mode;
+        << " mode=" << scene.optimization_overrides.lightweight_mode
+        << " rag_enabled=" << (scene.rag.enabled ? "yes" : "no")
+        << " rag_entries=" << scene.rag.spark_cache.size()
+        << " rag_hit_rate=" << ((scene.rag.cache_hits + scene.rag.cache_misses) > 0U ? (static_cast<float>(scene.rag.cache_hits) / static_cast<float>(scene.rag.cache_hits + scene.rag.cache_misses)) : 0.0F);
     return out.str();
 }

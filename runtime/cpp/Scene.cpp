@@ -9,6 +9,7 @@
 #include "LivingNpcSystem.h"
 #include "FreeWillSystem.h"
 #include "ScriptedBehaviorSystem.h"
+#include "RAGSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
@@ -115,6 +116,11 @@ void ApplyMemoryGuardrails(Scene& scene) {
     }
     if (scene.combat.turn_order.size() > SceneLimits::kCombatStateCap) {
         scene.combat.turn_order.resize(SceneLimits::kCombatStateCap);
+    }
+    if (scene.rag.spark_cache.size() > SceneLimits::kRagEntriesCap) {
+        scene.rag.spark_cache.erase(
+            scene.rag.spark_cache.begin(),
+            scene.rag.spark_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.spark_cache.size() - SceneLimits::kRagEntriesCap));
     }
 }
 
@@ -232,6 +238,7 @@ void Scene::Update(float dt_seconds) {
     LivingNpcSystem::EnsureDefaults(*this);
     ScriptedBehaviorSystem::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
+    RAGSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
     RealTimeCombatSystem::EnsureDefaults(*this);
     AudioSystem::EnsureDefaults(*this);
@@ -305,6 +312,7 @@ void Scene::Update(float dt_seconds) {
     AnimationSystem::Update(*this, safe_dt);
     LivingNpcSystem::Update(*this, safe_dt);
     FreeWillSystem::Update(*this, safe_dt);
+    RAGSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);

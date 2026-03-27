@@ -473,6 +473,8 @@ public sealed partial class MainWindowViewModel
     public string LivingNpcsModelPathEditor { get => _livingNpcs.ModelPath; set { _livingNpcs.ModelPath = value; OnPropertyChanged(); } }
     public int LivingNpcsSparksToday => _livingNpcs.SparksToday;
     public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
+    public int LivingNpcsRagCacheSize => _livingNpcs.RagCacheSize;
+    public float LivingNpcsRagHitRate => _livingNpcs.RagHitRate;
     public string LivingNpcsPerformanceSummary =>
         _livingNpcs.PerformanceModeActive
             ? $"Performance Mode Active • ratio scripted/spark={_livingNpcs.ScriptedRatio:0.00}/{_livingNpcs.SparkRatio:0.00} • spark x{_livingNpcs.EffectiveSparkMultiplier:0.00} • reason={_livingNpcs.PerformanceReason}{(_livingNpcs.ForceScriptedFallback ? " • fallback=forced" : string.Empty)}"
@@ -2701,6 +2703,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
             OnPropertyChanged(nameof(LivingNpcsSparksToday));
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
+            OnPropertyChanged(nameof(LivingNpcsRagCacheSize));
+            OnPropertyChanged(nameof(LivingNpcsRagHitRate));
             OnPropertyChanged(nameof(LivingNpcsPerformanceSummary));
             OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));
