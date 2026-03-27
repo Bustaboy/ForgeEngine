@@ -1575,11 +1575,86 @@ def _safe_scene_patch(candidate_patch: list[dict[str, object]]) -> list[dict[str
     return safe_patch
 
 
+def _read_scene_npcs(scene_payload: dict[str, object]) -> list[dict[str, object]]:
+    npcs = scene_payload.get("npcs")
+    if isinstance(npcs, list):
+        return [npc for npc in npcs if isinstance(npc, dict)]
+    entities = scene_payload.get("entities")
+    if not isinstance(entities, list):
+        return []
+    return [
+        entity
+        for entity in entities
+        if isinstance(entity, dict)
+        and str(entity.get("type", "")).strip().lower() == "npc"
+    ]
+
+
+def _extract_npc_needs(npc_payload: dict[str, object]) -> dict[str, float]:
+    needs_node = npc_payload.get("needs")
+    if not isinstance(needs_node, dict):
+        return {}
+    extracted: dict[str, float] = {}
+    for key in ("hunger", "energy", "social", "fun"):
+        raw_value = needs_node.get(key)
+        if isinstance(raw_value, (int, float)):
+            extracted[key] = float(raw_value)
+    return extracted
+
+
+def _relationship_summary(scene_payload: dict[str, object], npc_id: str) -> dict[str, float]:
+    if not npc_id:
+        return {}
+    relationships = scene_payload.get("relationships")
+    if not isinstance(relationships, dict):
+        return {}
+    profile = relationships.get(npc_id)
+    if not isinstance(profile, dict):
+        return {}
+    summary: dict[str, float] = {}
+    for key in ("trust", "respect", "grudge", "debt", "loyalty"):
+        raw_value = profile.get(key)
+        if isinstance(raw_value, (int, float)):
+            summary[key] = float(raw_value)
+    return summary
+
+
+def _source_from_scene_for_npc_day(scene_payload: dict[str, object], lightweight_mode: str) -> str:
+    free_will = scene_payload.get("free_will")
+    rag = scene_payload.get("rag")
+    free_will_enabled = isinstance(free_will, dict) and bool(free_will.get("enabled", True))
+    llm_enabled = isinstance(free_will, dict) and bool(free_will.get("llm_enabled", False))
+    rag_enabled = isinstance(rag, dict) and bool(rag.get("enabled", True))
+
+    if lightweight_mode == "performance":
+        return "scripted"
+    if rag_enabled and free_will_enabled:
+        return "hybrid"
+    if llm_enabled:
+        return "llm"
+    return "scripted"
+
+
+def _source_from_scene_for_narrative(scene_payload: dict[str, object], lightweight_mode: str) -> str:
+    rag = scene_payload.get("rag")
+    free_will = scene_payload.get("free_will")
+    rag_enabled = isinstance(rag, dict) and bool(rag.get("enabled", True))
+    llm_enabled = isinstance(free_will, dict) and bool(free_will.get("llm_enabled", False))
+    if lightweight_mode == "performance":
+        return "scripted"
+    if rag_enabled:
+        return "hybrid"
+    if llm_enabled:
+        return "llm"
+    return "scripted"
+
+
 def _coerce_orchestration_type(orchestration_type: str) -> str:
     normalized = orchestration_type.strip().lower()
     if normalized not in {"narrative_checkpoint", "npc_day", "scene_review"}:
         raise ValueError(
-            "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]"
+            "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]; "
+            "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>"
         )
     return normalized
 
@@ -1600,10 +1675,22 @@ def _build_orchestration_result(
     latest_snapshot = record_performance_snapshot(scene_path, session_name=f"orchestrate_{normalized_type}")["snapshot"]
     metrics = latest_snapshot.get("metrics", {}) if isinstance(latest_snapshot, dict) else {}
     fps_avg = float(metrics.get("fps_avg", 0.0) or 0.0)
+    lightweight_mode = str(
+        ((scene_payload.get("optimization_overrides") or {}) if isinstance(scene_payload.get("optimization_overrides"), dict) else {}).get(
+            "lightweight_mode",
+            "balanced",
+        )
+    ).strip().lower()
+    performance_throttled = lightweight_mode == "performance"
 
     if normalized_type == "narrative_checkpoint":
-        source = "rag"
-        confidence = 0.81 if recent_changes else 0.65
+        source = _source_from_scene_for_narrative(scene_payload, lightweight_mode)
+        confidence = 0.84 if recent_changes else 0.68
+        if performance_throttled:
+            confidence = min(confidence, 0.62)
+        generational_memory_size = len(scene_payload.get("compressed_event_log", [])) if isinstance(scene_payload.get("compressed_event_log"), list) else 0
+        weather = scene_payload.get("weather") if isinstance(scene_payload.get("weather"), dict) else {}
+        settlement = scene_payload.get("settlement") if isinstance(scene_payload.get("settlement"), dict) else {}
         recent_summary = recent_changes[0]["summary"] if recent_changes else "No recent changes logged."
         patch = _safe_scene_patch(
             [
@@ -1615,43 +1702,111 @@ def _build_orchestration_result(
                 {
                     "op": "set",
                     "path": "/narrative_orchestration/source",
-                    "value": "rag",
+                    "value": source,
                 },
                 {
                     "op": "set",
                     "path": "/narrative_orchestration/checkpoint_summary",
                     "value": str(recent_summary)[:240],
                 },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/generational_memory_size",
+                    "value": generational_memory_size,
+                },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/lightweight_mode",
+                    "value": lightweight_mode,
+                },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/status",
+                    "value": "throttled" if performance_throttled else "ready",
+                },
+                {
+                    "op": "set",
+                    "path": "/narrative_orchestration/world_state",
+                    "value": {
+                        "weather": str(weather.get("current_weather", "clear")),
+                        "morale": float(settlement.get("morale", 0.0) or 0.0),
+                        "day_count": int(scene_payload.get("day_count", 1) or 1),
+                    },
+                },
             ]
         )
-        summary = f"RAG-backed checkpoint '{normalized_target}' prepared using recent change-log context."
+        summary = (
+            f"Checkpoint '{normalized_target}' adapted from change-log + memory ({generational_memory_size} entries)"
+            f" with source={source}{' [throttled]' if performance_throttled else ''}."
+        )
     elif normalized_type == "npc_day":
-        source = "scripted"
-        confidence = 0.76
-        npcs = scene_payload.get("npcs")
-        npc_count = len(npcs) if isinstance(npcs, list) else 0
+        source = _source_from_scene_for_npc_day(scene_payload, lightweight_mode)
+        confidence = 0.78 if source == "hybrid" else 0.7
+        if performance_throttled:
+            confidence = min(confidence, 0.6)
+        npc_entries = _read_scene_npcs(scene_payload)
+        npc_count = len(npc_entries)
+        selected_npc = next(
+            (
+                npc
+                for npc in npc_entries
+                if str(npc.get("id", "")).strip() == normalized_target
+            ),
+            npc_entries[0] if npc_entries else {},
+        )
+        selected_npc_id = str(selected_npc.get("id", normalized_target)).strip() or normalized_target
+        needs = _extract_npc_needs(selected_npc)
+        relationship = _relationship_summary(scene_payload, selected_npc_id)
+        scripted_behavior = selected_npc.get("scripted_behavior") if isinstance(selected_npc.get("scripted_behavior"), dict) else {}
+        spark_line = ""
+        free_will = scene_payload.get("free_will")
+        if isinstance(free_will, dict) and isinstance(free_will.get("last_spark_line_by_npc"), dict):
+            spark_line = str(free_will["last_spark_line_by_npc"].get(selected_npc_id, ""))
+        recent_headlines = [str(change.get("summary", "")).strip() for change in recent_changes[:2] if str(change.get("summary", "")).strip()]
+        npc_summary = (
+            f"NPC {selected_npc_id}: scripted={str(scripted_behavior.get('current_state', 'none'))}, "
+            f"spark='{spark_line or 'none'}', needs={needs or 'n/a'}, relationships={relationship or 'n/a'}."
+        )
         patch = _safe_scene_patch(
             [
                 {
                     "op": "set",
                     "path": "/free_will/orchestration/day_plan_target",
-                    "value": normalized_target,
+                    "value": selected_npc_id,
                 },
                 {
                     "op": "set",
                     "path": "/free_will/orchestration/day_plan_status",
-                    "value": "scripted_ready",
+                    "value": "throttled" if performance_throttled else "ready",
                 },
                 {
                     "op": "set",
                     "path": "/free_will/orchestration/day_plan_npc_count",
                     "value": npc_count,
                 },
+                {
+                    "op": "set",
+                    "path": f"/free_will/orchestration/day_plan_by_npc/{selected_npc_id}",
+                    "value": {
+                        "summary": npc_summary[:320],
+                        "source": source,
+                        "lightweight_mode": lightweight_mode,
+                        "change_log_headlines": recent_headlines,
+                    },
+                },
+                {
+                    "op": "set",
+                    "path": "/free_will/orchestration/day_plan_latest_summary",
+                    "value": npc_summary[:320],
+                },
             ]
         )
-        summary = f"Scripted day-plan drafted for '{normalized_target}' across {npc_count} NPC(s)."
+        summary = (
+            f"NPC day summary ready for '{selected_npc_id}' using {source} orchestration"
+            f" across {npc_count} NPC(s){' [throttled]' if performance_throttled else ''}."
+        )
     else:
-        source = "deterministic"
+        source = "scripted"
         confidence = 0.79
         optimization = optimization_critique(scene_path, max_suggestions=1)
         suggestions = optimization.get("suggestions", []) if isinstance(optimization, dict) else []
@@ -4189,7 +4344,8 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if command in {"orchestrate", "/orchestrate"}:
         if len(raw_args) < 3:
             raise ValueError(
-                "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]"
+                "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]; "
+                "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>"
             )
         try:
             result = _build_orchestration_result(
@@ -4456,7 +4612,10 @@ def main() -> int:
 
     print("GameForge V1 AI orchestration skeleton (Python)")
     print("Local-first orchestration placeholder")
-    print("Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]")
+    print(
+        "Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target] "
+        "(npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>)"
+    )
     return 0
 
 
