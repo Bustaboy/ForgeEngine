@@ -76,6 +76,10 @@ def test_orchestrate_npc_day_returns_hybrid_patch_with_npc_summary(tmp_path: Pat
 
 def test_orchestrate_scene_review_returns_safe_patch(tmp_path: Path) -> None:
     scene_path = _write_scene(tmp_path)
+    scene_payload = json.loads(scene_path.read_text(encoding="utf-8"))
+    scene_payload["rag"] = {"enabled": False}
+    scene_path.write_text(json.dumps(scene_payload), encoding="utf-8")
+
     result = orchestrator._build_orchestration_result(
         orchestration_type="scene_review",
         scene_path=scene_path,
@@ -85,3 +89,15 @@ def test_orchestrate_scene_review_returns_safe_patch(tmp_path: Path) -> None:
     assert result.source == "scripted"
     assert result.orchestration_type == "scene_review"
     assert all(str(op["path"]).startswith("/") for op in result.suggested_scene_patch)
+
+
+def test_orchestrate_scene_review_prefers_rag_when_enabled_without_llm(tmp_path: Path) -> None:
+    scene_path = _write_scene(tmp_path)
+    result = orchestrator._build_orchestration_result(
+        orchestration_type="scene_review",
+        scene_path=scene_path,
+        target=None,
+    )
+
+    assert result.source == "rag"
+    assert result.orchestration_type == "scene_review"
