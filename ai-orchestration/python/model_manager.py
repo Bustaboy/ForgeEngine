@@ -34,6 +34,8 @@ except ImportError:  # pragma: no cover - optional dependency at runtime
 DEFAULT_MODELS_JSON = "models.json"
 DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "forgeengine" / "models"
 DEFAULT_QUANTIZATION = "Q4_K_M"
+TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACE_TOKEN")
+TOKEN_SESSION_MESSAGE = "Token used from environment only for this session. Not saved for security."
 
 FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
@@ -198,6 +200,7 @@ def _load_models_config(models_json_path: Path | None = None) -> dict[str, Any]:
 
 def _save_models_config(config: dict[str, Any], models_json_path: Path | None = None) -> Path:
     path = _models_json_path(models_json_path)
+    config.pop("hf_token", None)
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
     return path
 
@@ -217,15 +220,17 @@ def _get_repo_id(friendly_name: str, repo_id: str | None = None) -> str:
     )
 
 
-def _choose_token(token: str | None = None, config: dict[str, Any] | None = None) -> str | None:
+def _choose_token(token: str | None = None, config: dict[str, Any] | None = None) -> tuple[str | None, str]:
     if token:
-        return token
-    env_token = os.getenv("HF_TOKEN", "").strip() or os.getenv("HUGGINGFACE_TOKEN", "").strip()
+        return token, "argument"
+    env_token = ""
+    for env_key in TOKEN_ENV_KEYS:
+        env_token = os.getenv(env_key, "").strip()
+        if env_token:
+            break
     if env_token:
-        return env_token
-    if config and isinstance(config.get("hf_token"), str) and config["hf_token"].strip():
-        return config["hf_token"].strip()
-    return None
+        return env_token, "environment"
+    return None, "none"
 
 
 def _find_quantized_file(snapshot_path: Path, quantization: str) -> Path | None:
@@ -410,7 +415,7 @@ def download_model(
     normalized_name = _normalize_friendly_name(friendly_name)
     resolved_repo_id = _get_repo_id(normalized_name, repo_id=repo_id)
     config = _load_models_config(models_json_path)
-    hf_token = _choose_token(token=token, config=config)
+    hf_token, token_source = _choose_token(token=token, config=config)
 
     download_cache_root = cache_root or DEFAULT_CACHE_ROOT
     allow_patterns = [f"*{quantization}*.gguf", "*.json", "tokenizer*", "*.model", "*.txt"]
@@ -425,6 +430,14 @@ def download_model(
                 "quantization": quantization,
             }
         )
+        if token_source == "environment":
+            progress_callback(
+                {
+                    "event": "token_notice",
+                    "friendly_name": normalized_name,
+                    "message": TOKEN_SESSION_MESSAGE,
+                }
+            )
 
     max_attempts = 6
     for attempt in range(0, max_attempts):
@@ -491,9 +504,6 @@ def download_model(
         "path": record.path,
         "updated_at_unix": record.updated_at_unix,
     }
-    if hf_token:
-        config["hf_token"] = hf_token
-
     config_path = _save_models_config(config, models_json_path=models_json_path)
 
     if progress_callback:
@@ -515,6 +525,8 @@ def download_model(
         "models_json": str(config_path),
         "cache_root": str(download_cache_root),
         "used_token": bool(hf_token),
+        "token_message": TOKEN_SESSION_MESSAGE if token_source == "environment" else "",
+        "token_source": token_source,
     }
 
 
