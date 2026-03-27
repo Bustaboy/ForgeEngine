@@ -1405,6 +1405,11 @@ public partial class MainWindow : Window
         await _viewModel.RefreshModelManagerAsync();
     }
 
+    private void OnCancelModelDownloadClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.CancelActiveModelOperation();
+    }
+
     private async void OnRunOptimizationCheckClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RunOptimizationCheckAsync();

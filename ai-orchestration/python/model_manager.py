@@ -20,8 +20,10 @@ from benchmark import run_benchmark_as_dict
 try:
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import HfHubHTTPError
+    from tqdm import tqdm as tqdm_base
 except ImportError:  # pragma: no cover - optional dependency at runtime
     snapshot_download = None
+    tqdm_base = None
 
     class HfHubHTTPError(Exception):
         """Fallback error type when huggingface_hub is unavailable."""
@@ -51,6 +53,90 @@ class ManagedModelRecord:
     quantization: str
     path: str
     updated_at_unix: int
+
+
+class DownloadCancelledError(RuntimeError):
+    """Raised when a model download is cancelled by user request."""
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _create_snapshot_progress_tqdm(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    cancel_check: Callable[[], bool] | None,
+) -> type | None:
+    if tqdm_base is None:
+        return None
+
+    class SnapshotProgressTqdm(tqdm_base):  # type: ignore[misc, valid-type]
+        _last_emit_monotonic: float = 0.0
+
+        def _emit(self) -> None:
+            if progress_callback is None:
+                return
+            if cancel_check and cancel_check():
+                raise DownloadCancelledError("Download cancelled by user.")
+
+            now = time.monotonic()
+            if now - self._last_emit_monotonic < 0.2:
+                return
+            self._last_emit_monotonic = now
+
+            total = _safe_float(getattr(self, "total", None))
+            downloaded = _safe_float(getattr(self, "n", None))
+            progress = 0.0
+            if total and total > 0 and downloaded is not None:
+                progress = max(0.0, min(100.0, (downloaded / total) * 100.0))
+
+            fmt = getattr(self, "format_dict", {}) or {}
+            speed_bps = _safe_float(fmt.get("rate"))
+            remaining_seconds = _safe_float(fmt.get("remaining"))
+            current_file = str(getattr(self, "desc", "")).strip()
+            if current_file.lower().startswith("fetching"):
+                current_file = current_file.split(":", 1)[-1].strip()
+
+            progress_callback(
+                {
+                    "event": "download_progress",
+                    "progress_percent": progress,
+                    "downloaded_mb": round((downloaded or 0.0) / (1024 * 1024), 2),
+                    "total_mb": round((total or 0.0) / (1024 * 1024), 2) if total else None,
+                    "speed_mbps": round((speed_bps or 0.0) / (1024 * 1024), 3) if speed_bps else None,
+                    "eta_seconds": _safe_int(remaining_seconds),
+                    "current_file": current_file or None,
+                }
+            )
+
+        def update(self, n: int = 1) -> bool | None:  # type: ignore[override]
+            result = super().update(n)
+            self._emit()
+            return result
+
+        def refresh(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
+            super().refresh(*args, **kwargs)
+            self._emit()
+
+        def close(self) -> None:  # type: ignore[override]
+            self._emit()
+            super().close()
+
+    return SnapshotProgressTqdm
 
 
 def _models_json_path(models_json_path: Path | None = None) -> Path:
@@ -157,6 +243,8 @@ def download_model(
     token: str | None = None,
     models_json_path: Path | None = None,
     cache_root: Path | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Download (or resume/cached fetch) a model and persist path in models.json."""
 
@@ -172,9 +260,22 @@ def download_model(
 
     download_cache_root = cache_root or DEFAULT_CACHE_ROOT
     allow_patterns = [f"*{quantization}*.gguf", "*.json", "tokenizer*", "*.model", "*.txt"]
+    progress_tqdm = _create_snapshot_progress_tqdm(progress_callback, cancel_check)
+
+    if progress_callback:
+        progress_callback(
+            {
+                "event": "download_started",
+                "friendly_name": normalized_name,
+                "repo_id": resolved_repo_id,
+                "quantization": quantization,
+            }
+        )
 
     for attempt in range(0, 6):
         try:
+            if cancel_check and cancel_check():
+                raise DownloadCancelledError("Download cancelled by user.")
             snapshot_dir = snapshot_download(
                 repo_id=resolved_repo_id,
                 cache_dir=str(download_cache_root),
@@ -182,8 +283,11 @@ def download_model(
                 token=hf_token,
                 local_files_only=False,
                 allow_patterns=allow_patterns,
+                tqdm_class=progress_tqdm,
             )
             break
+        except DownloadCancelledError:
+            raise
         except Exception as exc:  # noqa: BLE001
             delay = handle_rate_limit(exc, attempt=attempt)
             time.sleep(delay)
@@ -211,6 +315,17 @@ def download_model(
         config["hf_token"] = hf_token
 
     config_path = _save_models_config(config, models_json_path=models_json_path)
+
+    if progress_callback:
+        progress_callback(
+            {
+                "event": "download_completed",
+                "friendly_name": record.friendly_name,
+                "repo_id": record.repo_id,
+                "progress_percent": 100.0,
+                "path": record.path,
+            }
+        )
 
     return {
         "friendly_name": record.friendly_name,
@@ -482,10 +597,14 @@ def run_onboarding(
     models_json_path: Path | None = None,
     auto_prepare_models: bool = True,
     input_fn: Callable[[str], str] = input,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Run first-run onboarding with benchmark + ForgeGuard Q&A + persisted recommendations."""
 
     benchmark = run_benchmark_as_dict(orchestrator_file=orchestrator_file, auto_prepare_models=auto_prepare_models)
+    if progress_callback:
+        progress_callback({"event": "onboarding_stage", "stage": "benchmark_complete"})
     config = _load_models_config(models_json_path=models_json_path)
     resolved_models_path = _models_json_path(models_json_path)
 
@@ -511,6 +630,8 @@ def run_onboarding(
         friendly_name="forgeguard",
         quantization=DEFAULT_QUANTIZATION,
         models_json_path=resolved_models_path,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
     )
     config = _load_models_config(models_json_path=resolved_models_path)
 

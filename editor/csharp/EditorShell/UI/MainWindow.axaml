@@ -1234,12 +1234,14 @@
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
                       <Button Content="Run Onboarding"
-                              Click="OnRunModelOnboardingClick" />
+                              Click="OnRunModelOnboardingClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
                       <Button Grid.Column="1"
                               Content="Setup Recommended Models"
-                              Click="OnSetupRecommendedModelsClick" />
-                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" />
-                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" />
+                              Click="OnSetupRecommendedModelsClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
                       <ItemsControl.ItemTemplate>
@@ -1256,12 +1258,14 @@
                                       Content="Download"
                                       Tag="{Binding FriendlyName}"
                                       Click="OnDownloadManagedModelClick"
+                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
                                       VerticalAlignment="Top" />
                               <Button Grid.Column="2"
                                       Content="Remove"
                                       Tag="{Binding FriendlyName}"
                                       Click="OnRemoveManagedModelClick"
                                       IsVisible="{Binding IsRemovable}"
+                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
                                       VerticalAlignment="Top" />
                             </Grid>
                           </Border>
@@ -1693,6 +1697,35 @@
                      Height="8"
                      Background="#0B1524"
                      Foreground="#4AA3FF" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.RowSpan="5"
+            IsVisible="{Binding IsDownloadProgressVisible}"
+            Background="#07101CE8"
+            BorderBrush="#5AAFFF"
+            BorderThickness="1.2"
+            CornerRadius="10"
+            Padding="18"
+            Margin="52,56"
+            ZIndex="24">
+      <StackPanel Spacing="10" MaxWidth="760">
+        <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="20" FontWeight="Bold" />
+        <TextBlock Text="{Binding DownloadProgressSummary}" Foreground="#CFE5FF" FontSize="13" TextWrapping="Wrap" />
+        <ProgressBar Height="10"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="{Binding DownloadProgressPercent}"
+                     Background="#0B1524"
+                     Foreground="#4AA3FF" />
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+          <TextBlock Text="{Binding DownloadProgressCurrentFile}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+          <TextBlock Grid.Column="1" Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
+          <TextBlock Grid.Column="2" Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
+        </Grid>
+        <Button Content="Cancel Download"
+                HorizontalAlignment="Left"
+                Click="OnCancelModelDownloadClick" />
       </StackPanel>
     </Border>
 

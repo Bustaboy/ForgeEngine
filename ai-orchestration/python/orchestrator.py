@@ -39,6 +39,7 @@ from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, 
 from live_edit import edit_scene_from_prompt
 from change_log import append_change_log_entry, get_recent_changes
 from model_manager import (
+    DownloadCancelledError,
     download_model,
     ensure_freewill_model,
     list_installed_models,
@@ -3670,7 +3671,38 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if not raw_args:
         return None
 
-    command = raw_args[0]
+    progress_json = "--progress-json" in raw_args
+    cancel_file_path: Path | None = None
+    normalized_args: list[str] = []
+    skip_next = False
+    for index, token in enumerate(raw_args):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--progress-json":
+            continue
+        if token == "--cancel-file":
+            if index + 1 >= len(raw_args):
+                raise ValueError("Usage: --cancel-file <path>")
+            cancel_file_path = Path(raw_args[index + 1])
+            skip_next = True
+            continue
+        normalized_args.append(token)
+
+    if not normalized_args:
+        return None
+
+    command = normalized_args[0]
+    raw_args = normalized_args
+
+    def emit_progress(payload: dict[str, object]) -> None:
+        if not progress_json:
+            return
+        line = {"event": "progress", "type": payload.get("event", "update"), **payload}
+        print(json.dumps(line), flush=True)
+
+    def is_cancelled() -> bool:
+        return bool(cancel_file_path and cancel_file_path.exists())
 
     def _append_change_log(
         *,
@@ -3915,9 +3947,18 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         if len(raw_args) < 2:
             raise ValueError("Usage: orchestrator.py /download_model <friendly_name> [quantization]")
         quantization = raw_args[2] if len(raw_args) >= 3 else "Q4_K_M"
-        result = download_model(friendly_name=raw_args[1], quantization=quantization)
-        print(json.dumps(result, indent=2))
-        return 0
+        try:
+            result = download_model(
+                friendly_name=raw_args[1],
+                quantization=quantization,
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
 
     if command in {"list-models", "/list_models"}:
         result = list_installed_models()
@@ -3925,9 +3966,17 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         return 0
 
     if command in {"onboarding-run", "/onboarding_run"}:
-        result = run_onboarding(orchestrator_file=Path(__file__).resolve())
-        print(json.dumps(result, indent=2))
-        return 0
+        try:
+            result = run_onboarding(
+                orchestrator_file=Path(__file__).resolve(),
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
 
     if command in {"setup-freewill", "/setup_freewill"}:
         scene_path = Path(raw_args[1]) if len(raw_args) >= 2 else None
