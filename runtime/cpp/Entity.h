@@ -152,6 +152,8 @@ struct ScriptedBehaviorComponent {
     std::string current_state{};
     std::uint64_t target_entity_id = 0;
     bool schedule_override = false;
+    float spark_override_chance = 0.05F;
+    float last_spark_timestamp = -1.0F;
     std::map<std::string, float> parameters{};
 };
 

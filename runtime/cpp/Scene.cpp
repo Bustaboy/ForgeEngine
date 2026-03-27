@@ -8,6 +8,7 @@
 #include "NPCController.h"
 #include "LivingNpcSystem.h"
 #include "FreeWillSystem.h"
+#include "ScriptedBehaviorSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
@@ -229,6 +230,7 @@ void Scene::Update(float dt_seconds) {
     WeatherSystem::EnsureDefaults(*this);
     SettlementSystem::EnsureDefaults(*this);
     LivingNpcSystem::EnsureDefaults(*this);
+    ScriptedBehaviorSystem::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
     RealTimeCombatSystem::EnsureDefaults(*this);

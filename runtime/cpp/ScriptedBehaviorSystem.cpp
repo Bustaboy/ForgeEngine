@@ -98,6 +98,34 @@ float UpdateIntervalSeconds(const Scene& scene) {
 
 }  // namespace
 
+bool ScriptedBehaviorSystem::IsBehaviorSuitable(const Scene& scene, const Entity& entity) {
+    const ScriptedBehaviorComponent& scripted = entity.scripted_behavior;
+    if (!scripted.enabled || scripted.current_state.empty()) {
+        return false;
+    }
+
+    const auto def_it = scene.scripted_behavior.definitions.find(scripted.current_state);
+    if (def_it == scene.scripted_behavior.definitions.end()) {
+        return false;
+    }
+
+    const ScriptedBehaviorDefinition& def = def_it->second;
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    if (performance_mode && def.complex) {
+        return false;
+    }
+
+    if (scripted.schedule_override) {
+        return true;
+    }
+
+    const std::string& scheduled_activity = entity.schedule.current_activity;
+    if (scheduled_activity.empty() || scheduled_activity == "idle" || scheduled_activity == "free_time") {
+        return true;
+    }
+    return scheduled_activity == def.activity;
+}
+
 void ScriptedBehaviorSystem::EnsureDefaults(Scene& scene) {
     if (!scene.scripted_behavior.enabled) {
         return;
@@ -132,27 +160,18 @@ void ScriptedBehaviorSystem::Update(Scene& scene, float dt_seconds) {
     scene.scripted_behavior.update_accumulator_seconds = 0.0F;
     ++scene.scripted_behavior.update_tick;
 
-    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
-
     for (Entity& entity : scene.entities) {
         if (entity.buildable.IsValid()) {
             continue;
         }
 
         ScriptedBehaviorComponent& scripted = entity.scripted_behavior;
-        if (!scripted.enabled || scripted.current_state.empty()) {
+        if (!IsBehaviorSuitable(scene, entity)) {
             continue;
         }
 
-        auto def_it = scene.scripted_behavior.definitions.find(scripted.current_state);
-        if (def_it == scene.scripted_behavior.definitions.end()) {
-            continue;
-        }
-
+        const auto def_it = scene.scripted_behavior.definitions.find(scripted.current_state);
         const ScriptedBehaviorDefinition& def = def_it->second;
-        if (performance_mode && def.complex) {
-            continue;
-        }
 
         float duration_value = def.duration_hours;
         const auto duration_it = scripted.parameters.find("duration_hours");
@@ -191,6 +210,10 @@ bool ScriptedBehaviorSystem::SetBehavior(
     entity->scripted_behavior.current_state = state;
     entity->scripted_behavior.target_entity_id = target_entity_id;
     entity->scripted_behavior.schedule_override = schedule_override;
+    entity->scripted_behavior.spark_override_chance = std::clamp(
+        entity->scripted_behavior.spark_override_chance,
+        0.0F,
+        1.0F);
     entity->scripted_behavior.parameters = parameters;
 
     auto def_it = scene.scripted_behavior.definitions.find(state);

@@ -735,6 +735,20 @@ void ProcessConsoleCommands(
         return;
     }
 
+    if (command == "/behavior_spark_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /behavior_spark_test <entity_id>");
+            return;
+        }
+
+        GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
+        const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
+        GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        return;
+    }
+
     if (command == "/npc_schedule") {
         std::string mode;
         parser >> mode;

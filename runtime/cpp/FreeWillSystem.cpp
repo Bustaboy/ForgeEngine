@@ -21,6 +21,10 @@ constexpr float kGlobalSparkCooldownSeconds = 1.0F;
 constexpr float kBaseSparkChancePerSecond = 0.0015F;
 constexpr std::size_t kPendingSparkCap = 256U;
 constexpr std::size_t kSparkMapCap = 512U;
+constexpr float kHighImpactNeedsThreshold = 18.0F;
+constexpr float kRelationshipShiftThreshold = 16.0F;
+constexpr float kScriptedSparkSuppressionScale = 0.08F;
+constexpr float kPerformanceScriptedSparkSuppressionScale = 0.03F;
 
 struct SparkDirective {
     std::string line{};
@@ -48,6 +52,49 @@ bool IsSparkCapReached(const Scene& scene, std::uint64_t npc_id) {
 
 bool HasScriptedBehavior(const Entity& entity) {
     return entity.scripted_behavior.enabled && !entity.scripted_behavior.current_state.empty();
+}
+
+bool HasLowNeeds(const Entity& entity) {
+    const NeedsComponent& needs = entity.needs;
+    return needs.hunger <= kHighImpactNeedsThreshold ||
+           needs.energy <= kHighImpactNeedsThreshold ||
+           needs.social <= kHighImpactNeedsThreshold ||
+           needs.fun <= kHighImpactNeedsThreshold;
+}
+
+bool HasMajorRelationshipShift(const Scene& scene, const Entity& entity) {
+    const auto relation_it = scene.relationships.find(entity.id);
+    if (relation_it == scene.relationships.end()) {
+        return false;
+    }
+
+    const RelationshipProfile& profile = relation_it->second;
+    if (profile.memories.empty()) {
+        return false;
+    }
+
+    const RelationshipMemory& recent = profile.memories.back();
+    const float strongest_shift = std::max(
+        std::max(std::fabs(recent.trust_delta), std::fabs(recent.respect_delta)),
+        std::max(std::fabs(recent.grudge_delta), std::fabs(recent.loyalty_delta)));
+    return strongest_shift >= kRelationshipShiftThreshold;
+}
+
+bool HasRecentPlayerInteraction(const Scene& scene, const Entity& entity) {
+    const auto relation_it = scene.relationships.find(entity.id);
+    if (relation_it == scene.relationships.end()) {
+        return false;
+    }
+    return relation_it->second.last_interaction_day == scene.day_count;
+}
+
+bool IsHighImpactForSpark(const Scene& scene, const Entity& entity) {
+    return HasLowNeeds(entity) || HasMajorRelationshipShift(scene, entity) || HasRecentPlayerInteraction(scene, entity);
+}
+
+float EffectiveScriptedOverrideChance(const Entity& entity, bool performance_mode) {
+    const float base = std::clamp(entity.scripted_behavior.spark_override_chance, 0.0F, 1.0F);
+    return performance_mode ? (base * 0.4F) : base;
 }
 
 bool TryEnqueue(Scene& scene, std::uint64_t npc_id, bool forced_by_console) {
@@ -187,6 +234,7 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
 
     std::uint32_t& spark_count = scene.free_will.daily_spark_count[request.npc_id];
     spark_count = std::min(kMaxSparksPerNpcPerDay, spark_count + 1U);
+    npc->scripted_behavior.last_spark_timestamp = scene.elapsed_seconds;
 
     scene.free_will.last_spark_line_by_npc[request.npc_id] = directive->line;
     scene.recent_actions.push_back("NPC " + std::to_string(request.npc_id) + " free-will: " + directive->line);
@@ -258,16 +306,33 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
         if (entity.buildable.IsValid()) {
             continue;
         }
-        if (HasScriptedBehavior(entity)) {
-            const float scripted_spark_chance = performance_mode ? 0.0F : (chance * 0.15F);
-            if (scripted_spark_chance <= 0.0F || roll(rng) > scripted_spark_chance) {
-                continue;
-            }
-        }
+
         if (IsSparkCapReached(scene, entity.id)) {
             continue;
         }
-        if (roll(rng) <= chance) {
+
+        float entity_chance = chance;
+        const bool scripted_active = HasScriptedBehavior(entity);
+        const bool scripted_suitable = scripted_active && ScriptedBehaviorSystem::IsBehaviorSuitable(scene, entity);
+        const bool high_impact = IsHighImpactForSpark(scene, entity);
+        if (scripted_suitable) {
+            const float scripted_scale = performance_mode
+                ? kPerformanceScriptedSparkSuppressionScale
+                : kScriptedSparkSuppressionScale;
+            entity_chance *= scripted_scale;
+
+            if (!high_impact) {
+                continue;
+            }
+
+            entity_chance *= EffectiveScriptedOverrideChance(entity, performance_mode);
+        }
+
+        if (entity_chance <= 0.0F) {
+            continue;
+        }
+
+        if (roll(rng) <= entity_chance) {
             if (TryEnqueue(scene, entity.id, false)) {
                 ++queued_this_frame;
             }
@@ -303,4 +368,31 @@ bool FreeWillSystem::TriggerSpark(Scene& scene, std::uint64_t npc_id, bool force
         scene.free_will.global_cooldown_remaining = 0.0F;
     }
     return true;
+}
+
+std::string FreeWillSystem::BuildHybridDecisionSummary(Scene& scene, std::uint64_t npc_id) {
+    EnsureDefaults(scene);
+    Entity* npc = FindNpc(scene, npc_id);
+    if (npc == nullptr) {
+        return "NPC not found.";
+    }
+
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const bool scripted_active = HasScriptedBehavior(*npc);
+    const bool scripted_suitable = scripted_active && ScriptedBehaviorSystem::IsBehaviorSuitable(scene, *npc);
+    const bool high_impact = IsHighImpactForSpark(scene, *npc);
+    const bool spark_allowed = !scripted_suitable || high_impact;
+    const float override_chance = EffectiveScriptedOverrideChance(*npc, performance_mode);
+
+    std::ostringstream out;
+    out << "NPC " << npc_id
+        << " scripted_active=" << (scripted_active ? "yes" : "no")
+        << " scripted_suitable=" << (scripted_suitable ? "yes" : "no")
+        << " high_impact=" << (high_impact ? "yes" : "no")
+        << " scripted_priority=" << (scripted_suitable ? "high" : "normal")
+        << " spark_allowed=" << (spark_allowed ? "yes" : "no")
+        << " override_chance=" << override_chance
+        << " last_spark_t=" << npc->scripted_behavior.last_spark_timestamp
+        << " mode=" << scene.optimization_overrides.lightweight_mode;
+    return out.str();
 }
