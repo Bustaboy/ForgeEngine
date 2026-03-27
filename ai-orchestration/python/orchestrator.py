@@ -40,6 +40,7 @@ from live_edit import edit_scene_from_prompt
 from change_log import append_change_log_entry, get_recent_changes
 from model_manager import (
     DownloadCancelledError,
+    ManagedModelDownloadError,
     download_model,
     ensure_freewill_model,
     list_installed_models,
@@ -3702,6 +3703,17 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         line = {"event": "progress", "type": payload.get("event", "update"), **payload}
         print(json.dumps(line), flush=True)
 
+    def emit_error(error: ManagedModelDownloadError, command_name: str) -> None:
+        payload = {
+            "event": "error",
+            "command": command_name,
+            "error": error.to_payload(),
+        }
+        if progress_json:
+            emit_progress(payload)
+        else:
+            print(json.dumps(payload, indent=2))
+
     def is_cancelled() -> bool:
         return bool(cancel_file_path and cancel_file_path.exists())
 
@@ -3960,6 +3972,9 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         except DownloadCancelledError as exc:
             print(json.dumps({"event": "cancelled", "message": str(exc)}))
             return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "download-model")
+            return 1
 
     if command in {"list-models", "/list_models"}:
         result = list_installed_models()
@@ -3978,6 +3993,9 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         except DownloadCancelledError as exc:
             print(json.dumps({"event": "cancelled", "message": str(exc)}))
             return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "onboarding-run")
+            return 1
 
     if command in {"quick-setup", "/quick_setup"}:
         try:
@@ -3991,6 +4009,9 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         except DownloadCancelledError as exc:
             print(json.dumps({"event": "cancelled", "message": str(exc)}))
             return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "quick-setup")
+            return 1
 
     if command in {"setup-freewill", "/setup_freewill"}:
         scene_path = Path(raw_args[1]) if len(raw_args) >= 2 else None

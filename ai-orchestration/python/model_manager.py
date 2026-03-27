@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import socket
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
 
 PYTHON_ROOT = Path(__file__).resolve().parent
 if str(PYTHON_ROOT) not in sys.path:
@@ -57,6 +60,43 @@ class ManagedModelRecord:
 
 class DownloadCancelledError(RuntimeError):
     """Raised when a model download is cancelled by user request."""
+
+
+class ManagedModelDownloadError(RuntimeError):
+    """Raised when model download fails with a classified user-facing error."""
+
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        user_message: str,
+        suggested_action: str,
+        retryable: bool,
+        retry_after_seconds: int | None = None,
+        missing_disk_mb: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.user_message = user_message
+        self.suggested_action = suggested_action
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+        self.missing_disk_mb = missing_disk_mb
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "code": self.code,
+            "message": str(self),
+            "user_message": self.user_message,
+            "suggested_action": self.suggested_action,
+            "retryable": self.retryable,
+        }
+        if self.retry_after_seconds is not None:
+            payload["retry_after_seconds"] = self.retry_after_seconds
+        if self.missing_disk_mb is not None:
+            payload["missing_disk_mb"] = self.missing_disk_mb
+        return payload
 
 
 def _safe_float(value: Any) -> float | None:
@@ -236,6 +276,120 @@ def handle_rate_limit(
     return delay
 
 
+def _classify_download_error(error: Exception, cache_root: Path) -> ManagedModelDownloadError:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    headers = getattr(response, "headers", {}) or {}
+
+    if isinstance(error, HfHubHTTPError):
+        if status_code == 401:
+            return ManagedModelDownloadError(
+                code="invalid_token",
+                message=text or "Unauthorized token while downloading model.",
+                user_message="Your Hugging Face token is invalid or expired.",
+                suggested_action="Update HF_TOKEN in Settings or environment, then retry.",
+                retryable=False,
+            )
+        if status_code == 429:
+            retry_after = headers.get("Retry-After")
+            retry_after_seconds = int(retry_after) if isinstance(retry_after, str) and retry_after.isdigit() else 15
+            return ManagedModelDownloadError(
+                code="rate_limited",
+                message=text or "Rate limited by Hugging Face.",
+                user_message="Hugging Face is temporarily rate-limiting downloads.",
+                suggested_action=f"Wait about {retry_after_seconds} seconds and retry.",
+                retryable=True,
+                retry_after_seconds=retry_after_seconds,
+            )
+        if status_code == 403:
+            return ManagedModelDownloadError(
+                code="access_denied",
+                message=text or "Access denied while downloading model.",
+                user_message="This model download is not allowed for your account.",
+                suggested_action="Confirm model access on Hugging Face and verify token permissions.",
+                retryable=False,
+            )
+        if status_code == 404:
+            return ManagedModelDownloadError(
+                code="not_found",
+                message=text or "Model repository not found.",
+                user_message="The selected model repository could not be found.",
+                suggested_action="Refresh recommendations and try downloading again.",
+                retryable=False,
+            )
+        if isinstance(status_code, int) and status_code >= 500:
+            return ManagedModelDownloadError(
+                code="http_temporary",
+                message=text or f"Upstream HTTP error: {status_code}",
+                user_message="The model server is temporarily unavailable.",
+                suggested_action="Retry in a few seconds.",
+                retryable=True,
+                retry_after_seconds=8,
+            )
+
+    if isinstance(error, (TimeoutError, socket.timeout, URLError, ConnectionError)):
+        return ManagedModelDownloadError(
+            code="network_unavailable",
+            message=text or "Network request failed during model download.",
+            user_message="Your network connection appears unstable right now.",
+            suggested_action="Check internet connection and retry.",
+            retryable=True,
+            retry_after_seconds=8,
+        )
+
+    if isinstance(error, HTTPError):
+        if 500 <= int(error.code) <= 599:
+            return ManagedModelDownloadError(
+                code="http_temporary",
+                message=text or f"HTTP {error.code} while downloading model.",
+                user_message="The model server is temporarily unavailable.",
+                suggested_action="Retry in a few seconds.",
+                retryable=True,
+                retry_after_seconds=8,
+            )
+        if error.code == 401:
+            return ManagedModelDownloadError(
+                code="invalid_token",
+                message=text or "Unauthorized token while downloading model.",
+                user_message="Your Hugging Face token is invalid or expired.",
+                suggested_action="Update HF_TOKEN in Settings or environment, then retry.",
+                retryable=False,
+            )
+
+    if isinstance(error, OSError):
+        if error.errno == 28 or "no space left" in lowered or "disk full" in lowered:
+            disk_probe = cache_root if cache_root.exists() else cache_root.parent
+            usage = shutil.disk_usage(disk_probe)
+            missing_mb = max(1, int((512 * 1024 * 1024 - usage.free) / (1024 * 1024)))
+            return ManagedModelDownloadError(
+                code="disk_full",
+                message=text or "Not enough disk space for model download.",
+                user_message="There is not enough disk space to finish this download.",
+                suggested_action=f"Free at least {missing_mb} MB in your model cache drive, then retry.",
+                retryable=False,
+                missing_disk_mb=missing_mb,
+            )
+
+    if ("sha" in lowered and "mismatch" in lowered) or "checksum" in lowered or "corrupt" in lowered:
+        return ManagedModelDownloadError(
+            code="corrupted_cache",
+            message=text or "Corrupted download cache detected.",
+            user_message="A cached model file looks corrupted.",
+            suggested_action="Remove the model cache folder for this model, then retry.",
+            retryable=False,
+        )
+
+    return ManagedModelDownloadError(
+        code="download_failed",
+        message=text or "Unknown model download failure.",
+        user_message="The model download could not be completed.",
+        suggested_action="Retry. If this keeps happening, refresh model settings and check local disk/network access.",
+        retryable=False,
+    )
+
+
 def download_model(
     friendly_name: str = "freewill",
     repo_id: str | None = None,
@@ -272,7 +426,8 @@ def download_model(
             }
         )
 
-    for attempt in range(0, 6):
+    max_attempts = 6
+    for attempt in range(0, max_attempts):
         try:
             if cancel_check and cancel_check():
                 raise DownloadCancelledError("Download cancelled by user.")
@@ -289,10 +444,35 @@ def download_model(
         except DownloadCancelledError:
             raise
         except Exception as exc:  # noqa: BLE001
-            delay = handle_rate_limit(exc, attempt=attempt)
-            time.sleep(delay)
+            classified = _classify_download_error(exc, cache_root=download_cache_root)
+            retry_delay: float | None = None
+            if classified.retryable:
+                if classified.code == "rate_limited":
+                    retry_delay = handle_rate_limit(exc, attempt=attempt, max_retries=max_attempts - 1)
+                elif attempt < (max_attempts - 1):
+                    retry_delay = float(classified.retry_after_seconds or (2 * (2**attempt)))
+            if retry_delay is None:
+                raise classified from exc
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "retry_scheduled",
+                        "friendly_name": normalized_name,
+                        "attempt": attempt + 1,
+                        "max_attempts": max_attempts,
+                        "retry_in_seconds": int(retry_delay),
+                        "error": classified.to_payload(),
+                    }
+                )
+            time.sleep(retry_delay)
     else:
-        raise RuntimeError("Model download failed after retries.")
+        raise ManagedModelDownloadError(
+            code="retry_exhausted",
+            message="Model download failed after retries.",
+            user_message="We couldn't finish the download after multiple retry attempts.",
+            suggested_action="Wait a minute, then retry. If it persists, check network stability and model token.",
+            retryable=False,
+        )
 
     snapshot_path = Path(snapshot_dir)
     selected_path = _find_quantized_file(snapshot_path, quantization) or snapshot_path
