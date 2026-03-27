@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import socket
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
 
 PYTHON_ROOT = Path(__file__).resolve().parent
 if str(PYTHON_ROOT) not in sys.path:
@@ -20,8 +23,10 @@ from benchmark import run_benchmark_as_dict
 try:
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import HfHubHTTPError
+    from tqdm import tqdm as tqdm_base
 except ImportError:  # pragma: no cover - optional dependency at runtime
     snapshot_download = None
+    tqdm_base = None
 
     class HfHubHTTPError(Exception):
         """Fallback error type when huggingface_hub is unavailable."""
@@ -29,6 +34,8 @@ except ImportError:  # pragma: no cover - optional dependency at runtime
 DEFAULT_MODELS_JSON = "models.json"
 DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "forgeengine" / "models"
 DEFAULT_QUANTIZATION = "Q4_K_M"
+TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACE_TOKEN")
+TOKEN_SESSION_MESSAGE = "Token used from environment only for this session. Not saved for security."
 
 FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
@@ -53,6 +60,127 @@ class ManagedModelRecord:
     updated_at_unix: int
 
 
+class DownloadCancelledError(RuntimeError):
+    """Raised when a model download is cancelled by user request."""
+
+
+class ManagedModelDownloadError(RuntimeError):
+    """Raised when model download fails with a classified user-facing error."""
+
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        user_message: str,
+        suggested_action: str,
+        retryable: bool,
+        retry_after_seconds: int | None = None,
+        missing_disk_mb: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.user_message = user_message
+        self.suggested_action = suggested_action
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+        self.missing_disk_mb = missing_disk_mb
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "code": self.code,
+            "message": str(self),
+            "user_message": self.user_message,
+            "suggested_action": self.suggested_action,
+            "retryable": self.retryable,
+        }
+        if self.retry_after_seconds is not None:
+            payload["retry_after_seconds"] = self.retry_after_seconds
+        if self.missing_disk_mb is not None:
+            payload["missing_disk_mb"] = self.missing_disk_mb
+        return payload
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        if value is None:
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _create_snapshot_progress_tqdm(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    cancel_check: Callable[[], bool] | None,
+) -> type | None:
+    if tqdm_base is None:
+        return None
+
+    class SnapshotProgressTqdm(tqdm_base):  # type: ignore[misc, valid-type]
+        _last_emit_monotonic: float = 0.0
+
+        def _emit(self) -> None:
+            if progress_callback is None:
+                return
+            if cancel_check and cancel_check():
+                raise DownloadCancelledError("Download cancelled by user.")
+
+            now = time.monotonic()
+            if now - self._last_emit_monotonic < 0.2:
+                return
+            self._last_emit_monotonic = now
+
+            total = _safe_float(getattr(self, "total", None))
+            downloaded = _safe_float(getattr(self, "n", None))
+            progress = 0.0
+            if total and total > 0 and downloaded is not None:
+                progress = max(0.0, min(100.0, (downloaded / total) * 100.0))
+
+            fmt = getattr(self, "format_dict", {}) or {}
+            speed_bps = _safe_float(fmt.get("rate"))
+            remaining_seconds = _safe_float(fmt.get("remaining"))
+            current_file = str(getattr(self, "desc", "")).strip()
+            if current_file.lower().startswith("fetching"):
+                current_file = current_file.split(":", 1)[-1].strip()
+
+            progress_callback(
+                {
+                    "event": "download_progress",
+                    "progress_percent": progress,
+                    "downloaded_mb": round((downloaded or 0.0) / (1024 * 1024), 2),
+                    "total_mb": round((total or 0.0) / (1024 * 1024), 2) if total else None,
+                    "speed_mbps": round((speed_bps or 0.0) / (1024 * 1024), 3) if speed_bps else None,
+                    "eta_seconds": _safe_int(remaining_seconds),
+                    "current_file": current_file or None,
+                }
+            )
+
+        def update(self, n: int = 1) -> bool | None:  # type: ignore[override]
+            result = super().update(n)
+            self._emit()
+            return result
+
+        def refresh(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
+            super().refresh(*args, **kwargs)
+            self._emit()
+
+        def close(self) -> None:  # type: ignore[override]
+            self._emit()
+            super().close()
+
+    return SnapshotProgressTqdm
+
+
 def _models_json_path(models_json_path: Path | None = None) -> Path:
     return models_json_path or (Path.cwd() / DEFAULT_MODELS_JSON)
 
@@ -72,6 +200,7 @@ def _load_models_config(models_json_path: Path | None = None) -> dict[str, Any]:
 
 def _save_models_config(config: dict[str, Any], models_json_path: Path | None = None) -> Path:
     path = _models_json_path(models_json_path)
+    config.pop("hf_token", None)
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
     return path
 
@@ -91,15 +220,17 @@ def _get_repo_id(friendly_name: str, repo_id: str | None = None) -> str:
     )
 
 
-def _choose_token(token: str | None = None, config: dict[str, Any] | None = None) -> str | None:
+def _choose_token(token: str | None = None, config: dict[str, Any] | None = None) -> tuple[str | None, str]:
     if token:
-        return token
-    env_token = os.getenv("HF_TOKEN", "").strip() or os.getenv("HUGGINGFACE_TOKEN", "").strip()
+        return token, "argument"
+    env_token = ""
+    for env_key in TOKEN_ENV_KEYS:
+        env_token = os.getenv(env_key, "").strip()
+        if env_token:
+            break
     if env_token:
-        return env_token
-    if config and isinstance(config.get("hf_token"), str) and config["hf_token"].strip():
-        return config["hf_token"].strip()
-    return None
+        return env_token, "environment"
+    return None, "none"
 
 
 def _find_quantized_file(snapshot_path: Path, quantization: str) -> Path | None:
@@ -150,6 +281,120 @@ def handle_rate_limit(
     return delay
 
 
+def _classify_download_error(error: Exception, cache_root: Path) -> ManagedModelDownloadError:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    headers = getattr(response, "headers", {}) or {}
+
+    if isinstance(error, HfHubHTTPError):
+        if status_code == 401:
+            return ManagedModelDownloadError(
+                code="invalid_token",
+                message=text or "Unauthorized token while downloading model.",
+                user_message="Your Hugging Face token is invalid or expired.",
+                suggested_action="Update HF_TOKEN in Settings or environment, then retry.",
+                retryable=False,
+            )
+        if status_code == 429:
+            retry_after = headers.get("Retry-After")
+            retry_after_seconds = int(retry_after) if isinstance(retry_after, str) and retry_after.isdigit() else 15
+            return ManagedModelDownloadError(
+                code="rate_limited",
+                message=text or "Rate limited by Hugging Face.",
+                user_message="Hugging Face is temporarily rate-limiting downloads.",
+                suggested_action=f"Wait about {retry_after_seconds} seconds and retry.",
+                retryable=True,
+                retry_after_seconds=retry_after_seconds,
+            )
+        if status_code == 403:
+            return ManagedModelDownloadError(
+                code="access_denied",
+                message=text or "Access denied while downloading model.",
+                user_message="This model download is not allowed for your account.",
+                suggested_action="Confirm model access on Hugging Face and verify token permissions.",
+                retryable=False,
+            )
+        if status_code == 404:
+            return ManagedModelDownloadError(
+                code="not_found",
+                message=text or "Model repository not found.",
+                user_message="The selected model repository could not be found.",
+                suggested_action="Refresh recommendations and try downloading again.",
+                retryable=False,
+            )
+        if isinstance(status_code, int) and status_code >= 500:
+            return ManagedModelDownloadError(
+                code="http_temporary",
+                message=text or f"Upstream HTTP error: {status_code}",
+                user_message="The model server is temporarily unavailable.",
+                suggested_action="Retry in a few seconds.",
+                retryable=True,
+                retry_after_seconds=8,
+            )
+
+    if isinstance(error, (TimeoutError, socket.timeout, URLError, ConnectionError)):
+        return ManagedModelDownloadError(
+            code="network_unavailable",
+            message=text or "Network request failed during model download.",
+            user_message="Your network connection appears unstable right now.",
+            suggested_action="Check internet connection and retry.",
+            retryable=True,
+            retry_after_seconds=8,
+        )
+
+    if isinstance(error, HTTPError):
+        if 500 <= int(error.code) <= 599:
+            return ManagedModelDownloadError(
+                code="http_temporary",
+                message=text or f"HTTP {error.code} while downloading model.",
+                user_message="The model server is temporarily unavailable.",
+                suggested_action="Retry in a few seconds.",
+                retryable=True,
+                retry_after_seconds=8,
+            )
+        if error.code == 401:
+            return ManagedModelDownloadError(
+                code="invalid_token",
+                message=text or "Unauthorized token while downloading model.",
+                user_message="Your Hugging Face token is invalid or expired.",
+                suggested_action="Update HF_TOKEN in Settings or environment, then retry.",
+                retryable=False,
+            )
+
+    if isinstance(error, OSError):
+        if error.errno == 28 or "no space left" in lowered or "disk full" in lowered:
+            disk_probe = cache_root if cache_root.exists() else cache_root.parent
+            usage = shutil.disk_usage(disk_probe)
+            missing_mb = max(1, int((512 * 1024 * 1024 - usage.free) / (1024 * 1024)))
+            return ManagedModelDownloadError(
+                code="disk_full",
+                message=text or "Not enough disk space for model download.",
+                user_message="There is not enough disk space to finish this download.",
+                suggested_action=f"Free at least {missing_mb} MB in your model cache drive, then retry.",
+                retryable=False,
+                missing_disk_mb=missing_mb,
+            )
+
+    if ("sha" in lowered and "mismatch" in lowered) or "checksum" in lowered or "corrupt" in lowered:
+        return ManagedModelDownloadError(
+            code="corrupted_cache",
+            message=text or "Corrupted download cache detected.",
+            user_message="A cached model file looks corrupted.",
+            suggested_action="Remove the model cache folder for this model, then retry.",
+            retryable=False,
+        )
+
+    return ManagedModelDownloadError(
+        code="download_failed",
+        message=text or "Unknown model download failure.",
+        user_message="The model download could not be completed.",
+        suggested_action="Retry. If this keeps happening, refresh model settings and check local disk/network access.",
+        retryable=False,
+    )
+
+
 def download_model(
     friendly_name: str = "freewill",
     repo_id: str | None = None,
@@ -157,6 +402,8 @@ def download_model(
     token: str | None = None,
     models_json_path: Path | None = None,
     cache_root: Path | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Download (or resume/cached fetch) a model and persist path in models.json."""
 
@@ -168,13 +415,35 @@ def download_model(
     normalized_name = _normalize_friendly_name(friendly_name)
     resolved_repo_id = _get_repo_id(normalized_name, repo_id=repo_id)
     config = _load_models_config(models_json_path)
-    hf_token = _choose_token(token=token, config=config)
+    hf_token, token_source = _choose_token(token=token, config=config)
 
     download_cache_root = cache_root or DEFAULT_CACHE_ROOT
     allow_patterns = [f"*{quantization}*.gguf", "*.json", "tokenizer*", "*.model", "*.txt"]
+    progress_tqdm = _create_snapshot_progress_tqdm(progress_callback, cancel_check)
 
-    for attempt in range(0, 6):
+    if progress_callback:
+        progress_callback(
+            {
+                "event": "download_started",
+                "friendly_name": normalized_name,
+                "repo_id": resolved_repo_id,
+                "quantization": quantization,
+            }
+        )
+        if token_source == "environment":
+            progress_callback(
+                {
+                    "event": "token_notice",
+                    "friendly_name": normalized_name,
+                    "message": TOKEN_SESSION_MESSAGE,
+                }
+            )
+
+    max_attempts = 6
+    for attempt in range(0, max_attempts):
         try:
+            if cancel_check and cancel_check():
+                raise DownloadCancelledError("Download cancelled by user.")
             snapshot_dir = snapshot_download(
                 repo_id=resolved_repo_id,
                 cache_dir=str(download_cache_root),
@@ -182,13 +451,41 @@ def download_model(
                 token=hf_token,
                 local_files_only=False,
                 allow_patterns=allow_patterns,
+                tqdm_class=progress_tqdm,
             )
             break
+        except DownloadCancelledError:
+            raise
         except Exception as exc:  # noqa: BLE001
-            delay = handle_rate_limit(exc, attempt=attempt)
-            time.sleep(delay)
+            classified = _classify_download_error(exc, cache_root=download_cache_root)
+            retry_delay: float | None = None
+            if classified.retryable:
+                if classified.code == "rate_limited":
+                    retry_delay = handle_rate_limit(exc, attempt=attempt, max_retries=max_attempts - 1)
+                elif attempt < (max_attempts - 1):
+                    retry_delay = float(classified.retry_after_seconds or (2 * (2**attempt)))
+            if retry_delay is None:
+                raise classified from exc
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "retry_scheduled",
+                        "friendly_name": normalized_name,
+                        "attempt": attempt + 1,
+                        "max_attempts": max_attempts,
+                        "retry_in_seconds": int(retry_delay),
+                        "error": classified.to_payload(),
+                    }
+                )
+            time.sleep(retry_delay)
     else:
-        raise RuntimeError("Model download failed after retries.")
+        raise ManagedModelDownloadError(
+            code="retry_exhausted",
+            message="Model download failed after retries.",
+            user_message="We couldn't finish the download after multiple retry attempts.",
+            suggested_action="Wait a minute, then retry. If it persists, check network stability and model token.",
+            retryable=False,
+        )
 
     snapshot_path = Path(snapshot_dir)
     selected_path = _find_quantized_file(snapshot_path, quantization) or snapshot_path
@@ -207,10 +504,18 @@ def download_model(
         "path": record.path,
         "updated_at_unix": record.updated_at_unix,
     }
-    if hf_token:
-        config["hf_token"] = hf_token
-
     config_path = _save_models_config(config, models_json_path=models_json_path)
+
+    if progress_callback:
+        progress_callback(
+            {
+                "event": "download_completed",
+                "friendly_name": record.friendly_name,
+                "repo_id": record.repo_id,
+                "progress_percent": 100.0,
+                "path": record.path,
+            }
+        )
 
     return {
         "friendly_name": record.friendly_name,
@@ -220,6 +525,8 @@ def download_model(
         "models_json": str(config_path),
         "cache_root": str(download_cache_root),
         "used_token": bool(hf_token),
+        "token_message": TOKEN_SESSION_MESSAGE if token_source == "environment" else "",
+        "token_source": token_source,
     }
 
 
@@ -482,10 +789,15 @@ def run_onboarding(
     models_json_path: Path | None = None,
     auto_prepare_models: bool = True,
     input_fn: Callable[[str], str] = input,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+    mark_completed: bool = True,
 ) -> dict[str, Any]:
     """Run first-run onboarding with benchmark + ForgeGuard Q&A + persisted recommendations."""
 
     benchmark = run_benchmark_as_dict(orchestrator_file=orchestrator_file, auto_prepare_models=auto_prepare_models)
+    if progress_callback:
+        progress_callback({"event": "onboarding_stage", "stage": "benchmark_complete"})
     config = _load_models_config(models_json_path=models_json_path)
     resolved_models_path = _models_json_path(models_json_path)
 
@@ -511,13 +823,16 @@ def run_onboarding(
         friendly_name="forgeguard",
         quantization=DEFAULT_QUANTIZATION,
         models_json_path=resolved_models_path,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
     )
     config = _load_models_config(models_json_path=resolved_models_path)
 
     recommendations = generate_recommendations(hardware=benchmark.get("hardware", {}), answers=answers)
+    completed_at = int(time.time()) if mark_completed else None
     config["onboarding"] = {
-        "completed": True,
-        "completed_at_unix": int(time.time()),
+        "completed": mark_completed,
+        "completed_at_unix": completed_at,
         "schema": "gameforge.onboarding.v1",
         "benchmark": benchmark,
         "answers": answers,
@@ -533,5 +848,60 @@ def run_onboarding(
         "recommendations": recommendations,
         "forgeguard": forgeguard_record,
         "message": ONBOARDING_KEEP_MESSAGE,
+        "completed": mark_completed,
         "models_json": str(resolved_models_path),
+    }
+
+
+def run_quick_setup(
+    orchestrator_file: Path | None = None,
+    models_json_path: Path | None = None,
+    auto_prepare_models: bool = True,
+    input_fn: Callable[[str], str] = input,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
+    """Run minimal first-launch setup: onboarding + ForgeGuard + Free-Will."""
+
+    onboarding_result = run_onboarding(
+        orchestrator_file=orchestrator_file,
+        models_json_path=models_json_path,
+        auto_prepare_models=auto_prepare_models,
+        input_fn=input_fn,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+        mark_completed=False,
+    )
+    resolved_models_path = _models_json_path(models_json_path)
+    freewill_recommendation = onboarding_result.get("recommendations", {}).get("freewill", {})
+    freewill_repo = str(freewill_recommendation.get("repo_id", "")).strip() or FRIENDLY_MODEL_REPOS["freewill"]
+    freewill_record = download_model(
+        friendly_name="freewill",
+        repo_id=freewill_repo,
+        quantization=DEFAULT_QUANTIZATION,
+        models_json_path=resolved_models_path,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+    )
+
+    config = _load_models_config(models_json_path=resolved_models_path)
+    onboarding_payload = config.get("onboarding", {}) if isinstance(config.get("onboarding"), dict) else {}
+    onboarding_payload["completed"] = True
+    onboarding_payload["completed_at_unix"] = int(time.time())
+    config["onboarding"] = onboarding_payload
+    _save_models_config(config, models_json_path=resolved_models_path)
+
+    summary = [
+        "ForgeGuard installed for guardrails, critique, and lightweight decisions.",
+        "Free-Will model installed for local NPC/dialog + gameplay reasoning.",
+        "You can run full onboarding or manual downloads anytime in Settings → Models & LLM.",
+    ]
+
+    return {
+        "onboarding": onboarding_result,
+        "forgeguard": onboarding_result.get("forgeguard", {}),
+        "freewill": freewill_record,
+        "summary": summary,
+        "models_json": str(resolved_models_path),
+        "completed": True,
     }

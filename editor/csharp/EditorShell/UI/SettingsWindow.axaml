@@ -48,6 +48,72 @@
           </StackPanel>
         </TabItem>
 
+
+        <TabItem Header="🔊 Audio">
+          <StackPanel Margin="16" Spacing="12">
+            <TextBlock Text="Exploration music track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="MusicTrackTextBox" Watermark="music_exploration" />
+
+            <TextBlock Text="Ambient loop track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="AmbientTrackTextBox" Watermark="ambient_exploration_loop" />
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <TextBlock Text="Combat music override" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1" Name="CombatMusicOverrideToggle" OnContent="On" OffContent="Off" />
+            </Grid>
+
+            <TextBlock Text="Master volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <NumericUpDown Name="MasterVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="85" />
+
+            <TextBlock Text="Music / Ambient / UI volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+              <NumericUpDown Name="MusicVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="75" />
+              <NumericUpDown Grid.Column="1" Name="AmbientVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="60" />
+              <NumericUpDown Grid.Column="2" Name="UiVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
+            </Grid>
+
+            <TextBlock Text="SFX volume / Spatial voice limit" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+              <NumericUpDown Name="SfxVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
+              <NumericUpDown Grid.Column="1" Name="SpatialVoiceLimitNumeric" Minimum="4" Maximum="64" Increment="2" Value="24" />
+            </Grid>
+
+            <TextBlock Text="Ducking strength (combat / UI)" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+              <NumericUpDown Name="CombatDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="35" />
+              <NumericUpDown Grid.Column="1" Name="UiDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="15" />
+            </Grid>
+
+            <TextBlock Text="Reverb zone preset" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <ComboBox Name="ReverbZoneComboBox">
+              <ComboBoxItem Content="outdoor" />
+              <ComboBoxItem Content="indoor" />
+              <ComboBoxItem Content="cave" />
+              <ComboBoxItem Content="workshop" />
+            </ComboBox>
+
+            <TextBlock Text="Procedural intensity" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <NumericUpDown Name="ProceduralIntensityNumeric" Minimum="0" Maximum="100" Increment="5" Value="55" />
+          </StackPanel>
+        </TabItem>
+
+        <TabItem Header="🧠 AI Orchestration">
+          <StackPanel Margin="16" Spacing="12">
+            <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock
+              Name="AiOrchestrationStatusLineText"
+              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]. scene_review target supports playtest|with_playtest|no_playtest."
+              Foreground="#97AECC"
+              TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Enable Bot Playtesting in Review" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1" Name="EnableBotPlaytestingInReviewToggle" OnContent="On" OffContent="Off" />
+            </Grid>
+            <TextBlock Text="Last Scene Review Summary" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="LastSceneReviewSummaryTextBox" AcceptsReturn="True" IsReadOnly="True" Height="92" TextWrapping="Wrap" />
+          </StackPanel>
+        </TabItem>
+
         <TabItem Header="🧰 Editor">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />

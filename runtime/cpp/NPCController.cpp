@@ -203,13 +203,19 @@ void NPCController::Update(Scene& scene, float dt_seconds) {
             std::round((simulated_seconds / 60.0F) * std::clamp(scene.world_time.day_cycle_speed * 60.0F, 0.05F, 60.0F)));
         const std::uint32_t effective_minute = WrappedMinute(minute_of_day, delta_minutes, minutes_per_day);
 
-        const ScheduleEntry* active_entry = ActiveScheduleEntry(entity.schedule, effective_minute);
-        if (active_entry != nullptr) {
-            entity.schedule.current_activity = active_entry->activity;
-            entity.schedule.current_location = active_entry->location;
-        } else {
-            entity.schedule.current_activity = "idle";
-            entity.schedule.current_location = "anywhere";
+        const bool scripted_override =
+            entity.scripted_behavior.enabled &&
+            entity.scripted_behavior.schedule_override &&
+            !entity.scripted_behavior.current_state.empty();
+        if (!scripted_override) {
+            const ScheduleEntry* active_entry = ActiveScheduleEntry(entity.schedule, effective_minute);
+            if (active_entry != nullptr) {
+                entity.schedule.current_activity = active_entry->activity;
+                entity.schedule.current_location = active_entry->location;
+            } else {
+                entity.schedule.current_activity = "idle";
+                entity.schedule.current_location = "anywhere";
+            }
         }
 
         ApplyActivityOverrides(entity);

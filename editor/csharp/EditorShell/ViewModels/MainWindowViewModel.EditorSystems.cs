@@ -20,6 +20,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabLivingNpcs = "LivingNpcs";
     private const string SystemTabSettlement = "Settlement";
     private const string SystemTabCombat = "Combat";
+    private const string SystemTabSettings = "Settings";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -34,6 +35,14 @@ public sealed partial class MainWindowViewModel
     private readonly ObservableCollection<OptimizationChangeEntry> _recentOptimizationChanges = [];
     private readonly ObservableCollection<OptimizationSuggestion> _optimizationSuggestions = [];
     private readonly HashSet<string> _modelDownloadsInProgress = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _modelDownloadProgressByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _modelLastErrorByName = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _activeModelOperationCts;
+    private string? _activeModelCancelFilePath;
+    private string? _activeModelOperationLabel;
+    private string? _activeModelCommand;
+    private List<string> _activeModelArgs = [];
+    private List<string> _activeTrackedModelNames = [];
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
     private CoCreatorSuggestion? _selectedCoCreatorSuggestion;
@@ -114,7 +123,16 @@ public sealed partial class MainWindowViewModel
     private string _storyNarratorLineEditor = "";
     private string _storyStatus = "Story tools ready.";
     private bool _combatModeEnabledEditor;
+    private string _realtimeCombatSelectionSummary = "Realtime entities enabled: 0";
+    private string _realtimeCombatAnimationPreview = "Animation Preview: idle";
+    private string _realtimeCombatWorldIntegrationPreview = "Squad: squad_idle | Cover: cover_none";
     private string _livingNpcsStatus = "Living NPC settings ready.";
+    private string _scriptedBehaviorStateEditor = "patrol";
+    private string _scriptedBehaviorParamsEditor = "duration_hours=0.25";
+    private string _scriptedBehaviorStatus = "Scripted behavior assignment ready.";
+    private IReadOnlyList<string> _availableScriptedBehaviorStates = ["flee", "guard", "harvest", "patrol", "rest", "socialize"];
+    private IReadOnlyList<string> _scriptedBehaviorNpcPreview = [];
+    private readonly Dictionary<string, bool> _scriptedBehaviorComplexity = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
     private readonly IReadOnlyList<string> _voiceBuildOptions = ["average", "light", "heavy"];
@@ -146,6 +164,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsLivingNpcsTabActive));
             OnPropertyChanged(nameof(IsSettlementTabActive));
             OnPropertyChanged(nameof(IsCombatTabActive));
+            OnPropertyChanged(nameof(IsSettingsTabActive));
         }
     }
 
@@ -160,6 +179,7 @@ public sealed partial class MainWindowViewModel
     public bool IsLivingNpcsTabActive => string.Equals(ActiveSystemTab, SystemTabLivingNpcs, StringComparison.Ordinal);
     public bool IsSettlementTabActive => string.Equals(ActiveSystemTab, SystemTabSettlement, StringComparison.Ordinal);
     public bool IsCombatTabActive => string.Equals(ActiveSystemTab, SystemTabCombat, StringComparison.Ordinal);
+    public bool IsSettingsTabActive => string.Equals(ActiveSystemTab, SystemTabSettings, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -389,6 +409,9 @@ public sealed partial class MainWindowViewModel
                 SelectedRelationshipNpcId = value;
             }
             OnPropertyChanged(nameof(SelectedDialogNpc));
+            OnPropertyChanged(nameof(LivingNpcsSelectedSparkSource));
+            OnPropertyChanged(nameof(LivingNpcsSelectedRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsSelectedNpcDaySummary));
             OnPropertyChanged();
             ReloadSelectedNpcVoiceEditorsFromScene();
         }
@@ -435,12 +458,33 @@ public sealed partial class MainWindowViewModel
     public string LivingNpcsModelPathEditor { get => _livingNpcs.ModelPath; set { _livingNpcs.ModelPath = value; OnPropertyChanged(); } }
     public int LivingNpcsSparksToday => _livingNpcs.SparksToday;
     public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
+    public int LivingNpcsRagCacheSize => _livingNpcs.RagCacheSize;
+    public float LivingNpcsRagHitRate => _livingNpcs.RagHitRate;
+    public float LivingNpcsNarrativeFlavorHitRate => _livingNpcs.NarrativeFlavorHitRate;
+    public int LivingNpcsGenerationalMemorySize => _livingNpcs.GenerationalMemorySize;
+    public float LivingNpcsLegacyRecallHitRate => _livingNpcs.LegacyRecallHitRate;
+    public string LivingNpcsLastMsqAdaptationSource => _livingNpcs.LastMsqAdaptationSource;
+    public string LivingNpcsLastNarrativeCheckpoint => _livingNpcs.LastNarrativeCheckpoint;
+    public string LivingNpcsLastNarrativeCheckpointStatus => _livingNpcs.LastNarrativeCheckpointStatus;
+    public string LivingNpcsSelectedNpcDaySummary => _livingNpcs.NpcDaySummaryForNpc(SelectedDialogEntityId);
+    public string LivingNpcsSparkSourcePreference => _livingNpcs.SparkSourcePreference;
+    public string LivingNpcsSelectedSparkSource => _livingNpcs.SparkSourceForNpc(SelectedDialogEntityId);
+    public float LivingNpcsSelectedRagHitRate => _livingNpcs.RagHitRateForNpc(SelectedDialogEntityId);
+    public string LivingNpcsPerformanceSummary =>
+        _livingNpcs.PerformanceModeActive
+            ? $"Performance Mode Active • ratio scripted/spark={_livingNpcs.ScriptedRatio:0.00}/{_livingNpcs.SparkRatio:0.00} • spark x{_livingNpcs.EffectiveSparkMultiplier:0.00} • reason={_livingNpcs.PerformanceReason}{(_livingNpcs.ForceScriptedFallback ? " • fallback=forced" : string.Empty)}"
+            : $"Performance Mode Inactive • ratio scripted/spark={_livingNpcs.ScriptedRatio:0.00}/{_livingNpcs.SparkRatio:0.00}";
     public string SettlementVillageNameEditor { get => _livingNpcs.VillageName; set { _livingNpcs.VillageName = value; OnPropertyChanged(); } }
     public int SettlementPopulation => _livingNpcs.TotalPopulation;
     public float SettlementMoraleEditor { get => _livingNpcs.VillageMorale; set { _livingNpcs.VillageMorale = Math.Clamp(value, 0f, 100f); OnPropertyChanged(); } }
     public float SettlementFoodEditor { get => _livingNpcs.FoodStockpile; set { _livingNpcs.FoodStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public float SettlementStockpileEditor { get => _livingNpcs.SharedStockpile; set { _livingNpcs.SharedStockpile = Math.Max(0f, value); OnPropertyChanged(); } }
     public string LivingNpcsStatus { get => _livingNpcsStatus; private set { _livingNpcsStatus = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorStateEditor { get => _scriptedBehaviorStateEditor; set { _scriptedBehaviorStateEditor = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorParamsEditor { get => _scriptedBehaviorParamsEditor; set { _scriptedBehaviorParamsEditor = value; OnPropertyChanged(); } }
+    public string ScriptedBehaviorStatus { get => _scriptedBehaviorStatus; private set { _scriptedBehaviorStatus = value; OnPropertyChanged(); } }
+    public IReadOnlyList<string> AvailableScriptedBehaviorStates => _availableScriptedBehaviorStates;
+    public IReadOnlyList<string> ScriptedBehaviorNpcPreview => _scriptedBehaviorNpcPreview;
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public IReadOnlyList<ModelManagerEntry> ModelManagerEntries => _modelManagerEntries;
     public IReadOnlyList<OptimizationChangeEntry> RecentOptimizationChanges => _recentOptimizationChanges;
@@ -531,6 +575,9 @@ public sealed partial class MainWindowViewModel
     public IReadOnlyList<string> VoiceStyleOptions => _voiceStyleOptions;
     public string StoryStatus { get => _storyStatus; private set { _storyStatus = value; OnPropertyChanged(); } }
     public bool CombatModeEnabledEditor { get => _combatModeEnabledEditor; set { _combatModeEnabledEditor = value; OnPropertyChanged(); } }
+    public string RealtimeCombatSelectionSummary { get => _realtimeCombatSelectionSummary; private set { _realtimeCombatSelectionSummary = value; OnPropertyChanged(); } }
+    public string RealtimeCombatAnimationPreview { get => _realtimeCombatAnimationPreview; private set { _realtimeCombatAnimationPreview = value; OnPropertyChanged(); } }
+    public string RealtimeCombatWorldIntegrationPreview { get => _realtimeCombatWorldIntegrationPreview; private set { _realtimeCombatWorldIntegrationPreview = value; OnPropertyChanged(); } }
     public IReadOnlyList<StoryBeatRow> StoryBeats => _storyPanel.Beats;
     public IReadOnlyList<CoCreatorSuggestion> StoryBeatSuggestions => _storyBeatSuggestions;
     public CoCreatorSuggestion? SelectedStoryBeatSuggestion
@@ -757,6 +804,80 @@ public sealed partial class MainWindowViewModel
             },
             cancellationToken);
 
+    public async Task AssignScriptedBehaviorToSelectionAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Scripted behavior assigned",
+            root =>
+            {
+                if (root["entities"] is not JsonArray entities)
+                {
+                    return false;
+                }
+
+                var state = (ScriptedBehaviorStateEditor ?? string.Empty).Trim().ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(state))
+                {
+                    ScriptedBehaviorStatus = "Enter a scripted behavior state first.";
+                    return false;
+                }
+
+                var selectedNpcIds = _selectedViewportEntities
+                    .Where(entity => string.Equals(entity.Type, "npc", StringComparison.OrdinalIgnoreCase))
+                    .Select(entity => TryParseEntityId(entity.Id))
+                    .Where(id => id > 0UL)
+                    .ToHashSet();
+                if (SelectedDialogEntityId > 0)
+                {
+                    selectedNpcIds.Add(SelectedDialogEntityId);
+                }
+
+                var parameters = ParseKeyValueNumbers(ScriptedBehaviorParamsEditor);
+                var updatedCount = 0;
+                foreach (var entity in entities.OfType<JsonObject>())
+                {
+                    var entityType = entity["type"]?.GetValue<string>() ?? string.Empty;
+                    if (!string.Equals(entityType, "npc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var npcId = ReadUlong(entity["id"], 0);
+                    if (selectedNpcIds.Count > 0 && !selectedNpcIds.Contains(npcId))
+                    {
+                        continue;
+                    }
+
+                    var scripted = entity["scripted_behavior"] as JsonObject ?? new JsonObject();
+                    entity["scripted_behavior"] = scripted;
+                    scripted["enabled"] = true;
+                    scripted["current_state"] = state;
+                    scripted["target_entity_id"] = ReadUlong(scripted["target_entity_id"], 0);
+                    scripted["schedule_override"] = true;
+                    scripted["spark_override_chance"] = Math.Clamp(ReadSingle(scripted["spark_override_chance"], 0.05f), 0f, 1f);
+                    scripted["last_spark_timestamp"] = ReadSingle(scripted["last_spark_timestamp"], -1f);
+                    var paramsNode = new JsonObject();
+                    foreach (var kvp in parameters)
+                    {
+                        paramsNode[kvp.Key] = kvp.Value;
+                    }
+                    scripted["parameters"] = paramsNode;
+                    updatedCount++;
+                }
+
+                ScriptedBehaviorStatus = updatedCount == 0
+                    ? "No NPCs selected for scripted behavior assignment."
+                    : BuildScriptedBehaviorAssignmentStatus(state, updatedCount);
+                return updatedCount > 0;
+            },
+            cancellationToken);
+
+    public Task RefreshScriptedBehaviorCatalogAsync(CancellationToken cancellationToken = default)
+    {
+        ReloadSystemPanelsFromScene();
+        ScriptedBehaviorStatus = "Refreshed scripted behavior list from scene definitions. Use /behavior_list in runtime console for live verification.";
+        return Task.CompletedTask;
+    }
+
     public async Task ToggleCombatModeAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
             "Combat mode toggled",
@@ -772,6 +893,82 @@ public sealed partial class MainWindowViewModel
                 StoryStatus = CombatModeEnabledEditor
                     ? "Combat mode enabled in scene. Use /combat_start in runtime to begin encounter."
                     : "Combat mode disabled in scene.";
+                return true;
+            },
+            cancellationToken);
+
+    public async Task ToggleRealtimeCombatForSelectionAsync(CancellationToken cancellationToken = default)
+        => await ApplySceneMutationAsync(
+            "Realtime combat toggled for selection",
+            root =>
+            {
+                if (root["entities"] is not JsonArray entities)
+                {
+                    return false;
+                }
+
+                var selectedIds = _selectedViewportEntities
+                    .Select(entity => TryParseEntityId(entity.Id))
+                    .Where(id => id > 0UL)
+                    .ToHashSet();
+                if (selectedIds.Count == 0 && SelectedDialogEntityId > 0)
+                {
+                    selectedIds.Add(SelectedDialogEntityId);
+                }
+
+                var targets = entities
+                    .OfType<JsonObject>()
+                    .Where(entity => selectedIds.Contains(ReadUlong(entity["id"], 0)))
+                    .ToArray();
+                if (targets.Length == 0)
+                {
+                    return false;
+                }
+
+                var allEnabled = targets.All(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false);
+                var nextEnabled = !allEnabled;
+                foreach (var entity in targets)
+                {
+                    var realtime = entity["realtime_combat"] as JsonObject ?? new JsonObject();
+                    entity["realtime_combat"] = realtime;
+                    realtime["enabled"] = nextEnabled;
+                    realtime["alive"] = realtime["alive"]?.GetValue<bool>() ?? true;
+                    realtime["team_id"] = realtime["team_id"]?.GetValue<int>() ?? 1;
+                    realtime["health"] = realtime["health"]?.GetValue<float>() ?? 100f;
+                    realtime["max_health"] = realtime["max_health"]?.GetValue<float>() ?? 100f;
+                    realtime["stamina"] = realtime["stamina"]?.GetValue<float>() ?? 100f;
+                    realtime["max_stamina"] = realtime["max_stamina"]?.GetValue<float>() ?? 100f;
+                    realtime["weapon_type"] = string.IsNullOrWhiteSpace(realtime["weapon_type"]?.GetValue<string>()) ? "melee" : realtime["weapon_type"]?.GetValue<string>();
+                    realtime["combo_window_seconds"] = realtime["combo_window_seconds"]?.GetValue<float>() ?? 0.72f;
+                    realtime["light_attack_damage_multiplier"] = realtime["light_attack_damage_multiplier"]?.GetValue<float>() ?? 1.0f;
+                    realtime["heavy_attack_damage_multiplier"] = realtime["heavy_attack_damage_multiplier"]?.GetValue<float>() ?? 1.45f;
+                    realtime["finisher_damage_multiplier"] = realtime["finisher_damage_multiplier"]?.GetValue<float>() ?? 1.9f;
+                    realtime["light_attack_stamina_multiplier"] = realtime["light_attack_stamina_multiplier"]?.GetValue<float>() ?? 1.0f;
+                    realtime["heavy_attack_stamina_multiplier"] = realtime["heavy_attack_stamina_multiplier"]?.GetValue<float>() ?? 1.3f;
+                    realtime["finisher_stamina_multiplier"] = realtime["finisher_stamina_multiplier"]?.GetValue<float>() ?? 1.55f;
+                    realtime["dodge_invulnerability_seconds"] = realtime["dodge_invulnerability_seconds"]?.GetValue<float>() ?? 0.11f;
+                    realtime["hit_reaction_timer"] = realtime["hit_reaction_timer"]?.GetValue<float>() ?? 0f;
+                    realtime["cover_defense_bonus"] = realtime["cover_defense_bonus"]?.GetValue<float>() ?? 0.16f;
+                    realtime["cover_accuracy_bonus"] = realtime["cover_accuracy_bonus"]?.GetValue<float>() ?? 0.12f;
+                    realtime["cover_search_radius"] = realtime["cover_search_radius"]?.GetValue<float>() ?? 3.8f;
+                    realtime["action_state"] = realtime["action_state"]?.GetValue<string>() ?? "idle";
+                    realtime["animation_state"] = realtime["animation_state"]?.GetValue<string>() ?? "idle";
+                }
+
+                var enabledCount = entities
+                    .OfType<JsonObject>()
+                    .Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false);
+                RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledCount}";
+                var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
+                var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
+                var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
+                var squadPreview = root["realtime_combat"]?["squad_status_preview"]?.GetValue<string>() ?? "squad_idle";
+                var coverPreview = root["realtime_combat"]?["cover_status_preview"]?.GetValue<string>() ?? "cover_none";
+                RealtimeCombatAnimationPreview = $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
+                RealtimeCombatWorldIntegrationPreview = $"Squad: {squadPreview} | Cover: {coverPreview}";
+                StoryStatus = nextEnabled
+                    ? "Realtime combat enabled for selected entities. Use /realtime_combat_start in runtime."
+                    : "Realtime combat disabled for selected entities.";
                 return true;
             },
             cancellationToken);
@@ -974,6 +1171,13 @@ public sealed partial class MainWindowViewModel
                 // Preserve backward-compatible behavior if hook output shape changes.
             }
         }
+        else if (string.Equals(command, "orchestrate", StringComparison.Ordinal)
+            && args.Length >= 1
+            && string.Equals(args[0], "scene_review", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(stdout))
+        {
+            TryUpdateSceneReviewSummaryFromOutput(stdout);
+        }
 
         StatusMessage = completion;
     }
@@ -1022,6 +1226,49 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    public async Task<bool> IsOnboardingCompletedAsync()
+    {
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            if (!File.Exists(modelsJsonPath))
+            {
+                return false;
+            }
+
+            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+            return payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<string> BuildQuickSetupSummaryAsync()
+    {
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            if (!File.Exists(modelsJsonPath))
+            {
+                return "Recommended next models: Coding + Asset-Gen (optional).";
+            }
+
+            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+            var recommendations = payload?["onboarding"]?["recommendations"] as JsonObject;
+            var codingReason = recommendations?["coding"]?["reason"]?.GetValue<string>() ?? "Optional coding assistant model.";
+            var assetReason = recommendations?["assetgen"]?["reason"]?.GetValue<string>() ?? "Optional local asset generation model.";
+            return $"Recommended next models: Coding and Asset-Gen.\n- Coding: {codingReason}\n- Asset-Gen: {assetReason}";
+        }
+        catch
+        {
+            return "Recommended next models: Coding + Asset-Gen (optional).";
+        }
+    }
+
     public async Task DownloadManagedModelAsync(string friendlyName)
     {
         if (string.IsNullOrWhiteSpace(friendlyName))
@@ -1029,36 +1276,44 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        _modelDownloadsInProgress.Add(friendlyName);
-        RebuildModelManagerEntries(null);
-        IsModelManagerBusy = true;
-        try
+        var normalizedName = friendlyName.Trim().ToLowerInvariant();
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: $"Downloading {friendlyName}",
+            trackedModelNames: [normalizedName],
+            command: "download-model",
+            args: [normalizedName]);
+        if (completed)
         {
-            await RunAiHookAsync("download-model", friendlyName.Trim().ToLowerInvariant());
             ModelManagerStatus = $"Download finished for {friendlyName}.";
-            await RefreshModelManagerAsync();
-        }
-        finally
-        {
-            _modelDownloadsInProgress.Remove(friendlyName);
-            IsModelManagerBusy = false;
-            RebuildModelManagerEntries(null);
         }
     }
 
     public async Task RunModelOnboardingAsync()
     {
-        IsModelManagerBusy = true;
-        try
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: "Downloading ForgeGuard",
+            trackedModelNames: ["forgeguard"],
+            command: "onboarding-run",
+            args: []);
+        if (completed)
         {
-            await RunAiHookAsync("onboarding-run");
             ModelManagerStatus = "Onboarding complete. Recommendations updated from models.json.";
-            await RefreshModelManagerAsync();
         }
-        finally
+    }
+
+    public async Task<bool> RunQuickStartSetupAsync()
+    {
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: "Running Quick Setup (ForgeGuard + Free-Will)",
+            trackedModelNames: ["forgeguard", "freewill"],
+            command: "quick-setup",
+            args: []);
+        if (completed)
         {
-            IsModelManagerBusy = false;
+            ModelManagerStatus = "Quick Setup complete. ForgeGuard and Free-Will are ready.";
         }
+
+        return completed;
     }
 
     public async Task SetupRecommendedModelsAsync()
@@ -1085,6 +1340,7 @@ public sealed partial class MainWindowViewModel
     {
         IsModelManagerBusy = true;
         _modelDownloadsInProgress.Add("freewill");
+        _modelDownloadProgressByName["freewill"] = "Downloading 0%";
         RebuildModelManagerEntries(null);
         try
         {
@@ -1096,6 +1352,7 @@ public sealed partial class MainWindowViewModel
         finally
         {
             _modelDownloadsInProgress.Remove("freewill");
+            _modelDownloadProgressByName.Remove("freewill");
             IsModelManagerBusy = false;
             RebuildModelManagerEntries(null);
         }
@@ -1169,7 +1426,9 @@ public sealed partial class MainWindowViewModel
             var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
             var installed = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
             var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
-            var status = isDownloading ? "Downloading" : installed ? "Installed" : "Not found";
+            var progressStatus = _modelDownloadProgressByName.TryGetValue(model.Friendly, out var progress) ? progress : "Downloading";
+            var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
+            var lastError = _modelLastErrorByName.TryGetValue(model.Friendly, out var errorText) ? errorText : string.Empty;
             var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
             var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
@@ -1181,7 +1440,9 @@ public sealed partial class MainWindowViewModel
                 estimatedSize,
                 $"{profileLead}: {reason}",
                 shouldDownload,
-                removable));
+                removable,
+                lastError,
+                !string.IsNullOrWhiteSpace(lastError)));
         }
 
         ModelRecommendationSummary = _modelManagerEntries.FirstOrDefault(item => item.FriendlyName == "freewill")?.Recommendation
@@ -1196,6 +1457,390 @@ public sealed partial class MainWindowViewModel
         OnPropertyChanged(nameof(ModelManagerEntries));
     }
 
+    public void CancelActiveModelOperation()
+    {
+        if (_activeModelOperationCts is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_activeModelCancelFilePath))
+        {
+            try
+            {
+                File.WriteAllText(_activeModelCancelFilePath, "cancel");
+            }
+            catch
+            {
+                // Best effort only.
+            }
+        }
+        _activeModelOperationCts.Cancel();
+    }
+
+    public async Task RetryLastModelOperationAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_activeModelCommand) || _activeTrackedModelNames.Count == 0)
+        {
+            return;
+        }
+
+        IsDownloadErrorVisible = false;
+        await RunManagedModelOperationWithProgressAsync(
+            operationLabel: _activeModelOperationLabel ?? "Retrying model operation",
+            trackedModelNames: _activeTrackedModelNames,
+            command: _activeModelCommand,
+            args: _activeModelArgs);
+    }
+
+    public void DismissModelErrorDialog()
+    {
+        IsDownloadErrorVisible = false;
+        IsDownloadProgressVisible = false;
+        IsModelErrorRetryEnabled = false;
+    }
+
+    private async Task<bool> RunManagedModelOperationWithProgressAsync(
+        string operationLabel,
+        IReadOnlyList<string> trackedModelNames,
+        string command,
+        IReadOnlyList<string> args)
+    {
+        if (trackedModelNames.Count == 0)
+        {
+            throw new ArgumentException("At least one model must be tracked for progress.", nameof(trackedModelNames));
+        }
+
+        foreach (var modelName in trackedModelNames)
+        {
+            _modelDownloadsInProgress.Add(modelName);
+            _modelDownloadProgressByName[modelName] = "Downloading 0%";
+            _modelLastErrorByName.Remove(modelName);
+        }
+        _activeModelOperationLabel = operationLabel;
+        _activeModelCommand = command;
+        _activeModelArgs = args.ToList();
+        _activeTrackedModelNames = trackedModelNames.Select(item => item.ToLowerInvariant()).ToList();
+        IsDownloadErrorVisible = false;
+        IsModelErrorRetryEnabled = false;
+        RebuildModelManagerEntries(null);
+        IsModelManagerBusy = true;
+        IsDownloadProgressVisible = true;
+        DownloadProgressTitle = operationLabel;
+        DownloadProgressPercent = 0;
+        DownloadProgressSummary = "Starting download...";
+        DownloadProgressSpeed = "Speed: --";
+        DownloadProgressEta = "ETA: --";
+        DownloadProgressCurrentFile = "Preparing...";
+        ModelManagerStatus = $"{operationLabel}...";
+
+        using var cts = new CancellationTokenSource();
+        _activeModelOperationCts = cts;
+        _activeModelCancelFilePath = Path.Combine(Path.GetTempPath(), $"forgeengine-model-cancel-{Guid.NewGuid():N}.flag");
+        try
+        {
+            var progressArgs = new List<string> { command };
+            progressArgs.AddRange(args);
+            progressArgs.Add("--progress-json");
+            progressArgs.Add("--cancel-file");
+            progressArgs.Add(_activeModelCancelFilePath);
+            var result = await RunAiHookProcessWithProgressAsync(command, progressArgs, cts.Token);
+            if (result.ExitCode == 130)
+            {
+                ModelManagerStatus = $"{operationLabel} canceled.";
+                return false;
+            }
+
+            if (result.ExitCode != 0)
+            {
+                var operationError = ParseModelOperationError(result.Stdout, result.Stderr);
+                var errorMessage = operationError?.UserMessage ?? "Model operation could not complete.";
+                var guidance = operationError?.SuggestedAction ?? "Retry from Models & LLM settings or check local network/disk access.";
+                ModelManagerStatus = errorMessage;
+                DownloadErrorTitle = "Model setup needs attention";
+                DownloadErrorMessage = errorMessage;
+                DownloadErrorGuidance = guidance;
+                IsModelErrorRetryEnabled = operationError?.Retryable ?? false;
+                IsDownloadErrorVisible = true;
+                foreach (var modelName in trackedModelNames)
+                {
+                    _modelLastErrorByName[modelName] = errorMessage;
+                }
+                RebuildModelManagerEntries(null);
+                return false;
+            }
+
+            foreach (var modelName in trackedModelNames)
+            {
+                _modelLastErrorByName.Remove(modelName);
+            }
+            await RefreshModelManagerAsync();
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            ModelManagerStatus = $"{operationLabel} canceled.";
+            return false;
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(_activeModelCancelFilePath) && File.Exists(_activeModelCancelFilePath))
+            {
+                File.Delete(_activeModelCancelFilePath);
+            }
+            _activeModelCancelFilePath = null;
+            _activeModelOperationCts = null;
+            if (!IsDownloadErrorVisible)
+            {
+                IsDownloadProgressVisible = false;
+            }
+            IsModelManagerBusy = false;
+            foreach (var modelName in trackedModelNames)
+            {
+                _modelDownloadsInProgress.Remove(modelName);
+                _modelDownloadProgressByName.Remove(modelName);
+            }
+            RebuildModelManagerEntries(null);
+        }
+    }
+
+    private async Task<(int ExitCode, string Stdout, string Stderr)> RunAiHookProcessWithProgressAsync(
+        string command,
+        IReadOnlyList<string> finalArgs,
+        CancellationToken cancellationToken)
+    {
+        var projectRoot = ResolveRepositoryRoot();
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(projectRoot, finalArgs.ToArray());
+        var oneLine = $"{startInfo.FileName} {string.Join(" ", startInfo.ArgumentList.Select(item => item.Contains(' ') ? $"\"{item}\"" : item))}";
+        _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] {oneLine}");
+        OnPropertyChanged(nameof(AiCommandLog));
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            return (-1, string.Empty, $"Failed to start orchestrator.py ({command}).");
+        }
+
+        var stdoutLines = new List<string>();
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+
+            if (TryHandleModelProgressLine(line))
+            {
+                continue;
+            }
+
+            stdoutLines.Add(line);
+        }
+
+        await process.WaitForExitAsync(cancellationToken);
+        var stderr = await stderrTask;
+        var stdout = string.Join(Environment.NewLine, stdoutLines);
+        return (process.ExitCode, stdout, stderr);
+    }
+
+    private bool TryHandleModelProgressLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        JsonObject? payload = null;
+        try
+        {
+            payload = JsonNode.Parse(line) as JsonObject;
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (payload is null)
+        {
+            return false;
+        }
+
+        var eventName = SafeGetString(payload, "event");
+        if (!string.Equals(eventName, "progress", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "cancelled", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "error", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "download_progress", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "download_started", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "token_notice", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var friendlyName = SafeGetString(payload, "friendly_name");
+        if (string.IsNullOrWhiteSpace(friendlyName))
+        {
+            friendlyName = string.Equals(SafeGetString(payload, "stage"), "benchmark_complete", StringComparison.Ordinal)
+                ? "ForgeGuard"
+                : "model";
+        }
+
+        DownloadProgressTitle = $"Downloading {friendlyName}";
+        var percent = SafeGetDouble(payload, "progress_percent") ?? DownloadProgressPercent;
+        DownloadProgressPercent = percent;
+        DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}%";
+        _modelDownloadProgressByName[friendlyName] = $"Downloading {DownloadProgressPercent:0.#}%";
+        RebuildModelManagerEntries(null);
+
+        var currentFile = SafeGetString(payload, "current_file");
+        if (!string.IsNullOrWhiteSpace(currentFile))
+        {
+            DownloadProgressCurrentFile = currentFile;
+        }
+
+        var speed = SafeGetDouble(payload, "speed_mbps");
+        DownloadProgressSpeed = speed.HasValue ? $"Speed: {speed.Value:0.00} MB/s" : "Speed: --";
+        var eta = SafeGetInt(payload, "eta_seconds");
+        DownloadProgressEta = eta.HasValue ? $"ETA: {TimeSpan.FromSeconds(Math.Max(0, eta.Value)):mm\\:ss}" : "ETA: --";
+        var downloaded = SafeGetDouble(payload, "downloaded_mb");
+        var total = SafeGetDouble(payload, "total_mb");
+        if (downloaded.HasValue && total.HasValue && total.Value > 0)
+        {
+            DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}% ({downloaded.Value:0.0}/{total.Value:0.0} MB)";
+        }
+
+        if (string.Equals(eventName, "cancelled", StringComparison.Ordinal))
+        {
+            DownloadProgressSummary = "Canceled by user.";
+        }
+        else if (string.Equals(eventName, "token_notice", StringComparison.Ordinal))
+        {
+            var tokenMessage = SafeGetString(payload, "message");
+            if (!string.IsNullOrWhiteSpace(tokenMessage))
+            {
+                ModelManagerStatus = tokenMessage;
+                DownloadProgressCurrentFile = tokenMessage;
+            }
+            return true;
+        }
+        else if (string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal))
+        {
+            var retryInSeconds = SafeGetInt(payload, "retry_in_seconds") ?? 0;
+            DownloadProgressSummary = $"{friendlyName}: temporary issue detected. Retrying in {Math.Max(1, retryInSeconds)}s…";
+            DownloadProgressEta = $"Retry in: {Math.Max(1, retryInSeconds)}s";
+            _modelDownloadProgressByName[friendlyName] = $"Retrying in {Math.Max(1, retryInSeconds)}s";
+            RebuildModelManagerEntries(null);
+        }
+        else if (string.Equals(eventName, "error", StringComparison.Ordinal))
+        {
+            var errorState = ParseModelErrorPayload(payload["error"] as JsonObject);
+            if (errorState is not null)
+            {
+                DownloadErrorTitle = "Model setup needs attention";
+                DownloadErrorMessage = errorState.UserMessage;
+                DownloadErrorGuidance = errorState.SuggestedAction;
+                IsModelErrorRetryEnabled = errorState.Retryable;
+                IsDownloadErrorVisible = true;
+            }
+        }
+        return true;
+    }
+
+    private ModelOperationErrorState? ParseModelOperationError(string stdout, string stderr)
+    {
+        foreach (var candidate in EnumerateJsonObjects(stdout).Concat(EnumerateJsonObjects(stderr)))
+        {
+            if (ParseModelErrorPayload(candidate["error"] as JsonObject) is ModelOperationErrorState state)
+            {
+                return state;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<JsonObject> EnumerateJsonObjects(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield break;
+        }
+
+        var lines = text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var line in lines)
+        {
+            JsonObject? payload = null;
+            try
+            {
+                payload = JsonNode.Parse(line) as JsonObject;
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (payload is not null)
+            {
+                yield return payload;
+            }
+        }
+    }
+
+    private static ModelOperationErrorState? ParseModelErrorPayload(JsonObject? payload)
+    {
+        if (payload is null)
+        {
+            return null;
+        }
+
+        var userMessage = SafeGetString(payload, "user_message")
+            ?? SafeGetString(payload, "message")
+            ?? "Model setup failed.";
+        var suggestedAction = SafeGetString(payload, "suggested_action")
+            ?? "Retry from Models & LLM settings.";
+        var retryable = payload["retryable"]?.GetValue<bool?>() == true;
+        return new ModelOperationErrorState(userMessage, suggestedAction, retryable);
+    }
+
+    private static string? SafeGetString(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<string>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double? SafeGetDouble(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<double?>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? SafeGetInt(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<int?>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public sealed record ModelManagerEntry(
         string FriendlyName,
         string DisplayName,
@@ -1203,7 +1848,11 @@ public sealed partial class MainWindowViewModel
         string EstimatedSize,
         string Recommendation,
         bool ShouldDownloadByDefault,
-        bool IsRemovable);
+        bool IsRemovable,
+        string LastError,
+        bool CanRetry);
+
+    private sealed record ModelOperationErrorState(string UserMessage, string SuggestedAction, bool Retryable);
 
     private async Task SyncLivingNpcModelPathFromModelsAsync()
     {
@@ -1837,7 +2486,24 @@ public sealed partial class MainWindowViewModel
             _storyPanel = StoryPanelState.FromScene(root);
             _weather = WeatherPanelState.FromScene(root);
             _livingNpcs = LivingNpcsPanelState.FromScene(root);
+            RefreshScriptedBehaviorCatalogFromScene(root);
+            _scriptedBehaviorNpcPreview = BuildScriptedBehaviorNpcPreview(root);
+            ScriptedBehaviorStatus = BuildScriptedBehaviorStatus(root);
             CombatModeEnabledEditor = root["combat"]?["active"]?.GetValue<bool>() ?? false;
+            var enabledRealtimeCount = root["entities"] is JsonArray entityArray
+                ? entityArray.OfType<JsonObject>().Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false)
+                : 0;
+            RealtimeCombatSelectionSummary = $"Realtime entities enabled: {enabledRealtimeCount}";
+            var preview = root["realtime_combat"]?["animation_preview"]?.GetValue<string>() ?? "idle";
+            var comboPreview = root["realtime_combat"]?["combo_preview"]?.GetValue<string>() ?? "none";
+            var weaponPreview = root["realtime_combat"]?["weapon_preview"]?.GetValue<string>() ?? "melee";
+            var squadPreview = root["realtime_combat"]?["squad_status_preview"]?.GetValue<string>() ?? "squad_idle";
+            var coverPreview = root["realtime_combat"]?["cover_status_preview"]?.GetValue<string>() ?? "cover_none";
+            var hitEntity = root["realtime_combat"]?["last_hit_entity_id"]?.GetValue<ulong>() ?? 0UL;
+            RealtimeCombatAnimationPreview = hitEntity > 0
+                ? $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview} (last hit: {hitEntity})"
+                : $"Animation Preview: {preview} | Combo: {comboPreview} | Weapon: {weaponPreview}";
+            RealtimeCombatWorldIntegrationPreview = $"Squad: {squadPreview} | Cover: {coverPreview}";
             BiomeEditor = root["biome"]?.GetValue<string>() ?? BiomeEditor;
             WorldStyleGuideEditor = root["world_style_guide"]?.GetValue<string>() ?? WorldStyleGuideEditor;
             if (root["story"] is JsonObject story)
@@ -1993,6 +2659,24 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
             OnPropertyChanged(nameof(LivingNpcsSparksToday));
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
+            OnPropertyChanged(nameof(LivingNpcsRagCacheSize));
+            OnPropertyChanged(nameof(LivingNpcsRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsNarrativeFlavorHitRate));
+            OnPropertyChanged(nameof(LivingNpcsGenerationalMemorySize));
+            OnPropertyChanged(nameof(LivingNpcsLegacyRecallHitRate));
+            OnPropertyChanged(nameof(LivingNpcsLastMsqAdaptationSource));
+            OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpoint));
+            OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpointStatus));
+            OnPropertyChanged(nameof(LivingNpcsSparkSourcePreference));
+            OnPropertyChanged(nameof(LivingNpcsSelectedSparkSource));
+            OnPropertyChanged(nameof(LivingNpcsSelectedRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsSelectedNpcDaySummary));
+            OnPropertyChanged(nameof(LivingNpcsPerformanceSummary));
+            OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
+            OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));
+            OnPropertyChanged(nameof(ScriptedBehaviorStatus));
+            OnPropertyChanged(nameof(AvailableScriptedBehaviorStates));
+            OnPropertyChanged(nameof(ScriptedBehaviorNpcPreview));
             OnPropertyChanged(nameof(SettlementVillageNameEditor));
             OnPropertyChanged(nameof(SettlementPopulation));
             OnPropertyChanged(nameof(SettlementMoraleEditor));
@@ -2100,6 +2784,214 @@ public sealed partial class MainWindowViewModel
             ["y"] = 0f,
             ["z"] = y,
         };
+
+    private static Dictionary<string, float> ParseKeyValueNumbers(string text)
+    {
+        var result = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return result;
+        }
+
+        var segments = text.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var segment in segments)
+        {
+            var separator = segment.IndexOf('=');
+            if (separator <= 0 || separator >= segment.Length - 1)
+            {
+                continue;
+            }
+
+            var key = segment[..separator].Trim();
+            var valueRaw = segment[(separator + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            if (float.TryParse(valueRaw, out var value))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private string BuildScriptedBehaviorAssignmentStatus(string state, int updatedCount)
+    {
+        var summary = $"Assigned '{state}' scripted behavior to {updatedCount} NPC(s).";
+        if (!string.Equals(LightweightMode, "performance", StringComparison.OrdinalIgnoreCase))
+        {
+            return summary;
+        }
+
+        if (_scriptedBehaviorComplexity.TryGetValue(state, out var isComplex) && isComplex)
+        {
+            return $"{summary} ⚠ Lightweight mode is set to performance; complex states may be skipped at runtime.";
+        }
+
+        return summary;
+    }
+
+    private void RefreshScriptedBehaviorCatalogFromScene(JsonObject root)
+    {
+        _scriptedBehaviorComplexity.Clear();
+        var fallbackStates = new[] { "patrol", "harvest", "guard", "rest", "flee", "socialize" };
+        var states = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var definitionsPath = root["scripted_behavior"]?["definitions_path"]?.GetValue<string>();
+        var behaviorFilePath = ResolveBehaviorDefinitionsPath(definitionsPath);
+        if (behaviorFilePath is not null && File.Exists(behaviorFilePath))
+        {
+            try
+            {
+                var catalog = JsonNode.Parse(File.ReadAllText(behaviorFilePath)) as JsonObject;
+                var stateNodes = catalog?["states"] as JsonArray;
+                foreach (var stateNode in stateNodes?.OfType<JsonObject>() ?? [])
+                {
+                    var state = stateNode["name"]?.GetValue<string>()?.Trim().ToLowerInvariant();
+                    if (string.IsNullOrWhiteSpace(state) || !seen.Add(state))
+                    {
+                        continue;
+                    }
+
+                    states.Add(state);
+                    _scriptedBehaviorComplexity[state] = stateNode["complex"]?.GetValue<bool>() ?? false;
+                }
+            }
+            catch
+            {
+                // Keep fallback states if catalog parse fails.
+            }
+        }
+
+        if (states.Count == 0)
+        {
+            states.AddRange(fallbackStates);
+            _scriptedBehaviorComplexity["harvest"] = true;
+            _scriptedBehaviorComplexity["socialize"] = true;
+        }
+
+        states.Sort(StringComparer.OrdinalIgnoreCase);
+        _availableScriptedBehaviorStates = states;
+        if (!_availableScriptedBehaviorStates.Contains(ScriptedBehaviorStateEditor, StringComparer.OrdinalIgnoreCase))
+        {
+            ScriptedBehaviorStateEditor = _availableScriptedBehaviorStates[0];
+        }
+    }
+
+    private List<string> BuildScriptedBehaviorNpcPreview(JsonObject root)
+    {
+        if (root["entities"] is not JsonArray entities)
+        {
+            return [];
+        }
+
+        var lightweightMode = root["optimization_overrides"]?["lightweight_mode"]?.GetValue<string>() ?? "balanced";
+        var performanceMode = string.Equals(lightweightMode, "performance", StringComparison.OrdinalIgnoreCase);
+        var perfModeActive = root["scripted_behavior"]?["performance_mode_active"]?.GetValue<bool>() ?? false;
+        var perfScriptedRatio = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_scripted_ratio"], 1f), 0f, 1f);
+        var perfSparkRatio = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_spark_ratio"], 0f), 0f, 1f);
+        var selectedNpcIds = new HashSet<ulong>();
+        if (SelectedDialogEntityId > 0)
+        {
+            selectedNpcIds.Add(SelectedDialogEntityId);
+        }
+
+        var preview = new List<string>();
+        foreach (var entity in entities.OfType<JsonObject>())
+        {
+            if (!string.Equals(entity["type"]?.GetValue<string>(), "npc", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var npcId = ReadUlong(entity["id"], 0UL);
+            var npcName = entity["name"]?.GetValue<string>() ?? $"NPC {npcId}";
+            var scripted = entity["scripted_behavior"] as JsonObject;
+            var state = scripted?["current_state"]?.GetValue<string>();
+            var isEnabled = scripted?["enabled"]?.GetValue<bool>() ?? false;
+            var parameters = scripted?["parameters"] as JsonObject;
+            var scheduleOverride = scripted?["schedule_override"]?.GetValue<bool>() ?? false;
+            var sparkOverrideChance = Math.Clamp(ReadSingle(scripted?["spark_override_chance"], 0.05f), 0f, 1f);
+            if (performanceMode)
+            {
+                sparkOverrideChance *= 0.4f;
+            }
+            var scriptedStateKey = (state ?? string.Empty).Trim().ToLowerInvariant();
+            var isComplex = _scriptedBehaviorComplexity.TryGetValue(scriptedStateKey, out var complexValue) && complexValue;
+            var scriptedSuitable = isEnabled && !string.IsNullOrWhiteSpace(state) && (!performanceMode || !isComplex);
+            var parametersSummary = parameters is null || parameters.Count == 0
+                ? string.Empty
+                : $" ({string.Join(", ", parameters.Select(kvp => $"{kvp.Key}={ReadSingle(kvp.Value, 0f):0.###}"))})";
+            var stateSummary = isEnabled && !string.IsNullOrWhiteSpace(state) ? state : "off";
+            var needs = entity["needs"] as JsonObject;
+            var lowNeeds = ReadSingle(needs?["hunger"], 20f) <= 18f ||
+                           ReadSingle(needs?["energy"], 80f) <= 18f ||
+                           ReadSingle(needs?["social"], 60f) <= 18f ||
+                           ReadSingle(needs?["fun"], 55f) <= 18f;
+            var sparkAllowed = !scriptedSuitable || lowNeeds;
+            var scriptedPriority = scriptedSuitable && !lowNeeds ? "High" : "Normal";
+            var overrideSummary = scriptedSuitable
+                ? $" override={sparkOverrideChance:0.###}"
+                : string.Empty;
+            var selectedTag = selectedNpcIds.Contains(npcId) ? " [Selected]" : string.Empty;
+            var performanceTag = selectedNpcIds.Contains(npcId)
+                ? $" | Performance Mode: {(perfModeActive ? "Active" : "Inactive")} | ratio={perfScriptedRatio:0.00}/{perfSparkRatio:0.00}"
+                : string.Empty;
+            var suitability = scriptedSuitable
+                ? (scheduleOverride ? "schedule=override" : "schedule=match")
+                : "schedule=not-suitable";
+
+            preview.Add(
+                $"{npcName} [{npcId}]{selectedTag} → {stateSummary}{parametersSummary} | Scripted Priority: {scriptedPriority} | Spark Allowed: {(sparkAllowed ? "Yes" : "No")} | {suitability}{overrideSummary}");
+            if (!string.IsNullOrEmpty(performanceTag))
+            {
+                preview[^1] += performanceTag;
+            }
+        }
+
+        return preview;
+    }
+
+    private string BuildScriptedBehaviorStatus(JsonObject root)
+    {
+        var monitoringEnabled = root["scripted_behavior"]?["performance_monitoring_enabled"]?.GetValue<bool>() ?? false;
+        var modeActive = root["scripted_behavior"]?["performance_mode_active"]?.GetValue<bool>() ?? false;
+        var ratioScripted = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_scripted_ratio"], 1f), 0f, 1f);
+        var ratioSpark = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_spark_ratio"], 0f), 0f, 1f);
+        var reason = root["scripted_behavior"]?["performance_reason"]?.GetValue<string>() ?? "monitoring_off";
+        var selectedTag = SelectedDialogEntityId > 0 ? $"selected_npc={SelectedDialogEntityId}" : "selected_npc=none";
+        if (!monitoringEnabled)
+        {
+            return $"Hybrid scripted behavior active. Performance monitoring off ({selectedTag}).";
+        }
+
+        return modeActive
+            ? $"Performance Mode Active ({selectedTag}) • ratio scripted/spark={ratioScripted:0.00}/{ratioSpark:0.00} • reason={reason}."
+            : $"Hybrid scripted behavior normal ({selectedTag}) • ratio scripted/spark={ratioScripted:0.00}/{ratioSpark:0.00}.";
+    }
+
+    private string? ResolveBehaviorDefinitionsPath(string? definitionsPath)
+    {
+        var path = string.IsNullOrWhiteSpace(definitionsPath) ? "scripted_behaviors.json" : definitionsPath.Trim();
+        if (Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
+        var repositoryRoot = ResolveRepositoryRoot();
+        var repositoryCandidate = Path.Combine(repositoryRoot, path);
+        if (File.Exists(repositoryCandidate))
+        {
+            return repositoryCandidate;
+        }
+
+        var scenePath = GetScenePath();
+        var sceneDirectory = scenePath is null ? null : Path.GetDirectoryName(scenePath);
+        return sceneDirectory is null ? repositoryCandidate : Path.Combine(sceneDirectory, path);
+    }
 
     private static ulong TryParseEntityId(string? entityId)
         => ulong.TryParse(entityId, out var parsed) ? parsed : 0UL;

@@ -85,6 +85,10 @@ set(FORGE_RUNTIME_SOURCES
     SettlementSystem.cpp
     CombatSystem.h
     CombatSystem.cpp
+    RealTimeCombatSystem.h
+    AudioSystem.h
+    RealTimeCombatSystem.cpp
+    AudioSystem.cpp
     WeatherSystem.h
     WeatherSystem.cpp
     NavmeshSystem.h
@@ -97,6 +101,10 @@ set(FORGE_RUNTIME_SOURCES
     NPCController.cpp
     FreeWillSystem.h
     FreeWillSystem.cpp
+    RAGSystem.h
+    RAGSystem.cpp
+    ScriptedBehaviorSystem.h
+    ScriptedBehaviorSystem.cpp
     DialogSystem.h
     DialogSystem.cpp
     DialogEvolutionSystem.h

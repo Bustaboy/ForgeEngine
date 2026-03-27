@@ -2,7 +2,9 @@
 
 #include "Logger.h"
 #include "NPCController.h"
+#include "RAGSystem.h"
 #include "Scene.h"
+#include "ScriptedBehaviorSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,6 +22,11 @@ constexpr float kGlobalSparkCooldownSeconds = 1.0F;
 constexpr float kBaseSparkChancePerSecond = 0.0015F;
 constexpr std::size_t kPendingSparkCap = 256U;
 constexpr std::size_t kSparkMapCap = 512U;
+constexpr float kHighImpactNeedsThreshold = 18.0F;
+constexpr float kRelationshipShiftThreshold = 16.0F;
+constexpr float kScriptedSparkSuppressionScale = 0.08F;
+constexpr float kPerformanceScriptedSparkSuppressionScale = 0.03F;
+constexpr std::uint32_t kPerformanceRagRetrieveStride = 2U;
 
 struct SparkDirective {
     std::string line{};
@@ -43,6 +50,53 @@ bool IsSparkCapReached(const Scene& scene, std::uint64_t npc_id) {
         return false;
     }
     return it->second >= kMaxSparksPerNpcPerDay;
+}
+
+bool HasScriptedBehavior(const Entity& entity) {
+    return entity.scripted_behavior.enabled && !entity.scripted_behavior.current_state.empty();
+}
+
+bool HasLowNeeds(const Entity& entity) {
+    const NeedsComponent& needs = entity.needs;
+    return needs.hunger <= kHighImpactNeedsThreshold ||
+           needs.energy <= kHighImpactNeedsThreshold ||
+           needs.social <= kHighImpactNeedsThreshold ||
+           needs.fun <= kHighImpactNeedsThreshold;
+}
+
+bool HasMajorRelationshipShift(const Scene& scene, const Entity& entity) {
+    const auto relation_it = scene.relationships.find(entity.id);
+    if (relation_it == scene.relationships.end()) {
+        return false;
+    }
+
+    const RelationshipProfile& profile = relation_it->second;
+    if (profile.memories.empty()) {
+        return false;
+    }
+
+    const RelationshipMemory& recent = profile.memories.back();
+    const float strongest_shift = std::max(
+        std::max(std::fabs(recent.trust_delta), std::fabs(recent.respect_delta)),
+        std::max(std::fabs(recent.grudge_delta), std::fabs(recent.loyalty_delta)));
+    return strongest_shift >= kRelationshipShiftThreshold;
+}
+
+bool HasRecentPlayerInteraction(const Scene& scene, const Entity& entity) {
+    const auto relation_it = scene.relationships.find(entity.id);
+    if (relation_it == scene.relationships.end()) {
+        return false;
+    }
+    return relation_it->second.last_interaction_day == scene.day_count;
+}
+
+bool IsHighImpactForSpark(const Scene& scene, const Entity& entity) {
+    return HasLowNeeds(entity) || HasMajorRelationshipShift(scene, entity) || HasRecentPlayerInteraction(scene, entity);
+}
+
+float EffectiveScriptedOverrideChance(const Entity& entity, bool performance_mode) {
+    const float base = std::clamp(entity.scripted_behavior.spark_override_chance, 0.0F, 1.0F);
+    return performance_mode ? (base * 0.4F) : base;
 }
 
 bool TryEnqueue(Scene& scene, std::uint64_t npc_id, bool forced_by_console) {
@@ -165,9 +219,77 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
         return false;
     }
 
-    std::optional<SparkDirective> directive = TryRunLlama(scene, *npc, rng);
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const bool should_try_rag = !performance_mode ||
+        request.forced_by_console ||
+        ((scene.free_will.rag_retrieve_tick++ % kPerformanceRagRetrieveStride) == 0U);
+    const std::string checkpoint = request.forced_by_console ? "scripted_behavior" : "relationship_threshold";
+    std::optional<RAGNarrativeFlavor> narrative_flavor{};
+    if (should_try_rag) {
+        narrative_flavor = RAGSystem::RetrieveNarrativeFlavor(scene, checkpoint, npc);
+        if (!narrative_flavor.has_value()) {
+            RAGSystem::EvaluateNarrativeCheckpoint(scene, checkpoint);
+        }
+    } else if (performance_mode) {
+        scene.rag.last_narrative_source = "throttled";
+        scene.rag.last_narrative_checkpoint = checkpoint;
+    }
+
+    std::optional<SparkDirective> directive{};
+    std::string source = "scripted";
+
+    if (should_try_rag) {
+        if (const std::optional<RAGSparkDirective> rag_directive = RAGSystem::RetrieveSparkFlavor(scene, *npc); rag_directive.has_value()) {
+            directive = SparkDirective{rag_directive->line, rag_directive->activity, rag_directive->location, rag_directive->duration_hours};
+            source = "rag";
+            ++scene.free_will.rag_hits_by_npc[request.npc_id];
+        } else {
+            ++scene.free_will.rag_misses_by_npc[request.npc_id];
+        }
+    }
+
     if (!directive.has_value()) {
         directive = DeterministicFallback(*npc, rng);
+        source = "scripted";
+    }
+    if (narrative_flavor.has_value()) {
+        directive->line = "[" + narrative_flavor->event_color + "] " + directive->line;
+    }
+    if (const std::optional<RAGLegacyRecall> legacy = RAGSystem::RetrieveLegacyRecall(
+            scene,
+            "npc spark continuity npc=" + std::to_string(request.npc_id) + " " + directive->line);
+        legacy.has_value()) {
+        directive->line += " (Legacy: gen " + std::to_string(legacy->generation) + " " + legacy->summary + ")";
+    }
+
+    const bool llm_fallback_allowed =
+        scene.free_will.llm_enabled &&
+        !scene.free_will.model_path.empty() &&
+        scene.rag.live_fallback_enabled &&
+        !performance_mode;
+    if (!should_try_rag && performance_mode) {
+        scene.rag.last_source = "throttled";
+    }
+
+    if (source == "scripted" && llm_fallback_allowed && !scene.rag.enabled) {
+        if (const std::optional<SparkDirective> llm_directive = TryRunLlama(scene, *npc, rng); llm_directive.has_value()) {
+            directive = llm_directive;
+            source = "llm";
+            ++scene.rag.live_fallback_calls;
+        }
+    } else if (source == "scripted" && llm_fallback_allowed && should_try_rag) {
+        if (scene.rag.cache_misses > 0U || scene.rag.spark_cache.empty()) {
+            directive = TryRunLlama(scene, *npc, rng);
+            if (directive.has_value()) {
+                source = "llm";
+                ++scene.rag.live_fallback_calls;
+            }
+        }
+    }
+
+    if (!directive.has_value()) {
+        directive = DeterministicFallback(*npc, rng);
+        source = "scripted";
     }
 
     const bool applied = NPCController::ForceActivity(
@@ -182,15 +304,18 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
 
     std::uint32_t& spark_count = scene.free_will.daily_spark_count[request.npc_id];
     spark_count = std::min(kMaxSparksPerNpcPerDay, spark_count + 1U);
+    npc->scripted_behavior.last_spark_timestamp = scene.elapsed_seconds;
+    ScriptedBehaviorSystem::RecordSparkDecision(scene);
 
     scene.free_will.last_spark_line_by_npc[request.npc_id] = directive->line;
+    scene.free_will.last_spark_source_by_npc[request.npc_id] = source;
     scene.recent_actions.push_back("NPC " + std::to_string(request.npc_id) + " free-will: " + directive->line);
     if (scene.recent_actions.size() > 64U) {
         scene.recent_actions.erase(scene.recent_actions.begin());
     }
 
     GF_LOG_INFO("FreeWill spark npc=" + std::to_string(request.npc_id) + " activity=" + directive->activity +
-                " location=" + directive->location + " note=\"" + directive->line + "\"");
+                " location=" + directive->location + " source=" + source + " note=\"" + directive->line + "\"");
     return true;
 }
 
@@ -209,6 +334,7 @@ void FreeWillSystem::EnsureDefaults(Scene& scene) {
         scene.free_will.last_processed_day = scene.day_count;
         scene.free_will.daily_spark_count.clear();
         scene.free_will.pending_sparks.clear();
+        scene.free_will.rag_retrieve_tick = 0U;
     }
 
     if (scene.free_will.daily_spark_count.size() > kSparkMapCap) {
@@ -223,6 +349,28 @@ void FreeWillSystem::EnsureDefaults(Scene& scene) {
         for (auto it = scene.free_will.last_spark_line_by_npc.begin();
              it != scene.free_will.last_spark_line_by_npc.end() && to_remove > 0;) {
             it = scene.free_will.last_spark_line_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.last_spark_source_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_source_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.last_spark_source_by_npc.begin();
+             it != scene.free_will.last_spark_source_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.last_spark_source_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_hits_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.rag_hits_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.rag_hits_by_npc.begin(); it != scene.free_will.rag_hits_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.rag_hits_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_misses_by_npc.size() > kSparkMapCap) {
+        std::size_t to_remove = scene.free_will.rag_misses_by_npc.size() - kSparkMapCap;
+        for (auto it = scene.free_will.rag_misses_by_npc.begin(); it != scene.free_will.rag_misses_by_npc.end() && to_remove > 0;) {
+            it = scene.free_will.rag_misses_by_npc.erase(it);
             --to_remove;
         }
     }
@@ -242,7 +390,17 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
     scene.free_will.rng_seed = (scene.free_will.rng_seed == 0U) ? 0xC0FFEEU : scene.free_will.rng_seed;
     std::minstd_rand rng(scene.free_will.rng_seed);
 
-    const float chance = std::clamp(scene.free_will.spark_chance_per_second * safe_dt, 0.0F, 0.2F);
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const float mode_chance_scale = performance_mode ? 0.35F : 1.0F;
+    const bool monitor_enabled = scene.scripted_behavior.performance_monitoring_enabled;
+    const bool force_scripted = monitor_enabled && scene.scripted_behavior.force_scripted_fallback;
+    const float monitor_scale = monitor_enabled
+        ? std::clamp(scene.scripted_behavior.effective_spark_chance_multiplier, 0.0F, 1.0F)
+        : 1.0F;
+    const float chance = std::clamp(
+        scene.free_will.spark_chance_per_second * safe_dt * mode_chance_scale * monitor_scale,
+        0.0F,
+        0.2F);
     std::uniform_real_distribution<float> roll(0.0F, 1.0F);
 
     std::uint32_t queued_this_frame = 0U;
@@ -251,10 +409,36 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
         if (entity.buildable.IsValid()) {
             continue;
         }
+
         if (IsSparkCapReached(scene, entity.id)) {
             continue;
         }
-        if (roll(rng) <= chance) {
+
+        float entity_chance = chance;
+        const bool scripted_active = HasScriptedBehavior(entity);
+        const bool scripted_suitable = scripted_active && ScriptedBehaviorSystem::IsBehaviorSuitable(scene, entity);
+        const bool high_impact = IsHighImpactForSpark(scene, entity);
+        if (scripted_suitable) {
+            if (force_scripted) {
+                continue;
+            }
+            const float scripted_scale = performance_mode
+                ? kPerformanceScriptedSparkSuppressionScale
+                : kScriptedSparkSuppressionScale;
+            entity_chance *= scripted_scale;
+
+            if (!high_impact) {
+                continue;
+            }
+
+            entity_chance *= EffectiveScriptedOverrideChance(entity, performance_mode);
+        }
+
+        if (entity_chance <= 0.0F) {
+            continue;
+        }
+
+        if (roll(rng) <= entity_chance) {
             if (TryEnqueue(scene, entity.id, false)) {
                 ++queued_this_frame;
             }
@@ -290,4 +474,36 @@ bool FreeWillSystem::TriggerSpark(Scene& scene, std::uint64_t npc_id, bool force
         scene.free_will.global_cooldown_remaining = 0.0F;
     }
     return true;
+}
+
+std::string FreeWillSystem::BuildHybridDecisionSummary(Scene& scene, std::uint64_t npc_id) {
+    EnsureDefaults(scene);
+    Entity* npc = FindNpc(scene, npc_id);
+    if (npc == nullptr) {
+        return "NPC not found.";
+    }
+
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const bool scripted_active = HasScriptedBehavior(*npc);
+    const bool scripted_suitable = scripted_active && ScriptedBehaviorSystem::IsBehaviorSuitable(scene, *npc);
+    const bool high_impact = IsHighImpactForSpark(scene, *npc);
+    const bool spark_allowed = !scripted_suitable || high_impact;
+    const float override_chance = EffectiveScriptedOverrideChance(*npc, performance_mode);
+
+    std::ostringstream out;
+    out << "NPC " << npc_id
+        << " scripted_active=" << (scripted_active ? "yes" : "no")
+        << " scripted_suitable=" << (scripted_suitable ? "yes" : "no")
+        << " high_impact=" << (high_impact ? "yes" : "no")
+        << " scripted_priority=" << (scripted_suitable ? "high" : "normal")
+        << " spark_allowed=" << (spark_allowed ? "yes" : "no")
+        << " override_chance=" << override_chance
+        << " last_spark_t=" << npc->scripted_behavior.last_spark_timestamp
+        << " mode=" << scene.optimization_overrides.lightweight_mode
+        << " rag_enabled=" << (scene.rag.enabled ? "yes" : "no")
+        << " rag_entries=" << scene.rag.spark_cache.size()
+        << " rag_hit_rate=" << ((scene.rag.cache_hits + scene.rag.cache_misses) > 0U ? (static_cast<float>(scene.rag.cache_hits) / static_cast<float>(scene.rag.cache_hits + scene.rag.cache_misses)) : 0.0F);
+    const auto source_it = scene.free_will.last_spark_source_by_npc.find(npc_id);
+    out << " last_source=" << (source_it != scene.free_will.last_spark_source_by_npc.end() ? source_it->second : "none");
+    return out.str();
 }

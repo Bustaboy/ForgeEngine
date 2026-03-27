@@ -14,9 +14,11 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/common.hpp>
+#include <nlohmann/json.hpp>
 
 namespace {
 constexpr std::uint32_t kWindowWidth = 1280;
@@ -35,10 +37,21 @@ constexpr bool kEnableValidationLayers = false;
 constexpr bool kEnableValidationLayers = true;
 #endif
 
+std::unordered_map<std::string, std::vector<char>>& ShaderBinaryCache() {
+    static std::unordered_map<std::string, std::vector<char>> cache{};
+    return cache;
+}
+
 std::vector<char> ReadBinaryFile(const std::vector<std::filesystem::path>& candidates) {
     for (const std::filesystem::path& path : candidates) {
         if (!std::filesystem::exists(path)) {
             continue;
+        }
+        const std::string cache_key = std::filesystem::weakly_canonical(path).string();
+        auto& cache = ShaderBinaryCache();
+        const auto cached = cache.find(cache_key);
+        if (cached != cache.end()) {
+            return cached->second;
         }
 
         std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -54,10 +67,49 @@ std::vector<char> ReadBinaryFile(const std::vector<std::filesystem::path>& candi
         std::vector<char> buffer(static_cast<std::size_t>(file_size));
         file.seekg(0);
         file.read(buffer.data(), file_size);
+        cache[cache_key] = buffer;
         return buffer;
     }
 
     throw std::runtime_error("Failed to load shader binary.");
+}
+
+void PrimeShaderCacheFromManifest(const std::filesystem::path& manifest_path, std::unordered_set<std::string>& warmed_variants) {
+    if (!std::filesystem::exists(manifest_path)) {
+        return;
+    }
+    try {
+        std::ifstream file(manifest_path);
+        if (!file.is_open()) {
+            return;
+        }
+        const auto payload = nlohmann::json::parse(file, nullptr, false);
+        if (payload.is_discarded()) {
+            return;
+        }
+        if (!payload.is_object() || !payload.contains("variants") || !payload["variants"].is_array()) {
+            return;
+        }
+        const auto manifest_root = manifest_path.parent_path();
+        for (const auto& entry : payload["variants"]) {
+            if (!entry.is_object()) {
+                continue;
+            }
+            const std::string key = entry.value("key", "");
+            const std::string relative_path = entry.value("spv", "");
+            if (key.empty() || relative_path.empty()) {
+                continue;
+            }
+            const std::filesystem::path spv_path = manifest_root / relative_path;
+            if (!std::filesystem::exists(spv_path)) {
+                continue;
+            }
+            ReadBinaryFile({spv_path});
+            warmed_variants.insert(key);
+        }
+    } catch (...) {
+        // Keep startup robust; warm-up cache is optional.
+    }
 }
 
 VkShaderModule CreateShaderModule(VkDevice device, const std::vector<char>& code) {
@@ -227,6 +279,11 @@ void VulkanRenderer::DrawFPSOverlay(
 }
 
 void VulkanRenderer::RenderFrame(const Scene& scene, const Camera& camera) {
+    if (scene.optimization_overrides.runtime.enabled &&
+        scene.optimization_overrides.runtime.shader_variant_cache_enabled &&
+        warmed_shader_variants_.empty()) {
+        PrimeShaderCacheFromManifest(scene.optimization_overrides.runtime.shader_variant_manifest, warmed_shader_variants_);
+    }
     DrawFrame(scene, camera);
 }
 
@@ -2428,64 +2485,54 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
         return;
     }
 
+    Scene draw_scene = scene;
     auto tile_sprites = tilemap_chunk_.ExpandVisibleTiles(scene);
-    if (!tile_sprites.empty()) {
-        Scene merged_scene = scene;
-        merged_scene.render_2d.sprites.insert(
-            merged_scene.render_2d.sprites.end(),
-            tile_sprites.begin(),
-            tile_sprites.end());
-        SyncBindlessTexturesForScene(merged_scene);
-        const SpriteBatch::BuildResult build = sprite_batch_.Build(merged_scene);
-        const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
-        const glm::mat4 ortho = glm::ortho(
-            -viewport.x * 0.5F,
-            viewport.x * 0.5F,
-            -viewport.y * 0.5F,
-            viewport.y * 0.5F,
-            -10.0F,
-            10.0F);
+    draw_scene.render_2d.sprites.insert(draw_scene.render_2d.sprites.end(), tile_sprites.begin(), tile_sprites.end());
 
-        PerFramePushConstants per_frame_push{};
-        per_frame_push.view_proj = ortho;
-        per_frame_push.light_dir = glm::vec4(0.0F, 0.0F, -1.0F, 0.0F);
-        per_frame_push.light_color = glm::vec4(1.0F);
-
-        vkCmdPushConstants(
-            command_buffers_[image_index],
-            pipeline_layout_,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            0,
-            sizeof(PerFramePushConstants),
-            &per_frame_push);
-
-        for (const SpriteBatch::DrawPacket& packet : build.draws) {
-            PerDrawPushConstants per_draw_push{};
-            per_draw_push.model = packet.model;
-            per_draw_push.color = packet.tint;
-            vkCmdPushConstants(
-                command_buffers_[image_index],
-                pipeline_layout_,
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                sizeof(PerFramePushConstants),
-                sizeof(PerDrawPushConstants),
-                &per_draw_push);
-            TexturePushConstants texture_push{};
-            texture_push.texture_index = packet.texture_index;
-            vkCmdPushConstants(
-                command_buffers_[image_index],
-                pipeline_layout_,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
-                sizeof(TexturePushConstants),
-                &texture_push);
-            vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
-        }
-        return;
+    const RuntimeOptimizationSettings& runtime_opt = scene.optimization_overrides.runtime;
+    float lightweight_cull_scale = 1.0F;
+    if (scene.optimization_overrides.lightweight_mode == "performance") {
+        lightweight_cull_scale = 0.82F;
+    } else if (scene.optimization_overrides.lightweight_mode == "quality") {
+        lightweight_cull_scale = 1.10F;
     }
 
-    SyncBindlessTexturesForScene(scene);
-    const SpriteBatch::BuildResult build = sprite_batch_.Build(scene);
+    if (runtime_opt.enabled && runtime_opt.lod_distance_culling_enabled) {
+        std::vector<SceneSprite2D> filtered{};
+        filtered.reserve(draw_scene.render_2d.sprites.size());
+        const float sprite_cull_distance = runtime_opt.sprite_cull_distance_m * lightweight_cull_scale;
+        const float lod_near_distance = runtime_opt.lod_near_distance_m * lightweight_cull_scale;
+        const float lod_far_distance = runtime_opt.lod_far_distance_m * lightweight_cull_scale;
+        const float cull_sq = sprite_cull_distance * sprite_cull_distance;
+        for (SceneSprite2D sprite : draw_scene.render_2d.sprites) {
+            const glm::vec2 offset = sprite.position - draw_scene.render_2d.camera.center;
+            const float dist_sq = glm::dot(offset, offset);
+            if (dist_sq > cull_sq) {
+                continue;
+            }
+            const float dist = std::sqrt(dist_sq);
+            if (dist > lod_far_distance) {
+                sprite.tint.a *= 0.85F;
+                sprite.size *= 0.75F;
+            } else if (dist > lod_near_distance) {
+                sprite.tint.a *= 0.92F;
+            }
+            filtered.push_back(sprite);
+        }
+        draw_scene.render_2d.sprites = std::move(filtered);
+    }
+
+    SyncBindlessTexturesForScene(draw_scene);
+    SpriteBatch::BuildResult build = sprite_batch_.Build(draw_scene);
+    if (runtime_opt.enabled && runtime_opt.draw_call_batching_enabled) {
+        std::stable_sort(
+            build.draws.begin(),
+            build.draws.end(),
+            [](const SpriteBatch::DrawPacket& left, const SpriteBatch::DrawPacket& right) {
+                return left.texture_index < right.texture_index;
+            });
+    }
+
     const glm::vec2 viewport = scene.render_2d.camera.viewport_world_size;
     const glm::mat4 ortho = glm::ortho(
         -viewport.x * 0.5F,
@@ -2508,6 +2555,7 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
         sizeof(PerFramePushConstants),
         &per_frame_push);
 
+    std::uint32_t last_texture_index = std::numeric_limits<std::uint32_t>::max();
     for (const SpriteBatch::DrawPacket& packet : build.draws) {
         PerDrawPushConstants per_draw_push{};
         per_draw_push.model = packet.model;
@@ -2516,18 +2564,21 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
             command_buffers_[image_index],
             pipeline_layout_,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            sizeof(PerFramePushConstants),
-            sizeof(PerDrawPushConstants),
-            &per_draw_push);
-        TexturePushConstants texture_push{};
-        texture_push.texture_index = packet.texture_index;
-        vkCmdPushConstants(
-            command_buffers_[image_index],
-            pipeline_layout_,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
-            sizeof(TexturePushConstants),
-            &texture_push);
+                sizeof(PerFramePushConstants),
+                sizeof(PerDrawPushConstants),
+                &per_draw_push);
+        if (packet.texture_index != last_texture_index) {
+            TexturePushConstants texture_push{};
+            texture_push.texture_index = packet.texture_index;
+            vkCmdPushConstants(
+                command_buffers_[image_index],
+                pipeline_layout_,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                sizeof(PerFramePushConstants) + sizeof(PerDrawPushConstants),
+                sizeof(TexturePushConstants),
+                &texture_push);
+            last_texture_index = packet.texture_index;
+        }
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
     }
 }
@@ -2548,7 +2599,16 @@ void VulkanRenderer::Render3DLayer(std::uint32_t image_index, const Scene& scene
         sizeof(PerFramePushConstants),
         &per_frame_push);
 
+    const RuntimeOptimizationSettings& runtime_opt = scene.optimization_overrides.runtime;
+    std::size_t submitted_entities = 0;
     for (const Entity& entity : scene.entities) {
+        if (runtime_opt.enabled && runtime_opt.lod_distance_culling_enabled) {
+            const glm::vec3 to_entity = entity.transform.pos - camera.smoothedPosition;
+            const float dist_sq = glm::dot(to_entity, to_entity);
+            if (dist_sq > runtime_opt.mesh_cull_distance_m * runtime_opt.mesh_cull_distance_m) {
+                continue;
+            }
+        }
         glm::mat4 model(1.0F);
         model = glm::translate(model, entity.transform.pos);
         model = glm::rotate(model, entity.transform.rot.x, glm::vec3(1.0F, 0.0F, 0.0F));
@@ -2564,8 +2624,14 @@ void VulkanRenderer::Render3DLayer(std::uint32_t image_index, const Scene& scene
         texture_push.padding0 = 1;  // toon flag in shader
 
         if (entity.mesh.IsValid()) {
+            bool skip_mesh_detail = false;
+            if (runtime_opt.enabled && runtime_opt.lod_distance_culling_enabled) {
+                const glm::vec3 to_entity = entity.transform.pos - camera.smoothedPosition;
+                const float dist = std::sqrt(glm::dot(to_entity, to_entity));
+                skip_mesh_detail = dist > runtime_opt.lod_far_distance_m;
+            }
             auto [it, inserted] = mesh_cache_.try_emplace(entity.mesh.source);
-            if (inserted) {
+            if (inserted && !skip_mesh_detail) {
                 it->second.loaded = MeshLoader::LoadSimpleGltf(
                     entity.mesh.source,
                     entity.mesh.primitive_index,
@@ -2597,6 +2663,18 @@ void VulkanRenderer::Render3DLayer(std::uint32_t image_index, const Scene& scene
             sizeof(TexturePushConstants),
             &texture_push);
         vkCmdDraw(command_buffers_[image_index], kQuadVertexCount, 1, 0, 0);
+        ++submitted_entities;
+    }
+
+    if (runtime_opt.enabled && runtime_opt.draw_call_batching_enabled) {
+        static std::uint64_t frame_counter = 0;
+        ++frame_counter;
+        if ((frame_counter % 180U) == 0U) {
+            GF_LOG_INFO(
+                "HybridBatching: submitted_entities=" + std::to_string(submitted_entities) +
+                " total_entities=" + std::to_string(scene.entities.size()) +
+                " mode=state-sorted");
+        }
     }
 }
 

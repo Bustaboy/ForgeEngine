@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import json
 import os
 import re
@@ -38,10 +39,13 @@ from kit_bashing import apply_generated_loot_to_scene, apply_kit_bash_to_scene, 
 from live_edit import edit_scene_from_prompt
 from change_log import append_change_log_entry, get_recent_changes
 from model_manager import (
+    DownloadCancelledError,
+    ManagedModelDownloadError,
     download_model,
     ensure_freewill_model,
     list_installed_models,
     remove_model,
+    run_quick_setup,
     run_onboarding,
 )
 
@@ -264,6 +268,19 @@ class ActionablePlaytestReport:
     critical_dead_end_blockers: list[str]
     sections: list[PlaytestReportSection]
     source_probe_results: list[BotPlaytestProbeResult]
+
+
+@dataclass(frozen=True)
+class OrchestrationResult:
+    orchestration_type: str
+    target: str
+    source: str
+    confidence: float
+    suggested_scene_patch: list[dict[str, object]]
+    summary: str
+    health_summary: dict[str, object] = field(default_factory=dict)
+    provenance: list[dict[str, object]] = field(default_factory=list)
+    playtest_feedback: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -3169,7 +3186,49 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if not raw_args:
         return None
 
-    command = raw_args[0]
+    progress_json = "--progress-json" in raw_args
+    cancel_file_path: Path | None = None
+    normalized_args: list[str] = []
+    skip_next = False
+    for index, token in enumerate(raw_args):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--progress-json":
+            continue
+        if token == "--cancel-file":
+            if index + 1 >= len(raw_args):
+                raise ValueError("Usage: --cancel-file <path>")
+            cancel_file_path = Path(raw_args[index + 1])
+            skip_next = True
+            continue
+        normalized_args.append(token)
+
+    if not normalized_args:
+        return None
+
+    command = normalized_args[0]
+    raw_args = normalized_args
+
+    def emit_progress(payload: dict[str, object]) -> None:
+        if not progress_json:
+            return
+        line = {"event": "progress", "type": payload.get("event", "update"), **payload}
+        print(json.dumps(line), flush=True)
+
+    def emit_error(error: ManagedModelDownloadError, command_name: str) -> None:
+        payload = {
+            "event": "error",
+            "command": command_name,
+            "error": error.to_payload(),
+        }
+        if progress_json:
+            emit_progress(payload)
+        else:
+            print(json.dumps(payload, indent=2))
+
+    def is_cancelled() -> bool:
+        return bool(cancel_file_path and cancel_file_path.exists())
 
     def _append_change_log(
         *,
@@ -3414,9 +3473,21 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         if len(raw_args) < 2:
             raise ValueError("Usage: orchestrator.py /download_model <friendly_name> [quantization]")
         quantization = raw_args[2] if len(raw_args) >= 3 else "Q4_K_M"
-        result = download_model(friendly_name=raw_args[1], quantization=quantization)
-        print(json.dumps(result, indent=2))
-        return 0
+        try:
+            result = download_model(
+                friendly_name=raw_args[1],
+                quantization=quantization,
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "download-model")
+            return 1
 
     if command in {"list-models", "/list_models"}:
         result = list_installed_models()
@@ -3424,9 +3495,36 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         return 0
 
     if command in {"onboarding-run", "/onboarding_run"}:
-        result = run_onboarding(orchestrator_file=Path(__file__).resolve())
-        print(json.dumps(result, indent=2))
-        return 0
+        try:
+            result = run_onboarding(
+                orchestrator_file=Path(__file__).resolve(),
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "onboarding-run")
+            return 1
+
+    if command in {"quick-setup", "/quick_setup"}:
+        try:
+            result = run_quick_setup(
+                orchestrator_file=Path(__file__).resolve(),
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
+        except ManagedModelDownloadError as exc:
+            emit_error(exc, "quick-setup")
+            return 1
 
     if command in {"setup-freewill", "/setup_freewill"}:
         scene_path = Path(raw_args[1]) if len(raw_args) >= 2 else None
@@ -3466,6 +3564,38 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         result = record_performance_snapshot(Path(raw_args[1]), session_name="scene_save")
         print(json.dumps(result, indent=2))
         return 0
+
+    if command in {"orchestrate", "/orchestrate"}:
+        if len(raw_args) < 3:
+            raise ValueError(
+                "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]; "
+                "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>, "
+                "scene_review target=<playtest|with_playtest|no_playtest>"
+            )
+        try:
+            result = _build_orchestration_result(
+                orchestration_type=raw_args[1],
+                scene_path=Path(raw_args[2]),
+                target=raw_args[3] if len(raw_args) >= 4 else None,
+            )
+            print(json.dumps({"orchestration_result": asdict(result)}, indent=2))
+            return 0
+        except ValueError as exc:
+            print(
+                json.dumps(
+                    {
+                        "event": "error",
+                        "command": "/orchestrate",
+                        "error": {
+                            "code": "invalid_orchestration_request",
+                            "message": str(exc),
+                            "remediation": "Use /orchestrate <type> <scene_json_path> [target].",
+                        },
+                    },
+                    indent=2,
+                )
+            )
+            return 1
 
     if command in {"idle-tick", "/idle_tick"}:
         if len(raw_args) < 2:
@@ -3707,6 +3837,11 @@ def main() -> int:
 
     print("GameForge V1 AI orchestration skeleton (Python)")
     print("Local-first orchestration placeholder")
+    print(
+        "Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target] "
+        "(npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>, "
+        "scene_review target=<playtest|with_playtest|no_playtest>)"
+    )
     return 0
 
 

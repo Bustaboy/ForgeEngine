@@ -147,11 +147,71 @@ struct NeedsComponent {
     float fun = 55.0F;
 };
 
+struct ScriptedBehaviorComponent {
+    bool enabled = false;
+    std::string current_state{};
+    std::uint64_t target_entity_id = 0;
+    bool schedule_override = false;
+    float spark_override_chance = 0.05F;
+    float last_spark_timestamp = -1.0F;
+    std::map<std::string, float> parameters{};
+};
 
 struct ProceduralAnimationComponent {
     float motion_phase = 0.0F;
     float left_foot_offset = 0.0F;
     float right_foot_offset = 0.0F;
+};
+
+struct RealTimeCombatComponent {
+    bool enabled = false;
+    bool alive = true;
+    std::uint32_t team_id = 0;
+    float health = 100.0F;
+    float max_health = 100.0F;
+    float stamina = 100.0F;
+    float max_stamina = 100.0F;
+    float move_speed = 4.5F;
+    float attack_damage = 12.0F;
+    float melee_range = 1.8F;
+    float ranged_range = 7.0F;
+    bool ranged_enabled = false;
+    float attack_cooldown_seconds = 0.55F;
+    float dodge_cooldown_seconds = 1.2F;
+    float dodge_duration_seconds = 0.18F;
+    float hit_reaction_seconds = 0.16F;
+    float stamina_regen_per_second = 18.0F;
+    float stamina_attack_cost = 22.0F;
+    float stamina_dodge_cost = 30.0F;
+    std::string weapon_type = "melee";
+    float weapon_damage_multiplier = 1.0F;
+    float weapon_speed_multiplier = 1.0F;
+    float weapon_range_multiplier = 1.0F;
+    float light_attack_damage_multiplier = 1.0F;
+    float heavy_attack_damage_multiplier = 1.45F;
+    float finisher_damage_multiplier = 1.9F;
+    float light_attack_stamina_multiplier = 1.0F;
+    float heavy_attack_stamina_multiplier = 1.30F;
+    float finisher_stamina_multiplier = 1.55F;
+    float combo_window_seconds = 0.72F;
+    float combo_timer_remaining = 0.0F;
+    std::uint32_t combo_step = 0;
+    float dodge_invulnerability_seconds = 0.11F;
+    float dodge_invulnerability_remaining = 0.0F;
+    glm::vec2 dodge_direction{0.0F, 1.0F};
+    float attack_cooldown_remaining = 0.0F;
+    float dodge_cooldown_remaining = 0.0F;
+    float dodge_remaining = 0.0F;
+    float hit_reaction_remaining = 0.0F;
+    float hit_reaction_timer = 0.0F;
+    bool in_cover = false;
+    float cover_defense_bonus = 0.16F;
+    float cover_accuracy_bonus = 0.12F;
+    float cover_search_radius = 3.8F;
+    std::uint64_t last_assist_target_id = 0;
+    float squad_call_for_help_cooldown = 0.0F;
+    std::string action_state = "idle";
+    std::string animation_state = "idle";
 };
 
 struct Entity {
@@ -167,9 +227,11 @@ struct Entity {
     VoiceProfileComponent voice_profile{};
     ScheduleComponent schedule{};
     NeedsComponent needs{};
+    ScriptedBehaviorComponent scripted_behavior{};
     glm::vec3 velocity{0.0F, 0.0F, 0.0F};
     ProceduralAnimationComponent animation{};
     MeshComponent mesh{};
+    RealTimeCombatComponent realtime_combat{};
 };
 
 struct DirectionalLight {

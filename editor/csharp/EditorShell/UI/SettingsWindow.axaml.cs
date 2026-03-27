@@ -48,6 +48,20 @@ public partial class SettingsWindow : Window
         this.FindControl<NumericUpDown>("IconSizeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("HistoryLengthNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<ComboBox>("DefaultTemplateComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<TextBox>("MusicTrackTextBox")!.PropertyChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<TextBox>("AmbientTrackTextBox")!.PropertyChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("MasterVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("MusicVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("AmbientVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("UiVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("SfxVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("SpatialVoiceLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("CombatDuckingNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("UiDuckingNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ComboBox>("ReverbZoneComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("ProceduralIntensityNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -64,6 +78,29 @@ public partial class SettingsWindow : Window
         SetNumericValue("FpsLimitNumeric", preferences.Runtime.FpsLimit);
         SetNumericValue("IconSizeNumeric", preferences.Editor.IconSize);
         SetNumericValue("HistoryLengthNumeric", preferences.Editor.HistoryLength);
+        SetTextValue("MusicTrackTextBox", preferences.Runtime.Audio.MusicTrack);
+        SetTextValue("AmbientTrackTextBox", preferences.Runtime.Audio.AmbientTrack);
+        var combatMusicToggle = this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle");
+        if (combatMusicToggle is not null)
+        {
+            combatMusicToggle.IsChecked = preferences.Runtime.Audio.CombatMusicOverride;
+        }
+        SetNumericValue("MasterVolumeNumeric", preferences.Runtime.Audio.MasterVolume);
+        SetNumericValue("MusicVolumeNumeric", preferences.Runtime.Audio.MusicVolume);
+        SetNumericValue("AmbientVolumeNumeric", preferences.Runtime.Audio.AmbientVolume);
+        SetNumericValue("UiVolumeNumeric", preferences.Runtime.Audio.UiVolume);
+        SetNumericValue("SfxVolumeNumeric", preferences.Runtime.Audio.SfxVolume);
+        SetNumericValue("SpatialVoiceLimitNumeric", preferences.Runtime.Audio.SpatialVoiceLimit);
+        SetNumericValue("CombatDuckingNumeric", preferences.Runtime.Audio.CombatDuckingStrength);
+        SetNumericValue("UiDuckingNumeric", preferences.Runtime.Audio.UiDuckingStrength);
+        SetComboText("ReverbZoneComboBox", preferences.Runtime.Audio.ReverbZonePreset);
+        SetNumericValue("ProceduralIntensityNumeric", preferences.Runtime.Audio.ProceduralIntensity);
+        var playtestingToggle = this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle");
+        if (playtestingToggle is not null)
+        {
+            playtestingToggle.IsChecked = preferences.AiOrchestration.EnableBotPlaytestingInReview;
+        }
+        SetTextValue("LastSceneReviewSummaryTextBox", preferences.AiOrchestration.LastSceneReviewSummary);
 
         var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
         if (templateCombo is not null)
@@ -137,12 +174,33 @@ public partial class SettingsWindow : Window
             {
                 VulkanResolution = resolution,
                 FpsLimit = fpsLimit,
+                Audio = new EditorPreferences.RuntimePreferences.AudioPreferences
+                {
+                    MusicTrack = GetTextValue("MusicTrackTextBox", "music_exploration"),
+                    AmbientTrack = GetTextValue("AmbientTrackTextBox", "ambient_exploration_loop"),
+                    CombatMusicOverride = this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle")?.IsChecked ?? true,
+                    MasterVolume = GetNumericValue("MasterVolumeNumeric", 85),
+                    MusicVolume = GetNumericValue("MusicVolumeNumeric", 75),
+                    AmbientVolume = GetNumericValue("AmbientVolumeNumeric", 60),
+                    UiVolume = GetNumericValue("UiVolumeNumeric", 80),
+                    SfxVolume = GetNumericValue("SfxVolumeNumeric", 80),
+                    SpatialVoiceLimit = GetNumericValue("SpatialVoiceLimitNumeric", 24),
+                    CombatDuckingStrength = GetNumericValue("CombatDuckingNumeric", 35),
+                    UiDuckingStrength = GetNumericValue("UiDuckingNumeric", 15),
+                    ReverbZonePreset = GetComboText("ReverbZoneComboBox"),
+                    ProceduralIntensity = GetNumericValue("ProceduralIntensityNumeric", 55),
+                },
             },
             Editor = new EditorPreferences.EditorPanePreferences
             {
                 IconSize = iconSize,
                 HistoryLength = historyLength,
                 DefaultTemplateId = templateId,
+            },
+            AiOrchestration = new EditorPreferences.AiOrchestrationPreferences
+            {
+                EnableBotPlaytestingInReview = this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle")?.IsChecked ?? false,
+                LastSceneReviewSummary = GetTextValue("LastSceneReviewSummaryTextBox", "No scene review has been run yet."),
             },
         }.Sanitize();
     }
@@ -180,6 +238,22 @@ public partial class SettingsWindow : Window
             MainWindowViewModel.ProjectTemplatePreset template => template.DisplayName,
             _ => string.Empty,
         };
+    }
+
+    private void SetTextValue(string controlName, string value)
+    {
+        var textBox = this.FindControl<TextBox>(controlName);
+        if (textBox is not null)
+        {
+            textBox.Text = value;
+        }
+    }
+
+    private string GetTextValue(string controlName, string fallback)
+    {
+        var textBox = this.FindControl<TextBox>(controlName);
+        var value = textBox?.Text?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
     private void SetNumericValue(string controlName, int value)

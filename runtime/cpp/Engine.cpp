@@ -14,8 +14,12 @@
 #include "NarratorSystem.h"
 #include "NPCController.h"
 #include "FreeWillSystem.h"
+#include "ScriptedBehaviorSystem.h"
+#include "RAGSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
+#include "RealTimeCombatSystem.h"
+#include "AudioSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -31,6 +35,8 @@
 #include <iostream>
 #include <cstdio>
 #include <iomanip>
+#include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -77,6 +83,15 @@ void SetOverlayStatusMessage(std::string& overlay_status_message, const std::str
     overlay_status_message = message;
 }
 
+Entity* FindEntityById(Scene& scene, std::uint64_t entity_id) {
+    for (Entity& entity : scene.entities) {
+        if (entity.id == entity_id) {
+            return &entity;
+        }
+    }
+    return nullptr;
+}
+
 void LogConsoleHelp() {
     GF_LOG_INFO("Console commands:");
     GF_LOG_INFO("  Core: /help | /debug_overlay [on|off|toggle] | /inventory | /recipes");
@@ -84,7 +99,16 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Build/Craft: /give <item> <amount> | /craft <recipe> | /trade ... | /settlement");
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
+    GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
+    GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id> | /spark_test <entity_id>");
+    GF_LOG_INFO("             /narrative_flavor_test <checkpoint> | /legacy_recall_test <event>");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
+    GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
+    GF_LOG_INFO("         /audio_duck test | /audio_reverb_zone <outdoor|indoor|cave|workshop>");
+    GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
+    GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
+    GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
@@ -99,6 +123,43 @@ std::string Trim(const std::string& value) {
         --end;
     }
     return value.substr(start, end - start);
+}
+
+std::map<std::string, float> ParseBehaviorParams(std::istringstream& parser, bool& schedule_override, std::uint64_t& target_entity_id) {
+    std::map<std::string, float> parameters{};
+    schedule_override = true;
+    target_entity_id = 0;
+
+    std::string token;
+    while (parser >> token) {
+        const std::size_t eq = token.find('=');
+        if (eq == std::string::npos || eq == 0 || eq + 1 >= token.size()) {
+            continue;
+        }
+
+        const std::string key = token.substr(0, eq);
+        const std::string value = token.substr(eq + 1);
+        if (key == "schedule_override") {
+            schedule_override = value == "1" || value == "true" || value == "on";
+            continue;
+        }
+        if (key == "target_entity_id") {
+            try {
+                target_entity_id = std::stoull(value);
+            } catch (const std::exception&) {
+                target_entity_id = 0;
+            }
+            continue;
+        }
+
+        try {
+            parameters[key] = std::stof(value);
+        } catch (const std::exception&) {
+            continue;
+        }
+    }
+
+    return parameters;
 }
 
 std::filesystem::path FindOrchestratorScript() {
@@ -195,6 +256,87 @@ void ProcessConsoleCommands(
         SetOverlayStatusMessage(overlay_status_message, "Perf stats logged");
         return;
     }
+
+    if (command == "/audio_play") {
+        std::string bus;
+        std::string track;
+        parser >> bus >> track;
+        std::string message;
+        const bool ok = AudioSystem::PlayTrack(scene, bus, track, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio track updated" : "Audio command invalid");
+        return;
+    }
+
+    if (command == "/audio_combat_music") {
+        std::string arg;
+        parser >> arg;
+        if (arg == "on") {
+            scene.audio.combat_music_override = true;
+        } else if (arg == "off") {
+            scene.audio.combat_music_override = false;
+        } else {
+            scene.audio.combat_music_override = !scene.audio.combat_music_override;
+        }
+        AudioSystem::SetCombatMusicOverride(scene, scene.audio.combat_music_override);
+        const std::string state = std::string("Combat music override: ") + (scene.audio.combat_music_override ? "ON" : "OFF");
+        GF_LOG_INFO(state);
+        SetOverlayStatusMessage(overlay_status_message, state);
+        return;
+    }
+
+    if (command == "/audio_play_sfx") {
+        std::string effect;
+        parser >> effect;
+        std::string message;
+        const bool ok = AudioSystem::PlaySfx(scene, effect, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "SFX queued" : "Usage: /audio_play_sfx <effect>");
+        return;
+    }
+
+    if (command == "/audio_spatial_test") {
+        std::string message;
+        const bool ok = AudioSystem::SpatialTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Spatial test emitted" : "Spatial test failed");
+        return;
+    }
+
+    if (command == "/audio_set_volume") {
+        std::string bus;
+        float value = 0.0F;
+        parser >> bus >> value;
+        std::string message;
+        const bool ok = AudioSystem::SetVolume(scene, bus, value, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? ("Audio " + bus + " volume set") : "Audio volume invalid");
+        return;
+    }
+
+    if (command == "/audio_duck") {
+        std::string arg;
+        parser >> arg;
+        std::string message;
+        const bool ok = (arg == "test") && AudioSystem::TriggerDuckTest(scene, message);
+        if (!ok) {
+            message = "Usage: /audio_duck test";
+        }
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio duck test toggled" : "Audio duck usage invalid");
+        return;
+    }
+
+    if (command == "/audio_reverb_zone") {
+        std::string zone;
+        parser >> zone;
+        std::string message;
+        const bool ok = AudioSystem::SetReverbZone(scene, zone, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio reverb zone updated" : "Audio reverb usage invalid");
+        return;
+    }
+
 
     if (command == "/validate_scene") {
         std::string target_path;
@@ -464,6 +606,83 @@ void ProcessConsoleCommands(
         return;
     }
 
+    if (command == "/realtime_combat_start") {
+        const bool started = RealTimeCombatSystem::Start(scene, "console");
+        GF_LOG_INFO(started ? "Real-time combat started." : "Real-time combat start failed (need >=2 enabled entities).");
+        SetOverlayStatusMessage(overlay_status_message, started ? "Real-time combat started" : "Real-time combat start failed");
+        return;
+    }
+
+    if (command == "/realtime_combat_action") {
+        std::string action;
+        parser >> action;
+        if (action.empty()) {
+            GF_LOG_INFO("Usage: /realtime_combat_action <attack|dodge|move|stop>");
+            return;
+        }
+        std::string message;
+        const bool ok = RealTimeCombatSystem::QueueAction(scene, action, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Realtime action queued" : "Realtime action failed");
+        return;
+    }
+
+    if (command == "/combat_hit_test") {
+        std::uint64_t entity_id = 0;
+        parser >> entity_id;
+        if (entity_id == 0) {
+            GF_LOG_INFO("Usage: /combat_hit_test <entity_id>");
+            return;
+        }
+
+        std::string message;
+        const bool ok = RealTimeCombatSystem::HitTest(scene, entity_id, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Combat hit test applied" : "Combat hit test failed");
+        return;
+    }
+
+    if (command == "/combat_combo_test") {
+        RealTimeCombatSystem::EnsureDefaults(scene);
+        Entity* actor = FindEntityById(scene, scene.realtime_combat.controlled_entity_id);
+        if (actor == nullptr || !actor->realtime_combat.enabled) {
+            GF_LOG_INFO("Realtime actor unavailable. Start realtime combat first.");
+            return;
+        }
+        actor->realtime_combat.combo_step = 1U;
+        actor->realtime_combat.combo_timer_remaining = actor->realtime_combat.combo_window_seconds;
+        scene.realtime_combat.combo_preview = "heavy_ready";
+        GF_LOG_INFO("Combo test primed: next attack enters heavy window.");
+        SetOverlayStatusMessage(overlay_status_message, "Combo test primed");
+        return;
+    }
+
+    if (command == "/combat_weapon") {
+        std::string weapon_type;
+        parser >> weapon_type;
+        std::string message;
+        const bool ok = RealTimeCombatSystem::SetControlledWeapon(scene, weapon_type, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Weapon switched" : "Weapon switch failed");
+        return;
+    }
+
+    if (command == "/combat_squad_test") {
+        std::string message;
+        const bool ok = RealTimeCombatSystem::RunSquadTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Squad AI test primed" : "Squad AI test unavailable");
+        return;
+    }
+
+    if (command == "/combat_cover_test") {
+        std::string message;
+        const bool ok = RealTimeCombatSystem::RunCoverTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Cover test detected cover" : "Cover test no cover");
+        return;
+    }
+
     if (command == "/story_event") {
         std::string event_id;
         parser >> event_id;
@@ -520,6 +739,114 @@ void ProcessConsoleCommands(
         return;
     }
 
+    if (command == "/behavior_spark_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /behavior_spark_test <entity_id>");
+            return;
+        }
+
+        GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
+        const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
+        GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        return;
+    }
+
+    if (command == "/spark_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /spark_test <entity_id>");
+            return;
+        }
+
+        Entity* npc = FindEntityById(scene, npc_id);
+        if (npc == nullptr || npc->buildable.IsValid()) {
+            GF_LOG_INFO("Spark test failed: npc not found.");
+            return;
+        }
+
+        GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
+        const std::optional<RAGSparkDirective> rag = RAGSystem::RetrieveSparkFlavor(scene, *npc);
+        GF_LOG_INFO(rag.has_value() ? ("Spark priority check: RAG hit -> " + rag->line) : "Spark priority check: RAG miss -> scripted fallback path.");
+        const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
+        GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        GF_LOG_INFO(RAGSystem::BuildDebugSummary(scene, npc_id));
+        SetOverlayStatusMessage(overlay_status_message, queued ? "Spark test queued" : "Spark test failed");
+        return;
+    }
+
+
+    if (command == "/rag_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /rag_test <entity_id>");
+            return;
+        }
+
+        Entity* npc = FindEntityById(scene, npc_id);
+        if (npc == nullptr || npc->buildable.IsValid()) {
+            GF_LOG_INFO("RAG test failed: npc not found.");
+            return;
+        }
+
+        const std::optional<RAGSparkDirective> rag = RAGSystem::RetrieveSparkFlavor(scene, *npc);
+        if (rag.has_value()) {
+            GF_LOG_INFO("RAG retrieve hit: " + rag->line);
+        } else {
+            GF_LOG_INFO("RAG retrieve miss -> fallback generation path.");
+        }
+        GF_LOG_INFO(RAGSystem::BuildDebugSummary(scene, npc_id));
+        SetOverlayStatusMessage(overlay_status_message, rag.has_value() ? "RAG hit" : "RAG fallback");
+        return;
+    }
+
+    if (command == "/narrative_flavor_test") {
+        std::string checkpoint;
+        parser >> checkpoint;
+        if (checkpoint.empty()) {
+            GF_LOG_INFO("Usage: /narrative_flavor_test <checkpoint>");
+            return;
+        }
+
+        const bool rag_hit = RAGSystem::EvaluateNarrativeCheckpoint(scene, checkpoint);
+        const std::string summary = "Narrative checkpoint=" + checkpoint +
+            " source=" + scene.rag.last_narrative_source +
+            " tone=" + scene.rag.last_narrative_dialog_tone +
+            " msq=" + scene.rag.last_narrative_msq_branch +
+            " color=" + scene.rag.last_narrative_event_color +
+            " similarity=" + std::to_string(scene.rag.last_narrative_similarity);
+        GF_LOG_INFO(summary);
+        SetOverlayStatusMessage(overlay_status_message, rag_hit ? "Narrative flavor: RAG hit" : "Narrative flavor: fallback");
+        return;
+    }
+
+    if (command == "/legacy_recall_test") {
+        std::string event_hint;
+        std::getline(parser, event_hint);
+        event_hint = Trim(event_hint);
+        if (event_hint.empty()) {
+            GF_LOG_INFO("Usage: /legacy_recall_test <event>");
+            return;
+        }
+        RAGSystem::RecordLegacyEvent(scene, "major_legacy_trigger", event_hint);
+        const std::optional<RAGLegacyRecall> recall = RAGSystem::RetrieveLegacyRecall(scene, event_hint);
+        if (recall.has_value()) {
+            GF_LOG_INFO(
+                "Legacy recall hit: generation=" + std::to_string(recall->generation) +
+                " type=" + recall->event_type +
+                " similarity=" + std::to_string(recall->similarity) +
+                " summary=\"" + recall->summary + "\"");
+            SetOverlayStatusMessage(overlay_status_message, "Legacy recall: hit");
+        } else {
+            GF_LOG_INFO("Legacy recall miss for event: " + event_hint);
+            SetOverlayStatusMessage(overlay_status_message, "Legacy recall: miss");
+        }
+        return;
+    }
+
     if (command == "/npc_schedule") {
         std::string mode;
         parser >> mode;
@@ -567,6 +894,48 @@ void ProcessConsoleCommands(
                 "  " + std::to_string(entry.start_minute) + "-" + std::to_string(entry.end_minute) + " " +
                 entry.activity + " @ " + entry.location);
         }
+        return;
+    }
+
+    if (command == "/behavior_list") {
+        ScriptedBehaviorSystem::RefreshDefinitions(scene);
+        const std::vector<std::string> rows = ScriptedBehaviorSystem::ListBehaviors(scene);
+        if (rows.empty()) {
+            GF_LOG_INFO("No NPC behaviors to list.");
+            return;
+        }
+        for (const std::string& row : rows) {
+            GF_LOG_INFO(row);
+        }
+        return;
+    }
+
+    if (command == "/behavior_perf_status") {
+        GF_LOG_INFO("BehaviorPerfStatus " + ScriptedBehaviorSystem::BuildPerformanceStatus(scene));
+        SetOverlayStatusMessage(overlay_status_message, "Behavior perf status logged");
+        return;
+    }
+
+    if (command == "/behavior_set") {
+        std::uint64_t entity_id = 0;
+        std::string state;
+        parser >> entity_id >> state;
+        if (entity_id == 0 || state.empty()) {
+            GF_LOG_INFO("Usage: /behavior_set <entity_id> <state> [key=value ...]");
+            return;
+        }
+
+        bool schedule_override = true;
+        std::uint64_t target_entity_id = 0;
+        const std::map<std::string, float> parameters = ParseBehaviorParams(parser, schedule_override, target_entity_id);
+        const bool applied = ScriptedBehaviorSystem::SetBehavior(
+            scene,
+            entity_id,
+            state,
+            parameters,
+            schedule_override,
+            target_entity_id);
+        GF_LOG_INFO(applied ? "Scripted behavior set." : "Unable to set scripted behavior.");
         return;
     }
 
@@ -827,6 +1196,16 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
     camera_.Update(dt_seconds, camera_input_state);
     scene_.player_proxy_position = camera_.position;
 
+    RealTimeCombatSystem::InputFrame realtime_input{};
+    realtime_input.move_axis.y += input.IsKeyPressed(GLFW_KEY_W) ? 1.0F : 0.0F;
+    realtime_input.move_axis.y -= input.IsKeyPressed(GLFW_KEY_S) ? 1.0F : 0.0F;
+    realtime_input.move_axis.x += input.IsKeyPressed(GLFW_KEY_D) ? 1.0F : 0.0F;
+    realtime_input.move_axis.x -= input.IsKeyPressed(GLFW_KEY_A) ? 1.0F : 0.0F;
+    realtime_input.attack_pressed = input.IsKeyPressed(GLFW_KEY_SPACE);
+    realtime_input.dodge_pressed = input.IsKeyPressed(GLFW_KEY_LEFT_SHIFT) || input.IsKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+    realtime_input.stop_pressed = input.IsKeyPressed(GLFW_KEY_X);
+    RealTimeCombatSystem::SetInput(scene_, realtime_input);
+
     const bool build_toggle_pressed = input.IsKeyPressed(GLFW_KEY_B);
     if (build_toggle_pressed && !was_build_toggle_pressed_) {
         const bool build_mode_enabled = scene_.ToggleBuildMode();
@@ -883,6 +1262,10 @@ void Engine::Update(float dt_seconds, const InputManager& input) {
             overlay_status_message_ = "Combat started";
         } else if (latest_action.rfind("combat_outcome:", 0) == 0) {
             overlay_status_message_ = "Combat resolved";
+        } else if (latest_action.rfind("realtime_combat_start:", 0) == 0) {
+            overlay_status_message_ = "Realtime combat started";
+        } else if (latest_action.rfind("realtime_combat_outcome:", 0) == 0) {
+            overlay_status_message_ = "Realtime combat resolved";
         }
     }
 }

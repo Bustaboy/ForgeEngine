@@ -6,7 +6,10 @@
 #include "NavmeshSystem.h"
 #include "AnimationSystem.h"
 #include "NPCController.h"
+#include "LivingNpcSystem.h"
 #include "FreeWillSystem.h"
+#include "ScriptedBehaviorSystem.h"
+#include "RAGSystem.h"
 #include "RelationshipSystem.h"
 #include "NarratorSystem.h"
 #include "SceneLoader.h"
@@ -16,12 +19,15 @@
 #include "WeatherSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
+#include "RealTimeCombatSystem.h"
+#include "AudioSystem.h"
 #include "templates/generated_gameplay.h"
 #include "Logger.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 #include <glm/gtc/constants.hpp>
@@ -104,12 +110,54 @@ void ApplyMemoryGuardrails(Scene& scene) {
             --to_remove;
         }
     }
+    if (scene.free_will.last_spark_source_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.last_spark_source_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.last_spark_source_by_npc.begin();
+             it != scene.free_will.last_spark_source_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.last_spark_source_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_hits_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.rag_hits_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.rag_hits_by_npc.begin();
+             it != scene.free_will.rag_hits_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.rag_hits_by_npc.erase(it);
+            --to_remove;
+        }
+    }
+    if (scene.free_will.rag_misses_by_npc.size() > SceneLimits::kFreeWillMapCap) {
+        std::size_t to_remove = scene.free_will.rag_misses_by_npc.size() - SceneLimits::kFreeWillMapCap;
+        for (auto it = scene.free_will.rag_misses_by_npc.begin();
+             it != scene.free_will.rag_misses_by_npc.end() && to_remove > 0;
+             ) {
+            it = scene.free_will.rag_misses_by_npc.erase(it);
+            --to_remove;
+        }
+    }
 
     if (scene.combat.units.size() > SceneLimits::kCombatStateCap) {
         scene.combat.units.resize(SceneLimits::kCombatStateCap);
     }
     if (scene.combat.turn_order.size() > SceneLimits::kCombatStateCap) {
         scene.combat.turn_order.resize(SceneLimits::kCombatStateCap);
+    }
+    if (scene.rag.spark_cache.size() > SceneLimits::kRagEntriesCap) {
+        scene.rag.spark_cache.erase(
+            scene.rag.spark_cache.begin(),
+            scene.rag.spark_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.spark_cache.size() - SceneLimits::kRagEntriesCap));
+    }
+    if (scene.rag.narrative_cache.size() > SceneLimits::kRagEntriesCap) {
+        scene.rag.narrative_cache.erase(
+            scene.rag.narrative_cache.begin(),
+            scene.rag.narrative_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.narrative_cache.size() - SceneLimits::kRagEntriesCap));
+    }
+    if (scene.compressed_event_log.size() > SceneLimits::kLegacyEventLogCap) {
+        scene.compressed_event_log.erase(
+            scene.compressed_event_log.begin(),
+            scene.compressed_event_log.begin() + static_cast<std::ptrdiff_t>(scene.compressed_event_log.size() - SceneLimits::kLegacyEventLogCap));
     }
 }
 
@@ -139,6 +187,82 @@ void EmitQualityGuardrailWarnings(const Scene& scene) {
     }
 }
 
+void EmitRuntimeOptimizationWarnings(const Scene& scene) {
+    if (!scene.optimization_overrides.runtime.enabled || !scene.optimization_overrides.runtime.memory_guardrails_enabled) {
+        return;
+    }
+
+    static bool entity_warned = false;
+    static bool texture_warned = false;
+    static bool vram_warned = false;
+    const int entity_count = static_cast<int>(scene.entities.size());
+    std::unordered_set<std::string> unique_assets{};
+    unique_assets.reserve(scene.render_2d.sprites.size());
+    for (const SceneSprite2D& sprite : scene.render_2d.sprites) {
+        if (!sprite.asset_id.empty()) {
+            unique_assets.insert(sprite.asset_id);
+        }
+    }
+    const int texture_count = static_cast<int>(unique_assets.size());
+    const int vram_mb = static_cast<int>(std::round(scene.quality_metadata.estimated_vram_mb));
+
+    if (entity_count > scene.optimization_overrides.runtime.safe_entity_count && !entity_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: entity_count=" + std::to_string(entity_count) +
+            " exceeds safe_entity_count=" + std::to_string(scene.optimization_overrides.runtime.safe_entity_count));
+        entity_warned = true;
+    } else if (entity_count <= scene.optimization_overrides.runtime.safe_entity_count) {
+        entity_warned = false;
+    }
+
+    if (texture_count > scene.optimization_overrides.runtime.safe_texture_count && !texture_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: unique_texture_assets=" + std::to_string(texture_count) +
+            " exceeds safe_texture_count=" + std::to_string(scene.optimization_overrides.runtime.safe_texture_count));
+        texture_warned = true;
+    } else if (texture_count <= scene.optimization_overrides.runtime.safe_texture_count) {
+        texture_warned = false;
+    }
+
+    if (vram_mb > scene.optimization_overrides.runtime.safe_vram_mb && !vram_warned) {
+        GF_LOG_WARN(
+            "RuntimeGuardrail: estimated_vram_mb=" + std::to_string(vram_mb) +
+            " exceeds safe_vram_mb=" + std::to_string(scene.optimization_overrides.runtime.safe_vram_mb));
+        vram_warned = true;
+    } else if (vram_mb <= scene.optimization_overrides.runtime.safe_vram_mb) {
+        vram_warned = false;
+    }
+}
+
+void EmitProjectHealthGuardrails(const Scene& scene) {
+    static bool soft_warned = false;
+    static bool hard_warned = false;
+    const int score = std::clamp(scene.optimization_overrides.project_health_score, 0, 100);
+    const int soft_threshold = std::clamp(scene.optimization_overrides.guardrails.soft_warning_threshold, 20, 95);
+    const int hard_threshold = std::clamp(scene.optimization_overrides.guardrails.hard_block_threshold, 10, 90);
+    const bool soft_violation = score <= soft_threshold;
+    const bool hard_violation = scene.optimization_overrides.guardrails.hard_block_enabled && score <= hard_threshold;
+
+    if (soft_violation && !soft_warned) {
+        GF_LOG_WARN(
+            "ProjectHealthGuardrail: score=" + std::to_string(score) +
+            " is below soft_warning_threshold=" + std::to_string(soft_threshold));
+        soft_warned = true;
+    } else if (!soft_violation) {
+        soft_warned = false;
+    }
+
+    if (hard_violation && !hard_warned) {
+        GF_LOG_WARN(
+            "ProjectHealthGuardrail: score=" + std::to_string(score) +
+            " is below hard_block_threshold=" + std::to_string(hard_threshold) +
+            " (hard_block_enabled=true)");
+        hard_warned = true;
+    } else if (!hard_violation) {
+        hard_warned = false;
+    }
+}
+
 }  // namespace
 
 void Scene::Update(float dt_seconds) {
@@ -148,9 +272,13 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::EnsureSceneRelationships(*this);
     WeatherSystem::EnsureDefaults(*this);
     SettlementSystem::EnsureDefaults(*this);
-    NPCController::EnsureDefaults(*this);
+    LivingNpcSystem::EnsureDefaults(*this);
+    ScriptedBehaviorSystem::EnsureDefaults(*this);
     FreeWillSystem::EnsureDefaults(*this);
+    RAGSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
+    RealTimeCombatSystem::EnsureDefaults(*this);
+    AudioSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     world_time.elapsed_seconds += safe_dt;
@@ -195,8 +323,9 @@ void Scene::Update(float dt_seconds) {
 
         const bool has_navigation = npc_navigation.find(entity.id) != npc_navigation.end();
         entity.transform.pos += entity.velocity * safe_dt;
+        const bool realtime_controlled = realtime_combat.active && entity.realtime_combat.enabled;
 
-        if (!has_navigation) {
+        if (!has_navigation && !realtime_controlled) {
             entity.transform.pos.y += std::sin((elapsed_seconds * 1.35F) + static_cast<float>(i) * 0.85F) * 0.35F * safe_dt;
             entity.transform.rot.z = elapsed_seconds * (0.3F + static_cast<float>(i) * 0.15F);
 
@@ -205,19 +334,22 @@ void Scene::Update(float dt_seconds) {
             }
         }
 
-        const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
-        const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.1F + static_cast<float>(i) * 0.07F));
-        const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.3F + static_cast<float>(i) * 0.05F));
+        if (!realtime_controlled) {
+            const float pulse_r = 0.5F + 0.5F * std::sin(elapsed_seconds * (0.9F + static_cast<float>(i) * 0.1F));
+            const float pulse_g = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.1F + static_cast<float>(i) * 0.07F));
+            const float pulse_b = 0.5F + 0.5F * std::sin(elapsed_seconds * (1.3F + static_cast<float>(i) * 0.05F));
 
-        entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
-        entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
-        entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
-        entity.renderable.color.a = 1.0F;
+            entity.renderable.color.r = 0.25F + 0.75F * pulse_r;
+            entity.renderable.color.g = 0.25F + 0.75F * pulse_g;
+            entity.renderable.color.b = 0.25F + 0.75F * pulse_b;
+            entity.renderable.color.a = 1.0F;
+        }
     }
 
     AnimationSystem::Update(*this, safe_dt);
-    NPCController::Update(*this, safe_dt);
+    LivingNpcSystem::Update(*this, safe_dt);
     FreeWillSystem::Update(*this, safe_dt);
+    RAGSystem::Update(*this, safe_dt);
 
     UpdateGameplay(*this, safe_dt);
     StorySystem::Update(*this, safe_dt);
@@ -228,8 +360,15 @@ void Scene::Update(float dt_seconds) {
     SettlementSystem::Update(*this, safe_dt);
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
+    RealTimeCombatSystem::Update(*this, safe_dt);
+    AudioSystem::Update(*this, safe_dt);
+    if (!realtime_combat.active && realtime_combat.animation_preview.empty()) {
+        realtime_combat.animation_preview = "idle";
+    }
     ApplyMemoryGuardrails(*this);
     EmitQualityGuardrailWarnings(*this);
+    EmitRuntimeOptimizationWarnings(*this);
+    EmitProjectHealthGuardrails(*this);
 }
 
 bool Scene::ToggleBuildMode() {
@@ -354,6 +493,91 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
                 }
             }
         }
+    }
+
+    const json optimization_patch = changes.value("optimization_overrides", json::object());
+    if (optimization_patch.is_object()) {
+        optimization_overrides.project_health_score = std::clamp(
+            optimization_patch.value("project_health_score", optimization_overrides.project_health_score), 0, 100);
+        const std::string next_mode = optimization_patch.value("lightweight_mode", optimization_overrides.lightweight_mode);
+        if (next_mode == "performance" || next_mode == "balanced" || next_mode == "quality") {
+            optimization_overrides.lightweight_mode = next_mode;
+        }
+        const json guardrails_patch = optimization_patch.value("guardrails", json::object());
+        if (guardrails_patch.is_object()) {
+            optimization_overrides.guardrails.hard_block_enabled =
+                guardrails_patch.value("hard_block_enabled", optimization_overrides.guardrails.hard_block_enabled);
+            optimization_overrides.guardrails.soft_warning_threshold = std::clamp(
+                guardrails_patch.value("soft_warning_threshold", optimization_overrides.guardrails.soft_warning_threshold), 20, 95);
+            optimization_overrides.guardrails.hard_block_threshold = std::clamp(
+                guardrails_patch.value("hard_block_threshold", optimization_overrides.guardrails.hard_block_threshold), 10, 90);
+        }
+        const json runtime_patch = optimization_patch.value("runtime", json::object());
+        if (runtime_patch.is_object()) {
+            optimization_overrides.runtime.enabled =
+                runtime_patch.value("enabled", optimization_overrides.runtime.enabled);
+            optimization_overrides.runtime.lod_distance_culling_enabled =
+                runtime_patch.value("lod_distance_culling_enabled", optimization_overrides.runtime.lod_distance_culling_enabled);
+            optimization_overrides.runtime.draw_call_batching_enabled =
+                runtime_patch.value("draw_call_batching_enabled", optimization_overrides.runtime.draw_call_batching_enabled);
+            optimization_overrides.runtime.shader_variant_cache_enabled =
+                runtime_patch.value("shader_variant_cache_enabled", optimization_overrides.runtime.shader_variant_cache_enabled);
+            optimization_overrides.runtime.memory_guardrails_enabled =
+                runtime_patch.value("memory_guardrails_enabled", optimization_overrides.runtime.memory_guardrails_enabled);
+            optimization_overrides.runtime.texture_atlas_enabled =
+                runtime_patch.value("texture_atlas_enabled", optimization_overrides.runtime.texture_atlas_enabled);
+            optimization_overrides.runtime.texture_compression_enabled =
+                runtime_patch.value("texture_compression_enabled", optimization_overrides.runtime.texture_compression_enabled);
+            optimization_overrides.runtime.lod_near_distance_m =
+                std::max(0.0F, runtime_patch.value("lod_near_distance_m", optimization_overrides.runtime.lod_near_distance_m));
+            optimization_overrides.runtime.lod_far_distance_m =
+                std::max(optimization_overrides.runtime.lod_near_distance_m,
+                    runtime_patch.value("lod_far_distance_m", optimization_overrides.runtime.lod_far_distance_m));
+            optimization_overrides.runtime.sprite_cull_distance_m =
+                std::max(0.0F, runtime_patch.value("sprite_cull_distance_m", optimization_overrides.runtime.sprite_cull_distance_m));
+            optimization_overrides.runtime.mesh_cull_distance_m =
+                std::max(0.0F, runtime_patch.value("mesh_cull_distance_m", optimization_overrides.runtime.mesh_cull_distance_m));
+        }
+    }
+
+    const json audio_patch = changes.value("audio", json::object());
+    if (audio_patch.is_object()) {
+        audio.reverb_zone_type = audio_patch.value("reverb_zone_type", audio.reverb_zone_type);
+        audio.runtime_reverb_preset = audio_patch.value("runtime_reverb_preset", audio.runtime_reverb_preset);
+        audio.current_music_track = audio_patch.value("current_music_track", audio.current_music_track);
+        audio.ambient_track = audio_patch.value("ambient_track", audio.ambient_track);
+        audio.exploration_music_track = audio_patch.value("exploration_music_track", audio.exploration_music_track);
+        audio.combat_music_track = audio_patch.value("combat_music_track", audio.combat_music_track);
+        audio.master_volume = std::clamp(audio_patch.value("master_volume", audio.master_volume), 0.0F, 1.0F);
+        audio.music_volume = std::clamp(audio_patch.value("music_volume", audio.music_volume), 0.0F, 1.0F);
+        audio.ambient_volume = std::clamp(audio_patch.value("ambient_volume", audio.ambient_volume), 0.0F, 1.0F);
+        audio.ui_volume = std::clamp(audio_patch.value("ui_volume", audio.ui_volume), 0.0F, 1.0F);
+        audio.sfx_volume = std::clamp(audio_patch.value("sfx_volume", audio.sfx_volume), 0.0F, 1.0F);
+        audio.weather_influence = std::clamp(audio_patch.value("weather_influence", audio.weather_influence), 0.0F, 1.0F);
+        audio.combat_ducking_strength = std::clamp(audio_patch.value("combat_ducking_strength", audio.combat_ducking_strength), 0.0F, 1.0F);
+        audio.ui_ducking_strength = std::clamp(audio_patch.value("ui_ducking_strength", audio.ui_ducking_strength), 0.0F, 1.0F);
+        audio.procedural_intensity = std::clamp(audio_patch.value("procedural_intensity", audio.procedural_intensity), 0.0F, 1.0F);
+        audio.reverb_wet_mix = std::clamp(audio_patch.value("reverb_wet_mix", audio.reverb_wet_mix), 0.0F, 1.0F);
+        audio.combat_music_override = audio_patch.value("combat_music_override", audio.combat_music_override);
+        audio.music_enabled = audio_patch.value("music_enabled", audio.music_enabled);
+        audio.ambient_enabled = audio_patch.value("ambient_enabled", audio.ambient_enabled);
+        audio.spatial_audio_enabled = audio_patch.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+        audio.ducking_enabled = audio_patch.value("ducking_enabled", audio.ducking_enabled);
+        audio.reverb_enabled = audio_patch.value("reverb_enabled", audio.reverb_enabled);
+        audio.procedural_audio_enabled = audio_patch.value("procedural_audio_enabled", audio.procedural_audio_enabled);
+        audio.disable_distant_spatial_in_performance_mode = audio_patch.value(
+            "disable_distant_spatial_in_performance_mode",
+            audio.disable_distant_spatial_in_performance_mode);
+        audio.max_spatial_voices = std::clamp(audio_patch.value("max_spatial_voices", audio.max_spatial_voices), 4, 64);
+        audio.performance_spatial_voices =
+            std::clamp(audio_patch.value("performance_spatial_voices", audio.performance_spatial_voices), 2, audio.max_spatial_voices);
+        audio.spatial_voice_hard_limit = std::clamp(audio_patch.value("spatial_voice_hard_limit", audio.spatial_voice_hard_limit), 4, 96);
+        audio.spatial_max_distance = std::clamp(audio_patch.value("spatial_max_distance", audio.spatial_max_distance), 6.0F, 120.0F);
+        audio.performance_spatial_max_distance = std::clamp(
+            audio_patch.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
+            4.0F,
+            audio.spatial_max_distance);
+        audio.ui_duck_timer_seconds = std::max(0.0F, audio_patch.value("ui_duck_timer_seconds", audio.ui_duck_timer_seconds));
     }
 
     return true;

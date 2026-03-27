@@ -11,6 +11,7 @@
 #include <set>
 #include <sstream>
 #include <vector>
+#include <utility>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -344,6 +345,151 @@ json NeedsToJson(const NeedsComponent& needs) {
     };
 }
 
+json ScriptedBehaviorComponentToJson(const ScriptedBehaviorComponent& scripted) {
+    json node = json{
+        {"enabled", scripted.enabled},
+        {"current_state", scripted.current_state},
+        {"target_entity_id", scripted.target_entity_id},
+        {"schedule_override", scripted.schedule_override},
+        {"spark_override_chance", scripted.spark_override_chance},
+        {"last_spark_timestamp", scripted.last_spark_timestamp},
+    };
+    json parameters = json::object();
+    for (const auto& [key, value] : scripted.parameters) {
+        parameters[key] = value;
+    }
+    node["parameters"] = parameters;
+    return node;
+}
+
+ScriptedBehaviorComponent ScriptedBehaviorComponentFromJson(const json& node, const ScriptedBehaviorComponent& fallback) {
+    ScriptedBehaviorComponent scripted = fallback;
+    scripted.enabled = node.value("enabled", scripted.enabled);
+    scripted.current_state = node.value("current_state", scripted.current_state);
+    scripted.target_entity_id = node.value("target_entity_id", scripted.target_entity_id);
+    scripted.schedule_override = node.value("schedule_override", scripted.schedule_override);
+    scripted.spark_override_chance = std::clamp(node.value("spark_override_chance", scripted.spark_override_chance), 0.0F, 1.0F);
+    scripted.last_spark_timestamp = node.value("last_spark_timestamp", scripted.last_spark_timestamp);
+    scripted.parameters.clear();
+    if (node.contains("parameters") && node["parameters"].is_object()) {
+        for (const auto& [key, value_node] : node["parameters"].items()) {
+            if (!value_node.is_number()) {
+                continue;
+            }
+            scripted.parameters[key] = value_node.get<float>();
+        }
+    }
+    return scripted;
+}
+
+json RealTimeCombatComponentToJson(const RealTimeCombatComponent& combat) {
+    return json{
+        {"enabled", combat.enabled},
+        {"alive", combat.alive},
+        {"team_id", combat.team_id},
+        {"health", combat.health},
+        {"max_health", combat.max_health},
+        {"stamina", combat.stamina},
+        {"max_stamina", combat.max_stamina},
+        {"move_speed", combat.move_speed},
+        {"attack_damage", combat.attack_damage},
+        {"melee_range", combat.melee_range},
+        {"ranged_range", combat.ranged_range},
+        {"ranged_enabled", combat.ranged_enabled},
+        {"attack_cooldown_seconds", combat.attack_cooldown_seconds},
+        {"dodge_cooldown_seconds", combat.dodge_cooldown_seconds},
+        {"dodge_duration_seconds", combat.dodge_duration_seconds},
+        {"hit_reaction_seconds", combat.hit_reaction_seconds},
+        {"stamina_regen_per_second", combat.stamina_regen_per_second},
+        {"stamina_attack_cost", combat.stamina_attack_cost},
+        {"stamina_dodge_cost", combat.stamina_dodge_cost},
+        {"weapon_type", combat.weapon_type},
+        {"weapon_damage_multiplier", combat.weapon_damage_multiplier},
+        {"weapon_speed_multiplier", combat.weapon_speed_multiplier},
+        {"weapon_range_multiplier", combat.weapon_range_multiplier},
+        {"light_attack_damage_multiplier", combat.light_attack_damage_multiplier},
+        {"heavy_attack_damage_multiplier", combat.heavy_attack_damage_multiplier},
+        {"finisher_damage_multiplier", combat.finisher_damage_multiplier},
+        {"light_attack_stamina_multiplier", combat.light_attack_stamina_multiplier},
+        {"heavy_attack_stamina_multiplier", combat.heavy_attack_stamina_multiplier},
+        {"finisher_stamina_multiplier", combat.finisher_stamina_multiplier},
+        {"combo_window_seconds", combat.combo_window_seconds},
+        {"combo_timer_remaining", combat.combo_timer_remaining},
+        {"combo_step", combat.combo_step},
+        {"dodge_invulnerability_seconds", combat.dodge_invulnerability_seconds},
+        {"dodge_invulnerability_remaining", combat.dodge_invulnerability_remaining},
+        {"dodge_direction", Vec2ToJson(combat.dodge_direction)},
+        {"attack_cooldown_remaining", combat.attack_cooldown_remaining},
+        {"dodge_cooldown_remaining", combat.dodge_cooldown_remaining},
+        {"dodge_remaining", combat.dodge_remaining},
+        {"hit_reaction_remaining", combat.hit_reaction_remaining},
+        {"hit_reaction_timer", combat.hit_reaction_timer},
+        {"in_cover", combat.in_cover},
+        {"cover_defense_bonus", combat.cover_defense_bonus},
+        {"cover_accuracy_bonus", combat.cover_accuracy_bonus},
+        {"cover_search_radius", combat.cover_search_radius},
+        {"last_assist_target_id", combat.last_assist_target_id},
+        {"squad_call_for_help_cooldown", combat.squad_call_for_help_cooldown},
+        {"action_state", combat.action_state},
+        {"animation_state", combat.animation_state},
+    };
+}
+
+RealTimeCombatComponent RealTimeCombatComponentFromJson(const json& node, const RealTimeCombatComponent& fallback) {
+    RealTimeCombatComponent combat = fallback;
+    combat.enabled = node.value("enabled", combat.enabled);
+    combat.alive = node.value("alive", combat.alive);
+    combat.team_id = node.value("team_id", combat.team_id);
+    combat.health = node.value("health", combat.health);
+    combat.max_health = node.value("max_health", combat.max_health);
+    combat.stamina = node.value("stamina", combat.stamina);
+    combat.max_stamina = node.value("max_stamina", combat.max_stamina);
+    combat.move_speed = node.value("move_speed", combat.move_speed);
+    combat.attack_damage = node.value("attack_damage", combat.attack_damage);
+    combat.melee_range = node.value("melee_range", combat.melee_range);
+    combat.ranged_range = node.value("ranged_range", combat.ranged_range);
+    combat.ranged_enabled = node.value("ranged_enabled", combat.ranged_enabled);
+    combat.attack_cooldown_seconds = node.value("attack_cooldown_seconds", combat.attack_cooldown_seconds);
+    combat.dodge_cooldown_seconds = node.value("dodge_cooldown_seconds", combat.dodge_cooldown_seconds);
+    combat.dodge_duration_seconds = node.value("dodge_duration_seconds", combat.dodge_duration_seconds);
+    combat.hit_reaction_seconds = node.value("hit_reaction_seconds", combat.hit_reaction_seconds);
+    combat.stamina_regen_per_second = node.value("stamina_regen_per_second", combat.stamina_regen_per_second);
+    combat.stamina_attack_cost = node.value("stamina_attack_cost", combat.stamina_attack_cost);
+    combat.stamina_dodge_cost = node.value("stamina_dodge_cost", combat.stamina_dodge_cost);
+    combat.weapon_type = node.value("weapon_type", combat.weapon_type);
+    combat.weapon_damage_multiplier = node.value("weapon_damage_multiplier", combat.weapon_damage_multiplier);
+    combat.weapon_speed_multiplier = node.value("weapon_speed_multiplier", combat.weapon_speed_multiplier);
+    combat.weapon_range_multiplier = node.value("weapon_range_multiplier", combat.weapon_range_multiplier);
+    combat.light_attack_damage_multiplier = node.value("light_attack_damage_multiplier", combat.light_attack_damage_multiplier);
+    combat.heavy_attack_damage_multiplier = node.value("heavy_attack_damage_multiplier", combat.heavy_attack_damage_multiplier);
+    combat.finisher_damage_multiplier = node.value("finisher_damage_multiplier", combat.finisher_damage_multiplier);
+    combat.light_attack_stamina_multiplier = node.value("light_attack_stamina_multiplier", combat.light_attack_stamina_multiplier);
+    combat.heavy_attack_stamina_multiplier = node.value("heavy_attack_stamina_multiplier", combat.heavy_attack_stamina_multiplier);
+    combat.finisher_stamina_multiplier = node.value("finisher_stamina_multiplier", combat.finisher_stamina_multiplier);
+    combat.combo_window_seconds = node.value("combo_window_seconds", combat.combo_window_seconds);
+    combat.combo_timer_remaining = node.value("combo_timer_remaining", combat.combo_timer_remaining);
+    combat.combo_step = node.value("combo_step", combat.combo_step);
+    combat.dodge_invulnerability_seconds = node.value("dodge_invulnerability_seconds", combat.dodge_invulnerability_seconds);
+    combat.dodge_invulnerability_remaining = node.value("dodge_invulnerability_remaining", combat.dodge_invulnerability_remaining);
+    if (node.contains("dodge_direction") && node["dodge_direction"].is_object()) {
+        combat.dodge_direction = Vec2FromJson(node["dodge_direction"], combat.dodge_direction);
+    }
+    combat.attack_cooldown_remaining = node.value("attack_cooldown_remaining", combat.attack_cooldown_remaining);
+    combat.dodge_cooldown_remaining = node.value("dodge_cooldown_remaining", combat.dodge_cooldown_remaining);
+    combat.dodge_remaining = node.value("dodge_remaining", combat.dodge_remaining);
+    combat.hit_reaction_remaining = node.value("hit_reaction_remaining", combat.hit_reaction_remaining);
+    combat.hit_reaction_timer = node.value("hit_reaction_timer", combat.hit_reaction_timer);
+    combat.in_cover = node.value("in_cover", combat.in_cover);
+    combat.cover_defense_bonus = node.value("cover_defense_bonus", combat.cover_defense_bonus);
+    combat.cover_accuracy_bonus = node.value("cover_accuracy_bonus", combat.cover_accuracy_bonus);
+    combat.cover_search_radius = node.value("cover_search_radius", combat.cover_search_radius);
+    combat.last_assist_target_id = node.value("last_assist_target_id", combat.last_assist_target_id);
+    combat.squad_call_for_help_cooldown = node.value("squad_call_for_help_cooldown", combat.squad_call_for_help_cooldown);
+    combat.action_state = node.value("action_state", combat.action_state);
+    combat.animation_state = node.value("animation_state", combat.animation_state);
+    return combat;
+}
+
 NeedsComponent NeedsFromJson(const json& node, const NeedsComponent& fallback) {
     NeedsComponent needs = fallback;
     needs.hunger = Clamp01(node.value("hunger", needs.hunger) / 100.0F) * 100.0F;
@@ -594,6 +740,12 @@ json EntityToJson(const Entity& entity) {
     node["voice_profile"] = VoiceProfileToJson(entity.voice_profile);
     node["schedule"] = ScheduleComponentToJson(entity.schedule);
     node["needs"] = NeedsToJson(entity.needs);
+    if (entity.scripted_behavior.enabled || !entity.scripted_behavior.current_state.empty()) {
+        node["scripted_behavior"] = ScriptedBehaviorComponentToJson(entity.scripted_behavior);
+    }
+    if (entity.realtime_combat.enabled) {
+        node["realtime_combat"] = RealTimeCombatComponentToJson(entity.realtime_combat);
+    }
 
     return node;
 }
@@ -686,6 +838,12 @@ Entity EntityFromJson(const json& node) {
     }
     if (node.contains("needs") && node["needs"].is_object()) {
         entity.needs = NeedsFromJson(node["needs"], entity.needs);
+    }
+    if (node.contains("scripted_behavior") && node["scripted_behavior"].is_object()) {
+        entity.scripted_behavior = ScriptedBehaviorComponentFromJson(node["scripted_behavior"], entity.scripted_behavior);
+    }
+    if (node.contains("realtime_combat") && node["realtime_combat"].is_object()) {
+        entity.realtime_combat = RealTimeCombatComponentFromJson(node["realtime_combat"], entity.realtime_combat);
     }
 
     return entity;
@@ -1168,6 +1326,197 @@ CutsceneState CutsceneStateFromJson(const json& node) {
 }
 
 
+
+json CompressedLegacyEventToJson(const CompressedLegacyEvent& event) {
+    json node = json{
+        {"event_type", event.event_type},
+        {"summary", event.summary},
+        {"tags", event.tags},
+        {"generation", event.generation},
+        {"seed", event.seed},
+        {"embedding", json::array()},
+    };
+    for (const float value : event.embedding) {
+        node["embedding"].push_back(value);
+    }
+    return node;
+}
+
+CompressedLegacyEvent CompressedLegacyEventFromJson(const json& node, const CompressedLegacyEvent& fallback) {
+    CompressedLegacyEvent event = fallback;
+    event.event_type = node.value("event_type", event.event_type);
+    event.summary = node.value("summary", event.summary);
+    event.tags = node.value("tags", event.tags);
+    event.generation = std::max(1U, node.value("generation", event.generation));
+    event.seed = node.value("seed", event.seed);
+    event.embedding.clear();
+    if (node.contains("embedding") && node["embedding"].is_array()) {
+        for (const json& scalar : node["embedding"]) {
+            if (scalar.is_number()) {
+                event.embedding.push_back(scalar.get<float>());
+            }
+        }
+    }
+    return event;
+}
+
+json RAGStateToJson(const RAGState& rag) {
+    json node = json{
+        {"enabled", rag.enabled},
+        {"live_fallback_enabled", rag.live_fallback_enabled},
+        {"max_entries", rag.max_entries},
+        {"similarity_threshold", rag.similarity_threshold},
+        {"cache_size_mb", rag.cache_size_mb},
+        {"cache_generation", rag.cache_generation},
+        {"cache_hits", rag.cache_hits},
+        {"cache_misses", rag.cache_misses},
+        {"narrative_hits", rag.narrative_hits},
+        {"narrative_misses", rag.narrative_misses},
+        {"live_fallback_calls", rag.live_fallback_calls},
+        {"narrative_live_fallback_calls", rag.narrative_live_fallback_calls},
+        {"legacy_hits", rag.legacy_hits},
+        {"legacy_misses", rag.legacy_misses},
+        {"legacy_retrieve_tick", rag.legacy_retrieve_tick},
+        {"last_source", rag.last_source},
+        {"last_narrative_source", rag.last_narrative_source},
+        {"last_legacy_source", rag.last_legacy_source},
+        {"last_narrative_checkpoint", rag.last_narrative_checkpoint},
+        {"last_narrative_dialog_tone", rag.last_narrative_dialog_tone},
+        {"last_narrative_msq_branch", rag.last_narrative_msq_branch},
+        {"last_narrative_event_color", rag.last_narrative_event_color},
+        {"last_narrative_similarity", rag.last_narrative_similarity},
+        {"last_legacy_similarity", rag.last_legacy_similarity},
+        {"narrative_retrieve_tick", rag.narrative_retrieve_tick},
+        {"spark_cache", json::array()},
+        {"narrative_cache", json::array()},
+    };
+
+    for (const RAGCacheEntry& entry : rag.spark_cache) {
+        json cached = json{
+            {"id", entry.id},
+            {"text", entry.text},
+            {"activity", entry.activity},
+            {"location", entry.location},
+            {"checkpoint", entry.checkpoint},
+            {"category", entry.category},
+            {"tags", entry.tags},
+            {"duration_hours", entry.duration_hours},
+            {"embedding", json::array()},
+        };
+        for (const float value : entry.embedding) {
+            cached["embedding"].push_back(value);
+        }
+        node["spark_cache"].push_back(cached);
+    }
+    for (const RAGCacheEntry& entry : rag.narrative_cache) {
+        json cached = json{
+            {"id", entry.id},
+            {"text", entry.text},
+            {"activity", entry.activity},
+            {"location", entry.location},
+            {"checkpoint", entry.checkpoint},
+            {"category", entry.category},
+            {"tags", entry.tags},
+            {"duration_hours", entry.duration_hours},
+            {"embedding", json::array()},
+        };
+        for (const float value : entry.embedding) {
+            cached["embedding"].push_back(value);
+        }
+        node["narrative_cache"].push_back(cached);
+    }
+
+    return node;
+}
+
+RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
+    RAGState rag = fallback;
+    rag.enabled = node.value("enabled", rag.enabled);
+    rag.live_fallback_enabled = node.value("live_fallback_enabled", rag.live_fallback_enabled);
+    rag.max_entries = std::clamp(node.value("max_entries", rag.max_entries), 16U, 2048U);
+    rag.similarity_threshold = std::clamp(node.value("similarity_threshold", rag.similarity_threshold), 0.35F, 0.99F);
+    rag.cache_size_mb = std::max(0.0F, node.value("cache_size_mb", rag.cache_size_mb));
+    rag.cache_generation = node.value("cache_generation", rag.cache_generation);
+    rag.cache_hits = node.value("cache_hits", rag.cache_hits);
+    rag.cache_misses = node.value("cache_misses", rag.cache_misses);
+    rag.narrative_hits = node.value("narrative_hits", rag.narrative_hits);
+    rag.narrative_misses = node.value("narrative_misses", rag.narrative_misses);
+    rag.live_fallback_calls = node.value("live_fallback_calls", rag.live_fallback_calls);
+    rag.narrative_live_fallback_calls = node.value("narrative_live_fallback_calls", rag.narrative_live_fallback_calls);
+    rag.legacy_hits = node.value("legacy_hits", rag.legacy_hits);
+    rag.legacy_misses = node.value("legacy_misses", rag.legacy_misses);
+    rag.legacy_retrieve_tick = node.value("legacy_retrieve_tick", rag.legacy_retrieve_tick);
+    rag.last_source = node.value("last_source", rag.last_source);
+    rag.last_narrative_source = node.value("last_narrative_source", rag.last_narrative_source);
+    rag.last_legacy_source = node.value("last_legacy_source", rag.last_legacy_source);
+    rag.last_narrative_checkpoint = node.value("last_narrative_checkpoint", rag.last_narrative_checkpoint);
+    rag.last_narrative_dialog_tone = node.value("last_narrative_dialog_tone", rag.last_narrative_dialog_tone);
+    rag.last_narrative_msq_branch = node.value("last_narrative_msq_branch", rag.last_narrative_msq_branch);
+    rag.last_narrative_event_color = node.value("last_narrative_event_color", rag.last_narrative_event_color);
+    rag.last_narrative_similarity = node.value("last_narrative_similarity", rag.last_narrative_similarity);
+    rag.last_legacy_similarity = node.value("last_legacy_similarity", rag.last_legacy_similarity);
+    rag.narrative_retrieve_tick = node.value("narrative_retrieve_tick", rag.narrative_retrieve_tick);
+    rag.spark_cache.clear();
+    rag.narrative_cache.clear();
+
+    if (node.contains("spark_cache") && node["spark_cache"].is_array()) {
+        for (const json& cache_node : node["spark_cache"]) {
+            if (!cache_node.is_object()) {
+                continue;
+            }
+            RAGCacheEntry entry{};
+            entry.id = cache_node.value("id", entry.id);
+            entry.text = cache_node.value("text", entry.text);
+            entry.activity = cache_node.value("activity", entry.activity);
+            entry.location = cache_node.value("location", entry.location);
+            entry.checkpoint = cache_node.value("checkpoint", entry.checkpoint);
+            entry.category = cache_node.value("category", entry.category);
+            entry.tags = cache_node.value("tags", entry.tags);
+            entry.duration_hours = std::clamp(cache_node.value("duration_hours", entry.duration_hours), 0.1F, 0.75F);
+            if (cache_node.contains("embedding") && cache_node["embedding"].is_array()) {
+                for (const json& scalar : cache_node["embedding"]) {
+                    if (scalar.is_number()) {
+                        entry.embedding.push_back(scalar.get<float>());
+                    }
+                }
+            }
+            rag.spark_cache.push_back(std::move(entry));
+            if (rag.spark_cache.size() >= rag.max_entries) {
+                break;
+            }
+        }
+    }
+    if (node.contains("narrative_cache") && node["narrative_cache"].is_array()) {
+        for (const json& cache_node : node["narrative_cache"]) {
+            if (!cache_node.is_object()) {
+                continue;
+            }
+            RAGCacheEntry entry{};
+            entry.id = cache_node.value("id", entry.id);
+            entry.text = cache_node.value("text", entry.text);
+            entry.activity = cache_node.value("activity", entry.activity);
+            entry.location = cache_node.value("location", entry.location);
+            entry.checkpoint = cache_node.value("checkpoint", entry.checkpoint);
+            entry.category = cache_node.value("category", entry.category);
+            entry.tags = cache_node.value("tags", entry.tags);
+            entry.duration_hours = std::clamp(cache_node.value("duration_hours", entry.duration_hours), 0.0F, 0.75F);
+            if (cache_node.contains("embedding") && cache_node["embedding"].is_array()) {
+                for (const json& scalar : cache_node["embedding"]) {
+                    if (scalar.is_number()) {
+                        entry.embedding.push_back(scalar.get<float>());
+                    }
+                }
+            }
+            rag.narrative_cache.push_back(std::move(entry));
+            if (rag.narrative_cache.size() >= rag.max_entries) {
+                break;
+            }
+        }
+    }
+
+    return rag;
+}
+
 json FreeWillStateToJson(const FreeWillState& free_will) {
     json node = json{
         {"enabled", free_will.enabled},
@@ -1179,6 +1528,7 @@ json FreeWillStateToJson(const FreeWillState& free_will) {
         {"last_processed_day", free_will.last_processed_day},
         {"global_cooldown_remaining", free_will.global_cooldown_remaining},
         {"rng_seed", free_will.rng_seed},
+        {"rag_retrieve_tick", free_will.rag_retrieve_tick},
     };
 
     json daily_counts = json::object();
@@ -1193,7 +1543,46 @@ json FreeWillStateToJson(const FreeWillState& free_will) {
     }
     node["last_spark_line_by_npc"] = last_lines;
 
+    json last_sources = json::object();
+    for (const auto& [npc_id, source] : free_will.last_spark_source_by_npc) {
+        last_sources[std::to_string(npc_id)] = source;
+    }
+    node["last_spark_source_by_npc"] = last_sources;
+
+    json rag_hits = json::object();
+    for (const auto& [npc_id, hits] : free_will.rag_hits_by_npc) {
+        rag_hits[std::to_string(npc_id)] = hits;
+    }
+    node["rag_hits_by_npc"] = rag_hits;
+
+    json rag_misses = json::object();
+    for (const auto& [npc_id, misses] : free_will.rag_misses_by_npc) {
+        rag_misses[std::to_string(npc_id)] = misses;
+    }
+    node["rag_misses_by_npc"] = rag_misses;
+
     return node;
+}
+
+json ScriptedBehaviorStateToJson(const ScriptedBehaviorState& scripted) {
+    return json{
+        {"enabled", scripted.enabled},
+        {"definitions_path", scripted.definitions_path},
+        {"performance_monitoring_enabled", scripted.performance_monitoring_enabled},
+        {"performance_check_interval_seconds", scripted.performance_check_interval_seconds},
+        {"monitoring_min_fps", scripted.monitoring_min_fps},
+        {"monitoring_hard_fps", scripted.monitoring_hard_fps},
+        {"monitoring_soft_entity_count", scripted.monitoring_soft_entity_count},
+        {"monitoring_hard_entity_count", scripted.monitoring_hard_entity_count},
+        {"monitored_fps", scripted.monitored_fps},
+        {"monitored_entity_count", scripted.monitored_entity_count},
+        {"monitored_scripted_ratio", scripted.monitored_scripted_ratio},
+        {"monitored_spark_ratio", scripted.monitored_spark_ratio},
+        {"effective_spark_chance_multiplier", scripted.effective_spark_chance_multiplier},
+        {"performance_mode_active", scripted.performance_mode_active},
+        {"force_scripted_fallback", scripted.force_scripted_fallback},
+        {"performance_reason", scripted.performance_reason},
+    };
 }
 
 FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallback) {
@@ -1207,6 +1596,7 @@ FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallb
     free_will.last_processed_day = std::max(1U, node.value("last_processed_day", free_will.last_processed_day));
     free_will.global_cooldown_remaining = std::max(0.0F, node.value("global_cooldown_remaining", free_will.global_cooldown_remaining));
     free_will.rng_seed = node.value("rng_seed", free_will.rng_seed);
+    free_will.rag_retrieve_tick = node.value("rag_retrieve_tick", free_will.rag_retrieve_tick);
 
     free_will.daily_spark_count.clear();
     if (node.contains("daily_spark_count") && node["daily_spark_count"].is_object()) {
@@ -1238,8 +1628,88 @@ FreeWillState FreeWillStateFromJson(const json& node, const FreeWillState& fallb
         }
     }
 
+    free_will.last_spark_source_by_npc.clear();
+    if (node.contains("last_spark_source_by_npc") && node["last_spark_source_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, source_node] : node["last_spark_source_by_npc"].items()) {
+            if (!source_node.is_string()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.last_spark_source_by_npc[npc_id] = source_node.get<std::string>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.rag_hits_by_npc.clear();
+    if (node.contains("rag_hits_by_npc") && node["rag_hits_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, hits_node] : node["rag_hits_by_npc"].items()) {
+            if (!hits_node.is_number_unsigned()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.rag_hits_by_npc[npc_id] = hits_node.get<std::uint32_t>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
+    free_will.rag_misses_by_npc.clear();
+    if (node.contains("rag_misses_by_npc") && node["rag_misses_by_npc"].is_object()) {
+        for (const auto& [npc_id_key, misses_node] : node["rag_misses_by_npc"].items()) {
+            if (!misses_node.is_number_unsigned()) {
+                continue;
+            }
+            try {
+                const std::uint64_t npc_id = std::stoull(npc_id_key);
+                free_will.rag_misses_by_npc[npc_id] = misses_node.get<std::uint32_t>();
+            } catch (const std::exception&) {
+                continue;
+            }
+        }
+    }
+
     free_will.pending_sparks.clear();
     return free_will;
+}
+
+ScriptedBehaviorState ScriptedBehaviorStateFromJson(const json& node, const ScriptedBehaviorState& fallback) {
+    ScriptedBehaviorState scripted = fallback;
+    scripted.enabled = node.value("enabled", scripted.enabled);
+    scripted.definitions_path = node.value("definitions_path", scripted.definitions_path);
+    scripted.performance_monitoring_enabled = node.value("performance_monitoring_enabled", scripted.performance_monitoring_enabled);
+    scripted.performance_check_interval_seconds = std::clamp(
+        node.value("performance_check_interval_seconds", scripted.performance_check_interval_seconds),
+        0.25F,
+        10.0F);
+    scripted.monitoring_min_fps = std::clamp(node.value("monitoring_min_fps", scripted.monitoring_min_fps), 10.0F, 240.0F);
+    scripted.monitoring_hard_fps = std::clamp(node.value("monitoring_hard_fps", scripted.monitoring_hard_fps), 5.0F, scripted.monitoring_min_fps);
+    scripted.monitoring_soft_entity_count = std::max(32, node.value("monitoring_soft_entity_count", scripted.monitoring_soft_entity_count));
+    scripted.monitoring_hard_entity_count = std::max(
+        scripted.monitoring_soft_entity_count,
+        node.value("monitoring_hard_entity_count", scripted.monitoring_hard_entity_count));
+    scripted.monitored_fps = std::clamp(node.value("monitored_fps", scripted.monitored_fps), 1.0F, 240.0F);
+    scripted.monitored_entity_count = std::max(0, node.value("monitored_entity_count", scripted.monitored_entity_count));
+    scripted.monitored_scripted_ratio = std::clamp(node.value("monitored_scripted_ratio", scripted.monitored_scripted_ratio), 0.0F, 1.0F);
+    scripted.monitored_spark_ratio = std::clamp(node.value("monitored_spark_ratio", scripted.monitored_spark_ratio), 0.0F, 1.0F);
+    scripted.effective_spark_chance_multiplier = std::clamp(
+        node.value("effective_spark_chance_multiplier", scripted.effective_spark_chance_multiplier),
+        0.0F,
+        1.0F);
+    scripted.performance_mode_active = node.value("performance_mode_active", scripted.performance_mode_active);
+    scripted.force_scripted_fallback = node.value("force_scripted_fallback", scripted.force_scripted_fallback);
+    scripted.performance_reason = node.value("performance_reason", scripted.performance_reason);
+    scripted.definitions_loaded = false;
+    scripted.update_accumulator_seconds = 0.0F;
+    scripted.update_tick = 0;
+    scripted.performance_check_accumulator_seconds = 0.0F;
+    scripted.scripted_decisions_window = 0;
+    scripted.spark_decisions_window = 0;
+    return scripted;
 }
 
 json NavmeshToJson(const NavmeshData& navmesh) {
@@ -1330,6 +1800,7 @@ json CombatStateToJson(const CombatState& combat) {
         {"active_turn_index", combat.active_turn_index},
         {"round_index", combat.round_index},
         {"trigger_source", combat.trigger_source},
+        {"last_action", combat.last_action},
         {"last_resolution", combat.last_resolution},
         {"units", json::array()},
         {"turn_order", json::array()},
@@ -1343,6 +1814,22 @@ json CombatStateToJson(const CombatState& combat) {
     return node;
 }
 
+json RealTimeCombatStateToJson(const RealTimeCombatState& combat) {
+    return json{
+        {"active", combat.active},
+        {"controlled_entity_id", combat.controlled_entity_id},
+        {"last_hit_entity_id", combat.last_hit_entity_id},
+        {"trigger_source", combat.trigger_source},
+        {"last_action", combat.last_action},
+        {"animation_preview", combat.animation_preview},
+        {"combo_preview", combat.combo_preview},
+        {"weapon_preview", combat.weapon_preview},
+        {"squad_status_preview", combat.squad_status_preview},
+        {"cover_status_preview", combat.cover_status_preview},
+        {"last_resolution", combat.last_resolution},
+    };
+}
+
 CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     CombatState combat = fallback;
     combat.active = node.value("active", combat.active);
@@ -1351,6 +1838,7 @@ CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     combat.active_turn_index = node.value("active_turn_index", combat.active_turn_index);
     combat.round_index = std::max(0U, node.value("round_index", combat.round_index));
     combat.trigger_source = node.value("trigger_source", combat.trigger_source);
+    combat.last_action = node.value("last_action", combat.last_action);
     combat.last_resolution = node.value("last_resolution", combat.last_resolution);
     combat.units.clear();
     if (node.contains("units") && node["units"].is_array()) {
@@ -1381,6 +1869,22 @@ CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     return combat;
 }
 
+RealTimeCombatState RealTimeCombatStateFromJson(const json& node, const RealTimeCombatState& fallback) {
+    RealTimeCombatState state = fallback;
+    state.active = node.value("active", state.active);
+    state.controlled_entity_id = node.value("controlled_entity_id", state.controlled_entity_id);
+    state.last_hit_entity_id = node.value("last_hit_entity_id", state.last_hit_entity_id);
+    state.trigger_source = node.value("trigger_source", state.trigger_source);
+    state.last_action = node.value("last_action", state.last_action);
+    state.animation_preview = node.value("animation_preview", state.animation_preview);
+    state.combo_preview = node.value("combo_preview", state.combo_preview);
+    state.weapon_preview = node.value("weapon_preview", state.weapon_preview);
+    state.squad_status_preview = node.value("squad_status_preview", state.squad_status_preview);
+    state.cover_status_preview = node.value("cover_status_preview", state.cover_status_preview);
+    state.last_resolution = node.value("last_resolution", state.last_resolution);
+    return state;
+}
+
 json SettlementStateToJson(const SettlementState& settlement) {
     return json{
         {"village_name", settlement.village_name},
@@ -1390,6 +1894,94 @@ json SettlementStateToJson(const SettlementState& settlement) {
         {"tick_interval_seconds", settlement.tick_interval_seconds},
         {"accumulated_tick_seconds", settlement.accumulated_tick_seconds},
     };
+}
+
+json AudioStateToJson(const AudioState& audio) {
+    return json{
+        {"reverb_zone_type", audio.reverb_zone_type},
+        {"runtime_reverb_preset", audio.runtime_reverb_preset},
+        {"current_music_track", audio.current_music_track},
+        {"ambient_track", audio.ambient_track},
+        {"exploration_music_track", audio.exploration_music_track},
+        {"combat_music_track", audio.combat_music_track},
+        {"last_ui_sound", audio.last_ui_sound},
+        {"mood_tag", audio.mood_tag},
+        {"last_transition_reason", audio.last_transition_reason},
+        {"master_volume", audio.master_volume},
+        {"music_volume", audio.music_volume},
+        {"ambient_volume", audio.ambient_volume},
+        {"ui_volume", audio.ui_volume},
+        {"sfx_volume", audio.sfx_volume},
+        {"weather_influence", audio.weather_influence},
+        {"combat_ducking_strength", audio.combat_ducking_strength},
+        {"ui_ducking_strength", audio.ui_ducking_strength},
+        {"procedural_intensity", audio.procedural_intensity},
+        {"reverb_wet_mix", audio.reverb_wet_mix},
+        {"enabled", audio.enabled},
+        {"music_enabled", audio.music_enabled},
+        {"ambient_enabled", audio.ambient_enabled},
+        {"spatial_audio_enabled", audio.spatial_audio_enabled},
+        {"ducking_enabled", audio.ducking_enabled},
+        {"reverb_enabled", audio.reverb_enabled},
+        {"procedural_audio_enabled", audio.procedural_audio_enabled},
+        {"disable_distant_spatial_in_performance_mode", audio.disable_distant_spatial_in_performance_mode},
+        {"combat_music_override", audio.combat_music_override},
+        {"disable_music_in_performance_mode", audio.disable_music_in_performance_mode},
+        {"max_spatial_voices", audio.max_spatial_voices},
+        {"performance_spatial_voices", audio.performance_spatial_voices},
+        {"spatial_voice_hard_limit", audio.spatial_voice_hard_limit},
+        {"spatial_max_distance", audio.spatial_max_distance},
+        {"performance_spatial_max_distance", audio.performance_spatial_max_distance},
+        {"ui_duck_timer_seconds", audio.ui_duck_timer_seconds},
+    };
+}
+
+AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
+    AudioState audio = fallback;
+    audio.reverb_zone_type = node.value("reverb_zone_type", audio.reverb_zone_type);
+    audio.runtime_reverb_preset = node.value("runtime_reverb_preset", audio.runtime_reverb_preset);
+    audio.current_music_track = node.value("current_music_track", audio.current_music_track);
+    audio.ambient_track = node.value("ambient_track", audio.ambient_track);
+    audio.exploration_music_track = node.value("exploration_music_track", audio.exploration_music_track);
+    audio.combat_music_track = node.value("combat_music_track", audio.combat_music_track);
+    audio.last_ui_sound = node.value("last_ui_sound", audio.last_ui_sound);
+    audio.mood_tag = node.value("mood_tag", audio.mood_tag);
+    audio.last_transition_reason = node.value("last_transition_reason", audio.last_transition_reason);
+    audio.master_volume = Clamp01(node.value("master_volume", audio.master_volume));
+    audio.music_volume = Clamp01(node.value("music_volume", audio.music_volume));
+    audio.ambient_volume = Clamp01(node.value("ambient_volume", audio.ambient_volume));
+    audio.ui_volume = Clamp01(node.value("ui_volume", audio.ui_volume));
+    audio.sfx_volume = Clamp01(node.value("sfx_volume", audio.sfx_volume));
+    audio.weather_influence = Clamp01(node.value("weather_influence", audio.weather_influence));
+    audio.combat_ducking_strength = Clamp01(node.value("combat_ducking_strength", audio.combat_ducking_strength));
+    audio.ui_ducking_strength = Clamp01(node.value("ui_ducking_strength", audio.ui_ducking_strength));
+    audio.procedural_intensity = Clamp01(node.value("procedural_intensity", audio.procedural_intensity));
+    audio.reverb_wet_mix = Clamp01(node.value("reverb_wet_mix", audio.reverb_wet_mix));
+    audio.enabled = node.value("enabled", audio.enabled);
+    audio.music_enabled = node.value("music_enabled", audio.music_enabled);
+    audio.ambient_enabled = node.value("ambient_enabled", audio.ambient_enabled);
+    audio.spatial_audio_enabled = node.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+    audio.ducking_enabled = node.value("ducking_enabled", audio.ducking_enabled);
+    audio.reverb_enabled = node.value("reverb_enabled", audio.reverb_enabled);
+    audio.procedural_audio_enabled = node.value("procedural_audio_enabled", audio.procedural_audio_enabled);
+    audio.disable_distant_spatial_in_performance_mode = node.value(
+        "disable_distant_spatial_in_performance_mode",
+        audio.disable_distant_spatial_in_performance_mode);
+    audio.combat_music_override = node.value("combat_music_override", audio.combat_music_override);
+    audio.disable_music_in_performance_mode = node.value("disable_music_in_performance_mode", audio.disable_music_in_performance_mode);
+    audio.max_spatial_voices = std::clamp(node.value("max_spatial_voices", audio.max_spatial_voices), 4, 64);
+    audio.performance_spatial_voices = std::clamp(
+        node.value("performance_spatial_voices", audio.performance_spatial_voices),
+        2,
+        audio.max_spatial_voices);
+    audio.spatial_voice_hard_limit = std::clamp(node.value("spatial_voice_hard_limit", audio.spatial_voice_hard_limit), 4, 96);
+    audio.spatial_max_distance = std::clamp(node.value("spatial_max_distance", audio.spatial_max_distance), 6.0F, 120.0F);
+    audio.performance_spatial_max_distance = std::clamp(
+        node.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
+        4.0F,
+        audio.spatial_max_distance);
+    audio.ui_duck_timer_seconds = std::max(0.0F, node.value("ui_duck_timer_seconds", audio.ui_duck_timer_seconds));
+    return audio;
 }
 
 SettlementState SettlementStateFromJson(const json& node, const SettlementState& fallback) {
@@ -1421,12 +2013,17 @@ std::set<std::string> RootFieldAllowList() {
         "day_progress",
         "day_cycle_speed",
         "day_count",
+        "current_generation",
+        "legacy_summary_seed",
+        "compressed_event_log",
         "world_time",
         "biome",
         "world_style_guide",
         "weather",
         "settlement",
         "combat",
+        "realtime_combat",
+        "audio",
         "build_mode_enabled",
         "active_dialog_npc_id",
         "player_inventory",
@@ -1446,9 +2043,12 @@ std::set<std::string> RootFieldAllowList() {
         "narrator",
         "cutscene",
         "free_will",
+        "rag",
+        "scripted_behavior",
         "render_2d",
         "post_processing",
         "quality_metadata",
+        "optimization_overrides",
     };
 }
 
@@ -1687,6 +2287,8 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+    scene.current_generation = std::max(1U, document.value("current_generation", scene.current_generation));
+    scene.legacy_summary_seed = document.value("legacy_summary_seed", scene.legacy_summary_seed);
     scene.world_time.elapsed_seconds = scene.elapsed_seconds;
     scene.world_time.day_progress = scene.day_progress;
     scene.world_time.day_cycle_speed = scene.day_cycle_speed;
@@ -1710,6 +2312,14 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.combat = CombatState{};
     if (document.contains("combat") && document["combat"].is_object()) {
         scene.combat = CombatStateFromJson(document["combat"], scene.combat);
+    }
+    scene.realtime_combat = RealTimeCombatState{};
+    if (document.contains("realtime_combat") && document["realtime_combat"].is_object()) {
+        scene.realtime_combat = RealTimeCombatStateFromJson(document["realtime_combat"], scene.realtime_combat);
+    }
+    scene.audio = AudioState{};
+    if (document.contains("audio") && document["audio"].is_object()) {
+        scene.audio = AudioStateFromJson(document["audio"], scene.audio);
     }
     scene.weather.last_relationship_day_applied = std::max(scene.day_count, scene.weather.last_relationship_day_applied);
     scene.build_mode_enabled = document.value("build_mode_enabled", scene.build_mode_enabled);
@@ -1850,6 +2460,18 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
             }
         }
     }
+    scene.compressed_event_log.clear();
+    if (document.contains("compressed_event_log") && document["compressed_event_log"].is_array()) {
+        for (const json& event_node : document["compressed_event_log"]) {
+            if (!event_node.is_object()) {
+                continue;
+            }
+            scene.compressed_event_log.push_back(CompressedLegacyEventFromJson(event_node, CompressedLegacyEvent{}));
+            if (scene.compressed_event_log.size() >= SceneLimits::kLegacyEventLogCap) {
+                break;
+            }
+        }
+    }
 
     scene.co_creator_queue.clear();
     if (document.contains("co_creator_queue") && document["co_creator_queue"].is_array()) {
@@ -1925,6 +2547,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     if (document.contains("free_will") && document["free_will"].is_object()) {
         scene.free_will = FreeWillStateFromJson(document["free_will"], scene.free_will);
     }
+    scene.rag = RAGState{};
+    if (document.contains("rag") && document["rag"].is_object()) {
+        scene.rag = RAGStateFromJson(document["rag"], scene.rag);
+    }
     if (scene.free_will.llm_enabled && scene.free_will.model_path.empty()) {
         scene.free_will.model_path = ResolveFreeWillModelPath(path);
     }
@@ -1933,6 +2559,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         if (!std::filesystem::exists(configured_model_path)) {
             scene.free_will.model_path.clear();
         }
+    }
+    scene.scripted_behavior = ScriptedBehaviorState{};
+    if (document.contains("scripted_behavior") && document["scripted_behavior"].is_object()) {
+        scene.scripted_behavior = ScriptedBehaviorStateFromJson(document["scripted_behavior"], scene.scripted_behavior);
     }
     scene.render_2d = SceneRender2D{};
     if (document.contains("render_2d") && document["render_2d"].is_object()) {
@@ -2018,6 +2648,61 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         }
     }
 
+    scene.optimization_overrides = SceneOptimizationOverrides{};
+    if (document.contains("optimization_overrides") && document["optimization_overrides"].is_object()) {
+        const json& overrides = document["optimization_overrides"];
+        scene.optimization_overrides.project_health_score =
+            std::clamp(overrides.value("project_health_score", scene.optimization_overrides.project_health_score), 0, 100);
+        const std::string lightweight_mode = overrides.value("lightweight_mode", scene.optimization_overrides.lightweight_mode);
+        if (lightweight_mode == "performance" || lightweight_mode == "balanced" || lightweight_mode == "quality") {
+            scene.optimization_overrides.lightweight_mode = lightweight_mode;
+        }
+        if (overrides.contains("guardrails") && overrides["guardrails"].is_object()) {
+            const json& guardrails = overrides["guardrails"];
+            scene.optimization_overrides.guardrails.hard_block_enabled =
+                guardrails.value("hard_block_enabled", scene.optimization_overrides.guardrails.hard_block_enabled);
+            scene.optimization_overrides.guardrails.soft_warning_threshold = std::clamp(
+                guardrails.value("soft_warning_threshold", scene.optimization_overrides.guardrails.soft_warning_threshold), 20, 95);
+            scene.optimization_overrides.guardrails.hard_block_threshold = std::clamp(
+                guardrails.value("hard_block_threshold", scene.optimization_overrides.guardrails.hard_block_threshold), 10, 90);
+        }
+        if (overrides.contains("runtime") && overrides["runtime"].is_object()) {
+            const json& runtime = overrides["runtime"];
+            scene.optimization_overrides.runtime.enabled = runtime.value("enabled", scene.optimization_overrides.runtime.enabled);
+            scene.optimization_overrides.runtime.lod_distance_culling_enabled =
+                runtime.value("lod_distance_culling_enabled", scene.optimization_overrides.runtime.lod_distance_culling_enabled);
+            scene.optimization_overrides.runtime.draw_call_batching_enabled =
+                runtime.value("draw_call_batching_enabled", scene.optimization_overrides.runtime.draw_call_batching_enabled);
+            scene.optimization_overrides.runtime.shader_variant_cache_enabled =
+                runtime.value("shader_variant_cache_enabled", scene.optimization_overrides.runtime.shader_variant_cache_enabled);
+            scene.optimization_overrides.runtime.memory_guardrails_enabled =
+                runtime.value("memory_guardrails_enabled", scene.optimization_overrides.runtime.memory_guardrails_enabled);
+            scene.optimization_overrides.runtime.texture_atlas_enabled =
+                runtime.value("texture_atlas_enabled", scene.optimization_overrides.runtime.texture_atlas_enabled);
+            scene.optimization_overrides.runtime.texture_compression_enabled =
+                runtime.value("texture_compression_enabled", scene.optimization_overrides.runtime.texture_compression_enabled);
+            scene.optimization_overrides.runtime.lod_near_distance_m = std::max(
+                0.0F, runtime.value("lod_near_distance_m", scene.optimization_overrides.runtime.lod_near_distance_m));
+            scene.optimization_overrides.runtime.lod_far_distance_m = std::max(
+                scene.optimization_overrides.runtime.lod_near_distance_m,
+                runtime.value("lod_far_distance_m", scene.optimization_overrides.runtime.lod_far_distance_m));
+            scene.optimization_overrides.runtime.sprite_cull_distance_m = std::max(
+                0.0F, runtime.value("sprite_cull_distance_m", scene.optimization_overrides.runtime.sprite_cull_distance_m));
+            scene.optimization_overrides.runtime.mesh_cull_distance_m = std::max(
+                0.0F, runtime.value("mesh_cull_distance_m", scene.optimization_overrides.runtime.mesh_cull_distance_m));
+            scene.optimization_overrides.runtime.safe_entity_count =
+                std::max(128, runtime.value("safe_entity_count", scene.optimization_overrides.runtime.safe_entity_count));
+            scene.optimization_overrides.runtime.safe_texture_count =
+                std::max(32, runtime.value("safe_texture_count", scene.optimization_overrides.runtime.safe_texture_count));
+            scene.optimization_overrides.runtime.safe_vram_mb =
+                std::max(256, runtime.value("safe_vram_mb", scene.optimization_overrides.runtime.safe_vram_mb));
+            scene.optimization_overrides.runtime.texture_atlas_manifest =
+                runtime.value("texture_atlas_manifest", scene.optimization_overrides.runtime.texture_atlas_manifest);
+            scene.optimization_overrides.runtime.shader_variant_manifest =
+                runtime.value("shader_variant_manifest", scene.optimization_overrides.runtime.shader_variant_manifest);
+        }
+    }
+
     scene.Update(0.0F);
     return true;
 }
@@ -2035,12 +2720,16 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_progress"] = scene.day_progress;
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
+    document["current_generation"] = scene.current_generation;
+    document["legacy_summary_seed"] = scene.legacy_summary_seed;
     document["world_time"] = WorldTimeToJson(scene.world_time);
     document["biome"] = scene.biome;
     document["world_style_guide"] = scene.world_style_guide;
     document["weather"] = WeatherStateToJson(scene.weather);
     document["settlement"] = SettlementStateToJson(scene.settlement);
     document["combat"] = CombatStateToJson(scene.combat);
+    document["realtime_combat"] = RealTimeCombatStateToJson(scene.realtime_combat);
+    document["audio"] = AudioStateToJson(scene.audio);
     document["build_mode_enabled"] = scene.build_mode_enabled;
     document["active_dialog_npc_id"] = scene.active_dialog_npc_id;
     document["player_inventory"] = InventoryToJson(scene.player_inventory);
@@ -2092,6 +2781,10 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     for (const std::string& action : scene.recent_actions) {
         document["recent_actions"].push_back(action);
     }
+    document["compressed_event_log"] = json::array();
+    for (const CompressedLegacyEvent& event : scene.compressed_event_log) {
+        document["compressed_event_log"].push_back(CompressedLegacyEventToJson(event));
+    }
     document["co_creator_queue"] = json::array();
     for (const CoCreatorQueuedMutation& mutation : scene.co_creator_queue) {
         document["co_creator_queue"].push_back(CoCreatorMutationToJson(mutation));
@@ -2129,6 +2822,8 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["narrator"] = NarratorStateToJson(scene.narrator);
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
     document["free_will"] = FreeWillStateToJson(scene.free_will);
+    document["rag"] = RAGStateToJson(scene.rag);
+    document["scripted_behavior"] = ScriptedBehaviorStateToJson(scene.scripted_behavior);
     json render_2d = json::object();
     render_2d["render_mode"] = scene.render_2d.render_mode == "3D" ? "3D" : "2D";
     render_2d["enabled"] = scene.render_2d.enabled;
@@ -2174,6 +2869,33 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         {"vram_warning_threshold_mb", scene.quality_metadata.vram_warning_threshold_mb},
         {"sprite_warning_threshold", scene.quality_metadata.sprite_warning_threshold},
         {"warnings", scene.quality_metadata.warnings},
+    };
+    document["optimization_overrides"] = json{
+        {"project_health_score", scene.optimization_overrides.project_health_score},
+        {"lightweight_mode", scene.optimization_overrides.lightweight_mode},
+        {"guardrails", json{
+            {"hard_block_enabled", scene.optimization_overrides.guardrails.hard_block_enabled},
+            {"soft_warning_threshold", scene.optimization_overrides.guardrails.soft_warning_threshold},
+            {"hard_block_threshold", scene.optimization_overrides.guardrails.hard_block_threshold},
+        }},
+        {"runtime", json{
+            {"enabled", scene.optimization_overrides.runtime.enabled},
+            {"lod_distance_culling_enabled", scene.optimization_overrides.runtime.lod_distance_culling_enabled},
+            {"draw_call_batching_enabled", scene.optimization_overrides.runtime.draw_call_batching_enabled},
+            {"shader_variant_cache_enabled", scene.optimization_overrides.runtime.shader_variant_cache_enabled},
+            {"memory_guardrails_enabled", scene.optimization_overrides.runtime.memory_guardrails_enabled},
+            {"texture_atlas_enabled", scene.optimization_overrides.runtime.texture_atlas_enabled},
+            {"texture_compression_enabled", scene.optimization_overrides.runtime.texture_compression_enabled},
+            {"lod_near_distance_m", scene.optimization_overrides.runtime.lod_near_distance_m},
+            {"lod_far_distance_m", scene.optimization_overrides.runtime.lod_far_distance_m},
+            {"sprite_cull_distance_m", scene.optimization_overrides.runtime.sprite_cull_distance_m},
+            {"mesh_cull_distance_m", scene.optimization_overrides.runtime.mesh_cull_distance_m},
+            {"safe_entity_count", scene.optimization_overrides.runtime.safe_entity_count},
+            {"safe_texture_count", scene.optimization_overrides.runtime.safe_texture_count},
+            {"safe_vram_mb", scene.optimization_overrides.runtime.safe_vram_mb},
+            {"texture_atlas_manifest", scene.optimization_overrides.runtime.texture_atlas_manifest},
+            {"shader_variant_manifest", scene.optimization_overrides.runtime.shader_variant_manifest},
+        }},
     };
 
     std::ofstream file(path);

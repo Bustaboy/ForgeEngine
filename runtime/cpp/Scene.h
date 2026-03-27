@@ -22,6 +22,8 @@ namespace SceneLimits {
     inline constexpr std::size_t kRecentActionsCap = 160U;
     inline constexpr std::size_t kFreeWillMapCap   = 512U;
     inline constexpr std::size_t kCombatStateCap   = 48U;
+    inline constexpr std::size_t kRagEntriesCap    = 512U;
+    inline constexpr std::size_t kLegacyEventLogCap = 192U;
 }
 
 struct CoCreatorQueuedMutation {
@@ -165,9 +167,101 @@ struct FreeWillState {
     std::uint32_t last_processed_day = 1;
     float global_cooldown_remaining = 0.0F;
     std::uint32_t rng_seed = 0xC0FFEEU;
+    std::uint32_t rag_retrieve_tick = 0;
     std::map<std::uint64_t, std::uint32_t> daily_spark_count{};
     std::map<std::uint64_t, std::string> last_spark_line_by_npc{};
+    std::map<std::uint64_t, std::string> last_spark_source_by_npc{};
+    std::map<std::uint64_t, std::uint32_t> rag_hits_by_npc{};
+    std::map<std::uint64_t, std::uint32_t> rag_misses_by_npc{};
     std::deque<FreeWillSparkRequest> pending_sparks{};
+};
+
+
+struct RAGCacheEntry {
+    std::string id{};
+    std::string text{};
+    std::string activity{"free_time"};
+    std::string location{"town"};
+    std::string checkpoint{"generic"};
+    std::string category{"spark"};
+    std::string tags{};
+    float duration_hours = 0.25F;
+    std::vector<float> embedding{};
+};
+
+struct CompressedLegacyEvent {
+    std::string event_type{"major_event"};
+    std::string summary{};
+    std::string tags{};
+    std::uint32_t generation = 1;
+    std::uint32_t seed = 0;
+    std::vector<float> embedding{};
+};
+
+struct RAGState {
+    bool enabled = false;
+    bool live_fallback_enabled = true;
+    std::uint32_t max_entries = 256;
+    float similarity_threshold = 0.78F;
+    float cache_size_mb = 0.0F;
+    float quiet_generation_accumulator = 0.0F;
+    float last_similarity = 0.0F;
+    std::uint32_t cache_generation = 0;
+    std::uint32_t cache_hits = 0;
+    std::uint32_t cache_misses = 0;
+    std::uint32_t narrative_hits = 0;
+    std::uint32_t narrative_misses = 0;
+    std::uint32_t live_fallback_calls = 0;
+    std::uint32_t narrative_live_fallback_calls = 0;
+    std::uint32_t legacy_hits = 0;
+    std::uint32_t legacy_misses = 0;
+    std::uint32_t legacy_retrieve_tick = 0;
+    std::string last_source = "none";
+    std::string last_narrative_source = "none";
+    std::string last_legacy_source = "none";
+    std::string last_narrative_checkpoint = "none";
+    std::string last_narrative_dialog_tone = "neutral";
+    std::string last_narrative_msq_branch = "default";
+    std::string last_narrative_event_color = "grounded";
+    float last_narrative_similarity = -1.0F;
+    float last_legacy_similarity = -1.0F;
+    std::uint32_t narrative_retrieve_tick = 0;
+    std::vector<RAGCacheEntry> spark_cache{};
+    std::vector<RAGCacheEntry> narrative_cache{};
+};
+
+struct ScriptedBehaviorDefinition {
+    std::string name{};
+    std::string activity = "idle";
+    std::string location = "anywhere";
+    float duration_hours = 0.25F;
+    bool complex = false;
+};
+
+struct ScriptedBehaviorState {
+    bool enabled = true;
+    std::string definitions_path = "scripted_behaviors.json";
+    bool definitions_loaded = false;
+    float update_accumulator_seconds = 0.0F;
+    std::uint32_t update_tick = 0;
+    bool performance_monitoring_enabled = true;
+    float performance_check_interval_seconds = 1.0F;
+    float performance_check_accumulator_seconds = 0.0F;
+    float monitoring_min_fps = 45.0F;
+    float monitoring_hard_fps = 30.0F;
+    int monitoring_soft_entity_count = 600;
+    int monitoring_hard_entity_count = 1200;
+    float monitored_fps = 60.0F;
+    int monitored_entity_count = 0;
+    float monitored_scripted_ratio = 1.0F;
+    float monitored_spark_ratio = 0.0F;
+    float effective_spark_chance_multiplier = 1.0F;
+    bool performance_mode_active = false;
+    bool force_scripted_fallback = false;
+    std::uint32_t scripted_decisions_window = 0;
+    std::uint32_t spark_decisions_window = 0;
+    std::string performance_reason = "monitoring_off";
+    std::map<std::string, ScriptedBehaviorDefinition> definitions{};
 };
 
 
@@ -193,6 +287,21 @@ struct CombatState {
     std::size_t active_turn_index = 0;
     std::uint32_t round_index = 0;
     std::string trigger_source{};
+    std::string last_action{};
+    std::string last_resolution{};
+};
+
+struct RealTimeCombatState {
+    bool active = false;
+    std::uint64_t controlled_entity_id = 0;
+    std::uint64_t last_hit_entity_id = 0;
+    std::string trigger_source{};
+    std::string last_action{};
+    std::string animation_preview = "idle";
+    std::string combo_preview = "none";
+    std::string weapon_preview = "melee";
+    std::string squad_status_preview = "squad_idle";
+    std::string cover_status_preview = "cover_none";
     std::string last_resolution{};
 };
 
@@ -252,6 +361,68 @@ struct SceneRender2D {
 
 
 
+
+struct AudioState {
+    std::string reverb_zone_type = "outdoor";
+    std::string runtime_reverb_preset = "open";
+    std::string current_music_track{};
+    std::string ambient_track = "ambient_exploration_loop";
+    std::string exploration_music_track = "music_exploration";
+    std::string combat_music_track = "music_combat_intense";
+    std::string last_ui_sound{};
+    std::string mood_tag = "neutral";
+    std::string last_transition_reason{};
+    float master_volume = 0.85F;
+    float music_volume = 0.75F;
+    float ambient_volume = 0.60F;
+    float ui_volume = 0.80F;
+    float sfx_volume = 0.80F;
+    float weather_influence = 0.40F;
+    float combat_ducking_strength = 0.35F;
+    float ui_ducking_strength = 0.15F;
+    float procedural_intensity = 0.55F;
+    float reverb_wet_mix = 0.30F;
+    bool enabled = true;
+    bool music_enabled = true;
+    bool ambient_enabled = true;
+    bool spatial_audio_enabled = true;
+    bool ducking_enabled = true;
+    bool reverb_enabled = true;
+    bool procedural_audio_enabled = true;
+    bool runtime_duck_test = false;
+    bool disable_distant_spatial_in_performance_mode = true;
+    bool combat_music_override = true;
+    bool disable_music_in_performance_mode = true;
+    bool combat_override_active = false;
+    bool runtime_music_suppressed = false;
+    float runtime_music_duck_gain = 1.0F;
+    float runtime_ambient_duck_gain = 1.0F;
+    float runtime_reverb_send = 0.0F;
+    float runtime_procedural_wind_gain = 0.0F;
+    float runtime_procedural_rain_gain = 0.0F;
+    float runtime_procedural_rumble_gain = 0.0F;
+    std::string runtime_duck_state = "none";
+    std::string runtime_procedural_state = "idle";
+    int max_spatial_voices = 24;
+    int performance_spatial_voices = 8;
+    int runtime_spatial_voice_limit = 24;
+    int spatial_voice_hard_limit = 32;
+    float spatial_max_distance = 28.0F;
+    float performance_spatial_max_distance = 12.0F;
+    float ambient_weather_timer_seconds = 0.0F;
+    float ui_duck_timer_seconds = 0.0F;
+    std::uint64_t last_spatial_test_seed = 0;
+    std::uint32_t sfx_play_counter = 0;
+    std::uint32_t runtime_active_spatial_voices = 0;
+    std::uint32_t runtime_dropped_spatial_voices = 0;
+    std::string last_sfx_event{};
+    std::string last_weather_for_audio = "sunny";
+    std::string last_realtime_action{};
+    std::string last_combat_action{};
+    std::map<std::uint64_t, float> npc_footstep_cooldowns{};
+    std::uint32_t transition_counter = 0;
+};
+
 struct ScenePostProcessingSettings {
     bool enabled = false;
     bool bloom_enabled = true;
@@ -273,6 +444,37 @@ struct SceneQualityMetadata {
     int sprite_warning_threshold = 280;
     std::vector<std::string> warnings{};
 };
+
+struct RuntimeOptimizationSettings {
+    bool enabled = false;
+    bool lod_distance_culling_enabled = false;
+    bool draw_call_batching_enabled = false;
+    bool shader_variant_cache_enabled = false;
+    bool memory_guardrails_enabled = false;
+    bool texture_atlas_enabled = false;
+    bool texture_compression_enabled = false;
+    float lod_near_distance_m = 16.0F;
+    float lod_far_distance_m = 42.0F;
+    float sprite_cull_distance_m = 52.0F;
+    float mesh_cull_distance_m = 70.0F;
+    int safe_entity_count = 1400;
+    int safe_texture_count = 320;
+    int safe_vram_mb = 2048;
+    std::string texture_atlas_manifest = "Assets/Generated/runtime_atlas/atlas_manifest.v1.json";
+    std::string shader_variant_manifest = "Assets/Generated/shaders/shader_variant_cache.v1.json";
+};
+
+struct SceneOptimizationOverrides {
+    int project_health_score = 50;
+    std::string lightweight_mode = "balanced";
+    struct GuardrailSettings {
+        bool hard_block_enabled = false;
+        int soft_warning_threshold = 50;
+        int hard_block_threshold = 30;
+    } guardrails{};
+    RuntimeOptimizationSettings runtime{};
+};
+
 struct Scene {
     std::vector<Entity> entities{};
     Inventory player_inventory{};
@@ -283,6 +485,9 @@ struct Scene {
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;
     std::uint32_t day_count = 1;
+    std::uint32_t current_generation = 1;
+    std::string legacy_summary_seed{};
+    std::vector<CompressedLegacyEvent> compressed_event_log{};
     std::string biome = "temperate";
     std::string world_style_guide = "grounded stylized frontier";
     WeatherState weather{};
@@ -304,10 +509,15 @@ struct Scene {
     NarratorState narrator{};
     CutsceneState cutscene{};
     FreeWillState free_will{};
+    RAGState rag{};
+    ScriptedBehaviorState scripted_behavior{};
     CombatState combat{};
+    RealTimeCombatState realtime_combat{};
+    AudioState audio{};
     SceneRender2D render_2d{};
     ScenePostProcessingSettings post_processing{};
     SceneQualityMetadata quality_metadata{};
+    SceneOptimizationOverrides optimization_overrides{};
 
     void Update(float dt_seconds);
     [[nodiscard]] bool ToggleBuildMode();

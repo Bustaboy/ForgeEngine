@@ -126,7 +126,7 @@
   </Window.KeyBindings>
 
   <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
-    <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
+    <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
         <StackPanel Orientation="Horizontal" Spacing="20">
           <StackPanel Spacing="5">
@@ -179,12 +179,16 @@
           <TextBlock Text="{Binding RuntimePreferencesSummary}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
           <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="12" />
           <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
+          <Button Content="◧ Left" Click="OnToggleLeftPaneClick" ToolTip.Tip="Show/hide the left panel dock." />
+          <Button Content="◨ Right" Click="OnToggleRightPaneClick" ToolTip.Tip="Show/hide the right panel dock." />
+          <Button Content="▤ Bottom" Click="OnToggleBottomDockClick" ToolTip.Tip="Show/hide timeline and activity docks." />
+          <Button Content="🎯 Focus" Click="OnToggleFocusModeClick" ToolTip.Tip="Focus mode: maximize viewport and hide surrounding docks." />
         </StackPanel>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="70,280,*,360" RowDefinitions="*" ColumnSpacing="12">
-      <Border Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
+    <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="72,2.3*,4.8*,2.8*" RowDefinitions="*" ColumnSpacing="12">
+      <Border x:Name="ToolRailBorder" Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
         <StackPanel Spacing="8" HorizontalAlignment="Center">
           <Button Classes="ribbon-icon" Width="46" Height="46" Content="🖱" ToolTip.Tip="Select" />
           <Button Classes="ribbon-icon" Width="46" Height="46" Content="✏" ToolTip.Tip="Paint" />
@@ -194,7 +198,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
+      <Border x:Name="LeftDockBorder" Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
         <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
@@ -781,7 +785,7 @@
         </Border>
       </Grid>
 
-      <Border Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Border x:Name="RightDockBorder" Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
           <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
           <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
@@ -996,6 +1000,7 @@
                 <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
+                <Button Classes="panel-tab" Content="⚙" Click="OnSystemTabClick" Tag="Settings" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsDayNightTabActive}">
@@ -1044,6 +1049,45 @@
                 </Grid>
                 <TextBox Text="{Binding LivingNpcsModelPathEditor}" Watermark="llama.cpp model path (e.g., models/llm-q4-k.gguf)" />
                 <Button Classes="system-action" Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
+                <TextBlock Text="{Binding LivingNpcsPerformanceSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LivingNpcsRagCacheSize, StringFormat=RAG Cache Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsRagHitRate, StringFormat=RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsNarrativeFlavorHitRate, StringFormat=Narrative Flavor Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsGenerationalMemorySize, StringFormat=Generational Memory Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLegacyRecallHitRate, StringFormat=Legacy Recall Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLastMsqAdaptationSource, StringFormat=Last MSQ Adaptation Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpoint, StringFormat=Last Narrative Checkpoint: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpointStatus, StringFormat=Narrative Checkpoint Status: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LivingNpcsSparkSourcePreference, StringFormat=Spark Source Priority: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsSelectedSparkSource, StringFormat=Selected NPC Last Spark Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsSelectedRagHitRate, StringFormat=Selected NPC RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsSelectedNpcDaySummary, StringFormat=Selected NPC Day Summary: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Text="Scripted Behaviors (SB2)" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="State" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1"
+                            ItemsSource="{Binding AvailableScriptedBehaviorStates}"
+                            SelectedItem="{Binding ScriptedBehaviorStateEditor}" />
+                  <Button Grid.Column="2" Classes="system-action" Content="Refresh List" Click="OnRefreshScriptedBehaviorsClick" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                  <TextBlock Text="Params" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                  <TextBox Grid.Column="1" Text="{Binding ScriptedBehaviorParamsEditor}" Watermark="duration_hours=0.25 target_entity_id=42" />
+                </Grid>
+                <Button Classes="system-action" Content="Assign Scripted Behavior to Selection" Click="OnAssignScriptedBehaviorClick" />
+                <TextBlock Text="{Binding ScriptedBehaviorStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Current NPC scripted state preview (Scripted Priority vs Spark Allowed)" Foreground="#AFC2DF" FontSize="11" />
+                    <ItemsControl ItemsSource="{Binding ScriptedBehaviorNpcPreview}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding .}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="8">
                   <StackPanel Spacing="4">
                     <TextBlock Text="{Binding LivingNpcsSparksToday, StringFormat=Sparks today: {0}}" Foreground="#D6E9FF" FontWeight="SemiBold" />
@@ -1086,6 +1130,10 @@
                 <TextBlock Text="Combat Mode" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <Button Classes="system-action" Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
                 <TextBlock Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <Button Classes="system-action" Content="Toggle Realtime Combat on Selection" Click="OnToggleRealtimeCombatSelectionClick" />
+                <TextBlock Text="{Binding RealtimeCombatSelectionSummary}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding RealtimeCombatAnimationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding RealtimeCombatWorldIntegrationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">
@@ -1218,16 +1266,47 @@
                 </Border>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,6,0,0">
                   <StackPanel Spacing="6">
-                    <TextBlock Text="Models" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="Models &amp; LLM Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                    <TextBlock Text="Download models, run onboarding, and manage LLM setup from Settings."
+                               Foreground="#9FC2E5"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                    <Button Content="Open Models &amp; LLM Settings"
+                            Click="OnSystemTabClick"
+                            Tag="Settings"
+                            HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsSettingsTabActive}">
+                <TextBlock Text="Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBlock Text="Configure editor-level systems and model behavior from one place."
+                           Foreground="#9FC2E5"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Text="Models &amp; LLM" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                      <Button Grid.Column="1" Content="Open AI Quick Access" Click="OnSystemTabClick" Tag="AI" IsEnabled="{Binding CanRunModelManagerActions}" />
+                    </Grid>
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                    <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
+                      <Button Content="Quick Start (ForgeGuard + Free-Will)"
+                              Click="OnQuickStartModelsClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
                       <Button Content="Run Onboarding"
-                              Click="OnRunModelOnboardingClick" />
-                      <Button Grid.Column="1"
+                              Grid.Column="1"
+                              Click="OnRunModelOnboardingClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="2"
                               Content="Setup Recommended Models"
-                              Click="OnSetupRecommendedModelsClick" />
-                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" />
-                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" />
+                              Click="OnSetupRecommendedModelsClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="3" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="4" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
                       <ItemsControl.ItemTemplate>
@@ -1239,18 +1318,26 @@
                                 <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
                                 <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" />
                                 <TextBlock Text="{Binding Recommendation}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding LastError}" Foreground="#FFB39F" FontSize="10" TextWrapping="Wrap" IsVisible="{Binding CanRetry}" />
                               </StackPanel>
                               <Button Grid.Column="1"
                                       Content="Download"
                                       Tag="{Binding FriendlyName}"
                                       Click="OnDownloadManagedModelClick"
+                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
                                       VerticalAlignment="Top" />
-                              <Button Grid.Column="2"
-                                      Content="Remove"
-                                      Tag="{Binding FriendlyName}"
-                                      Click="OnRemoveManagedModelClick"
-                                      IsVisible="{Binding IsRemovable}"
-                                      VerticalAlignment="Top" />
+                              <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Top">
+                                <Button Content="Retry"
+                                        Tag="{Binding FriendlyName}"
+                                        Click="OnRetryManagedModelClick"
+                                        IsVisible="{Binding CanRetry}"
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
+                                <Button Content="Remove"
+                                        Tag="{Binding FriendlyName}"
+                                        Click="OnRemoveManagedModelClick"
+                                        IsVisible="{Binding IsRemovable}"
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
+                              </StackPanel>
                             </Grid>
                           </Border>
                         </DataTemplate>
@@ -1508,7 +1595,7 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+    <Border x:Name="TimelineDockBorder" Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
@@ -1604,62 +1691,44 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
-      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
-          <TextBlock Text="🎬" FontSize="16" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseIcon}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play / Pause timeline preview" />
-          <Button Grid.Column="3" Classes="timeline-icon" Content="⏹" Command="{Binding StopTimelinePlaybackCommand}" ToolTip.Tip="Stop playback and reset to 0s" />
-          <TextBlock Grid.Column="4" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#9FC2E5" VerticalAlignment="Center" />
-          <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="Loop" Foreground="#C8D6EA" VerticalAlignment="Center" />
-            <ToggleSwitch IsChecked="{Binding IsTimelineLoopEnabled}" />
-          </StackPanel>
+    <Border x:Name="ActivityDockBorder" Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+          <TextBlock Text="🧾" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="Activity Log" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
         </Grid>
-
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-          <Button Classes="timeline-icon" Content="◆" Command="{Binding AddTimelineKeyframeCommand}" ToolTip.Tip="Add keyframe for selected entities (position, scale, color)" />
-          <Slider Grid.Column="1"
-                  Minimum="0"
-                  Maximum="{Binding TimelineDuration}"
-                  Value="{Binding TimelineCurrentTime}"
-                  TickFrequency="0.25"
-                  IsSnapToTickEnabled="False" />
-          <TextBlock Grid.Column="2" Text="{Binding TimelineStateLabel}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="3" Text="{Binding TimelineMarkers.Count, StringFormat=Keys: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
-        </Grid>
-
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" MaxHeight="42">
-          <ItemsControl ItemsSource="{Binding TimelineMarkers}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="6" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Border Background="#0E1727" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="6" Padding="8,4" ToolTip.Tip="Timeline keyframe marker&#x0a;Represents snapshot data for selected animation mode.">
-                  <StackPanel Orientation="Horizontal" Spacing="5">
-                    <TextBlock Text="◆" Foreground="#6FA8FF" />
-                    <TextBlock Text="{Binding Label}" Foreground="#C8D6EA" FontSize="11" />
-                    <TextBlock Text="{Binding TrackCount, StringFormat=x{0}}" Foreground="#7A8DAA" FontSize="10" VerticalAlignment="Bottom" />
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+        <TextBlock Grid.Row="1"
+                   Text="{Binding StatusMessage}"
+                   Foreground="#9FC2E5"
+                   FontSize="11"
+                   TextWrapping="Wrap" />
+        <Border Grid.Row="2" Background="#0A111C" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="138">
+            <TextBlock Text="{Binding AiCommandLog}"
+                       Foreground="#AFC2DF"
+                       FontSize="11"
+                       FontFamily="Consolas, Menlo, Monospace"
+                       TextWrapping="Wrap" />
+          </ScrollViewer>
+        </Border>
       </Grid>
     </Border>
 
     <Border Grid.Row="4" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
         <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="2" Text="{Binding RuntimeLaunchStatus, StringFormat=Runtime: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="3" Text="{Binding RuntimePidLabel, StringFormat=PID: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="4" Text="{Binding ShortcutHintBar}" Foreground="#8EA5C7" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" ToolTip.Tip="{Binding ShortcutHintBar}" />
+        <TextBlock Grid.Row="1"
+                   Grid.ColumnSpan="5"
+                   Text="{Binding LastSceneReviewSummaryStatus}"
+                   Foreground="#7FA7D9"
+                   FontSize="10"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding LastSceneReviewSummaryStatus}" />
       </Grid>
     </Border>
 
@@ -1680,6 +1749,99 @@
         <Button Content="Close Help" HorizontalAlignment="Left" Command="{Binding ToggleHelpOverlayCommand}" />
       </StackPanel>
     </Border>
+
+    <Border x:Name="StartupOnboardingOverlay"
+            Grid.RowSpan="5"
+            IsVisible="False"
+            Background="#070F1BEF"
+            BorderBrush="#4AA3FF"
+            BorderThickness="1.2"
+            CornerRadius="10"
+            Padding="18"
+            Margin="34,24"
+            ZIndex="20">
+      <StackPanel Spacing="10" MaxWidth="720">
+        <TextBlock Text="Welcome to GameForge" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
+        <TextBlock Text="Setting up first-run onboarding, hardware profile, and lightweight local model availability."
+                   Foreground="#CFE5FF"
+                   TextWrapping="Wrap" />
+        <TextBlock x:Name="StartupOnboardingStatusText"
+                   Text="Preparing startup checks..."
+                   Foreground="#9FCCFF"
+                   FontSize="13"
+                   TextWrapping="Wrap" />
+        <ProgressBar x:Name="StartupOnboardingProgressBar"
+                     IsIndeterminate="True"
+                     Height="8"
+                     Background="#0B1524"
+                     Foreground="#4AA3FF" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.RowSpan="5"
+          IsVisible="{Binding IsDownloadProgressVisible}"
+          Background="#050C15AA"
+          ZIndex="24">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="720"
+              MaxWidth="760"
+              Background="#0A1627F4"
+              BorderBrush="#5AAFFF"
+              BorderThickness="1.2"
+              CornerRadius="12"
+              Padding="18">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="This may take a few minutes depending on your internet speed."
+                     Foreground="#9FC2E5"
+                     FontSize="12"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding DownloadProgressSummary}" Foreground="#CFE5FF" FontSize="13" TextWrapping="Wrap" />
+          <ProgressBar Height="10"
+                       Minimum="0"
+                       Maximum="100"
+                       Value="{Binding DownloadProgressPercent}"
+                       Background="#0B1524"
+                       Foreground="#4AA3FF" />
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <TextBlock Text="{Binding DownloadProgressCurrentFile}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="1" Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
+            <TextBlock Grid.Column="2" Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
+          </Grid>
+          <Button Content="Cancel Download"
+                  HorizontalAlignment="Left"
+                  Click="OnCancelModelDownloadClick" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid Grid.RowSpan="5"
+          IsVisible="{Binding IsDownloadErrorVisible}"
+          Background="#050C15CC"
+          ZIndex="25">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="680"
+              MaxWidth="760"
+              Background="#1B1113F5"
+              BorderBrush="#FF8A73"
+              BorderThickness="1.2"
+              CornerRadius="12"
+              Padding="18">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding DownloadErrorTitle}" Foreground="#FFD9D1" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="{Binding DownloadErrorMessage}" Foreground="#FFE5DD" FontSize="13" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding DownloadErrorGuidance}" Foreground="#FBCABF" FontSize="12" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Click="OnDismissModelErrorClick" />
+            <Button Content="Retry"
+                    Click="OnRetryModelOperationClick"
+                    IsEnabled="{Binding IsModelErrorRetryEnabled}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
 
     <Border Grid.RowSpan="5"
             IsVisible="{Binding IsAssetBrowserDragPreviewVisible}"
