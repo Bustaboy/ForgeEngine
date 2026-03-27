@@ -72,7 +72,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("Bootstrap completed successfully (runtime-only).", proc.stdout)
 
     def test_bootstrap_sh_default_mode_contract(self):
-        proc = run_cmd(["./scripts/bootstrap.sh"])
+        proc = run_cmd(["./scripts/bootstrap.sh", "--launcher-smoke"])
         dotnet_available = shutil.which("dotnet") is not None
         if dotnet_available:
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -109,6 +109,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
                 "--project",
                 str(REPO_ROOT / "editor" / "csharp" / "GameForge.Editor.csproj"),
                 "--",
+                "--launcher-smoke",
                 str(runtime_bin),
             ])
             self.assertEqual(run_proc.returncode, 0, run_proc.stdout + run_proc.stderr)
@@ -117,6 +118,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
     def test_bootstrap_ps1_contract(self):
         script_text = (REPO_ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$RuntimeOnly", script_text)
+        self.assertIn("[switch]$LauncherSmoke", script_text)
         self.assertIn("$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot \"..\")).Path", script_text)
         self.assertIn("Starting C# App Entrypoint", script_text)
         self.assertIn("WARNING: dotnet SDK not found", script_text)

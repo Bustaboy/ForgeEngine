@@ -31,6 +31,7 @@
 #include <nlohmann/json.hpp>
 
 #include <glm/gtc/constants.hpp>
+#include <glm/geometric.hpp>
 
 namespace {
 float Clamp01(float value) {

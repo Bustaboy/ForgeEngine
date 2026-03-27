@@ -73,6 +73,11 @@ PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.
 dotnet run --project editor/csharp/GameForge.Editor.csproj
 ```
 
+For a terminal-only launcher smoke check used by CI/release evidence:
+```bash
+dotnet run --project editor/csharp/GameForge.Editor.csproj -- --launcher-smoke
+```
+
 ### 4. Generate your first asset or scene
 Run the full generation pipeline from a design brief:
 ```bash

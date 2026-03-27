@@ -10,3 +10,8 @@ ai-orchestration/python/.env
 
 # Local virtual environment
 .venv/
+
+# Local build output
+build/
+editor/csharp/bin/
+editor/csharp/obj/
