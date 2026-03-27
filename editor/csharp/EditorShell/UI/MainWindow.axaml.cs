@@ -217,52 +217,69 @@ public partial class MainWindow : Window
             Height = 360,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new StackPanel
+            Content = new Border
             {
-                Margin = new Thickness(18),
-                Spacing = 10,
-                Children =
+                Margin = new Thickness(14),
+                Padding = new Thickness(18),
+                Background = new SolidColorBrush(Color.Parse("#0D1320")),
+                BorderBrush = new SolidColorBrush(Color.Parse("#355A87")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Child = new StackPanel
                 {
-                    new TextBlock { Text = "Welcome to GameForge", FontSize = 24, FontWeight = FontWeight.Bold },
-                    new TextBlock
+                    Spacing = 10,
+                    Children =
                     {
-                        Text = "Quick Setup installs the two essentials for V1: ForgeGuard + Free-Will.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new TextBlock
-                    {
-                        Text = "Keep ForgeGuard installed: it powers local guardrails, critique passes, and lightweight decisions across workflows.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new TextBlock
-                    {
-                        Text = "You can still run full onboarding or manual model downloads later in Settings → Models & LLM.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new StackPanel
-                    {
-                        Orientation = Avalonia.Layout.Orientation.Horizontal,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                        Spacing = 8,
-                        Margin = new Thickness(0, 14, 0, 0),
-                        Children =
+                        new TextBlock
                         {
-                            new Button { Content = "Later", MinWidth = 90 },
-                            new Button { Content = "Open Settings", MinWidth = 110 },
-                            new Button
+                            Text = "Welcome to GameForge",
+                            FontSize = 24,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                        },
+                        new TextBlock
+                        {
+                            Text = "Quick Setup installs the two essentials for V1: ForgeGuard + Free-Will.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
+                        },
+                        new TextBlock
+                        {
+                            Text = "Keep ForgeGuard installed: it powers local guardrails, critique passes, and lightweight decisions across workflows.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new TextBlock
+                        {
+                            Text = "You can still run full onboarding or manual model downloads later in Settings → Models & LLM.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Margin = new Thickness(0, 14, 0, 0),
+                            Children =
                             {
-                                Content = "Run Quick Setup",
-                                MinWidth = 170,
-                                Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
-                                Foreground = Brushes.White,
+                                new Button { Content = "Later", MinWidth = 90 },
+                                new Button { Content = "Open Settings", MinWidth = 110 },
+                                new Button
+                                {
+                                    Content = "Run Quick Setup",
+                                    MinWidth = 170,
+                                    Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
+                                    Foreground = Brushes.White,
+                                },
                             },
                         },
-                    },
+                    }
                 },
             },
         };
 
-        if (modal.Content is StackPanel root && root.Children[^1] is StackPanel actions)
+        if (modal.Content is Border { Child: StackPanel root } && root.Children[^1] is StackPanel actions)
         {
             if (actions.Children[0] is Button laterButton)
             {
@@ -309,31 +326,56 @@ public partial class MainWindow : Window
             Height = 330,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new StackPanel
+            Content = new Border
             {
-                Margin = new Thickness(16),
-                Spacing = 10,
-                Children =
+                Margin = new Thickness(14),
+                Padding = new Thickness(16),
+                Background = new SolidColorBrush(Color.Parse("#0D1320")),
+                BorderBrush = new SolidColorBrush(Color.Parse("#355A87")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Child = new StackPanel
                 {
-                    new TextBlock { Text = "Quick Setup complete ✅", FontSize = 21, FontWeight = FontWeight.Bold },
-                    new TextBlock { Text = "Installed now: ForgeGuard + Free-Will.", TextWrapping = TextWrapping.Wrap },
-                    new TextBlock
+                    Spacing = 10,
+                    Children =
                     {
-                        Text = "ForgeGuard should stay installed for local guardrails, critique, and lightweight decisions.",
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap },
-                    new Button
-                    {
-                        Content = "Continue",
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                        Margin = new Thickness(0, 8, 0, 0),
-                    },
+                        new TextBlock
+                        {
+                            Text = "Quick Setup complete ✅",
+                            FontSize = 21,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                        },
+                        new TextBlock
+                        {
+                            Text = "Installed now: ForgeGuard + Free-Will.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
+                        },
+                        new TextBlock
+                        {
+                            Text = "ForgeGuard should stay installed for local guardrails, critique, and lightweight decisions.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new TextBlock
+                        {
+                            Text = summary,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#AFC2DF")),
+                        },
+                        new Button
+                        {
+                            Content = "Continue",
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Margin = new Thickness(0, 8, 0, 0),
+                        },
+                    }
                 },
             },
         };
 
-        if (modal.Content is StackPanel panel && panel.Children[^1] is Button button)
+        if (modal.Content is Border { Child: StackPanel panel } && panel.Children[^1] is Button button)
         {
             button.Click += (_, _) => modal.Close();
         }

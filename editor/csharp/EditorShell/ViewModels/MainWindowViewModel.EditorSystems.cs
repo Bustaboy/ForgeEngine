@@ -72,6 +72,7 @@ public sealed partial class MainWindowViewModel
     private string _modelRecommendationSummary = "Run onboarding to receive hardware-matched model recommendations.";
     private string _forgeGuardKeepInstalledMessage = "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
     private bool _isDownloadProgressVisible;
+    private bool _isDownloadProgressIndeterminate = true;
     private string _downloadProgressTitle = "Downloading model";
     private string _downloadProgressCurrentFile = "Preparing download...";
     private double _downloadProgressPercent;
@@ -543,6 +544,7 @@ public sealed partial class MainWindowViewModel
     }
     public bool CanRunModelManagerActions => !IsModelManagerBusy;
     public bool IsDownloadProgressVisible { get => _isDownloadProgressVisible; private set { _isDownloadProgressVisible = value; OnPropertyChanged(); } }
+    public bool IsDownloadProgressIndeterminate { get => _isDownloadProgressIndeterminate; private set { _isDownloadProgressIndeterminate = value; OnPropertyChanged(); } }
     public string DownloadProgressTitle { get => _downloadProgressTitle; private set { _downloadProgressTitle = value; OnPropertyChanged(); } }
     public string DownloadProgressCurrentFile { get => _downloadProgressCurrentFile; private set { _downloadProgressCurrentFile = value; OnPropertyChanged(); } }
     public double DownloadProgressPercent { get => _downloadProgressPercent; private set { _downloadProgressPercent = Math.Clamp(value, 0d, 100d); OnPropertyChanged(); } }
@@ -1653,12 +1655,23 @@ public sealed partial class MainWindowViewModel
         RebuildModelManagerEntries(null);
         IsModelManagerBusy = true;
         IsDownloadProgressVisible = true;
+        IsDownloadProgressIndeterminate = true;
         DownloadProgressTitle = operationLabel;
         DownloadProgressPercent = 0;
-        DownloadProgressSummary = "Starting download...";
+        DownloadProgressSummary = command switch
+        {
+            "quick-setup" => "Preparing hardware benchmark and recommended model setup...",
+            "onboarding-run" => "Preparing hardware benchmark and ForgeGuard recommendation...",
+            _ => "Starting model download...",
+        };
         DownloadProgressSpeed = "Speed: --";
         DownloadProgressEta = "ETA: --";
-        DownloadProgressCurrentFile = "Preparing...";
+        DownloadProgressCurrentFile = command switch
+        {
+            "quick-setup" => "Running first-launch checks before the download begins...",
+            "onboarding-run" => "Benchmarking this machine before downloading ForgeGuard...",
+            _ => "Contacting model host...",
+        };
         ModelManagerStatus = $"{operationLabel}...";
 
         using var cts = new CancellationTokenSource();
@@ -1802,6 +1815,8 @@ public sealed partial class MainWindowViewModel
             !string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal) &&
             !string.Equals(eventName, "download_progress", StringComparison.Ordinal) &&
             !string.Equals(eventName, "download_started", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "download_completed", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "onboarding_stage", StringComparison.Ordinal) &&
             !string.Equals(eventName, "token_notice", StringComparison.Ordinal))
         {
             return false;
@@ -1813,6 +1828,22 @@ public sealed partial class MainWindowViewModel
             friendlyName = string.Equals(SafeGetString(payload, "stage"), "benchmark_complete", StringComparison.Ordinal)
                 ? "ForgeGuard"
                 : "model";
+        }
+
+        if (string.Equals(eventName, "onboarding_stage", StringComparison.Ordinal))
+        {
+            var stage = SafeGetString(payload, "stage");
+            if (string.Equals(stage, "benchmark_complete", StringComparison.Ordinal))
+            {
+                DownloadProgressTitle = "Preparing ForgeGuard";
+                DownloadProgressSummary = "Hardware benchmark complete. Preparing ForgeGuard download...";
+                DownloadProgressCurrentFile = "Benchmark finished. Contacting the model host...";
+                DownloadProgressSpeed = "Speed: --";
+                DownloadProgressEta = "ETA: --";
+                IsDownloadProgressIndeterminate = true;
+            }
+
+            return true;
         }
 
         DownloadProgressTitle = $"Downloading {friendlyName}";
@@ -1827,6 +1858,13 @@ public sealed partial class MainWindowViewModel
         {
             DownloadProgressCurrentFile = currentFile;
         }
+        else if (string.Equals(eventName, "download_started", StringComparison.Ordinal))
+        {
+            var repoId = SafeGetString(payload, "repo_id");
+            DownloadProgressCurrentFile = string.IsNullOrWhiteSpace(repoId)
+                ? $"Contacting the model host for {friendlyName}..."
+                : $"Contacting the model host for {friendlyName} ({repoId})...";
+        }
 
         var speed = SafeGetDouble(payload, "speed_mbps");
         DownloadProgressSpeed = speed.HasValue ? $"Speed: {speed.Value:0.00} MB/s" : "Speed: --";
@@ -1837,11 +1875,21 @@ public sealed partial class MainWindowViewModel
         if (downloaded.HasValue && total.HasValue && total.Value > 0)
         {
             DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}% ({downloaded.Value:0.0}/{total.Value:0.0} MB)";
+            IsDownloadProgressIndeterminate = false;
+        }
+        else
+        {
+            IsDownloadProgressIndeterminate =
+                string.Equals(eventName, "download_started", StringComparison.Ordinal) ||
+                string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal) ||
+                string.Equals(eventName, "token_notice", StringComparison.Ordinal) ||
+                DownloadProgressPercent <= 0;
         }
 
         if (string.Equals(eventName, "cancelled", StringComparison.Ordinal))
         {
             DownloadProgressSummary = "Canceled by user.";
+            IsDownloadProgressIndeterminate = false;
         }
         else if (string.Equals(eventName, "token_notice", StringComparison.Ordinal))
         {
@@ -1860,6 +1908,16 @@ public sealed partial class MainWindowViewModel
             DownloadProgressEta = $"Retry in: {Math.Max(1, retryInSeconds)}s";
             _modelDownloadProgressByName[friendlyName] = $"Retrying in {Math.Max(1, retryInSeconds)}s";
             RebuildModelManagerEntries(null);
+            IsDownloadProgressIndeterminate = true;
+        }
+        else if (string.Equals(eventName, "download_completed", StringComparison.Ordinal))
+        {
+            DownloadProgressPercent = 100;
+            DownloadProgressSummary = $"{friendlyName}: 100.0% complete";
+            DownloadProgressCurrentFile = "Download completed. Finalizing local model registration...";
+            DownloadProgressSpeed = "Speed: --";
+            DownloadProgressEta = "ETA: 00:00";
+            IsDownloadProgressIndeterminate = false;
         }
         else if (string.Equals(eventName, "error", StringComparison.Ordinal))
         {
@@ -1871,6 +1929,7 @@ public sealed partial class MainWindowViewModel
                 DownloadErrorGuidance = errorState.SuggestedAction;
                 IsModelErrorRetryEnabled = errorState.Retryable;
                 IsDownloadErrorVisible = true;
+                IsDownloadProgressIndeterminate = false;
             }
         }
         return true;

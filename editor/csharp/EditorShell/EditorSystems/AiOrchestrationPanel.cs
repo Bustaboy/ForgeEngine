@@ -18,6 +18,7 @@ public static class AiOrchestrationPanel
             UseShellExecute = false,
         };
 
+        processStartInfo.ArgumentList.Add("-u");
         processStartInfo.ArgumentList.Add(scriptPath);
         foreach (var arg in args)
         {
