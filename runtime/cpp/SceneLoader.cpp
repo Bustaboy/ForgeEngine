@@ -350,6 +350,8 @@ json ScriptedBehaviorComponentToJson(const ScriptedBehaviorComponent& scripted) 
         {"current_state", scripted.current_state},
         {"target_entity_id", scripted.target_entity_id},
         {"schedule_override", scripted.schedule_override},
+        {"spark_override_chance", scripted.spark_override_chance},
+        {"last_spark_timestamp", scripted.last_spark_timestamp},
     };
     json parameters = json::object();
     for (const auto& [key, value] : scripted.parameters) {
@@ -365,6 +367,8 @@ ScriptedBehaviorComponent ScriptedBehaviorComponentFromJson(const json& node, co
     scripted.current_state = node.value("current_state", scripted.current_state);
     scripted.target_entity_id = node.value("target_entity_id", scripted.target_entity_id);
     scripted.schedule_override = node.value("schedule_override", scripted.schedule_override);
+    scripted.spark_override_chance = std::clamp(node.value("spark_override_chance", scripted.spark_override_chance), 0.0F, 1.0F);
+    scripted.last_spark_timestamp = node.value("last_spark_timestamp", scripted.last_spark_timestamp);
     scripted.parameters.clear();
     if (node.contains("parameters") && node["parameters"].is_object()) {
         for (const auto& [key, value_node] : node["parameters"].items()) {

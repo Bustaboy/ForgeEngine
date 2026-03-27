@@ -909,6 +909,8 @@ public sealed partial class MainWindowViewModel
                     scripted["current_state"] = state;
                     scripted["target_entity_id"] = ReadUlong(scripted["target_entity_id"], 0);
                     scripted["schedule_override"] = true;
+                    scripted["spark_override_chance"] = Math.Clamp(ReadSingle(scripted["spark_override_chance"], 0.05f), 0f, 1f);
+                    scripted["last_spark_timestamp"] = ReadSingle(scripted["last_spark_timestamp"], -1f);
                     var paramsNode = new JsonObject();
                     foreach (var kvp in parameters)
                     {
@@ -2910,6 +2912,14 @@ public sealed partial class MainWindowViewModel
             return [];
         }
 
+        var lightweightMode = root["optimization_overrides"]?["lightweight_mode"]?.GetValue<string>() ?? "balanced";
+        var performanceMode = string.Equals(lightweightMode, "performance", StringComparison.OrdinalIgnoreCase);
+        var selectedNpcIds = new HashSet<ulong>();
+        if (SelectedDialogEntityId > 0)
+        {
+            selectedNpcIds.Add(SelectedDialogEntityId);
+        }
+
         var preview = new List<string>();
         foreach (var entity in entities.OfType<JsonObject>())
         {
@@ -2924,11 +2934,36 @@ public sealed partial class MainWindowViewModel
             var state = scripted?["current_state"]?.GetValue<string>();
             var isEnabled = scripted?["enabled"]?.GetValue<bool>() ?? false;
             var parameters = scripted?["parameters"] as JsonObject;
+            var scheduleOverride = scripted?["schedule_override"]?.GetValue<bool>() ?? false;
+            var sparkOverrideChance = Math.Clamp(ReadSingle(scripted?["spark_override_chance"], 0.05f), 0f, 1f);
+            if (performanceMode)
+            {
+                sparkOverrideChance *= 0.4f;
+            }
+            var scriptedStateKey = (state ?? string.Empty).Trim().ToLowerInvariant();
+            var isComplex = _scriptedBehaviorComplexity.TryGetValue(scriptedStateKey, out var complexValue) && complexValue;
+            var scriptedSuitable = isEnabled && !string.IsNullOrWhiteSpace(state) && (!performanceMode || !isComplex);
             var parametersSummary = parameters is null || parameters.Count == 0
                 ? string.Empty
                 : $" ({string.Join(", ", parameters.Select(kvp => $"{kvp.Key}={ReadSingle(kvp.Value, 0f):0.###}"))})";
             var stateSummary = isEnabled && !string.IsNullOrWhiteSpace(state) ? state : "off";
-            preview.Add($"{npcName} [{npcId}] → {stateSummary}{parametersSummary}");
+            var needs = entity["needs"] as JsonObject;
+            var lowNeeds = ReadSingle(needs?["hunger"], 20f) <= 18f ||
+                           ReadSingle(needs?["energy"], 80f) <= 18f ||
+                           ReadSingle(needs?["social"], 60f) <= 18f ||
+                           ReadSingle(needs?["fun"], 55f) <= 18f;
+            var sparkAllowed = !scriptedSuitable || lowNeeds;
+            var scriptedPriority = scriptedSuitable && !lowNeeds ? "High" : "Normal";
+            var overrideSummary = scriptedSuitable
+                ? $" override={sparkOverrideChance:0.###}"
+                : string.Empty;
+            var selectedTag = selectedNpcIds.Contains(npcId) ? " [Selected]" : string.Empty;
+            var suitability = scriptedSuitable
+                ? (scheduleOverride ? "schedule=override" : "schedule=match")
+                : "schedule=not-suitable";
+
+            preview.Add(
+                $"{npcName} [{npcId}]{selectedTag} → {stateSummary}{parametersSummary} | Scripted Priority: {scriptedPriority} | Spark Allowed: {(sparkAllowed ? "Yes" : "No")} | {suitability}{overrideSummary}");
         }
 
         return preview;

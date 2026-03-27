@@ -6,6 +6,7 @@
 #include <vector>
 
 struct Scene;
+struct Entity;
 
 class ScriptedBehaviorSystem {
 public:
@@ -19,5 +20,6 @@ public:
         const std::map<std::string, float>& parameters,
         bool schedule_override,
         std::uint64_t target_entity_id);
+    [[nodiscard]] static bool IsBehaviorSuitable(const Scene& scene, const Entity& entity);
     [[nodiscard]] static std::vector<std::string> ListBehaviors(Scene& scene);
 };
