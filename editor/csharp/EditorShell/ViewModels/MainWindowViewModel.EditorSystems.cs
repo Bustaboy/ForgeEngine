@@ -1801,7 +1801,8 @@ public sealed partial class MainWindowViewModel
             !string.Equals(eventName, "error", StringComparison.Ordinal) &&
             !string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal) &&
             !string.Equals(eventName, "download_progress", StringComparison.Ordinal) &&
-            !string.Equals(eventName, "download_started", StringComparison.Ordinal))
+            !string.Equals(eventName, "download_started", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "token_notice", StringComparison.Ordinal))
         {
             return false;
         }
@@ -1841,6 +1842,16 @@ public sealed partial class MainWindowViewModel
         if (string.Equals(eventName, "cancelled", StringComparison.Ordinal))
         {
             DownloadProgressSummary = "Canceled by user.";
+        }
+        else if (string.Equals(eventName, "token_notice", StringComparison.Ordinal))
+        {
+            var tokenMessage = SafeGetString(payload, "message");
+            if (!string.IsNullOrWhiteSpace(tokenMessage))
+            {
+                ModelManagerStatus = tokenMessage;
+                DownloadProgressCurrentFile = tokenMessage;
+            }
+            return true;
         }
         else if (string.Equals(eventName, "retry_scheduled", StringComparison.Ordinal))
         {

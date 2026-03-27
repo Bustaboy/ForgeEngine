@@ -26,6 +26,25 @@ orchestrator = _load_module("orchestrator_under_test", ORCHESTRATOR_PATH)
 
 
 class OnboardingFlowTests(unittest.TestCase):
+    def test_save_models_config_never_persists_hf_token(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            models_json_path = Path(temp_dir) / "models.json"
+            model_manager._save_models_config(  # noqa: SLF001 - testing module helper
+                {"models": {}, "hf_token": "secret"},
+                models_json_path=models_json_path,
+            )
+            payload = json.loads(models_json_path.read_text(encoding="utf-8"))
+            self.assertNotIn("hf_token", payload)
+
+    def test_choose_token_prefers_environment_over_models_config(self):
+        with mock.patch.dict("os.environ", {"HF_TOKEN": "env-secret"}, clear=False):
+            token, source = model_manager._choose_token(  # noqa: SLF001 - testing module helper
+                token=None,
+                config={"hf_token": "legacy-secret"},
+            )
+        self.assertEqual(token, "env-secret")
+        self.assertEqual(source, "environment")
+
     def test_generate_recommendations_returns_expected_roles(self):
         recs = model_manager.generate_recommendations(
             hardware={"gpu_vram_gb": 8},
