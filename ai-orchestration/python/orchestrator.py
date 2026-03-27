@@ -278,6 +278,9 @@ class OrchestrationResult:
     confidence: float
     suggested_scene_patch: list[dict[str, object]]
     summary: str
+    health_summary: dict[str, object] = field(default_factory=dict)
+    provenance: list[dict[str, object]] = field(default_factory=list)
+    playtest_feedback: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -1649,12 +1652,76 @@ def _source_from_scene_for_narrative(scene_payload: dict[str, object], lightweig
     return "scripted"
 
 
+def _source_from_scene_for_review(scene_payload: dict[str, object], lightweight_mode: str) -> str:
+    rag = scene_payload.get("rag")
+    free_will = scene_payload.get("free_will")
+    rag_enabled = isinstance(rag, dict) and bool(rag.get("enabled", True))
+    llm_enabled = isinstance(free_will, dict) and bool(free_will.get("llm_enabled", False))
+    if lightweight_mode == "performance":
+        return "scripted"
+    if rag_enabled and llm_enabled:
+        return "hybrid"
+    if rag_enabled:
+        return "rag"
+    if llm_enabled:
+        return "llm"
+    return "scripted"
+
+
+def _should_include_review_playtest(scene_payload: dict[str, object], target: str) -> bool:
+    ai_node = scene_payload.get("ai_orchestration")
+    default_enabled = isinstance(ai_node, dict) and bool(ai_node.get("enable_bot_playtesting_in_review", False))
+    normalized_target = target.strip().lower()
+    if normalized_target in {"playtest", "with_playtest", "review+playtest"}:
+        return True
+    if normalized_target in {"no_playtest", "without_playtest"}:
+        return False
+    return default_enabled
+
+
+def _simulate_scene_review_playtest(scene_payload: dict[str, object], fps_avg: float) -> dict[str, object]:
+    findings: list[str] = []
+    recommendations: list[str] = []
+
+    entities = scene_payload.get("entities")
+    entity_count = len(entities) if isinstance(entities, list) else 0
+    npcs = _read_scene_npcs(scene_payload)
+    if entity_count == 0:
+        findings.append("Scene has no entities; traversal loop cannot be validated.")
+        recommendations.append("Add at least one player spawn and one interactable prop for smoke playtests.")
+    elif entity_count > 120:
+        findings.append(f"High entity density ({entity_count}) may cause traversal hitches.")
+        recommendations.append("Cull distant props or convert decorative actors to static instances.")
+
+    if len(npcs) == 0:
+        findings.append("No NPCs found for social/quest interaction checks.")
+        recommendations.append("Add at least one NPC with scripted_behavior for deterministic review checkpoints.")
+
+    weather = scene_payload.get("weather")
+    weather_fx = int(weather.get("particle_density", 0) or 0) if isinstance(weather, dict) else 0
+    if weather_fx > 60 and fps_avg < 40:
+        findings.append("Weather particle density appears high relative to measured framerate.")
+        recommendations.append("Lower weather particle density for performance mode review paths.")
+
+    if not findings:
+        findings.append("No critical blockers detected in short deterministic playtest pass.")
+
+    return {
+        "mode": "short_pass",
+        "executed": True,
+        "status": "ok",
+        "findings": findings[:4],
+        "recommendations": recommendations[:4],
+    }
+
+
 def _coerce_orchestration_type(orchestration_type: str) -> str:
     normalized = orchestration_type.strip().lower()
     if normalized not in {"narrative_checkpoint", "npc_day", "scene_review"}:
         raise ValueError(
             "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]; "
-            "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>"
+            "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>, "
+            "scene_review target=<playtest|with_playtest|no_playtest>"
         )
     return normalized
 
@@ -1682,6 +1749,9 @@ def _build_orchestration_result(
         )
     ).strip().lower()
     performance_throttled = lightweight_mode == "performance"
+    health_summary: dict[str, object] = {}
+    provenance: list[dict[str, object]] = []
+    playtest_feedback: dict[str, object] | None = None
 
     if normalized_type == "narrative_checkpoint":
         source = _source_from_scene_for_narrative(scene_payload, lightweight_mode)
@@ -1806,17 +1876,61 @@ def _build_orchestration_result(
             f" across {npc_count} NPC(s){' [throttled]' if performance_throttled else ''}."
         )
     else:
-        source = "scripted"
-        confidence = 0.79
-        optimization = optimization_critique(scene_path, max_suggestions=1)
+        source = _source_from_scene_for_review(scene_payload, lightweight_mode)
+        confidence = 0.79 if source in {"hybrid", "rag"} else 0.72
+        if performance_throttled:
+            confidence = min(confidence, 0.63)
+
+        max_suggestions = 1 if performance_throttled else 3
+        optimization = optimization_critique(scene_path, max_suggestions=max_suggestions)
         suggestions = optimization.get("suggestions", []) if isinstance(optimization, dict) else []
-        first_patch = []
-        if isinstance(suggestions, list) and suggestions and isinstance(suggestions[0], dict):
-            first_patch = suggestions[0].get("patch", [])
-        patch = _safe_scene_patch(list(first_patch) if isinstance(first_patch, list) else [])
+        aggregated_patch: list[dict[str, object]] = []
+        if isinstance(suggestions, list):
+            for suggestion in suggestions[:max_suggestions]:
+                if not isinstance(suggestion, dict):
+                    continue
+                raw_patch = suggestion.get("patch", [])
+                if isinstance(raw_patch, list):
+                    aggregated_patch.extend(raw_patch)
+        patch = _safe_scene_patch(aggregated_patch)
+
+        optimization_summary = optimization.get("summary", {}) if isinstance(optimization, dict) else {}
+        health_summary = {
+            "project_health_score": int(optimization.get("health_score", 0) or 0) if isinstance(optimization, dict) else 0,
+            "lightweight_mode": lightweight_mode,
+            "lightweight_mode_suggestion": (
+                optimization.get("lightweight_mode_suggestion", {}) if isinstance(optimization, dict) else {}
+            ),
+            "performance": {
+                "fps_avg": round(fps_avg, 2),
+                "target_profile": str(optimization_summary.get("target_profile", "unknown")),
+                "draw_calls": int(metrics.get("draw_calls", 0) or 0),
+                "vram_usage_mb": round(float(metrics.get("vram_usage_mb", 0.0) or 0.0), 1),
+            },
+            "change_log_samples": [str(change.get("summary", "")).strip() for change in recent_changes[:3] if isinstance(change, dict)],
+        }
+
+        rag = scene_payload.get("rag")
+        rag_documents = 0
+        if isinstance(rag, dict):
+            corpus = rag.get("documents")
+            rag_documents = len(corpus) if isinstance(corpus, list) else int(rag.get("document_count", 0) or 0)
+
+        provenance = [
+            {"source": "optimization_critique", "kind": "critique", "used": True, "suggestions": len(suggestions) if isinstance(suggestions, list) else 0},
+            {"source": "performance_snapshot", "kind": "metrics", "used": True, "session": f"orchestrate_{normalized_type}", "fps_avg": round(fps_avg, 2)},
+            {"source": "change_log", "kind": "history", "used": True, "entries_considered": len(recent_changes)},
+            {"source": "rag", "kind": "knowledge", "used": bool(rag_documents), "documents": rag_documents},
+        ]
+
+        if _should_include_review_playtest(scene_payload, normalized_target):
+            playtest_feedback = _simulate_scene_review_playtest(scene_payload, fps_avg)
+            provenance.append({"source": "bot_playtest_hook", "kind": "simulation", "used": True, "mode": "short_pass"})
+
         summary = (
-            f"Deterministic scene review completed (fps_avg={fps_avg:.1f}); "
-            "recommendation patch sourced from optimization critique."
+            f"Scene review completed: health {health_summary.get('project_health_score', 0)}/100"
+            f" using {source} orchestration with {len(patch)} safe patch op(s)"
+            f"{' + playtest feedback' if playtest_feedback else ''}."
         )
 
     return OrchestrationResult(
@@ -1826,6 +1940,9 @@ def _build_orchestration_result(
         confidence=round(confidence, 2),
         suggested_scene_patch=patch,
         summary=summary,
+        health_summary=health_summary,
+        provenance=provenance,
+        playtest_feedback=playtest_feedback,
     )
 
 
@@ -4345,7 +4462,8 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         if len(raw_args) < 3:
             raise ValueError(
                 "Usage: orchestrator.py /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target]; "
-                "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>"
+                "npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>, "
+                "scene_review target=<playtest|with_playtest|no_playtest>"
             )
         try:
             result = _build_orchestration_result(
@@ -4614,7 +4732,8 @@ def main() -> int:
     print("Local-first orchestration placeholder")
     print(
         "Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target] "
-        "(npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>)"
+        "(npc_day target=<npc_id>, narrative_checkpoint target=<checkpoint>, "
+        "scene_review target=<playtest|with_playtest|no_playtest>)"
     )
     return 0
 

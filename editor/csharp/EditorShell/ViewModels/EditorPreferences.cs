@@ -9,6 +9,7 @@ public sealed class EditorPreferences
     public RuntimePreferences Runtime { get; init; } = new();
 
     public EditorPanePreferences Editor { get; init; } = new();
+    public AiOrchestrationPreferences AiOrchestration { get; init; } = new();
 
     public static EditorPreferences CreateDefault() => new();
 
@@ -47,6 +48,11 @@ public sealed class EditorPreferences
                 IconSize = Editor.IconSize,
                 HistoryLength = Editor.HistoryLength,
                 DefaultTemplateId = Editor.DefaultTemplateId,
+            },
+            AiOrchestration = new AiOrchestrationPreferences
+            {
+                EnableBotPlaytestingInReview = AiOrchestration.EnableBotPlaytestingInReview,
+                LastSceneReviewSummary = AiOrchestration.LastSceneReviewSummary,
             },
         };
     }
@@ -114,6 +120,13 @@ public sealed class EditorPreferences
                 IconSize = Math.Clamp(Editor.IconSize, 40, 84),
                 HistoryLength = Math.Clamp(Editor.HistoryLength, 10, 300),
                 DefaultTemplateId = normalizedTemplate,
+            },
+            AiOrchestration = new AiOrchestrationPreferences
+            {
+                EnableBotPlaytestingInReview = AiOrchestration.EnableBotPlaytestingInReview,
+                LastSceneReviewSummary = string.IsNullOrWhiteSpace(AiOrchestration.LastSceneReviewSummary)
+                    ? "No scene review has been run yet."
+                    : AiOrchestration.LastSceneReviewSummary.Trim(),
             },
         };
     }
@@ -197,5 +210,12 @@ public sealed class EditorPreferences
         public int HistoryLength { get; init; } = 120;
 
         public string DefaultTemplateId { get; init; } = "cozy-colony";
+    }
+
+    public sealed class AiOrchestrationPreferences
+    {
+        public bool EnableBotPlaytestingInReview { get; init; }
+
+        public string LastSceneReviewSummary { get; init; } = "No scene review has been run yet.";
     }
 }

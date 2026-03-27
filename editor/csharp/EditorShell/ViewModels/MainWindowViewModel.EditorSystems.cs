@@ -94,6 +94,7 @@ public sealed partial class MainWindowViewModel
     private bool _hardGuardrailsEnabled;
     private int _softGuardrailThreshold = 50;
     private int _hardGuardrailThreshold = 30;
+    private const string ReviewSummaryFallback = "No scene review has been run yet.";
     private string _selectedOptimizationPreview = "Run Optimization Check to see suggestions.";
     private bool _isModelManagerBusy;
     private string _biomeEditor = "temperate";
@@ -1183,6 +1184,14 @@ public sealed partial class MainWindowViewModel
             finalArgs.Add("Generated NPC");
             finalArgs.Add("villager");
         }
+        else if (string.Equals(command, "orchestrate", StringComparison.Ordinal)
+            && args.Length >= 2
+            && string.Equals(args[0], "scene_review", StringComparison.OrdinalIgnoreCase)
+            && _preferences.AiOrchestration.EnableBotPlaytestingInReview
+            && args.Length < 3)
+        {
+            finalArgs.Add("playtest");
+        }
 
         var processResult = await RunAiHookProcessAsync(command, finalArgs);
         var stdout = processResult.Stdout;
@@ -1246,8 +1255,58 @@ public sealed partial class MainWindowViewModel
                 // Preserve backward-compatible behavior if hook output shape changes.
             }
         }
+        else if (string.Equals(command, "orchestrate", StringComparison.Ordinal)
+            && args.Length >= 1
+            && string.Equals(args[0], "scene_review", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(stdout))
+        {
+            TryUpdateSceneReviewSummaryFromOutput(stdout);
+        }
 
         StatusMessage = completion;
+    }
+
+    private void TryUpdateSceneReviewSummaryFromOutput(string stdout)
+    {
+        try
+        {
+            var payload = JsonNode.Parse(stdout) as JsonObject;
+            var reviewSummary = payload?["orchestration_result"]?["summary"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(reviewSummary))
+            {
+                return;
+            }
+
+            _preferences = new EditorPreferences
+            {
+                General = _preferences.General,
+                Runtime = _preferences.Runtime,
+                Editor = _preferences.Editor,
+                AiOrchestration = new EditorPreferences.AiOrchestrationPreferences
+                {
+                    EnableBotPlaytestingInReview = _preferences.AiOrchestration.EnableBotPlaytestingInReview,
+                    LastSceneReviewSummary = reviewSummary.Trim(),
+                },
+            }.Sanitize();
+            OnPropertyChanged(nameof(LastSceneReviewSummaryStatus));
+            OnPropertyChanged(nameof(IsBotPlaytestingInReviewEnabled));
+        }
+        catch
+        {
+            _preferences = new EditorPreferences
+            {
+                General = _preferences.General,
+                Runtime = _preferences.Runtime,
+                Editor = _preferences.Editor,
+                AiOrchestration = new EditorPreferences.AiOrchestrationPreferences
+                {
+                    EnableBotPlaytestingInReview = _preferences.AiOrchestration.EnableBotPlaytestingInReview,
+                    LastSceneReviewSummary = string.IsNullOrWhiteSpace(_preferences.AiOrchestration.LastSceneReviewSummary)
+                        ? ReviewSummaryFallback
+                        : _preferences.AiOrchestration.LastSceneReviewSummary,
+                },
+            }.Sanitize();
+        }
     }
 
     private async Task<(int ExitCode, string Stdout, string Stderr)> RunAiHookProcessAsync(string command, IReadOnlyList<string> finalArgs)
