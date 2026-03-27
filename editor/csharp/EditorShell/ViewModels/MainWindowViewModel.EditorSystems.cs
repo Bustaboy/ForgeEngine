@@ -1194,7 +1194,7 @@ public sealed partial class MainWindowViewModel
     public async Task RunModelOnboardingAsync()
     {
         var completed = await RunManagedModelOperationWithProgressAsync(
-            operationLabel: "Running onboarding",
+            operationLabel: "Downloading ForgeGuard",
             trackedModelNames: ["forgeguard"],
             command: "onboarding-run",
             args: []);
@@ -1504,32 +1504,40 @@ public sealed partial class MainWindowViewModel
             return false;
         }
 
-        var eventName = payload["event"]?.GetValue<string>();
+        var eventName = SafeGetString(payload, "event");
         if (!string.Equals(eventName, "progress", StringComparison.Ordinal) &&
             !string.Equals(eventName, "cancelled", StringComparison.Ordinal))
         {
             return false;
         }
 
-        var friendlyName = payload["friendly_name"]?.GetValue<string>() ?? "model";
-        var percent = payload["progress_percent"]?.GetValue<double?>() ?? DownloadProgressPercent;
+        var friendlyName = SafeGetString(payload, "friendly_name");
+        if (string.IsNullOrWhiteSpace(friendlyName))
+        {
+            friendlyName = string.Equals(SafeGetString(payload, "stage"), "benchmark_complete", StringComparison.Ordinal)
+                ? "ForgeGuard"
+                : "model";
+        }
+
+        DownloadProgressTitle = $"Downloading {friendlyName}";
+        var percent = SafeGetDouble(payload, "progress_percent") ?? DownloadProgressPercent;
         DownloadProgressPercent = percent;
         DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}%";
         _modelDownloadProgressByName[friendlyName] = $"Downloading {DownloadProgressPercent:0.#}%";
-        OnPropertyChanged(nameof(ModelManagerEntries));
+        RebuildModelManagerEntries(null);
 
-        var currentFile = payload["current_file"]?.GetValue<string>();
+        var currentFile = SafeGetString(payload, "current_file");
         if (!string.IsNullOrWhiteSpace(currentFile))
         {
             DownloadProgressCurrentFile = currentFile;
         }
 
-        var speed = payload["speed_mbps"]?.GetValue<double?>();
+        var speed = SafeGetDouble(payload, "speed_mbps");
         DownloadProgressSpeed = speed.HasValue ? $"Speed: {speed.Value:0.00} MB/s" : "Speed: --";
-        var eta = payload["eta_seconds"]?.GetValue<int?>();
+        var eta = SafeGetInt(payload, "eta_seconds");
         DownloadProgressEta = eta.HasValue ? $"ETA: {TimeSpan.FromSeconds(Math.Max(0, eta.Value)):mm\\:ss}" : "ETA: --";
-        var downloaded = payload["downloaded_mb"]?.GetValue<double?>();
-        var total = payload["total_mb"]?.GetValue<double?>();
+        var downloaded = SafeGetDouble(payload, "downloaded_mb");
+        var total = SafeGetDouble(payload, "total_mb");
         if (downloaded.HasValue && total.HasValue && total.Value > 0)
         {
             DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}% ({downloaded.Value:0.0}/{total.Value:0.0} MB)";
@@ -1540,6 +1548,42 @@ public sealed partial class MainWindowViewModel
             DownloadProgressSummary = "Canceled by user.";
         }
         return true;
+    }
+
+    private static string? SafeGetString(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<string>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double? SafeGetDouble(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<double?>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? SafeGetInt(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<int?>();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public sealed record ModelManagerEntry(

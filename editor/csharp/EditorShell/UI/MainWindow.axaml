@@ -1700,34 +1700,43 @@
       </StackPanel>
     </Border>
 
-    <Border Grid.RowSpan="5"
-            IsVisible="{Binding IsDownloadProgressVisible}"
-            Background="#07101CE8"
-            BorderBrush="#5AAFFF"
-            BorderThickness="1.2"
-            CornerRadius="10"
-            Padding="18"
-            Margin="52,56"
-            ZIndex="24">
-      <StackPanel Spacing="10" MaxWidth="760">
-        <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="20" FontWeight="Bold" />
-        <TextBlock Text="{Binding DownloadProgressSummary}" Foreground="#CFE5FF" FontSize="13" TextWrapping="Wrap" />
-        <ProgressBar Height="10"
-                     Minimum="0"
-                     Maximum="100"
-                     Value="{Binding DownloadProgressPercent}"
-                     Background="#0B1524"
-                     Foreground="#4AA3FF" />
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-          <TextBlock Text="{Binding DownloadProgressCurrentFile}" Foreground="#AFC2DF" TextWrapping="Wrap" />
-          <TextBlock Grid.Column="1" Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
-          <TextBlock Grid.Column="2" Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
-        </Grid>
-        <Button Content="Cancel Download"
-                HorizontalAlignment="Left"
-                Click="OnCancelModelDownloadClick" />
-      </StackPanel>
-    </Border>
+    <Grid Grid.RowSpan="5"
+          IsVisible="{Binding IsDownloadProgressVisible}"
+          Background="#050C15AA"
+          ZIndex="24">
+      <Border HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="720"
+              MaxWidth="760"
+              Background="#0A1627F4"
+              BorderBrush="#5AAFFF"
+              BorderThickness="1.2"
+              CornerRadius="12"
+              Padding="18">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="This may take a few minutes depending on your internet speed."
+                     Foreground="#9FC2E5"
+                     FontSize="12"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="{Binding DownloadProgressSummary}" Foreground="#CFE5FF" FontSize="13" TextWrapping="Wrap" />
+          <ProgressBar Height="10"
+                       Minimum="0"
+                       Maximum="100"
+                       Value="{Binding DownloadProgressPercent}"
+                       Background="#0B1524"
+                       Foreground="#4AA3FF" />
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <TextBlock Text="{Binding DownloadProgressCurrentFile}" Foreground="#AFC2DF" TextWrapping="Wrap" />
+            <TextBlock Grid.Column="1" Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
+            <TextBlock Grid.Column="2" Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
+          </Grid>
+          <Button Content="Cancel Download"
+                  HorizontalAlignment="Left"
+                  Click="OnCancelModelDownloadClick" />
+        </StackPanel>
+      </Border>
+    </Grid>
 
     <Border Grid.RowSpan="5"
             IsVisible="{Binding IsAssetBrowserDragPreviewVisible}"
