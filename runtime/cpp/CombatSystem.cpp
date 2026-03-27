@@ -257,6 +257,7 @@ bool StartEncounter(
     scene.combat.grid_height = std::max(4U, grid_height);
     scene.combat.trigger_source = source;
     scene.combat.round_index = 1U;
+    scene.combat.last_action = "start";
     scene.combat.units.reserve(ids.size());
 
     std::uint32_t slot = 0;
@@ -326,6 +327,7 @@ bool TryAction(Scene& scene, const std::string& action, const std::string& targe
 
     if (action == "wait") {
         actor_unit->ap = 0U;
+        scene.combat.last_action = "wait";
         std::string turn_message;
         AdvanceTurn(scene, turn_message);
         ResolveIfComplete(scene);
@@ -363,6 +365,7 @@ bool TryAction(Scene& scene, const std::string& action, const std::string& targe
         actor_unit->grid_x = target_x;
         actor_unit->grid_y = target_y;
         actor_unit->ap -= ap_cost;
+        scene.combat.last_action = "move";
         out_message = "Entity #" + std::to_string(actor_id) + " moved to (" + std::to_string(target_x) + "," + std::to_string(target_y) + ").";
         if (actor_unit->ap == 0U) {
             std::string turn_message;
@@ -413,11 +416,13 @@ bool TryAction(Scene& scene, const std::string& action, const std::string& targe
 
         actor_unit->ap -= kAttackApCost;
         if (deterministic_roll > accuracy) {
+            scene.combat.last_action = "attack_miss";
             out_message = "Entity #" + std::to_string(actor_id) + " missed #" + std::to_string(target_id) + ".";
         } else {
             const float damage = std::max(1.0F, attack_value - (defense_value * 0.65F));
             target_unit->health = std::max(0.0F, target_unit->health - damage);
             target_unit->alive = target_unit->health > 0.0F;
+            scene.combat.last_action = "attack_hit";
             out_message = "Entity #" + std::to_string(actor_id) + " hit #" + std::to_string(target_id) + " for " +
                           std::to_string(static_cast<int>(std::round(damage))) + " dmg.";
             if (!target_unit->alive) {
@@ -449,6 +454,7 @@ bool TryAction(Scene& scene, const std::string& action, const std::string& targe
 
         actor_unit->health = std::min(actor_unit->max_health, actor_unit->health + 16.0F);
         actor_unit->ap -= kItemApCost;
+        scene.combat.last_action = "use_item";
         out_message = "Entity #" + std::to_string(actor_id) + " used " + item + " and recovered health.";
         if (actor_unit->ap == 0U) {
             std::string turn_message;

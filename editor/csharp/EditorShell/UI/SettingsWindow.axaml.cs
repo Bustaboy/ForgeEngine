@@ -55,6 +55,8 @@ public partial class SettingsWindow : Window
         this.FindControl<NumericUpDown>("MusicVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("AmbientVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("UiVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("SfxVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("SpatialVoiceLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -82,6 +84,8 @@ public partial class SettingsWindow : Window
         SetNumericValue("MusicVolumeNumeric", preferences.Runtime.Audio.MusicVolume);
         SetNumericValue("AmbientVolumeNumeric", preferences.Runtime.Audio.AmbientVolume);
         SetNumericValue("UiVolumeNumeric", preferences.Runtime.Audio.UiVolume);
+        SetNumericValue("SfxVolumeNumeric", preferences.Runtime.Audio.SfxVolume);
+        SetNumericValue("SpatialVoiceLimitNumeric", preferences.Runtime.Audio.SpatialVoiceLimit);
 
         var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
         if (templateCombo is not null)
@@ -164,6 +168,8 @@ public partial class SettingsWindow : Window
                     MusicVolume = GetNumericValue("MusicVolumeNumeric", 75),
                     AmbientVolume = GetNumericValue("AmbientVolumeNumeric", 60),
                     UiVolume = GetNumericValue("UiVolumeNumeric", 80),
+                    SfxVolume = GetNumericValue("SfxVolumeNumeric", 80),
+                    SpatialVoiceLimit = GetNumericValue("SpatialVoiceLimitNumeric", 24),
                 },
             },
             Editor = new EditorPreferences.EditorPanePreferences

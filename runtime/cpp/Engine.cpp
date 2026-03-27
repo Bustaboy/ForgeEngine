@@ -96,7 +96,8 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
-    GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
+    GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
+    GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
     GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
     GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
@@ -236,6 +237,24 @@ void ProcessConsoleCommands(
         const std::string state = std::string("Combat music override: ") + (scene.audio.combat_music_override ? "ON" : "OFF");
         GF_LOG_INFO(state);
         SetOverlayStatusMessage(overlay_status_message, state);
+        return;
+    }
+
+    if (command == "/audio_play_sfx") {
+        std::string effect;
+        parser >> effect;
+        std::string message;
+        const bool ok = AudioSystem::PlaySfx(scene, effect, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "SFX queued" : "Usage: /audio_play_sfx <effect>");
+        return;
+    }
+
+    if (command == "/audio_spatial_test") {
+        std::string message;
+        const bool ok = AudioSystem::SpatialTest(scene, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Spatial test emitted" : "Spatial test failed");
         return;
     }
 

@@ -1444,6 +1444,7 @@ json CombatStateToJson(const CombatState& combat) {
         {"active_turn_index", combat.active_turn_index},
         {"round_index", combat.round_index},
         {"trigger_source", combat.trigger_source},
+        {"last_action", combat.last_action},
         {"last_resolution", combat.last_resolution},
         {"units", json::array()},
         {"turn_order", json::array()},
@@ -1481,6 +1482,7 @@ CombatState CombatStateFromJson(const json& node, const CombatState& fallback) {
     combat.active_turn_index = node.value("active_turn_index", combat.active_turn_index);
     combat.round_index = std::max(0U, node.value("round_index", combat.round_index));
     combat.trigger_source = node.value("trigger_source", combat.trigger_source);
+    combat.last_action = node.value("last_action", combat.last_action);
     combat.last_resolution = node.value("last_resolution", combat.last_resolution);
     combat.units.clear();
     if (node.contains("units") && node["units"].is_array()) {
@@ -1557,10 +1559,14 @@ json AudioStateToJson(const AudioState& audio) {
         {"music_enabled", audio.music_enabled},
         {"ambient_enabled", audio.ambient_enabled},
         {"spatial_audio_enabled", audio.spatial_audio_enabled},
+        {"disable_distant_spatial_in_performance_mode", audio.disable_distant_spatial_in_performance_mode},
         {"combat_music_override", audio.combat_music_override},
         {"disable_music_in_performance_mode", audio.disable_music_in_performance_mode},
         {"max_spatial_voices", audio.max_spatial_voices},
         {"performance_spatial_voices", audio.performance_spatial_voices},
+        {"spatial_voice_hard_limit", audio.spatial_voice_hard_limit},
+        {"spatial_max_distance", audio.spatial_max_distance},
+        {"performance_spatial_max_distance", audio.performance_spatial_max_distance},
     };
 }
 
@@ -1583,6 +1589,9 @@ AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
     audio.music_enabled = node.value("music_enabled", audio.music_enabled);
     audio.ambient_enabled = node.value("ambient_enabled", audio.ambient_enabled);
     audio.spatial_audio_enabled = node.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+    audio.disable_distant_spatial_in_performance_mode = node.value(
+        "disable_distant_spatial_in_performance_mode",
+        audio.disable_distant_spatial_in_performance_mode);
     audio.combat_music_override = node.value("combat_music_override", audio.combat_music_override);
     audio.disable_music_in_performance_mode = node.value("disable_music_in_performance_mode", audio.disable_music_in_performance_mode);
     audio.max_spatial_voices = std::clamp(node.value("max_spatial_voices", audio.max_spatial_voices), 4, 64);
@@ -1590,6 +1599,12 @@ AudioState AudioStateFromJson(const json& node, const AudioState& fallback) {
         node.value("performance_spatial_voices", audio.performance_spatial_voices),
         2,
         audio.max_spatial_voices);
+    audio.spatial_voice_hard_limit = std::clamp(node.value("spatial_voice_hard_limit", audio.spatial_voice_hard_limit), 4, 96);
+    audio.spatial_max_distance = std::clamp(node.value("spatial_max_distance", audio.spatial_max_distance), 6.0F, 120.0F);
+    audio.performance_spatial_max_distance = std::clamp(
+        node.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
+        4.0F,
+        audio.spatial_max_distance);
     return audio;
 }
 

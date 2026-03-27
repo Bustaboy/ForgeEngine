@@ -508,6 +508,18 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
         audio.music_enabled = audio_patch.value("music_enabled", audio.music_enabled);
         audio.ambient_enabled = audio_patch.value("ambient_enabled", audio.ambient_enabled);
         audio.spatial_audio_enabled = audio_patch.value("spatial_audio_enabled", audio.spatial_audio_enabled);
+        audio.disable_distant_spatial_in_performance_mode = audio_patch.value(
+            "disable_distant_spatial_in_performance_mode",
+            audio.disable_distant_spatial_in_performance_mode);
+        audio.max_spatial_voices = std::clamp(audio_patch.value("max_spatial_voices", audio.max_spatial_voices), 4, 64);
+        audio.performance_spatial_voices =
+            std::clamp(audio_patch.value("performance_spatial_voices", audio.performance_spatial_voices), 2, audio.max_spatial_voices);
+        audio.spatial_voice_hard_limit = std::clamp(audio_patch.value("spatial_voice_hard_limit", audio.spatial_voice_hard_limit), 4, 96);
+        audio.spatial_max_distance = std::clamp(audio_patch.value("spatial_max_distance", audio.spatial_max_distance), 6.0F, 120.0F);
+        audio.performance_spatial_max_distance = std::clamp(
+            audio_patch.value("performance_spatial_max_distance", audio.performance_spatial_max_distance),
+            4.0F,
+            audio.spatial_max_distance);
     }
 
     return true;
