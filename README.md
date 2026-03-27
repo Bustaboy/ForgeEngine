@@ -170,6 +170,7 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 | [`GAMEFORGE_EXECUTION_PLAN.md`](GAMEFORGE_EXECUTION_PLAN.md) | Sprint-level milestone map, risk register, KPI targets, and team operating rhythm |
 | [`GAMEFORGE_UX_FOUNDATIONS.md`](GAMEFORGE_UX_FOUNDATIONS.md) | UX wireframe baseline, interaction patterns, and no-coder-first labeling standards |
 | [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) | Zero-guesswork setup, prerequisites, and release flow |
+| [`docs/testing/TEST_POLICY.md`](docs/testing/TEST_POLICY.md) | Required test layers, CI gates, and merge expectations |
 
 ---
 
