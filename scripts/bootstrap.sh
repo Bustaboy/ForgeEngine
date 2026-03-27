@@ -25,6 +25,10 @@ required_paths=(
 echo "GameForge V1 bootstrap (Ubuntu/Linux)"
 echo "Mode: local-first, single-player, no-code-first"
 
+is_headless_runtime_host() {
+  [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]
+}
+
 configure_runtime_build() {
   local cmake_args=(
     -S "$REPO_ROOT"
@@ -110,8 +114,13 @@ cmake --build "$BUILD_DIR" --config Release --target forge_runtime -j 4
 
 if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
   if [[ -x "$RUNTIME_BIN" ]]; then
-    echo "== Starting Runtime Only =="
-    "$RUNTIME_BIN" "$REPO_ROOT"
+    if is_headless_runtime_host; then
+      echo "== Starting Runtime Only (Headless Smoke) =="
+      "$RUNTIME_BIN" --smoke-headless "$REPO_ROOT"
+    else
+      echo "== Starting Runtime Only =="
+      "$RUNTIME_BIN" "$REPO_ROOT"
+    fi
   else
     echo "ERROR: Runtime binary unavailable after successful build."
     exit 1

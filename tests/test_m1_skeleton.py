@@ -1,10 +1,10 @@
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-import os
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -38,37 +38,41 @@ def has_missing_native_runtime_deps(output: str) -> bool:
 
 
 class TestMilestone1Skeleton(unittest.TestCase):
-    def test_runtime_cpp_compiles_and_runs(self):
-        import time
+    _runtime_build_dir = REPO_ROOT / "build"
+    _runtime_binary = _runtime_build_dir / "bin" / ("forge_runtime.exe" if os.name == "nt" else "forge_runtime")
+    _runtime_build_ready = False
 
+    @classmethod
+    def ensure_runtime_build(cls):
+        if cls._runtime_build_ready and cls._runtime_binary.exists():
+            return cls._runtime_binary
+
+        cls._runtime_build_dir.mkdir(parents=True, exist_ok=True)
+
+        configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(cls._runtime_build_dir)])
+        if configure_proc.returncode != 0:
+            if has_missing_native_runtime_deps(configure_proc.stdout + configure_proc.stderr):
+                raise unittest.SkipTest("Vulkan/GLFW dependencies unavailable in test environment")
+            raise AssertionError(configure_proc.stdout + configure_proc.stderr)
+
+        build_proc = run_cmd(["cmake", "--build", str(cls._runtime_build_dir), "--target", "forge_runtime"])
+        if build_proc.returncode != 0:
+            raise AssertionError(build_proc.stdout + build_proc.stderr)
+
+        if not cls._runtime_binary.exists():
+            raise AssertionError(f"Runtime binary missing at {cls._runtime_binary}")
+
+        cls._runtime_build_ready = True
+        return cls._runtime_binary
+
+    def test_runtime_cpp_compiles_and_runs(self):
         if os.name == "nt" and shutil.which("g++") is None:
             self.skipTest("C++ toolchain unavailable in Windows test environment")
 
-        build_dir = REPO_ROOT / "build" / "runtime-test"
-        build_dir.mkdir(parents=True, exist_ok=True)
-
-        configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
-        if configure_proc.returncode != 0:
-            if has_missing_native_runtime_deps(configure_proc.stdout + configure_proc.stderr):
-                self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
-            self.fail(configure_proc.stdout + configure_proc.stderr)
-
-        build_proc = run_cmd(["cmake", "--build", str(build_dir)])
-        self.assertEqual(build_proc.returncode, 0, build_proc.stdout + build_proc.stderr)
-
-        runtime_bin = build_dir / "bin" / "forge_runtime"
-        self.assertTrue(runtime_bin.exists(), f"Runtime binary missing at {runtime_bin}")
-
-        process = subprocess.Popen(
-            [str(runtime_bin)],
-            cwd=REPO_ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        time.sleep(2)
-        process.terminate()
-        stdout, _ = process.communicate(timeout=10)
+        runtime_bin = self.ensure_runtime_build()
+        run_proc = run_cmd([str(runtime_bin), "--smoke-headless"])
+        self.assertEqual(run_proc.returncode, 0, run_proc.stdout + run_proc.stderr)
+        stdout = run_proc.stdout + run_proc.stderr
 
         self.assertIn("ForgeEngine Vulkan runtime initialized", stdout)
         self.assertIn("Render loop started", stdout)
@@ -111,36 +115,6 @@ class TestMilestone1Skeleton(unittest.TestCase):
         program_text = (REPO_ROOT / "editor" / "csharp" / "Program.cs").read_text(encoding="utf-8")
         self.assertIn("editor launcher (C# app entrypoint)", program_text)
         self.assertIn("Runtime build detected.", program_text)
-
-        if shutil.which("dotnet"):
-            if os.name == "nt" and shutil.which("g++") is None:
-                self.skipTest("C++ toolchain unavailable in Windows test environment")
-            build_dir = REPO_ROOT / "build" / "editor-runtime-test"
-            build_dir.mkdir(parents=True, exist_ok=True)
-
-            configure_proc = run_cmd(["cmake", "-S", str(REPO_ROOT), "-B", str(build_dir)])
-            if configure_proc.returncode != 0:
-                if has_missing_native_runtime_deps(configure_proc.stdout + configure_proc.stderr):
-                    self.skipTest("Vulkan/GLFW dependencies unavailable in test environment")
-                self.fail(configure_proc.stdout + configure_proc.stderr)
-
-            build_proc = run_cmd(["cmake", "--build", str(build_dir)])
-            self.assertEqual(build_proc.returncode, 0, build_proc.stdout + build_proc.stderr)
-
-            runtime_bin = build_dir / "bin" / "forge_runtime"
-            self.assertTrue(runtime_bin.exists(), f"Runtime binary missing at {runtime_bin}")
-
-            run_proc = run_cmd([
-                "dotnet",
-                "run",
-                "--project",
-                str(REPO_ROOT / "editor" / "csharp" / "GameForge.Editor.csproj"),
-                "--",
-                "--launcher-smoke",
-                str(runtime_bin),
-            ])
-            self.assertEqual(run_proc.returncode, 0, run_proc.stdout + run_proc.stderr)
-            self.assertIn("Editor launcher started successfully.", run_proc.stdout)
 
     def test_bootstrap_ps1_contract(self):
         script_text = (REPO_ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")

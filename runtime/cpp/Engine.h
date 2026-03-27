@@ -14,6 +14,7 @@
 
 class Engine {
 public:
+    void RunHeadlessSmoke();
     struct PerfGuardrailsState {
         bool low_power_mode = false;
         double smoothed_frame_seconds = 1.0 / 60.0;
