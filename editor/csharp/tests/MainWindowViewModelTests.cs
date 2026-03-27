@@ -702,6 +702,25 @@ public sealed class MainWindowViewModelTests : IDisposable
     }
 
     [Fact]
+    public void DownloadProgress_OnboardingStageUpdatesStatusBeforeTransferStarts()
+    {
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object);
+
+        var handled = InvokePrivate<bool>(
+            viewModel,
+            "TryHandleModelProgressLine",
+            """{"event":"onboarding_stage","stage":"benchmark_complete"}""");
+
+        Assert.True(handled);
+        Assert.Equal("Preparing ForgeGuard", viewModel.DownloadProgressTitle);
+        Assert.Equal("Hardware benchmark complete. Preparing ForgeGuard download...", viewModel.DownloadProgressSummary);
+        Assert.Equal("Benchmark finished. Contacting the model host...", viewModel.DownloadProgressCurrentFile);
+        Assert.True(viewModel.IsDownloadProgressIndeterminate);
+    }
+
+    [Fact]
     public void HierarchyTree_BuildsNestedEntityNodesFromScene()
     {
         var prototypeRoot = CreatePrototypeRootWithHierarchy();
@@ -920,5 +939,15 @@ public sealed class MainWindowViewModelTests : IDisposable
         {
             await task;
         }
+    }
+
+    private static T InvokePrivate<T>(MainWindowViewModel viewModel, string methodName, params object[] arguments)
+    {
+        var method = typeof(MainWindowViewModel).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Method {methodName} not found");
+        var result = method.Invoke(viewModel, arguments);
+        return result is T typed
+            ? typed
+            : throw new InvalidOperationException($"Method {methodName} did not return {typeof(T).Name}.");
     }
 }

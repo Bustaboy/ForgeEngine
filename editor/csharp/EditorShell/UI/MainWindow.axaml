@@ -1805,6 +1805,7 @@
           <ProgressBar Height="10"
                        Minimum="0"
                        Maximum="100"
+                       IsIndeterminate="{Binding IsDownloadProgressIndeterminate}"
                        Value="{Binding DownloadProgressPercent}"
                        Background="#0B1524"
                        Foreground="#4AA3FF" />

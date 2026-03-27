@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GameForge.Editor.EditorShell;
+using GameForge.Editor.EditorShell.EditorSystems;
 
 namespace GameForge.Editor.Tests;
 
@@ -244,6 +245,17 @@ public sealed class EditorShellTests
         Assert.Equal("1.1", workspace.AiContext!.Properties["zoom"]);
         Assert.False(workspace.ConfirmPendingMajorMutation());
         Assert.Equal("follow_player", workspace.AiContext.Properties["mode"]);
+    }
+
+    [Fact]
+    public void CreateOrchestratorStartInfo_UsesUnbufferedPythonOutput()
+    {
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo("C:\\ForgeEngine", "quick-setup");
+
+        Assert.True(startInfo.ArgumentList.Count >= 3);
+        Assert.Equal("-u", startInfo.ArgumentList[0]);
+        Assert.EndsWith(Path.Combine("ai-orchestration", "python", "orchestrator.py"), startInfo.ArgumentList[1]);
+        Assert.Equal("quick-setup", startInfo.ArgumentList[2]);
     }
 
 
