@@ -1435,6 +1435,11 @@ public partial class MainWindow : Window
         await _viewModel.AssignScriptedBehaviorToSelectionAsync();
     }
 
+    private async void OnRefreshScriptedBehaviorsClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RefreshScriptedBehaviorCatalogAsync();
+    }
+
     private async void OnApplyBuildableClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.ApplyBuildableSelectionAsync();

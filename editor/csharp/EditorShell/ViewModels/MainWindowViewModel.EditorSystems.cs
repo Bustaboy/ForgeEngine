@@ -148,6 +148,9 @@ public sealed partial class MainWindowViewModel
     private string _scriptedBehaviorStateEditor = "patrol";
     private string _scriptedBehaviorParamsEditor = "duration_hours=0.25";
     private string _scriptedBehaviorStatus = "Scripted behavior assignment ready.";
+    private IReadOnlyList<string> _availableScriptedBehaviorStates = ["flee", "guard", "harvest", "patrol", "rest", "socialize"];
+    private IReadOnlyList<string> _scriptedBehaviorNpcPreview = [];
+    private readonly Dictionary<string, bool> _scriptedBehaviorComplexity = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<string> _narratorVoiceOptions = ["default", "en-us", "en+f3", "Microsoft David Desktop", "Microsoft Zira Desktop", "Samantha", "Alex"];
     private readonly IReadOnlyList<string> _voiceGenderOptions = ["neutral", "female", "male"];
     private readonly IReadOnlyList<string> _voiceBuildOptions = ["average", "light", "heavy"];
@@ -479,6 +482,8 @@ public sealed partial class MainWindowViewModel
     public string ScriptedBehaviorStateEditor { get => _scriptedBehaviorStateEditor; set { _scriptedBehaviorStateEditor = value; OnPropertyChanged(); } }
     public string ScriptedBehaviorParamsEditor { get => _scriptedBehaviorParamsEditor; set { _scriptedBehaviorParamsEditor = value; OnPropertyChanged(); } }
     public string ScriptedBehaviorStatus { get => _scriptedBehaviorStatus; private set { _scriptedBehaviorStatus = value; OnPropertyChanged(); } }
+    public IReadOnlyList<string> AvailableScriptedBehaviorStates => _availableScriptedBehaviorStates;
+    public IReadOnlyList<string> ScriptedBehaviorNpcPreview => _scriptedBehaviorNpcPreview;
     public string AiCommandLog => _aiCommandLog.Count == 0 ? "No AI hook commands run yet." : string.Join(Environment.NewLine, _aiCommandLog.TakeLast(8));
     public IReadOnlyList<ModelManagerEntry> ModelManagerEntries => _modelManagerEntries;
     public IReadOnlyList<OptimizationChangeEntry> RecentOptimizationChanges => _recentOptimizationChanges;
@@ -915,10 +920,17 @@ public sealed partial class MainWindowViewModel
 
                 ScriptedBehaviorStatus = updatedCount == 0
                     ? "No NPCs selected for scripted behavior assignment."
-                    : $"Assigned '{state}' scripted behavior to {updatedCount} NPC(s).";
+                    : BuildScriptedBehaviorAssignmentStatus(state, updatedCount);
                 return updatedCount > 0;
             },
             cancellationToken);
+
+    public Task RefreshScriptedBehaviorCatalogAsync(CancellationToken cancellationToken = default)
+    {
+        ReloadSystemPanelsFromScene();
+        ScriptedBehaviorStatus = "Refreshed scripted behavior list from scene definitions. Use /behavior_list in runtime console for live verification.";
+        return Task.CompletedTask;
+    }
 
     public async Task ToggleCombatModeAsync(CancellationToken cancellationToken = default)
         => await ApplySceneMutationAsync(
@@ -2510,6 +2522,8 @@ public sealed partial class MainWindowViewModel
             _storyPanel = StoryPanelState.FromScene(root);
             _weather = WeatherPanelState.FromScene(root);
             _livingNpcs = LivingNpcsPanelState.FromScene(root);
+            RefreshScriptedBehaviorCatalogFromScene(root);
+            _scriptedBehaviorNpcPreview = BuildScriptedBehaviorNpcPreview(root);
             CombatModeEnabledEditor = root["combat"]?["active"]?.GetValue<bool>() ?? false;
             var enabledRealtimeCount = root["entities"] is JsonArray entityArray
                 ? entityArray.OfType<JsonObject>().Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false)
@@ -2683,6 +2697,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorStatus));
+            OnPropertyChanged(nameof(AvailableScriptedBehaviorStates));
+            OnPropertyChanged(nameof(ScriptedBehaviorNpcPreview));
             OnPropertyChanged(nameof(SettlementVillageNameEditor));
             OnPropertyChanged(nameof(SettlementPopulation));
             OnPropertyChanged(nameof(SettlementMoraleEditor));
@@ -2822,6 +2838,120 @@ public sealed partial class MainWindowViewModel
         }
 
         return result;
+    }
+
+    private string BuildScriptedBehaviorAssignmentStatus(string state, int updatedCount)
+    {
+        var summary = $"Assigned '{state}' scripted behavior to {updatedCount} NPC(s).";
+        if (!string.Equals(LightweightMode, "performance", StringComparison.OrdinalIgnoreCase))
+        {
+            return summary;
+        }
+
+        if (_scriptedBehaviorComplexity.TryGetValue(state, out var isComplex) && isComplex)
+        {
+            return $"{summary} ⚠ Lightweight mode is set to performance; complex states may be skipped at runtime.";
+        }
+
+        return summary;
+    }
+
+    private void RefreshScriptedBehaviorCatalogFromScene(JsonObject root)
+    {
+        _scriptedBehaviorComplexity.Clear();
+        var fallbackStates = new[] { "patrol", "harvest", "guard", "rest", "flee", "socialize" };
+        var states = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var definitionsPath = root["scripted_behavior"]?["definitions_path"]?.GetValue<string>();
+        var behaviorFilePath = ResolveBehaviorDefinitionsPath(definitionsPath);
+        if (behaviorFilePath is not null && File.Exists(behaviorFilePath))
+        {
+            try
+            {
+                var catalog = JsonNode.Parse(File.ReadAllText(behaviorFilePath)) as JsonObject;
+                var stateNodes = catalog?["states"] as JsonArray;
+                foreach (var stateNode in stateNodes?.OfType<JsonObject>() ?? [])
+                {
+                    var state = stateNode["name"]?.GetValue<string>()?.Trim().ToLowerInvariant();
+                    if (string.IsNullOrWhiteSpace(state) || !seen.Add(state))
+                    {
+                        continue;
+                    }
+
+                    states.Add(state);
+                    _scriptedBehaviorComplexity[state] = stateNode["complex"]?.GetValue<bool>() ?? false;
+                }
+            }
+            catch
+            {
+                // Keep fallback states if catalog parse fails.
+            }
+        }
+
+        if (states.Count == 0)
+        {
+            states.AddRange(fallbackStates);
+            _scriptedBehaviorComplexity["harvest"] = true;
+            _scriptedBehaviorComplexity["socialize"] = true;
+        }
+
+        states.Sort(StringComparer.OrdinalIgnoreCase);
+        _availableScriptedBehaviorStates = states;
+        if (!_availableScriptedBehaviorStates.Contains(ScriptedBehaviorStateEditor, StringComparer.OrdinalIgnoreCase))
+        {
+            ScriptedBehaviorStateEditor = _availableScriptedBehaviorStates[0];
+        }
+    }
+
+    private List<string> BuildScriptedBehaviorNpcPreview(JsonObject root)
+    {
+        if (root["entities"] is not JsonArray entities)
+        {
+            return [];
+        }
+
+        var preview = new List<string>();
+        foreach (var entity in entities.OfType<JsonObject>())
+        {
+            if (!string.Equals(entity["type"]?.GetValue<string>(), "npc", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var npcId = ReadUlong(entity["id"], 0UL);
+            var npcName = entity["name"]?.GetValue<string>() ?? $"NPC {npcId}";
+            var scripted = entity["scripted_behavior"] as JsonObject;
+            var state = scripted?["current_state"]?.GetValue<string>();
+            var isEnabled = scripted?["enabled"]?.GetValue<bool>() ?? false;
+            var parameters = scripted?["parameters"] as JsonObject;
+            var parametersSummary = parameters is null || parameters.Count == 0
+                ? string.Empty
+                : $" ({string.Join(", ", parameters.Select(kvp => $"{kvp.Key}={ReadSingle(kvp.Value, 0f):0.###}"))})";
+            var stateSummary = isEnabled && !string.IsNullOrWhiteSpace(state) ? state : "off";
+            preview.Add($"{npcName} [{npcId}] → {stateSummary}{parametersSummary}");
+        }
+
+        return preview;
+    }
+
+    private string? ResolveBehaviorDefinitionsPath(string? definitionsPath)
+    {
+        var path = string.IsNullOrWhiteSpace(definitionsPath) ? "scripted_behaviors.json" : definitionsPath.Trim();
+        if (Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
+        var repositoryRoot = ResolveRepositoryRoot();
+        var repositoryCandidate = Path.Combine(repositoryRoot, path);
+        if (File.Exists(repositoryCandidate))
+        {
+            return repositoryCandidate;
+        }
+
+        var scenePath = GetScenePath();
+        var sceneDirectory = scenePath is null ? null : Path.GetDirectoryName(scenePath);
+        return sceneDirectory is null ? repositoryCandidate : Path.Combine(sceneDirectory, path);
     }
 
     private static ulong TryParseEntityId(string? entityId)
