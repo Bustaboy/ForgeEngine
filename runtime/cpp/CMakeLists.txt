@@ -101,6 +101,8 @@ set(FORGE_RUNTIME_SOURCES
     NPCController.cpp
     FreeWillSystem.h
     FreeWillSystem.cpp
+    ScriptedBehaviorSystem.h
+    ScriptedBehaviorSystem.cpp
     DialogSystem.h
     DialogSystem.cpp
     DialogEvolutionSystem.h

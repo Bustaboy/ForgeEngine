@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include "NPCController.h"
 #include "Scene.h"
+#include "ScriptedBehaviorSystem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -43,6 +44,10 @@ bool IsSparkCapReached(const Scene& scene, std::uint64_t npc_id) {
         return false;
     }
     return it->second >= kMaxSparksPerNpcPerDay;
+}
+
+bool HasScriptedBehavior(const Entity& entity) {
+    return entity.scripted_behavior.enabled && !entity.scripted_behavior.current_state.empty();
 }
 
 bool TryEnqueue(Scene& scene, std::uint64_t npc_id, bool forced_by_console) {
@@ -242,7 +247,9 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
     scene.free_will.rng_seed = (scene.free_will.rng_seed == 0U) ? 0xC0FFEEU : scene.free_will.rng_seed;
     std::minstd_rand rng(scene.free_will.rng_seed);
 
-    const float chance = std::clamp(scene.free_will.spark_chance_per_second * safe_dt, 0.0F, 0.2F);
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    const float mode_chance_scale = performance_mode ? 0.35F : 1.0F;
+    const float chance = std::clamp(scene.free_will.spark_chance_per_second * safe_dt * mode_chance_scale, 0.0F, 0.2F);
     std::uniform_real_distribution<float> roll(0.0F, 1.0F);
 
     std::uint32_t queued_this_frame = 0U;
@@ -250,6 +257,12 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
     for (const Entity& entity : scene.entities) {
         if (entity.buildable.IsValid()) {
             continue;
+        }
+        if (HasScriptedBehavior(entity)) {
+            const float scripted_spark_chance = performance_mode ? 0.0F : (chance * 0.15F);
+            if (scripted_spark_chance <= 0.0F || roll(rng) > scripted_spark_chance) {
+                continue;
+            }
         }
         if (IsSparkCapReached(scene, entity.id)) {
             continue;

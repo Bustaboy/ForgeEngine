@@ -14,6 +14,7 @@
 #include "NarratorSystem.h"
 #include "NPCController.h"
 #include "FreeWillSystem.h"
+#include "ScriptedBehaviorSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
 #include "RealTimeCombatSystem.h"
@@ -33,6 +34,7 @@
 #include <iostream>
 #include <cstdio>
 #include <iomanip>
+#include <map>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -95,6 +97,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Build/Craft: /give <item> <amount> | /craft <recipe> | /trade ... | /settlement");
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
+    GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -116,6 +119,43 @@ std::string Trim(const std::string& value) {
         --end;
     }
     return value.substr(start, end - start);
+}
+
+std::map<std::string, float> ParseBehaviorParams(std::istringstream& parser, bool& schedule_override, std::uint64_t& target_entity_id) {
+    std::map<std::string, float> parameters{};
+    schedule_override = true;
+    target_entity_id = 0;
+
+    std::string token;
+    while (parser >> token) {
+        const std::size_t eq = token.find('=');
+        if (eq == std::string::npos || eq == 0 || eq + 1 >= token.size()) {
+            continue;
+        }
+
+        const std::string key = token.substr(0, eq);
+        const std::string value = token.substr(eq + 1);
+        if (key == "schedule_override") {
+            schedule_override = value == "1" || value == "true" || value == "on";
+            continue;
+        }
+        if (key == "target_entity_id") {
+            try {
+                target_entity_id = std::stoull(value);
+            } catch (const std::exception&) {
+                target_entity_id = 0;
+            }
+            continue;
+        }
+
+        try {
+            parameters[key] = std::stof(value);
+        } catch (const std::exception&) {
+            continue;
+        }
+    }
+
+    return parameters;
 }
 
 std::filesystem::path FindOrchestratorScript() {
@@ -742,6 +782,41 @@ void ProcessConsoleCommands(
                 "  " + std::to_string(entry.start_minute) + "-" + std::to_string(entry.end_minute) + " " +
                 entry.activity + " @ " + entry.location);
         }
+        return;
+    }
+
+    if (command == "/behavior_list") {
+        const std::vector<std::string> rows = ScriptedBehaviorSystem::ListBehaviors(scene);
+        if (rows.empty()) {
+            GF_LOG_INFO("No NPC behaviors to list.");
+            return;
+        }
+        for (const std::string& row : rows) {
+            GF_LOG_INFO(row);
+        }
+        return;
+    }
+
+    if (command == "/behavior_set") {
+        std::uint64_t entity_id = 0;
+        std::string state;
+        parser >> entity_id >> state;
+        if (entity_id == 0 || state.empty()) {
+            GF_LOG_INFO("Usage: /behavior_set <entity_id> <state> [key=value ...]");
+            return;
+        }
+
+        bool schedule_override = true;
+        std::uint64_t target_entity_id = 0;
+        const std::map<std::string, float> parameters = ParseBehaviorParams(parser, schedule_override, target_entity_id);
+        const bool applied = ScriptedBehaviorSystem::SetBehavior(
+            scene,
+            entity_id,
+            state,
+            parameters,
+            schedule_override,
+            target_entity_id);
+        GF_LOG_INFO(applied ? "Scripted behavior set." : "Unable to set scripted behavior.");
         return;
     }
 
