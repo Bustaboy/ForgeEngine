@@ -20,6 +20,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabLivingNpcs = "LivingNpcs";
     private const string SystemTabSettlement = "Settlement";
     private const string SystemTabCombat = "Combat";
+    private const string SystemTabSettings = "Settings";
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -34,6 +35,9 @@ public sealed partial class MainWindowViewModel
     private readonly ObservableCollection<OptimizationChangeEntry> _recentOptimizationChanges = [];
     private readonly ObservableCollection<OptimizationSuggestion> _optimizationSuggestions = [];
     private readonly HashSet<string> _modelDownloadsInProgress = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _modelDownloadProgressByName = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _activeModelOperationCts;
+    private string? _activeModelCancelFilePath;
     private readonly List<string> _coCreatorRecentActions = [];
     private readonly ObservableCollection<CoCreatorSuggestion> _coCreatorSuggestions = [];
     private CoCreatorSuggestion? _selectedCoCreatorSuggestion;
@@ -62,6 +66,13 @@ public sealed partial class MainWindowViewModel
     private string _modelManagerStatus = "Model manager idle.";
     private string _modelRecommendationSummary = "Run onboarding to receive hardware-matched model recommendations.";
     private string _forgeGuardKeepInstalledMessage = "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+    private bool _isDownloadProgressVisible;
+    private string _downloadProgressTitle = "Downloading model";
+    private string _downloadProgressCurrentFile = "Preparing download...";
+    private double _downloadProgressPercent;
+    private string _downloadProgressSummary = "Starting...";
+    private string _downloadProgressSpeed = "Speed: --";
+    private string _downloadProgressEta = "ETA: --";
     private string _optimizationStatus = "Optimization insights idle.";
     private string _performanceHealthSummary = "Performance health unavailable.";
     private int _projectHealthScore = 50;
@@ -155,6 +166,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsLivingNpcsTabActive));
             OnPropertyChanged(nameof(IsSettlementTabActive));
             OnPropertyChanged(nameof(IsCombatTabActive));
+            OnPropertyChanged(nameof(IsSettingsTabActive));
         }
     }
 
@@ -169,6 +181,7 @@ public sealed partial class MainWindowViewModel
     public bool IsLivingNpcsTabActive => string.Equals(ActiveSystemTab, SystemTabLivingNpcs, StringComparison.Ordinal);
     public bool IsSettlementTabActive => string.Equals(ActiveSystemTab, SystemTabSettlement, StringComparison.Ordinal);
     public bool IsCombatTabActive => string.Equals(ActiveSystemTab, SystemTabCombat, StringComparison.Ordinal);
+    public bool IsSettingsTabActive => string.Equals(ActiveSystemTab, SystemTabSettings, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
     {
@@ -477,7 +490,24 @@ public sealed partial class MainWindowViewModel
     public int SoftGuardrailThreshold { get => _softGuardrailThreshold; private set { _softGuardrailThreshold = value; OnPropertyChanged(); } }
     public int HardGuardrailThreshold { get => _hardGuardrailThreshold; private set { _hardGuardrailThreshold = value; OnPropertyChanged(); } }
     public string SelectedOptimizationPreview { get => _selectedOptimizationPreview; private set { _selectedOptimizationPreview = value; OnPropertyChanged(); } }
-    public bool IsModelManagerBusy { get => _isModelManagerBusy; private set { _isModelManagerBusy = value; OnPropertyChanged(); } }
+    public bool IsModelManagerBusy
+    {
+        get => _isModelManagerBusy;
+        private set
+        {
+            _isModelManagerBusy = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanRunModelManagerActions));
+        }
+    }
+    public bool CanRunModelManagerActions => !IsModelManagerBusy;
+    public bool IsDownloadProgressVisible { get => _isDownloadProgressVisible; private set { _isDownloadProgressVisible = value; OnPropertyChanged(); } }
+    public string DownloadProgressTitle { get => _downloadProgressTitle; private set { _downloadProgressTitle = value; OnPropertyChanged(); } }
+    public string DownloadProgressCurrentFile { get => _downloadProgressCurrentFile; private set { _downloadProgressCurrentFile = value; OnPropertyChanged(); } }
+    public double DownloadProgressPercent { get => _downloadProgressPercent; private set { _downloadProgressPercent = Math.Clamp(value, 0d, 100d); OnPropertyChanged(); } }
+    public string DownloadProgressSummary { get => _downloadProgressSummary; private set { _downloadProgressSummary = value; OnPropertyChanged(); } }
+    public string DownloadProgressSpeed { get => _downloadProgressSpeed; private set { _downloadProgressSpeed = value; OnPropertyChanged(); } }
+    public string DownloadProgressEta { get => _downloadProgressEta; private set { _downloadProgressEta = value; OnPropertyChanged(); } }
     public string BiomeEditor { get => _biomeEditor; set { _biomeEditor = value; OnPropertyChanged(); } }
     public string WorldStyleGuideEditor { get => _worldStyleGuideEditor; set { _worldStyleGuideEditor = value; OnPropertyChanged(); } }
     public string SelectedFactionIdEditor { get => _selectedFactionIdEditor; set { _selectedFactionIdEditor = value; OnPropertyChanged(); } }
@@ -1152,35 +1182,28 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        _modelDownloadsInProgress.Add(friendlyName);
-        RebuildModelManagerEntries(null);
-        IsModelManagerBusy = true;
-        try
+        var normalizedName = friendlyName.Trim().ToLowerInvariant();
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: $"Downloading {friendlyName}",
+            trackedModelNames: [normalizedName],
+            command: "download-model",
+            args: [normalizedName]);
+        if (completed)
         {
-            await RunAiHookAsync("download-model", friendlyName.Trim().ToLowerInvariant());
             ModelManagerStatus = $"Download finished for {friendlyName}.";
-            await RefreshModelManagerAsync();
-        }
-        finally
-        {
-            _modelDownloadsInProgress.Remove(friendlyName);
-            IsModelManagerBusy = false;
-            RebuildModelManagerEntries(null);
         }
     }
 
     public async Task RunModelOnboardingAsync()
     {
-        IsModelManagerBusy = true;
-        try
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: "Downloading ForgeGuard",
+            trackedModelNames: ["forgeguard"],
+            command: "onboarding-run",
+            args: []);
+        if (completed)
         {
-            await RunAiHookAsync("onboarding-run");
             ModelManagerStatus = "Onboarding complete. Recommendations updated from models.json.";
-            await RefreshModelManagerAsync();
-        }
-        finally
-        {
-            IsModelManagerBusy = false;
         }
     }
 
@@ -1208,6 +1231,7 @@ public sealed partial class MainWindowViewModel
     {
         IsModelManagerBusy = true;
         _modelDownloadsInProgress.Add("freewill");
+        _modelDownloadProgressByName["freewill"] = "Downloading 0%";
         RebuildModelManagerEntries(null);
         try
         {
@@ -1219,6 +1243,7 @@ public sealed partial class MainWindowViewModel
         finally
         {
             _modelDownloadsInProgress.Remove("freewill");
+            _modelDownloadProgressByName.Remove("freewill");
             IsModelManagerBusy = false;
             RebuildModelManagerEntries(null);
         }
@@ -1292,7 +1317,8 @@ public sealed partial class MainWindowViewModel
             var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
             var installed = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
             var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
-            var status = isDownloading ? "Downloading" : installed ? "Installed" : "Not found";
+            var progressStatus = _modelDownloadProgressByName.TryGetValue(model.Friendly, out var progress) ? progress : "Downloading";
+            var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
             var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
             var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
@@ -1317,6 +1343,250 @@ public sealed partial class MainWindowViewModel
         }
 
         OnPropertyChanged(nameof(ModelManagerEntries));
+    }
+
+    public void CancelActiveModelOperation()
+    {
+        if (_activeModelOperationCts is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_activeModelCancelFilePath))
+        {
+            try
+            {
+                File.WriteAllText(_activeModelCancelFilePath, "cancel");
+            }
+            catch
+            {
+                // Best effort only.
+            }
+        }
+        _activeModelOperationCts.Cancel();
+    }
+
+    private async Task<bool> RunManagedModelOperationWithProgressAsync(
+        string operationLabel,
+        IReadOnlyList<string> trackedModelNames,
+        string command,
+        IReadOnlyList<string> args)
+    {
+        if (trackedModelNames.Count == 0)
+        {
+            throw new ArgumentException("At least one model must be tracked for progress.", nameof(trackedModelNames));
+        }
+
+        foreach (var modelName in trackedModelNames)
+        {
+            _modelDownloadsInProgress.Add(modelName);
+            _modelDownloadProgressByName[modelName] = "Downloading 0%";
+        }
+        RebuildModelManagerEntries(null);
+        IsModelManagerBusy = true;
+        IsDownloadProgressVisible = true;
+        DownloadProgressTitle = operationLabel;
+        DownloadProgressPercent = 0;
+        DownloadProgressSummary = "Starting download...";
+        DownloadProgressSpeed = "Speed: --";
+        DownloadProgressEta = "ETA: --";
+        DownloadProgressCurrentFile = "Preparing...";
+        ModelManagerStatus = $"{operationLabel}...";
+
+        using var cts = new CancellationTokenSource();
+        _activeModelOperationCts = cts;
+        _activeModelCancelFilePath = Path.Combine(Path.GetTempPath(), $"forgeengine-model-cancel-{Guid.NewGuid():N}.flag");
+        try
+        {
+            var progressArgs = new List<string> { command };
+            progressArgs.AddRange(args);
+            progressArgs.Add("--progress-json");
+            progressArgs.Add("--cancel-file");
+            progressArgs.Add(_activeModelCancelFilePath);
+            var result = await RunAiHookProcessWithProgressAsync(command, progressArgs, cts.Token);
+            if (result.ExitCode == 130)
+            {
+                ModelManagerStatus = $"{operationLabel} canceled.";
+                return false;
+            }
+
+            if (result.ExitCode != 0)
+            {
+                ModelManagerStatus = $"Model operation failed: {result.Stderr}";
+                return false;
+            }
+
+            await RefreshModelManagerAsync();
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            ModelManagerStatus = $"{operationLabel} canceled.";
+            return false;
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(_activeModelCancelFilePath) && File.Exists(_activeModelCancelFilePath))
+            {
+                File.Delete(_activeModelCancelFilePath);
+            }
+            _activeModelCancelFilePath = null;
+            _activeModelOperationCts = null;
+            IsDownloadProgressVisible = false;
+            IsModelManagerBusy = false;
+            foreach (var modelName in trackedModelNames)
+            {
+                _modelDownloadsInProgress.Remove(modelName);
+                _modelDownloadProgressByName.Remove(modelName);
+            }
+            RebuildModelManagerEntries(null);
+        }
+    }
+
+    private async Task<(int ExitCode, string Stdout, string Stderr)> RunAiHookProcessWithProgressAsync(
+        string command,
+        IReadOnlyList<string> finalArgs,
+        CancellationToken cancellationToken)
+    {
+        var projectRoot = ResolveRepositoryRoot();
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(projectRoot, finalArgs.ToArray());
+        var oneLine = $"{startInfo.FileName} {string.Join(" ", startInfo.ArgumentList.Select(item => item.Contains(' ') ? $"\"{item}\"" : item))}";
+        _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] {oneLine}");
+        OnPropertyChanged(nameof(AiCommandLog));
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            return (-1, string.Empty, $"Failed to start orchestrator.py ({command}).");
+        }
+
+        var stdoutLines = new List<string>();
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+
+            if (TryHandleModelProgressLine(line))
+            {
+                continue;
+            }
+
+            stdoutLines.Add(line);
+        }
+
+        await process.WaitForExitAsync(cancellationToken);
+        var stderr = await stderrTask;
+        var stdout = string.Join(Environment.NewLine, stdoutLines);
+        return (process.ExitCode, stdout, stderr);
+    }
+
+    private bool TryHandleModelProgressLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        JsonObject? payload = null;
+        try
+        {
+            payload = JsonNode.Parse(line) as JsonObject;
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (payload is null)
+        {
+            return false;
+        }
+
+        var eventName = SafeGetString(payload, "event");
+        if (!string.Equals(eventName, "progress", StringComparison.Ordinal) &&
+            !string.Equals(eventName, "cancelled", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var friendlyName = SafeGetString(payload, "friendly_name");
+        if (string.IsNullOrWhiteSpace(friendlyName))
+        {
+            friendlyName = string.Equals(SafeGetString(payload, "stage"), "benchmark_complete", StringComparison.Ordinal)
+                ? "ForgeGuard"
+                : "model";
+        }
+
+        DownloadProgressTitle = $"Downloading {friendlyName}";
+        var percent = SafeGetDouble(payload, "progress_percent") ?? DownloadProgressPercent;
+        DownloadProgressPercent = percent;
+        DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}%";
+        _modelDownloadProgressByName[friendlyName] = $"Downloading {DownloadProgressPercent:0.#}%";
+        RebuildModelManagerEntries(null);
+
+        var currentFile = SafeGetString(payload, "current_file");
+        if (!string.IsNullOrWhiteSpace(currentFile))
+        {
+            DownloadProgressCurrentFile = currentFile;
+        }
+
+        var speed = SafeGetDouble(payload, "speed_mbps");
+        DownloadProgressSpeed = speed.HasValue ? $"Speed: {speed.Value:0.00} MB/s" : "Speed: --";
+        var eta = SafeGetInt(payload, "eta_seconds");
+        DownloadProgressEta = eta.HasValue ? $"ETA: {TimeSpan.FromSeconds(Math.Max(0, eta.Value)):mm\\:ss}" : "ETA: --";
+        var downloaded = SafeGetDouble(payload, "downloaded_mb");
+        var total = SafeGetDouble(payload, "total_mb");
+        if (downloaded.HasValue && total.HasValue && total.Value > 0)
+        {
+            DownloadProgressSummary = $"{friendlyName}: {DownloadProgressPercent:0.0}% ({downloaded.Value:0.0}/{total.Value:0.0} MB)";
+        }
+
+        if (string.Equals(eventName, "cancelled", StringComparison.Ordinal))
+        {
+            DownloadProgressSummary = "Canceled by user.";
+        }
+        return true;
+    }
+
+    private static string? SafeGetString(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<string>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double? SafeGetDouble(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<double?>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? SafeGetInt(JsonObject payload, string key)
+    {
+        try
+        {
+            return payload[key]?.GetValue<int?>();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public sealed record ModelManagerEntry(
