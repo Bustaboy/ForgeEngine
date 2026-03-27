@@ -1175,6 +1175,49 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    public async Task<bool> IsOnboardingCompletedAsync()
+    {
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            if (!File.Exists(modelsJsonPath))
+            {
+                return false;
+            }
+
+            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+            return payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<string> BuildQuickSetupSummaryAsync()
+    {
+        try
+        {
+            var repositoryRoot = ResolveRepositoryRoot();
+            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
+            if (!File.Exists(modelsJsonPath))
+            {
+                return "Recommended next models: Coding + Asset-Gen (optional).";
+            }
+
+            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+            var recommendations = payload?["onboarding"]?["recommendations"] as JsonObject;
+            var codingReason = recommendations?["coding"]?["reason"]?.GetValue<string>() ?? "Optional coding assistant model.";
+            var assetReason = recommendations?["assetgen"]?["reason"]?.GetValue<string>() ?? "Optional local asset generation model.";
+            return $"Recommended next models: Coding and Asset-Gen.\n- Coding: {codingReason}\n- Asset-Gen: {assetReason}";
+        }
+        catch
+        {
+            return "Recommended next models: Coding + Asset-Gen (optional).";
+        }
+    }
+
     public async Task DownloadManagedModelAsync(string friendlyName)
     {
         if (string.IsNullOrWhiteSpace(friendlyName))
@@ -1205,6 +1248,21 @@ public sealed partial class MainWindowViewModel
         {
             ModelManagerStatus = "Onboarding complete. Recommendations updated from models.json.";
         }
+    }
+
+    public async Task<bool> RunQuickStartSetupAsync()
+    {
+        var completed = await RunManagedModelOperationWithProgressAsync(
+            operationLabel: "Running Quick Setup (ForgeGuard + Free-Will)",
+            trackedModelNames: ["forgeguard", "freewill"],
+            command: "quick-setup",
+            args: []);
+        if (completed)
+        {
+            ModelManagerStatus = "Quick Setup complete. ForgeGuard and Free-Will are ready.";
+        }
+
+        return completed;
     }
 
     public async Task SetupRecommendedModelsAsync()

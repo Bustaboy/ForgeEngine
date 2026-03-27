@@ -172,36 +172,20 @@ public partial class MainWindow : Window
         }
 
         _firstRunModalChecked = true;
-        SetStartupOnboardingVisibility(isVisible: true, statusText: "Preparing startup checks...");
 
         try
         {
-            SetStartupOnboardingVisibility(isVisible: true, statusText: "Running first-run hardware benchmark...");
-            var benchmark = await FirstRunBenchmarkExample.RunAsync();
-            if (benchmark.IsFirstRun)
-            {
-                if (!benchmark.PrepareModelsInvoked)
-                {
-                    SetStartupOnboardingVisibility(isVisible: true, statusText: "Benchmark finished. Downloading lightweight local model...");
-                    await _viewModel.DownloadManagedModelAsync("freewill");
-                }
-
-                SetStartupOnboardingVisibility(isVisible: true, statusText: "Benchmark complete. Reviewing recommended setup...");
-                await ShowBenchmarkModalAsync(benchmark);
-            }
-
-            SetStartupOnboardingVisibility(isVisible: true, statusText: "Loading model manager state...");
             await _viewModel.RefreshModelManagerAsync();
+            var onboardingCompleted = await _viewModel.IsOnboardingCompletedAsync();
+            if (!onboardingCompleted)
+            {
+                await ShowFirstLaunchQuickSetupDialogAsync();
+            }
         }
         catch (Exception ex)
         {
-            _viewModel.SetStatusMessage($"Benchmark warning: {ex.Message}");
-            SetStartupOnboardingVisibility(isVisible: true, statusText: "Startup checks hit a warning. Entering editor...");
+            _viewModel.SetStatusMessage($"Quick setup startup check warning: {ex.Message}");
             await _viewModel.RefreshModelManagerAsync();
-        }
-        finally
-        {
-            SetStartupOnboardingVisibility(isVisible: false, statusText: string.Empty);
         }
     }
 
@@ -221,6 +205,140 @@ public partial class MainWindow : Window
         {
             _startupOnboardingProgressBar.IsVisible = isVisible;
         }
+    }
+
+    private async Task ShowFirstLaunchQuickSetupDialogAsync()
+    {
+        var shouldRunQuickSetup = false;
+        var modal = new Window
+        {
+            Title = "Welcome / Quick Setup",
+            Width = 680,
+            Height = 360,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(18),
+                Spacing = 10,
+                Children =
+                {
+                    new TextBlock { Text = "Welcome to GameForge", FontSize = 24, FontWeight = FontWeight.Bold },
+                    new TextBlock
+                    {
+                        Text = "Quick Setup installs the two essentials for V1: ForgeGuard + Free-Will.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new TextBlock
+                    {
+                        Text = "Keep ForgeGuard installed: it powers local guardrails, critique passes, and lightweight decisions across workflows.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new TextBlock
+                    {
+                        Text = "You can still run full onboarding or manual model downloads later in Settings → Models & LLM.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Margin = new Thickness(0, 14, 0, 0),
+                        Children =
+                        {
+                            new Button { Content = "Later", MinWidth = 90 },
+                            new Button { Content = "Open Settings", MinWidth = 110 },
+                            new Button
+                            {
+                                Content = "Run Quick Setup",
+                                MinWidth = 170,
+                                Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
+                                Foreground = Brushes.White,
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        if (modal.Content is StackPanel root && root.Children[^1] is StackPanel actions)
+        {
+            if (actions.Children[0] is Button laterButton)
+            {
+                laterButton.Click += (_, _) => modal.Close();
+            }
+            if (actions.Children[1] is Button settingsButton)
+            {
+                settingsButton.Click += (_, _) =>
+                {
+                    _viewModel.SetSystemTab("Settings");
+                    modal.Close();
+                };
+            }
+            if (actions.Children[2] is Button quickButton)
+            {
+                quickButton.Click += (_, _) =>
+                {
+                    shouldRunQuickSetup = true;
+                    modal.Close();
+                };
+            }
+        }
+
+        await modal.ShowDialog(this);
+        if (!shouldRunQuickSetup)
+        {
+            return;
+        }
+
+        var completed = await _viewModel.RunQuickStartSetupAsync();
+        if (completed)
+        {
+            await ShowQuickSetupSummaryDialogAsync();
+        }
+    }
+
+    private async Task ShowQuickSetupSummaryDialogAsync()
+    {
+        var summary = await _viewModel.BuildQuickSetupSummaryAsync();
+        var modal = new Window
+        {
+            Title = "Quick Setup Complete",
+            Width = 620,
+            Height = 330,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16),
+                Spacing = 10,
+                Children =
+                {
+                    new TextBlock { Text = "Quick Setup complete ✅", FontSize = 21, FontWeight = FontWeight.Bold },
+                    new TextBlock { Text = "Installed now: ForgeGuard + Free-Will.", TextWrapping = TextWrapping.Wrap },
+                    new TextBlock
+                    {
+                        Text = "ForgeGuard should stay installed for local guardrails, critique, and lightweight decisions.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap },
+                    new Button
+                    {
+                        Content = "Continue",
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Margin = new Thickness(0, 8, 0, 0),
+                    },
+                },
+            },
+        };
+
+        if (modal.Content is StackPanel panel && panel.Children[^1] is Button button)
+        {
+            button.Click += (_, _) => modal.Close();
+        }
+
+        await modal.ShowDialog(this);
     }
 
     private void ApplyWorkspaceLayout()
@@ -1371,6 +1489,15 @@ public partial class MainWindow : Window
     private async void OnRunModelOnboardingClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RunModelOnboardingAsync();
+    }
+
+    private async void OnQuickStartModelsClick(object? sender, RoutedEventArgs e)
+    {
+        var completed = await _viewModel.RunQuickStartSetupAsync();
+        if (completed)
+        {
+            await ShowQuickSetupSummaryDialogAsync();
+        }
     }
 
     private async void OnSetupRecommendedModelsClick(object? sender, RoutedEventArgs e)

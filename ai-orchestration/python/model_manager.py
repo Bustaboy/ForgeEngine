@@ -599,6 +599,7 @@ def run_onboarding(
     input_fn: Callable[[str], str] = input,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
+    mark_completed: bool = True,
 ) -> dict[str, Any]:
     """Run first-run onboarding with benchmark + ForgeGuard Q&A + persisted recommendations."""
 
@@ -636,9 +637,10 @@ def run_onboarding(
     config = _load_models_config(models_json_path=resolved_models_path)
 
     recommendations = generate_recommendations(hardware=benchmark.get("hardware", {}), answers=answers)
+    completed_at = int(time.time()) if mark_completed else None
     config["onboarding"] = {
-        "completed": True,
-        "completed_at_unix": int(time.time()),
+        "completed": mark_completed,
+        "completed_at_unix": completed_at,
         "schema": "gameforge.onboarding.v1",
         "benchmark": benchmark,
         "answers": answers,
@@ -654,5 +656,60 @@ def run_onboarding(
         "recommendations": recommendations,
         "forgeguard": forgeguard_record,
         "message": ONBOARDING_KEEP_MESSAGE,
+        "completed": mark_completed,
         "models_json": str(resolved_models_path),
+    }
+
+
+def run_quick_setup(
+    orchestrator_file: Path | None = None,
+    models_json_path: Path | None = None,
+    auto_prepare_models: bool = True,
+    input_fn: Callable[[str], str] = input,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
+    """Run minimal first-launch setup: onboarding + ForgeGuard + Free-Will."""
+
+    onboarding_result = run_onboarding(
+        orchestrator_file=orchestrator_file,
+        models_json_path=models_json_path,
+        auto_prepare_models=auto_prepare_models,
+        input_fn=input_fn,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+        mark_completed=False,
+    )
+    resolved_models_path = _models_json_path(models_json_path)
+    freewill_recommendation = onboarding_result.get("recommendations", {}).get("freewill", {})
+    freewill_repo = str(freewill_recommendation.get("repo_id", "")).strip() or FRIENDLY_MODEL_REPOS["freewill"]
+    freewill_record = download_model(
+        friendly_name="freewill",
+        repo_id=freewill_repo,
+        quantization=DEFAULT_QUANTIZATION,
+        models_json_path=resolved_models_path,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+    )
+
+    config = _load_models_config(models_json_path=resolved_models_path)
+    onboarding_payload = config.get("onboarding", {}) if isinstance(config.get("onboarding"), dict) else {}
+    onboarding_payload["completed"] = True
+    onboarding_payload["completed_at_unix"] = int(time.time())
+    config["onboarding"] = onboarding_payload
+    _save_models_config(config, models_json_path=resolved_models_path)
+
+    summary = [
+        "ForgeGuard installed for guardrails, critique, and lightweight decisions.",
+        "Free-Will model installed for local NPC/dialog + gameplay reasoning.",
+        "You can run full onboarding or manual downloads anytime in Settings → Models & LLM.",
+    ]
+
+    return {
+        "onboarding": onboarding_result,
+        "forgeguard": onboarding_result.get("forgeguard", {}),
+        "freewill": freewill_record,
+        "summary": summary,
+        "models_json": str(resolved_models_path),
+        "completed": True,
     }

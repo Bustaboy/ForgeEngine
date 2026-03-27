@@ -1258,16 +1258,20 @@
                       <Button Grid.Column="1" Content="Open AI Quick Access" Click="OnSystemTabClick" Tag="AI" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                    <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
+                      <Button Content="Quick Start (ForgeGuard + Free-Will)"
+                              Click="OnQuickStartModelsClick"
+                              IsEnabled="{Binding CanRunModelManagerActions}" />
                       <Button Content="Run Onboarding"
+                              Grid.Column="1"
                               Click="OnRunModelOnboardingClick"
                               IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="1"
+                      <Button Grid.Column="2"
                               Content="Setup Recommended Models"
                               Click="OnSetupRecommendedModelsClick"
                               IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="2" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="3" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="3" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
+                      <Button Grid.Column="4" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
                       <ItemsControl.ItemTemplate>
