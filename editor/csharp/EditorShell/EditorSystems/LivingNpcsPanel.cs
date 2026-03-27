@@ -31,6 +31,9 @@ public sealed class LivingNpcsPanelState
     public float LegacyRecallHitRate { get; private set; }
     public string SparkSourcePreference { get; private set; } = "rag > scripted > llm";
     public bool LightweightPerformanceMode { get; private set; }
+    public string LastNpcDaySummary { get; private set; } = "No NPC day orchestration summary yet.";
+    public string LastNarrativeCheckpointStatus { get; private set; } = "No narrative checkpoint orchestration status yet.";
+    private Dictionary<string, string> NpcDaySummaryByNpc { get; } = [];
     private Dictionary<ulong, string> LastSparkSourceByNpc { get; } = [];
     private Dictionary<ulong, int> RagHitsByNpc { get; } = [];
     private Dictionary<ulong, int> RagMissesByNpc { get; } = [];
@@ -136,6 +139,34 @@ public sealed class LivingNpcsPanelState
             var legacyMisses = Math.Max(0, ReadInt32(rag["legacy_misses"], 0));
             state.LegacyRecallHitRate = legacyHits + legacyMisses > 0 ? (float)legacyHits / (legacyHits + legacyMisses) : 0f;
         }
+        if (freeWill["orchestration"] is JsonObject freeWillOrchestration)
+        {
+            state.LastNpcDaySummary = freeWillOrchestration["day_plan_latest_summary"]?.GetValue<string>() ?? state.LastNpcDaySummary;
+            if (freeWillOrchestration["day_plan_by_npc"] is JsonObject dayPlanByNpc)
+            {
+                foreach (var entry in dayPlanByNpc)
+                {
+                    if (entry.Value is not JsonObject npcPlan)
+                    {
+                        continue;
+                    }
+
+                    var summary = npcPlan["summary"]?.GetValue<string>() ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(summary))
+                    {
+                        state.NpcDaySummaryByNpc[entry.Key] = summary;
+                    }
+                }
+            }
+        }
+        var narrativeOrchestration = root["narrative_orchestration"] as JsonObject;
+        if (narrativeOrchestration is not null)
+        {
+            var checkpoint = narrativeOrchestration["last_checkpoint"]?.GetValue<string>() ?? "none";
+            var status = narrativeOrchestration["status"]?.GetValue<string>() ?? "unknown";
+            var source = narrativeOrchestration["source"]?.GetValue<string>() ?? "none";
+            state.LastNarrativeCheckpointStatus = $"checkpoint={checkpoint} | status={status} | source={source}";
+        }
         state.GenerationalMemorySize = root["compressed_event_log"] is JsonArray legacyLog ? Math.Max(0, legacyLog.Count) : 0;
         if (root["optimization_overrides"] is JsonObject optimization
             && string.Equals(optimization["lightweight_mode"]?.GetValue<string>(), "performance", StringComparison.OrdinalIgnoreCase))
@@ -177,6 +208,19 @@ public sealed class LivingNpcsPanelState
         var hits = RagHitsByNpc.TryGetValue(npcId, out var npcHits) ? Math.Max(0, npcHits) : 0;
         var misses = RagMissesByNpc.TryGetValue(npcId, out var npcMisses) ? Math.Max(0, npcMisses) : 0;
         return hits + misses > 0 ? (float)hits / (hits + misses) : 0f;
+    }
+
+    public string NpcDaySummaryForNpc(ulong npcId)
+    {
+        if (npcId == 0)
+        {
+            return LastNpcDaySummary;
+        }
+
+        var key = npcId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return NpcDaySummaryByNpc.TryGetValue(key, out var summary) && !string.IsNullOrWhiteSpace(summary)
+            ? summary
+            : LastNpcDaySummary;
     }
 
     public void ApplyToScene(JsonObject root)

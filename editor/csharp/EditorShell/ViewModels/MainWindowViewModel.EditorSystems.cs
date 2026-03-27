@@ -429,6 +429,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(SelectedDialogNpc));
             OnPropertyChanged(nameof(LivingNpcsSelectedSparkSource));
             OnPropertyChanged(nameof(LivingNpcsSelectedRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsSelectedNpcDaySummary));
             OnPropertyChanged();
             ReloadSelectedNpcVoiceEditorsFromScene();
         }
@@ -482,6 +483,8 @@ public sealed partial class MainWindowViewModel
     public float LivingNpcsLegacyRecallHitRate => _livingNpcs.LegacyRecallHitRate;
     public string LivingNpcsLastMsqAdaptationSource => _livingNpcs.LastMsqAdaptationSource;
     public string LivingNpcsLastNarrativeCheckpoint => _livingNpcs.LastNarrativeCheckpoint;
+    public string LivingNpcsLastNarrativeCheckpointStatus => _livingNpcs.LastNarrativeCheckpointStatus;
+    public string LivingNpcsSelectedNpcDaySummary => _livingNpcs.NpcDaySummaryForNpc(SelectedDialogEntityId);
     public string LivingNpcsSparkSourcePreference => _livingNpcs.SparkSourcePreference;
     public string LivingNpcsSelectedSparkSource => _livingNpcs.SparkSourceForNpc(SelectedDialogEntityId);
     public float LivingNpcsSelectedRagHitRate => _livingNpcs.RagHitRateForNpc(SelectedDialogEntityId);
@@ -2720,9 +2723,11 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsLegacyRecallHitRate));
             OnPropertyChanged(nameof(LivingNpcsLastMsqAdaptationSource));
             OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpoint));
+            OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpointStatus));
             OnPropertyChanged(nameof(LivingNpcsSparkSourcePreference));
             OnPropertyChanged(nameof(LivingNpcsSelectedSparkSource));
             OnPropertyChanged(nameof(LivingNpcsSelectedRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsSelectedNpcDaySummary));
             OnPropertyChanged(nameof(LivingNpcsPerformanceSummary));
             OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));

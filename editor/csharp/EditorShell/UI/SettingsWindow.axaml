@@ -102,7 +102,7 @@
             <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <TextBlock
               Name="AiOrchestrationStatusLineText"
-              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]"
+              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]. Use npc_day &lt;npc_id&gt; and narrative_checkpoint &lt;checkpoint&gt;."
               Foreground="#97AECC"
               TextWrapping="Wrap" />
           </StackPanel>

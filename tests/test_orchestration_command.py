@@ -25,9 +25,19 @@ def _write_scene(tmp_path: Path) -> Path:
     scene_path.write_text(
         json.dumps(
             {
-                "npcs": [{"id": "npc_01"}, {"id": "npc_02"}],
+                "npcs": [
+                    {
+                        "id": "npc_01",
+                        "scripted_behavior": {"current_state": "patrol"},
+                        "needs": {"hunger": 22, "energy": 48, "social": 55, "fun": 34},
+                    },
+                    {"id": "npc_02", "scripted_behavior": {"current_state": "rest"}},
+                ],
                 "entities": [{"id": "e_01"}],
                 "recent_actions": ["built workshop"],
+                "relationships": {"npc_01": {"trust": 61, "respect": 44, "grudge": 8, "loyalty": 52}},
+                "free_will": {"enabled": True, "llm_enabled": False, "last_spark_line_by_npc": {"npc_01": "Shared supplies at dawn."}},
+                "rag": {"enabled": True},
             }
         ),
         encoding="utf-8",
@@ -43,14 +53,14 @@ def test_orchestrate_narrative_checkpoint_returns_structured_result(tmp_path: Pa
         target="major_story_beat",
     )
 
-    assert result.source == "rag"
+    assert result.source == "hybrid"
     assert result.orchestration_type == "narrative_checkpoint"
     assert result.target == "major_story_beat"
     assert result.suggested_scene_patch
     assert all(op["op"] in {"set", "add", "remove"} for op in result.suggested_scene_patch)
 
 
-def test_orchestrate_npc_day_uses_scripted_source(tmp_path: Path) -> None:
+def test_orchestrate_npc_day_returns_hybrid_patch_with_npc_summary(tmp_path: Path) -> None:
     scene_path = _write_scene(tmp_path)
     result = orchestrator._build_orchestration_result(
         orchestration_type="npc_day",
@@ -58,9 +68,10 @@ def test_orchestrate_npc_day_uses_scripted_source(tmp_path: Path) -> None:
         target="market_day",
     )
 
-    assert result.source == "scripted"
+    assert result.source == "hybrid"
     assert result.orchestration_type == "npc_day"
     assert any(op["path"] == "/free_will/orchestration/day_plan_npc_count" for op in result.suggested_scene_patch)
+    assert any(op["path"] == "/free_will/orchestration/day_plan_latest_summary" for op in result.suggested_scene_patch)
 
 
 def test_orchestrate_scene_review_returns_safe_patch(tmp_path: Path) -> None:
@@ -71,6 +82,6 @@ def test_orchestrate_scene_review_returns_safe_patch(tmp_path: Path) -> None:
         target=None,
     )
 
-    assert result.source == "deterministic"
+    assert result.source == "scripted"
     assert result.orchestration_type == "scene_review"
     assert all(str(op["path"]).startswith("/") for op in result.suggested_scene_patch)
