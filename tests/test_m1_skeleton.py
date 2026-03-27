@@ -27,6 +27,14 @@ def strip_md_placeholders(text: str) -> str:
     return "\n".join(filtered_lines)
 
 
+def has_missing_native_runtime_deps(output: str) -> bool:
+    return (
+        "Could NOT find Vulkan" in output
+        or "glfw3 not found" in output
+        or "Missing required build tool: cmake" in output
+    )
+
+
 class TestMilestone1Skeleton(unittest.TestCase):
     def test_runtime_cpp_compiles_and_runs(self):
         import time
@@ -62,18 +70,24 @@ class TestMilestone1Skeleton(unittest.TestCase):
 
     def test_bootstrap_sh_runtime_only(self):
         proc = run_cmd(["./scripts/bootstrap.sh", "--runtime-only"])
+        if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
+            self.skipTest("Vulkan/GLFW/CMake dependencies unavailable in test environment")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("Bootstrap completed successfully (runtime-only).", proc.stdout)
 
     def test_bootstrap_sh_runtime_only_from_external_cwd(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             proc = run_cmd([str(REPO_ROOT / "scripts" / "bootstrap.sh"), "--runtime-only"], cwd=temp_dir)
+        if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
+            self.skipTest("Vulkan/GLFW/CMake dependencies unavailable in test environment")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("Bootstrap completed successfully (runtime-only).", proc.stdout)
 
     def test_bootstrap_sh_default_mode_contract(self):
         proc = run_cmd(["./scripts/bootstrap.sh", "--launcher-smoke"])
         dotnet_available = shutil.which("dotnet") is not None
+        if proc.returncode != 0 and has_missing_native_runtime_deps(proc.stdout + proc.stderr):
+            self.skipTest("Vulkan/GLFW/CMake dependencies unavailable in test environment")
         if dotnet_available:
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertIn("== Starting C# App Entrypoint ==", proc.stdout)
