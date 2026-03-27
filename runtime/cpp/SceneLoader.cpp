@@ -11,6 +11,7 @@
 #include <set>
 #include <sstream>
 #include <vector>
+#include <utility>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -1325,6 +1326,84 @@ CutsceneState CutsceneStateFromJson(const json& node) {
 }
 
 
+
+json RAGStateToJson(const RAGState& rag) {
+    json node = json{
+        {"enabled", rag.enabled},
+        {"live_fallback_enabled", rag.live_fallback_enabled},
+        {"max_entries", rag.max_entries},
+        {"similarity_threshold", rag.similarity_threshold},
+        {"cache_size_mb", rag.cache_size_mb},
+        {"cache_generation", rag.cache_generation},
+        {"cache_hits", rag.cache_hits},
+        {"cache_misses", rag.cache_misses},
+        {"live_fallback_calls", rag.live_fallback_calls},
+        {"last_source", rag.last_source},
+        {"spark_cache", json::array()},
+    };
+
+    for (const RAGCacheEntry& entry : rag.spark_cache) {
+        json cached = json{
+            {"id", entry.id},
+            {"text", entry.text},
+            {"activity", entry.activity},
+            {"location", entry.location},
+            {"tags", entry.tags},
+            {"duration_hours", entry.duration_hours},
+            {"embedding", json::array()},
+        };
+        for (const float value : entry.embedding) {
+            cached["embedding"].push_back(value);
+        }
+        node["spark_cache"].push_back(cached);
+    }
+
+    return node;
+}
+
+RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
+    RAGState rag = fallback;
+    rag.enabled = node.value("enabled", rag.enabled);
+    rag.live_fallback_enabled = node.value("live_fallback_enabled", rag.live_fallback_enabled);
+    rag.max_entries = std::clamp(node.value("max_entries", rag.max_entries), 16U, 2048U);
+    rag.similarity_threshold = std::clamp(node.value("similarity_threshold", rag.similarity_threshold), 0.35F, 0.99F);
+    rag.cache_size_mb = std::max(0.0F, node.value("cache_size_mb", rag.cache_size_mb));
+    rag.cache_generation = node.value("cache_generation", rag.cache_generation);
+    rag.cache_hits = node.value("cache_hits", rag.cache_hits);
+    rag.cache_misses = node.value("cache_misses", rag.cache_misses);
+    rag.live_fallback_calls = node.value("live_fallback_calls", rag.live_fallback_calls);
+    rag.last_source = node.value("last_source", rag.last_source);
+    rag.spark_cache.clear();
+
+    if (node.contains("spark_cache") && node["spark_cache"].is_array()) {
+        for (const json& cache_node : node["spark_cache"]) {
+            if (!cache_node.is_object()) {
+                continue;
+            }
+            RAGCacheEntry entry{};
+            entry.id = cache_node.value("id", entry.id);
+            entry.text = cache_node.value("text", entry.text);
+            entry.activity = cache_node.value("activity", entry.activity);
+            entry.location = cache_node.value("location", entry.location);
+            entry.tags = cache_node.value("tags", entry.tags);
+            entry.duration_hours = std::clamp(cache_node.value("duration_hours", entry.duration_hours), 0.1F, 0.75F);
+            if (cache_node.contains("embedding") && cache_node["embedding"].is_array()) {
+                for (const json& scalar : cache_node["embedding"]) {
+                    if (scalar.is_number()) {
+                        entry.embedding.push_back(scalar.get<float>());
+                    }
+                }
+            }
+            rag.spark_cache.push_back(std::move(entry));
+            if (rag.spark_cache.size() >= rag.max_entries) {
+                break;
+            }
+        }
+    }
+
+    return rag;
+}
+
 json FreeWillStateToJson(const FreeWillState& free_will) {
     json node = json{
         {"enabled", free_will.enabled},
@@ -2271,6 +2350,10 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     if (document.contains("free_will") && document["free_will"].is_object()) {
         scene.free_will = FreeWillStateFromJson(document["free_will"], scene.free_will);
     }
+    scene.rag = RAGState{};
+    if (document.contains("rag") && document["rag"].is_object()) {
+        scene.rag = RAGStateFromJson(document["rag"], scene.rag);
+    }
     if (scene.free_will.llm_enabled && scene.free_will.model_path.empty()) {
         scene.free_will.model_path = ResolveFreeWillModelPath(path);
     }
@@ -2536,6 +2619,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["narrator"] = NarratorStateToJson(scene.narrator);
     document["cutscene"] = CutsceneStateToJson(scene.cutscene);
     document["free_will"] = FreeWillStateToJson(scene.free_will);
+    document["rag"] = RAGStateToJson(scene.rag);
     document["scripted_behavior"] = ScriptedBehaviorStateToJson(scene.scripted_behavior);
     json render_2d = json::object();
     render_2d["render_mode"] = scene.render_2d.render_mode == "3D" ? "3D" : "2D";

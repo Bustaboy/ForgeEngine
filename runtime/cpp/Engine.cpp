@@ -15,6 +15,7 @@
 #include "NPCController.h"
 #include "FreeWillSystem.h"
 #include "ScriptedBehaviorSystem.h"
+#include "RAGSystem.h"
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
 #include "RealTimeCombatSystem.h"
@@ -35,6 +36,7 @@
 #include <cstdio>
 #include <iomanip>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -98,7 +100,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
-    GF_LOG_INFO("             /behavior_perf_status");
+    GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id>");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -747,6 +749,32 @@ void ProcessConsoleCommands(
         GF_LOG_INFO("Hybrid decision: " + FreeWillSystem::BuildHybridDecisionSummary(scene, npc_id));
         const bool queued = FreeWillSystem::TriggerSpark(scene, npc_id, true);
         GF_LOG_INFO(queued ? "Spark test queued." : "Spark test failed to queue.");
+        return;
+    }
+
+
+    if (command == "/rag_test") {
+        std::uint64_t npc_id = 0;
+        parser >> npc_id;
+        if (npc_id == 0) {
+            GF_LOG_INFO("Usage: /rag_test <entity_id>");
+            return;
+        }
+
+        Entity* npc = FindEntityById(scene, npc_id);
+        if (npc == nullptr || npc->buildable.IsValid()) {
+            GF_LOG_INFO("RAG test failed: npc not found.");
+            return;
+        }
+
+        const std::optional<RAGSparkDirective> rag = RAGSystem::RetrieveSparkFlavor(scene, *npc);
+        if (rag.has_value()) {
+            GF_LOG_INFO("RAG retrieve hit: " + rag->line);
+        } else {
+            GF_LOG_INFO("RAG retrieve miss -> fallback generation path.");
+        }
+        GF_LOG_INFO(RAGSystem::BuildDebugSummary(scene, npc_id));
+        SetOverlayStatusMessage(overlay_status_message, rag.has_value() ? "RAG hit" : "RAG fallback");
         return;
     }
 

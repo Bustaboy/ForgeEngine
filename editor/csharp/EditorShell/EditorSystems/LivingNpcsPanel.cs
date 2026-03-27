@@ -22,6 +22,8 @@ public sealed class LivingNpcsPanelState
     public float SparkRatio { get; private set; }
     public float EffectiveSparkMultiplier { get; private set; } = 1f;
     public string PerformanceReason { get; private set; } = "monitoring_off";
+    public int RagCacheSize { get; private set; }
+    public float RagHitRate { get; private set; }
 
     public static LivingNpcsPanelState FromScene(JsonObject root)
     {
@@ -72,6 +74,15 @@ public sealed class LivingNpcsPanelState
             state.PerformanceReason = scriptedBehavior["performance_reason"]?.GetValue<string>() ?? "monitoring_off";
         }
 
+        var rag = root["rag"] as JsonObject;
+        if (rag is not null)
+        {
+            state.RagCacheSize = rag["spark_cache"] is JsonArray cache ? Math.Max(0, cache.Count) : 0;
+            var hits = Math.Max(0, ReadInt32(rag["cache_hits"], 0));
+            var misses = Math.Max(0, ReadInt32(rag["cache_misses"], 0));
+            state.RagHitRate = hits + misses > 0 ? (float)hits / (hits + misses) : 0f;
+        }
+
         var settlement = root["settlement"] as JsonObject;
         state.VillageName = settlement?["village_name"]?.GetValue<string>() ?? "River Town";
         state.TotalPopulation = ReadInt32(settlement?["total_population"], 0);
@@ -99,6 +110,16 @@ public sealed class LivingNpcsPanelState
         freeWill["rng_seed"] = Math.Max(0, ReadInt32(freeWill["rng_seed"], 0));
         freeWill["daily_spark_count"] ??= new JsonObject();
         freeWill["last_spark_line_by_npc"] ??= new JsonObject();
+
+        var rag = root["rag"] as JsonObject ?? new JsonObject();
+        root["rag"] = rag;
+        rag["enabled"] = rag["enabled"]?.GetValue<bool>() ?? true;
+        rag["live_fallback_enabled"] = rag["live_fallback_enabled"]?.GetValue<bool>() ?? true;
+        rag["max_entries"] = Math.Clamp(ReadInt32(rag["max_entries"], 256), 16, 2048);
+        rag["similarity_threshold"] = Math.Clamp(ReadSingle(rag["similarity_threshold"], 0.78f), 0.35f, 0.99f);
+        rag["cache_hits"] = Math.Max(0, ReadInt32(rag["cache_hits"], 0));
+        rag["cache_misses"] = Math.Max(0, ReadInt32(rag["cache_misses"], 0));
+        rag["spark_cache"] ??= new JsonArray();
 
         var settlement = root["settlement"] as JsonObject ?? new JsonObject();
         root["settlement"] = settlement;

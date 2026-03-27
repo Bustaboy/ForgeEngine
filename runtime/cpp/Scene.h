@@ -22,6 +22,7 @@ namespace SceneLimits {
     inline constexpr std::size_t kRecentActionsCap = 160U;
     inline constexpr std::size_t kFreeWillMapCap   = 512U;
     inline constexpr std::size_t kCombatStateCap   = 48U;
+    inline constexpr std::size_t kRagEntriesCap    = 512U;
 }
 
 struct CoCreatorQueuedMutation {
@@ -168,6 +169,33 @@ struct FreeWillState {
     std::map<std::uint64_t, std::uint32_t> daily_spark_count{};
     std::map<std::uint64_t, std::string> last_spark_line_by_npc{};
     std::deque<FreeWillSparkRequest> pending_sparks{};
+};
+
+
+struct RAGCacheEntry {
+    std::string id{};
+    std::string text{};
+    std::string activity{"free_time"};
+    std::string location{"town"};
+    std::string tags{};
+    float duration_hours = 0.25F;
+    std::vector<float> embedding{};
+};
+
+struct RAGState {
+    bool enabled = false;
+    bool live_fallback_enabled = true;
+    std::uint32_t max_entries = 256;
+    float similarity_threshold = 0.78F;
+    float cache_size_mb = 0.0F;
+    float quiet_generation_accumulator = 0.0F;
+    float last_similarity = 0.0F;
+    std::uint32_t cache_generation = 0;
+    std::uint32_t cache_hits = 0;
+    std::uint32_t cache_misses = 0;
+    std::uint32_t live_fallback_calls = 0;
+    std::string last_source = "none";
+    std::vector<RAGCacheEntry> spark_cache{};
 };
 
 struct ScriptedBehaviorDefinition {
@@ -446,6 +474,7 @@ struct Scene {
     NarratorState narrator{};
     CutsceneState cutscene{};
     FreeWillState free_will{};
+    RAGState rag{};
     ScriptedBehaviorState scripted_behavior{};
     CombatState combat{};
     RealTimeCombatState realtime_combat{};
