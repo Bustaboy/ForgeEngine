@@ -48,6 +48,31 @@
           </StackPanel>
         </TabItem>
 
+
+        <TabItem Header="🔊 Audio">
+          <StackPanel Margin="16" Spacing="12">
+            <TextBlock Text="Exploration music track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="MusicTrackTextBox" Watermark="music_exploration" />
+
+            <TextBlock Text="Ambient loop track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="AmbientTrackTextBox" Watermark="ambient_exploration_loop" />
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <TextBlock Text="Combat music override" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1" Name="CombatMusicOverrideToggle" OnContent="On" OffContent="Off" />
+            </Grid>
+
+            <TextBlock Text="Master volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <NumericUpDown Name="MasterVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="85" />
+
+            <TextBlock Text="Music / Ambient / UI volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+              <NumericUpDown Name="MusicVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="75" />
+              <NumericUpDown Grid.Column="1" Name="AmbientVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="60" />
+              <NumericUpDown Grid.Column="2" Name="UiVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
+            </Grid>
+          </StackPanel>
+        </TabItem>
         <TabItem Header="🧰 Editor">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />

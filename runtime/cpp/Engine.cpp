@@ -17,6 +17,7 @@
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
 #include "RealTimeCombatSystem.h"
+#include "AudioSystem.h"
 
 #include <GLFW/glfw3.h>
 #include <glm/geometric.hpp>
@@ -95,6 +96,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
+    GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
     GF_LOG_INFO("           /realtime_combat_start | /realtime_combat_action <attack|dodge|move|stop>");
     GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
     GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
@@ -208,6 +210,46 @@ void ProcessConsoleCommands(
         SetOverlayStatusMessage(overlay_status_message, "Perf stats logged");
         return;
     }
+
+    if (command == "/audio_play") {
+        std::string bus;
+        std::string track;
+        parser >> bus >> track;
+        std::string message;
+        const bool ok = AudioSystem::PlayTrack(scene, bus, track, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? "Audio track updated" : "Audio command invalid");
+        return;
+    }
+
+    if (command == "/audio_combat_music") {
+        std::string arg;
+        parser >> arg;
+        if (arg == "on") {
+            scene.audio.combat_music_override = true;
+        } else if (arg == "off") {
+            scene.audio.combat_music_override = false;
+        } else {
+            scene.audio.combat_music_override = !scene.audio.combat_music_override;
+        }
+        AudioSystem::SetCombatMusicOverride(scene, scene.audio.combat_music_override);
+        const std::string state = std::string("Combat music override: ") + (scene.audio.combat_music_override ? "ON" : "OFF");
+        GF_LOG_INFO(state);
+        SetOverlayStatusMessage(overlay_status_message, state);
+        return;
+    }
+
+    if (command == "/audio_set_volume") {
+        std::string bus;
+        float value = 0.0F;
+        parser >> bus >> value;
+        std::string message;
+        const bool ok = AudioSystem::SetVolume(scene, bus, value, message);
+        GF_LOG_INFO(message);
+        SetOverlayStatusMessage(overlay_status_message, ok ? ("Audio " + bus + " volume set") : "Audio volume invalid");
+        return;
+    }
+
 
     if (command == "/validate_scene") {
         std::string target_path;

@@ -48,6 +48,13 @@ public partial class SettingsWindow : Window
         this.FindControl<NumericUpDown>("IconSizeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("HistoryLengthNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<ComboBox>("DefaultTemplateComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<TextBox>("MusicTrackTextBox")!.PropertyChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<TextBox>("AmbientTrackTextBox")!.PropertyChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("MasterVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("MusicVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("AmbientVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<NumericUpDown>("UiVolumeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -64,6 +71,17 @@ public partial class SettingsWindow : Window
         SetNumericValue("FpsLimitNumeric", preferences.Runtime.FpsLimit);
         SetNumericValue("IconSizeNumeric", preferences.Editor.IconSize);
         SetNumericValue("HistoryLengthNumeric", preferences.Editor.HistoryLength);
+        SetTextValue("MusicTrackTextBox", preferences.Runtime.Audio.MusicTrack);
+        SetTextValue("AmbientTrackTextBox", preferences.Runtime.Audio.AmbientTrack);
+        var combatMusicToggle = this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle");
+        if (combatMusicToggle is not null)
+        {
+            combatMusicToggle.IsChecked = preferences.Runtime.Audio.CombatMusicOverride;
+        }
+        SetNumericValue("MasterVolumeNumeric", preferences.Runtime.Audio.MasterVolume);
+        SetNumericValue("MusicVolumeNumeric", preferences.Runtime.Audio.MusicVolume);
+        SetNumericValue("AmbientVolumeNumeric", preferences.Runtime.Audio.AmbientVolume);
+        SetNumericValue("UiVolumeNumeric", preferences.Runtime.Audio.UiVolume);
 
         var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
         if (templateCombo is not null)
@@ -137,6 +155,16 @@ public partial class SettingsWindow : Window
             {
                 VulkanResolution = resolution,
                 FpsLimit = fpsLimit,
+                Audio = new EditorPreferences.RuntimePreferences.AudioPreferences
+                {
+                    MusicTrack = GetTextValue("MusicTrackTextBox", "music_exploration"),
+                    AmbientTrack = GetTextValue("AmbientTrackTextBox", "ambient_exploration_loop"),
+                    CombatMusicOverride = this.FindControl<ToggleSwitch>("CombatMusicOverrideToggle")?.IsChecked ?? true,
+                    MasterVolume = GetNumericValue("MasterVolumeNumeric", 85),
+                    MusicVolume = GetNumericValue("MusicVolumeNumeric", 75),
+                    AmbientVolume = GetNumericValue("AmbientVolumeNumeric", 60),
+                    UiVolume = GetNumericValue("UiVolumeNumeric", 80),
+                },
             },
             Editor = new EditorPreferences.EditorPanePreferences
             {
@@ -180,6 +208,22 @@ public partial class SettingsWindow : Window
             MainWindowViewModel.ProjectTemplatePreset template => template.DisplayName,
             _ => string.Empty,
         };
+    }
+
+    private void SetTextValue(string controlName, string value)
+    {
+        var textBox = this.FindControl<TextBox>(controlName);
+        if (textBox is not null)
+        {
+            textBox.Text = value;
+        }
+    }
+
+    private string GetTextValue(string controlName, string fallback)
+    {
+        var textBox = this.FindControl<TextBox>(controlName);
+        var value = textBox?.Text?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
     private void SetNumericValue(string controlName, int value)

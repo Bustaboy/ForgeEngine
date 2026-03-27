@@ -17,6 +17,7 @@
 #include "SettlementSystem.h"
 #include "CombatSystem.h"
 #include "RealTimeCombatSystem.h"
+#include "AudioSystem.h"
 #include "templates/generated_gameplay.h"
 #include "Logger.h"
 
@@ -230,6 +231,7 @@ void Scene::Update(float dt_seconds) {
     FreeWillSystem::EnsureDefaults(*this);
     CombatSystem::EnsureDefaults(*this);
     RealTimeCombatSystem::EnsureDefaults(*this);
+    AudioSystem::EnsureDefaults(*this);
     constexpr float kMaxTimeStepSeconds = 0.25F;
     const float safe_dt = std::clamp(dt_seconds, 0.0F, kMaxTimeStepSeconds);
     world_time.elapsed_seconds += safe_dt;
@@ -311,6 +313,7 @@ void Scene::Update(float dt_seconds) {
     RelationshipSystem::Update(*this, safe_dt);
     CombatSystem::Update(*this, safe_dt);
     RealTimeCombatSystem::Update(*this, safe_dt);
+    AudioSystem::Update(*this, safe_dt);
     if (!realtime_combat.active && realtime_combat.animation_preview.empty()) {
         realtime_combat.animation_preview = "idle";
     }
@@ -487,6 +490,24 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
             optimization_overrides.runtime.mesh_cull_distance_m =
                 std::max(0.0F, runtime_patch.value("mesh_cull_distance_m", optimization_overrides.runtime.mesh_cull_distance_m));
         }
+    }
+
+    const json audio_patch = changes.value("audio", json::object());
+    if (audio_patch.is_object()) {
+        audio.current_music_track = audio_patch.value("current_music_track", audio.current_music_track);
+        audio.ambient_track = audio_patch.value("ambient_track", audio.ambient_track);
+        audio.exploration_music_track = audio_patch.value("exploration_music_track", audio.exploration_music_track);
+        audio.combat_music_track = audio_patch.value("combat_music_track", audio.combat_music_track);
+        audio.master_volume = std::clamp(audio_patch.value("master_volume", audio.master_volume), 0.0F, 1.0F);
+        audio.music_volume = std::clamp(audio_patch.value("music_volume", audio.music_volume), 0.0F, 1.0F);
+        audio.ambient_volume = std::clamp(audio_patch.value("ambient_volume", audio.ambient_volume), 0.0F, 1.0F);
+        audio.ui_volume = std::clamp(audio_patch.value("ui_volume", audio.ui_volume), 0.0F, 1.0F);
+        audio.sfx_volume = std::clamp(audio_patch.value("sfx_volume", audio.sfx_volume), 0.0F, 1.0F);
+        audio.weather_influence = std::clamp(audio_patch.value("weather_influence", audio.weather_influence), 0.0F, 1.0F);
+        audio.combat_music_override = audio_patch.value("combat_music_override", audio.combat_music_override);
+        audio.music_enabled = audio_patch.value("music_enabled", audio.music_enabled);
+        audio.ambient_enabled = audio_patch.value("ambient_enabled", audio.ambient_enabled);
+        audio.spatial_audio_enabled = audio_patch.value("spatial_audio_enabled", audio.spatial_audio_enabled);
     }
 
     return true;

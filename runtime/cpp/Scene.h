@@ -266,6 +266,35 @@ struct SceneRender2D {
 
 
 
+
+struct AudioState {
+    std::string current_music_track{};
+    std::string ambient_track = "ambient_exploration_loop";
+    std::string exploration_music_track = "music_exploration";
+    std::string combat_music_track = "music_combat_intense";
+    std::string last_ui_sound{};
+    std::string mood_tag = "neutral";
+    std::string last_transition_reason{};
+    float master_volume = 0.85F;
+    float music_volume = 0.75F;
+    float ambient_volume = 0.60F;
+    float ui_volume = 0.80F;
+    float sfx_volume = 0.80F;
+    float weather_influence = 0.40F;
+    bool enabled = true;
+    bool music_enabled = true;
+    bool ambient_enabled = true;
+    bool spatial_audio_enabled = true;
+    bool combat_music_override = true;
+    bool disable_music_in_performance_mode = true;
+    bool combat_override_active = false;
+    bool runtime_music_suppressed = false;
+    int max_spatial_voices = 24;
+    int performance_spatial_voices = 8;
+    int runtime_spatial_voice_limit = 24;
+    std::uint32_t transition_counter = 0;
+};
+
 struct ScenePostProcessingSettings {
     bool enabled = false;
     bool bloom_enabled = true;
@@ -351,6 +380,7 @@ struct Scene {
     FreeWillState free_will{};
     CombatState combat{};
     RealTimeCombatState realtime_combat{};
+    AudioState audio{};
     SceneRender2D render_2d{};
     ScenePostProcessingSettings post_processing{};
     SceneQualityMetadata quality_metadata{};

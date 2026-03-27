@@ -94,6 +94,7 @@ set(FORGE_RUNTIME_SOURCES
     runtime/cpp/EconomySystem.cpp
     runtime/cpp/SettlementSystem.cpp
     runtime/cpp/CombatSystem.cpp
+    runtime/cpp/AudioSystem.cpp
     runtime/cpp/WeatherSystem.cpp
     runtime/cpp/NavmeshSystem.cpp
     runtime/cpp/AnimationSystem.cpp
