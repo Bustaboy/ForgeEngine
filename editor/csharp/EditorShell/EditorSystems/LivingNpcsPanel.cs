@@ -24,6 +24,9 @@ public sealed class LivingNpcsPanelState
     public string PerformanceReason { get; private set; } = "monitoring_off";
     public int RagCacheSize { get; private set; }
     public float RagHitRate { get; private set; }
+    public float NarrativeFlavorHitRate { get; private set; }
+    public string LastMsqAdaptationSource { get; private set; } = "none";
+    public string LastNarrativeCheckpoint { get; private set; } = "none";
     public string SparkSourcePreference { get; private set; } = "rag > scripted > llm";
     public bool LightweightPerformanceMode { get; private set; }
     private Dictionary<ulong, string> LastSparkSourceByNpc { get; } = [];
@@ -122,6 +125,11 @@ public sealed class LivingNpcsPanelState
             var hits = Math.Max(0, ReadInt32(rag["cache_hits"], 0));
             var misses = Math.Max(0, ReadInt32(rag["cache_misses"], 0));
             state.RagHitRate = hits + misses > 0 ? (float)hits / (hits + misses) : 0f;
+            var narrativeHits = Math.Max(0, ReadInt32(rag["narrative_hits"], 0));
+            var narrativeMisses = Math.Max(0, ReadInt32(rag["narrative_misses"], 0));
+            state.NarrativeFlavorHitRate = narrativeHits + narrativeMisses > 0 ? (float)narrativeHits / (narrativeHits + narrativeMisses) : 0f;
+            state.LastMsqAdaptationSource = rag["last_narrative_source"]?.GetValue<string>() ?? "none";
+            state.LastNarrativeCheckpoint = rag["last_narrative_checkpoint"]?.GetValue<string>() ?? "none";
         }
         if (root["optimization_overrides"] is JsonObject optimization
             && string.Equals(optimization["lightweight_mode"]?.GetValue<string>(), "performance", StringComparison.OrdinalIgnoreCase))

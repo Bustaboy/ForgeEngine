@@ -149,6 +149,11 @@ void ApplyMemoryGuardrails(Scene& scene) {
             scene.rag.spark_cache.begin(),
             scene.rag.spark_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.spark_cache.size() - SceneLimits::kRagEntriesCap));
     }
+    if (scene.rag.narrative_cache.size() > SceneLimits::kRagEntriesCap) {
+        scene.rag.narrative_cache.erase(
+            scene.rag.narrative_cache.begin(),
+            scene.rag.narrative_cache.begin() + static_cast<std::ptrdiff_t>(scene.rag.narrative_cache.size() - SceneLimits::kRagEntriesCap));
+    }
 }
 
 

@@ -223,6 +223,17 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     const bool should_try_rag = !performance_mode ||
         request.forced_by_console ||
         ((scene.free_will.rag_retrieve_tick++ % kPerformanceRagRetrieveStride) == 0U);
+    const std::string checkpoint = request.forced_by_console ? "scripted_behavior" : "relationship_threshold";
+    std::optional<RAGNarrativeFlavor> narrative_flavor{};
+    if (should_try_rag) {
+        narrative_flavor = RAGSystem::RetrieveNarrativeFlavor(scene, checkpoint, npc);
+        if (!narrative_flavor.has_value()) {
+            RAGSystem::EvaluateNarrativeCheckpoint(scene, checkpoint);
+        }
+    } else if (performance_mode) {
+        scene.rag.last_narrative_source = "throttled";
+        scene.rag.last_narrative_checkpoint = checkpoint;
+    }
 
     std::optional<SparkDirective> directive{};
     std::string source = "scripted";
@@ -240,6 +251,9 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     if (!directive.has_value()) {
         directive = DeterministicFallback(*npc, rng);
         source = "scripted";
+    }
+    if (narrative_flavor.has_value()) {
+        directive->line = "[" + narrative_flavor->event_color + "] " + directive->line;
     }
 
     const bool llm_fallback_allowed =

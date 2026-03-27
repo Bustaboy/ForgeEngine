@@ -181,6 +181,8 @@ struct RAGCacheEntry {
     std::string text{};
     std::string activity{"free_time"};
     std::string location{"town"};
+    std::string checkpoint{"generic"};
+    std::string category{"spark"};
     std::string tags{};
     float duration_hours = 0.25F;
     std::vector<float> embedding{};
@@ -197,9 +199,20 @@ struct RAGState {
     std::uint32_t cache_generation = 0;
     std::uint32_t cache_hits = 0;
     std::uint32_t cache_misses = 0;
+    std::uint32_t narrative_hits = 0;
+    std::uint32_t narrative_misses = 0;
     std::uint32_t live_fallback_calls = 0;
+    std::uint32_t narrative_live_fallback_calls = 0;
     std::string last_source = "none";
+    std::string last_narrative_source = "none";
+    std::string last_narrative_checkpoint = "none";
+    std::string last_narrative_dialog_tone = "neutral";
+    std::string last_narrative_msq_branch = "default";
+    std::string last_narrative_event_color = "grounded";
+    float last_narrative_similarity = -1.0F;
+    std::uint32_t narrative_retrieve_tick = 0;
     std::vector<RAGCacheEntry> spark_cache{};
+    std::vector<RAGCacheEntry> narrative_cache{};
 };
 
 struct ScriptedBehaviorDefinition {

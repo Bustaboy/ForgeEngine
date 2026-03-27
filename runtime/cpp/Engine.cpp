@@ -101,6 +101,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
     GF_LOG_INFO("             /behavior_perf_status | /rag_test <entity_id> | /spark_test <entity_id>");
+    GF_LOG_INFO("             /narrative_flavor_test <checkpoint>");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -799,6 +800,26 @@ void ProcessConsoleCommands(
         }
         GF_LOG_INFO(RAGSystem::BuildDebugSummary(scene, npc_id));
         SetOverlayStatusMessage(overlay_status_message, rag.has_value() ? "RAG hit" : "RAG fallback");
+        return;
+    }
+
+    if (command == "/narrative_flavor_test") {
+        std::string checkpoint;
+        parser >> checkpoint;
+        if (checkpoint.empty()) {
+            GF_LOG_INFO("Usage: /narrative_flavor_test <checkpoint>");
+            return;
+        }
+
+        const bool rag_hit = RAGSystem::EvaluateNarrativeCheckpoint(scene, checkpoint);
+        const std::string summary = "Narrative checkpoint=" + checkpoint +
+            " source=" + scene.rag.last_narrative_source +
+            " tone=" + scene.rag.last_narrative_dialog_tone +
+            " msq=" + scene.rag.last_narrative_msq_branch +
+            " color=" + scene.rag.last_narrative_event_color +
+            " similarity=" + std::to_string(scene.rag.last_narrative_similarity);
+        GF_LOG_INFO(summary);
+        SetOverlayStatusMessage(overlay_status_message, rag_hit ? "Narrative flavor: RAG hit" : "Narrative flavor: fallback");
         return;
     }
 
