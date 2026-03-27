@@ -44,6 +44,7 @@ from model_manager import (
     ensure_freewill_model,
     list_installed_models,
     remove_model,
+    run_quick_setup,
     run_onboarding,
 )
 
@@ -3968,6 +3969,19 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
     if command in {"onboarding-run", "/onboarding_run"}:
         try:
             result = run_onboarding(
+                orchestrator_file=Path(__file__).resolve(),
+                progress_callback=emit_progress if progress_json else None,
+                cancel_check=is_cancelled if cancel_file_path else None,
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+        except DownloadCancelledError as exc:
+            print(json.dumps({"event": "cancelled", "message": str(exc)}))
+            return 130
+
+    if command in {"quick-setup", "/quick_setup"}:
+        try:
+            result = run_quick_setup(
                 orchestrator_file=Path(__file__).resolve(),
                 progress_callback=emit_progress if progress_json else None,
                 cancel_check=is_cancelled if cancel_file_path else None,
