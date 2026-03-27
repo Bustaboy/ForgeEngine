@@ -98,6 +98,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("  Social: /factions | /rep <faction_id> <delta> | /relationship ...");
     GF_LOG_INFO("  Story/NPC: /story_event <event_id> | /narrate <text> | /npc_schedule ... | /npc_activity ...");
     GF_LOG_INFO("             /behavior_list | /behavior_set <entity_id> <state> [key=value ...]");
+    GF_LOG_INFO("             /behavior_perf_status");
     GF_LOG_INFO("  Systems: /economy | /combat_start [w h] | /combat_action <action> <target> | /evolve_dialog [npc_id]");
     GF_LOG_INFO("  Audio: /audio_play music|ambient|ui <track> | /audio_play_sfx <effect> | /audio_spatial_test");
     GF_LOG_INFO("         /audio_combat_music [on|off|toggle] | /audio_set_volume <bus> <0..1>");
@@ -809,6 +810,12 @@ void ProcessConsoleCommands(
         for (const std::string& row : rows) {
             GF_LOG_INFO(row);
         }
+        return;
+    }
+
+    if (command == "/behavior_perf_status") {
+        GF_LOG_INFO("BehaviorPerfStatus " + ScriptedBehaviorSystem::BuildPerformanceStatus(scene));
+        SetOverlayStatusMessage(overlay_status_message, "Behavior perf status logged");
         return;
     }
 

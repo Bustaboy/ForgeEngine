@@ -16,6 +16,12 @@ public sealed class LivingNpcsPanelState
     public float VillageMorale { get; set; } = 62f;
     public float FoodStockpile { get; set; } = 80f;
     public float SharedStockpile { get; set; } = 45f;
+    public bool PerformanceModeActive { get; private set; }
+    public bool ForceScriptedFallback { get; private set; }
+    public float ScriptedRatio { get; private set; } = 1f;
+    public float SparkRatio { get; private set; }
+    public float EffectiveSparkMultiplier { get; private set; } = 1f;
+    public string PerformanceReason { get; private set; } = "monitoring_off";
 
     public static LivingNpcsPanelState FromScene(JsonObject root)
     {
@@ -53,6 +59,17 @@ public sealed class LivingNpcsPanelState
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .Take(12)
                 .ToArray();
+        }
+
+        var scriptedBehavior = root["scripted_behavior"] as JsonObject;
+        if (scriptedBehavior is not null)
+        {
+            state.PerformanceModeActive = scriptedBehavior["performance_mode_active"]?.GetValue<bool>() ?? false;
+            state.ForceScriptedFallback = scriptedBehavior["force_scripted_fallback"]?.GetValue<bool>() ?? false;
+            state.ScriptedRatio = Math.Clamp(ReadSingle(scriptedBehavior["monitored_scripted_ratio"], 1f), 0f, 1f);
+            state.SparkRatio = Math.Clamp(ReadSingle(scriptedBehavior["monitored_spark_ratio"], 0f), 0f, 1f);
+            state.EffectiveSparkMultiplier = Math.Clamp(ReadSingle(scriptedBehavior["effective_spark_chance_multiplier"], 1f), 0f, 1f);
+            state.PerformanceReason = scriptedBehavior["performance_reason"]?.GetValue<string>() ?? "monitoring_off";
         }
 
         var settlement = root["settlement"] as JsonObject;

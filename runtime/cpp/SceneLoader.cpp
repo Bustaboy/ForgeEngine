@@ -1357,6 +1357,20 @@ json ScriptedBehaviorStateToJson(const ScriptedBehaviorState& scripted) {
     return json{
         {"enabled", scripted.enabled},
         {"definitions_path", scripted.definitions_path},
+        {"performance_monitoring_enabled", scripted.performance_monitoring_enabled},
+        {"performance_check_interval_seconds", scripted.performance_check_interval_seconds},
+        {"monitoring_min_fps", scripted.monitoring_min_fps},
+        {"monitoring_hard_fps", scripted.monitoring_hard_fps},
+        {"monitoring_soft_entity_count", scripted.monitoring_soft_entity_count},
+        {"monitoring_hard_entity_count", scripted.monitoring_hard_entity_count},
+        {"monitored_fps", scripted.monitored_fps},
+        {"monitored_entity_count", scripted.monitored_entity_count},
+        {"monitored_scripted_ratio", scripted.monitored_scripted_ratio},
+        {"monitored_spark_ratio", scripted.monitored_spark_ratio},
+        {"effective_spark_chance_multiplier", scripted.effective_spark_chance_multiplier},
+        {"performance_mode_active", scripted.performance_mode_active},
+        {"force_scripted_fallback", scripted.force_scripted_fallback},
+        {"performance_reason", scripted.performance_reason},
     };
 }
 
@@ -1410,9 +1424,34 @@ ScriptedBehaviorState ScriptedBehaviorStateFromJson(const json& node, const Scri
     ScriptedBehaviorState scripted = fallback;
     scripted.enabled = node.value("enabled", scripted.enabled);
     scripted.definitions_path = node.value("definitions_path", scripted.definitions_path);
+    scripted.performance_monitoring_enabled = node.value("performance_monitoring_enabled", scripted.performance_monitoring_enabled);
+    scripted.performance_check_interval_seconds = std::clamp(
+        node.value("performance_check_interval_seconds", scripted.performance_check_interval_seconds),
+        0.25F,
+        10.0F);
+    scripted.monitoring_min_fps = std::clamp(node.value("monitoring_min_fps", scripted.monitoring_min_fps), 10.0F, 240.0F);
+    scripted.monitoring_hard_fps = std::clamp(node.value("monitoring_hard_fps", scripted.monitoring_hard_fps), 5.0F, scripted.monitoring_min_fps);
+    scripted.monitoring_soft_entity_count = std::max(32, node.value("monitoring_soft_entity_count", scripted.monitoring_soft_entity_count));
+    scripted.monitoring_hard_entity_count = std::max(
+        scripted.monitoring_soft_entity_count,
+        node.value("monitoring_hard_entity_count", scripted.monitoring_hard_entity_count));
+    scripted.monitored_fps = std::clamp(node.value("monitored_fps", scripted.monitored_fps), 1.0F, 240.0F);
+    scripted.monitored_entity_count = std::max(0, node.value("monitored_entity_count", scripted.monitored_entity_count));
+    scripted.monitored_scripted_ratio = std::clamp(node.value("monitored_scripted_ratio", scripted.monitored_scripted_ratio), 0.0F, 1.0F);
+    scripted.monitored_spark_ratio = std::clamp(node.value("monitored_spark_ratio", scripted.monitored_spark_ratio), 0.0F, 1.0F);
+    scripted.effective_spark_chance_multiplier = std::clamp(
+        node.value("effective_spark_chance_multiplier", scripted.effective_spark_chance_multiplier),
+        0.0F,
+        1.0F);
+    scripted.performance_mode_active = node.value("performance_mode_active", scripted.performance_mode_active);
+    scripted.force_scripted_fallback = node.value("force_scripted_fallback", scripted.force_scripted_fallback);
+    scripted.performance_reason = node.value("performance_reason", scripted.performance_reason);
     scripted.definitions_loaded = false;
     scripted.update_accumulator_seconds = 0.0F;
     scripted.update_tick = 0;
+    scripted.performance_check_accumulator_seconds = 0.0F;
+    scripted.scripted_decisions_window = 0;
+    scripted.spark_decisions_window = 0;
     return scripted;
 }
 

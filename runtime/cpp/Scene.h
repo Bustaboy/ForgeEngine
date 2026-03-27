@@ -184,6 +184,23 @@ struct ScriptedBehaviorState {
     bool definitions_loaded = false;
     float update_accumulator_seconds = 0.0F;
     std::uint32_t update_tick = 0;
+    bool performance_monitoring_enabled = true;
+    float performance_check_interval_seconds = 1.0F;
+    float performance_check_accumulator_seconds = 0.0F;
+    float monitoring_min_fps = 45.0F;
+    float monitoring_hard_fps = 30.0F;
+    int monitoring_soft_entity_count = 600;
+    int monitoring_hard_entity_count = 1200;
+    float monitored_fps = 60.0F;
+    int monitored_entity_count = 0;
+    float monitored_scripted_ratio = 1.0F;
+    float monitored_spark_ratio = 0.0F;
+    float effective_spark_chance_multiplier = 1.0F;
+    bool performance_mode_active = false;
+    bool force_scripted_fallback = false;
+    std::uint32_t scripted_decisions_window = 0;
+    std::uint32_t spark_decisions_window = 0;
+    std::string performance_reason = "monitoring_off";
     std::map<std::string, ScriptedBehaviorDefinition> definitions{};
 };
 
