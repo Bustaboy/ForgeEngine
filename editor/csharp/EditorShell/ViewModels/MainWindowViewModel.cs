@@ -506,6 +506,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public string AutosaveStatusLabel => IsAutosaveEnabled ? "Autosave: On" : "Autosave: Off";
 
     public string RuntimePreferencesSummary => $"{_preferences.Runtime.VulkanResolution} @ {_preferences.Runtime.FpsLimit} FPS cap • Audio {_preferences.Runtime.Audio.MusicTrack}";
+    public bool IsBotPlaytestingInReviewEnabled => _preferences.AiOrchestration.EnableBotPlaytestingInReview;
+    public string LastSceneReviewSummaryStatus => $"Scene Review: {_preferences.AiOrchestration.LastSceneReviewSummary}";
 
     public string ShortcutHintBar => "Shortcuts: Ctrl+N New • Ctrl+S Save • Ctrl+Z/Y Undo/Redo • Ctrl+Shift+P Play • Ctrl+I Import • Ctrl+Shift+S Settings";
 
@@ -2704,6 +2706,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ThemePreference));
         OnPropertyChanged(nameof(AutosaveStatusLabel));
         OnPropertyChanged(nameof(RuntimePreferencesSummary));
+        OnPropertyChanged(nameof(IsBotPlaytestingInReviewEnabled));
+        OnPropertyChanged(nameof(LastSceneReviewSummaryStatus));
         OnPropertyChanged(nameof(RibbonIconSize));
         OnPropertyChanged(nameof(EditorDefaultTemplateId));
         ThemePreferenceChanged?.Invoke(_preferences.General.Theme);

@@ -61,6 +61,7 @@ public partial class SettingsWindow : Window
         this.FindControl<NumericUpDown>("UiDuckingNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<ComboBox>("ReverbZoneComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("ProceduralIntensityNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
     }
 
     private void ApplyPreferences(EditorPreferences preferences)
@@ -94,6 +95,12 @@ public partial class SettingsWindow : Window
         SetNumericValue("UiDuckingNumeric", preferences.Runtime.Audio.UiDuckingStrength);
         SetComboText("ReverbZoneComboBox", preferences.Runtime.Audio.ReverbZonePreset);
         SetNumericValue("ProceduralIntensityNumeric", preferences.Runtime.Audio.ProceduralIntensity);
+        var playtestingToggle = this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle");
+        if (playtestingToggle is not null)
+        {
+            playtestingToggle.IsChecked = preferences.AiOrchestration.EnableBotPlaytestingInReview;
+        }
+        SetTextValue("LastSceneReviewSummaryTextBox", preferences.AiOrchestration.LastSceneReviewSummary);
 
         var templateCombo = this.FindControl<ComboBox>("DefaultTemplateComboBox");
         if (templateCombo is not null)
@@ -189,6 +196,11 @@ public partial class SettingsWindow : Window
                 IconSize = iconSize,
                 HistoryLength = historyLength,
                 DefaultTemplateId = templateId,
+            },
+            AiOrchestration = new EditorPreferences.AiOrchestrationPreferences
+            {
+                EnableBotPlaytestingInReview = this.FindControl<ToggleSwitch>("EnableBotPlaytestingInReviewToggle")?.IsChecked ?? false,
+                LastSceneReviewSummary = GetTextValue("LastSceneReviewSummaryTextBox", "No scene review has been run yet."),
             },
         }.Sanitize();
     }

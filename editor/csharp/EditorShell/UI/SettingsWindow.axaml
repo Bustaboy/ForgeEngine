@@ -102,9 +102,15 @@
             <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <TextBlock
               Name="AiOrchestrationStatusLineText"
-              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]. Use npc_day &lt;npc_id&gt; and narrative_checkpoint &lt;checkpoint&gt;."
+              Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]. scene_review target supports playtest|with_playtest|no_playtest."
               Foreground="#97AECC"
               TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Enable Bot Playtesting in Review" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1" Name="EnableBotPlaytestingInReviewToggle" OnContent="On" OffContent="Off" />
+            </Grid>
+            <TextBlock Text="Last Scene Review Summary" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBox Name="LastSceneReviewSummaryTextBox" AcceptsReturn="True" IsReadOnly="True" Height="92" TextWrapping="Wrap" />
           </StackPanel>
         </TabItem>
 

@@ -1720,12 +1720,19 @@
     </Border>
 
     <Border Grid.Row="4" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
         <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="2" Text="{Binding RuntimeLaunchStatus, StringFormat=Runtime: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="3" Text="{Binding RuntimePidLabel, StringFormat=PID: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="4" Text="{Binding ShortcutHintBar}" Foreground="#8EA5C7" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" ToolTip.Tip="{Binding ShortcutHintBar}" />
+        <TextBlock Grid.Row="1"
+                   Grid.ColumnSpan="5"
+                   Text="{Binding LastSceneReviewSummaryStatus}"
+                   Foreground="#7FA7D9"
+                   FontSize="10"
+                   TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding LastSceneReviewSummaryStatus}" />
       </Grid>
     </Border>
 
