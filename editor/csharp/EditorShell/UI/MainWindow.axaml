@@ -126,7 +126,7 @@
   </Window.KeyBindings>
 
   <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
-    <Border Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
+    <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
         <StackPanel Orientation="Horizontal" Spacing="20">
           <StackPanel Spacing="5">
@@ -179,12 +179,16 @@
           <TextBlock Text="{Binding RuntimePreferencesSummary}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
           <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="12" />
           <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
+          <Button Content="◧ Left" Click="OnToggleLeftPaneClick" ToolTip.Tip="Show/hide the left panel dock." />
+          <Button Content="◨ Right" Click="OnToggleRightPaneClick" ToolTip.Tip="Show/hide the right panel dock." />
+          <Button Content="▤ Bottom" Click="OnToggleBottomDockClick" ToolTip.Tip="Show/hide timeline and activity docks." />
+          <Button Content="🎯 Focus" Click="OnToggleFocusModeClick" ToolTip.Tip="Focus mode: maximize viewport and hide surrounding docks." />
         </StackPanel>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="70,280,*,360" RowDefinitions="*" ColumnSpacing="12">
-      <Border Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
+    <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="72,2.3*,4.8*,2.8*" RowDefinitions="*" ColumnSpacing="12">
+      <Border x:Name="ToolRailBorder" Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
         <StackPanel Spacing="8" HorizontalAlignment="Center">
           <Button Classes="ribbon-icon" Width="46" Height="46" Content="🖱" ToolTip.Tip="Select" />
           <Button Classes="ribbon-icon" Width="46" Height="46" Content="✏" ToolTip.Tip="Paint" />
@@ -194,7 +198,7 @@
         </StackPanel>
       </Border>
 
-      <Border Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
+      <Border x:Name="LeftDockBorder" Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
         <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
@@ -781,7 +785,7 @@
         </Border>
       </Grid>
 
-      <Border Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Border x:Name="RightDockBorder" Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
           <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
           <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
@@ -1516,7 +1520,7 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+    <Border x:Name="TimelineDockBorder" Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
@@ -1612,52 +1616,27 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
-      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
-          <TextBlock Text="🎬" FontSize="16" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseIcon}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play / Pause timeline preview" />
-          <Button Grid.Column="3" Classes="timeline-icon" Content="⏹" Command="{Binding StopTimelinePlaybackCommand}" ToolTip.Tip="Stop playback and reset to 0s" />
-          <TextBlock Grid.Column="4" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#9FC2E5" VerticalAlignment="Center" />
-          <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6">
-            <TextBlock Text="Loop" Foreground="#C8D6EA" VerticalAlignment="Center" />
-            <ToggleSwitch IsChecked="{Binding IsTimelineLoopEnabled}" />
-          </StackPanel>
+    <Border x:Name="ActivityDockBorder" Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+      <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+          <TextBlock Text="🧾" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="Activity Log" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
         </Grid>
-
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
-          <Button Classes="timeline-icon" Content="◆" Command="{Binding AddTimelineKeyframeCommand}" ToolTip.Tip="Add keyframe for selected entities (position, scale, color)" />
-          <Slider Grid.Column="1"
-                  Minimum="0"
-                  Maximum="{Binding TimelineDuration}"
-                  Value="{Binding TimelineCurrentTime}"
-                  TickFrequency="0.25"
-                  IsSnapToTickEnabled="False" />
-          <TextBlock Grid.Column="2" Text="{Binding TimelineStateLabel}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
-          <TextBlock Grid.Column="3" Text="{Binding TimelineMarkers.Count, StringFormat=Keys: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
-        </Grid>
-
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" MaxHeight="42">
-          <ItemsControl ItemsSource="{Binding TimelineMarkers}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="6" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Border Background="#0E1727" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="6" Padding="8,4" ToolTip.Tip="Timeline keyframe marker&#x0a;Represents snapshot data for selected animation mode.">
-                  <StackPanel Orientation="Horizontal" Spacing="5">
-                    <TextBlock Text="◆" Foreground="#6FA8FF" />
-                    <TextBlock Text="{Binding Label}" Foreground="#C8D6EA" FontSize="11" />
-                    <TextBlock Text="{Binding TrackCount, StringFormat=x{0}}" Foreground="#7A8DAA" FontSize="10" VerticalAlignment="Bottom" />
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+        <TextBlock Grid.Row="1"
+                   Text="{Binding StatusMessage}"
+                   Foreground="#9FC2E5"
+                   FontSize="11"
+                   TextWrapping="Wrap" />
+        <Border Grid.Row="2" Background="#0A111C" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="138">
+            <TextBlock Text="{Binding AiCommandLog}"
+                       Foreground="#AFC2DF"
+                       FontSize="11"
+                       FontFamily="Consolas, Menlo, Monospace"
+                       TextWrapping="Wrap" />
+          </ScrollViewer>
+        </Border>
       </Grid>
     </Border>
 
@@ -1686,6 +1665,34 @@
         <TextBlock Text="Delete safety: press Delete twice within 2 seconds to confirm keyboard removal." Foreground="#A9CBF2" TextWrapping="Wrap" />
         <TextBlock Text="Autosave writes scene snapshots + active project file whenever scene/code changes are applied." Foreground="#A9CBF2" TextWrapping="Wrap" />
         <Button Content="Close Help" HorizontalAlignment="Left" Command="{Binding ToggleHelpOverlayCommand}" />
+      </StackPanel>
+    </Border>
+
+    <Border x:Name="StartupOnboardingOverlay"
+            Grid.RowSpan="5"
+            IsVisible="False"
+            Background="#070F1BEF"
+            BorderBrush="#4AA3FF"
+            BorderThickness="1.2"
+            CornerRadius="10"
+            Padding="18"
+            Margin="34,24"
+            ZIndex="20">
+      <StackPanel Spacing="10" MaxWidth="720">
+        <TextBlock Text="Welcome to GameForge" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
+        <TextBlock Text="Setting up first-run onboarding, hardware profile, and lightweight local model availability."
+                   Foreground="#CFE5FF"
+                   TextWrapping="Wrap" />
+        <TextBlock x:Name="StartupOnboardingStatusText"
+                   Text="Preparing startup checks..."
+                   Foreground="#9FCCFF"
+                   FontSize="13"
+                   TextWrapping="Wrap" />
+        <ProgressBar x:Name="StartupOnboardingProgressBar"
+                     IsIndeterminate="True"
+                     Height="8"
+                     Background="#0B1524"
+                     Foreground="#4AA3FF" />
       </StackPanel>
     </Border>
 
