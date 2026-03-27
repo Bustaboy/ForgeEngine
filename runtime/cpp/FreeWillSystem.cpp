@@ -235,6 +235,7 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     std::uint32_t& spark_count = scene.free_will.daily_spark_count[request.npc_id];
     spark_count = std::min(kMaxSparksPerNpcPerDay, spark_count + 1U);
     npc->scripted_behavior.last_spark_timestamp = scene.elapsed_seconds;
+    ScriptedBehaviorSystem::RecordSparkDecision(scene);
 
     scene.free_will.last_spark_line_by_npc[request.npc_id] = directive->line;
     scene.recent_actions.push_back("NPC " + std::to_string(request.npc_id) + " free-will: " + directive->line);
@@ -297,7 +298,15 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
 
     const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
     const float mode_chance_scale = performance_mode ? 0.35F : 1.0F;
-    const float chance = std::clamp(scene.free_will.spark_chance_per_second * safe_dt * mode_chance_scale, 0.0F, 0.2F);
+    const bool monitor_enabled = scene.scripted_behavior.performance_monitoring_enabled;
+    const bool force_scripted = monitor_enabled && scene.scripted_behavior.force_scripted_fallback;
+    const float monitor_scale = monitor_enabled
+        ? std::clamp(scene.scripted_behavior.effective_spark_chance_multiplier, 0.0F, 1.0F)
+        : 1.0F;
+    const float chance = std::clamp(
+        scene.free_will.spark_chance_per_second * safe_dt * mode_chance_scale * monitor_scale,
+        0.0F,
+        0.2F);
     std::uniform_real_distribution<float> roll(0.0F, 1.0F);
 
     std::uint32_t queued_this_frame = 0U;
@@ -316,6 +325,9 @@ void FreeWillSystem::Update(Scene& scene, float dt_seconds) {
         const bool scripted_suitable = scripted_active && ScriptedBehaviorSystem::IsBehaviorSuitable(scene, entity);
         const bool high_impact = IsHighImpactForSpark(scene, entity);
         if (scripted_suitable) {
+            if (force_scripted) {
+                continue;
+            }
             const float scripted_scale = performance_mode
                 ? kPerformanceScriptedSparkSuppressionScale
                 : kScriptedSparkSuppressionScale;

@@ -473,6 +473,10 @@ public sealed partial class MainWindowViewModel
     public string LivingNpcsModelPathEditor { get => _livingNpcs.ModelPath; set { _livingNpcs.ModelPath = value; OnPropertyChanged(); } }
     public int LivingNpcsSparksToday => _livingNpcs.SparksToday;
     public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
+    public string LivingNpcsPerformanceSummary =>
+        _livingNpcs.PerformanceModeActive
+            ? $"Performance Mode Active • ratio scripted/spark={_livingNpcs.ScriptedRatio:0.00}/{_livingNpcs.SparkRatio:0.00} • spark x{_livingNpcs.EffectiveSparkMultiplier:0.00} • reason={_livingNpcs.PerformanceReason}{(_livingNpcs.ForceScriptedFallback ? " • fallback=forced" : string.Empty)}"
+            : $"Performance Mode Inactive • ratio scripted/spark={_livingNpcs.ScriptedRatio:0.00}/{_livingNpcs.SparkRatio:0.00}";
     public string SettlementVillageNameEditor { get => _livingNpcs.VillageName; set { _livingNpcs.VillageName = value; OnPropertyChanged(); } }
     public int SettlementPopulation => _livingNpcs.TotalPopulation;
     public float SettlementMoraleEditor { get => _livingNpcs.VillageMorale; set { _livingNpcs.VillageMorale = Math.Clamp(value, 0f, 100f); OnPropertyChanged(); } }
@@ -2526,6 +2530,7 @@ public sealed partial class MainWindowViewModel
             _livingNpcs = LivingNpcsPanelState.FromScene(root);
             RefreshScriptedBehaviorCatalogFromScene(root);
             _scriptedBehaviorNpcPreview = BuildScriptedBehaviorNpcPreview(root);
+            ScriptedBehaviorStatus = BuildScriptedBehaviorStatus(root);
             CombatModeEnabledEditor = root["combat"]?["active"]?.GetValue<bool>() ?? false;
             var enabledRealtimeCount = root["entities"] is JsonArray entityArray
                 ? entityArray.OfType<JsonObject>().Count(entity => entity["realtime_combat"]?["enabled"]?.GetValue<bool>() ?? false)
@@ -2696,6 +2701,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsModelPathEditor));
             OnPropertyChanged(nameof(LivingNpcsSparksToday));
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
+            OnPropertyChanged(nameof(LivingNpcsPerformanceSummary));
             OnPropertyChanged(nameof(ScriptedBehaviorStateEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorParamsEditor));
             OnPropertyChanged(nameof(ScriptedBehaviorStatus));
@@ -2914,6 +2920,9 @@ public sealed partial class MainWindowViewModel
 
         var lightweightMode = root["optimization_overrides"]?["lightweight_mode"]?.GetValue<string>() ?? "balanced";
         var performanceMode = string.Equals(lightweightMode, "performance", StringComparison.OrdinalIgnoreCase);
+        var perfModeActive = root["scripted_behavior"]?["performance_mode_active"]?.GetValue<bool>() ?? false;
+        var perfScriptedRatio = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_scripted_ratio"], 1f), 0f, 1f);
+        var perfSparkRatio = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_spark_ratio"], 0f), 0f, 1f);
         var selectedNpcIds = new HashSet<ulong>();
         if (SelectedDialogEntityId > 0)
         {
@@ -2958,15 +2967,40 @@ public sealed partial class MainWindowViewModel
                 ? $" override={sparkOverrideChance:0.###}"
                 : string.Empty;
             var selectedTag = selectedNpcIds.Contains(npcId) ? " [Selected]" : string.Empty;
+            var performanceTag = selectedNpcIds.Contains(npcId)
+                ? $" | Performance Mode: {(perfModeActive ? "Active" : "Inactive")} | ratio={perfScriptedRatio:0.00}/{perfSparkRatio:0.00}"
+                : string.Empty;
             var suitability = scriptedSuitable
                 ? (scheduleOverride ? "schedule=override" : "schedule=match")
                 : "schedule=not-suitable";
 
             preview.Add(
                 $"{npcName} [{npcId}]{selectedTag} → {stateSummary}{parametersSummary} | Scripted Priority: {scriptedPriority} | Spark Allowed: {(sparkAllowed ? "Yes" : "No")} | {suitability}{overrideSummary}");
+            if (!string.IsNullOrEmpty(performanceTag))
+            {
+                preview[^1] += performanceTag;
+            }
         }
 
         return preview;
+    }
+
+    private string BuildScriptedBehaviorStatus(JsonObject root)
+    {
+        var monitoringEnabled = root["scripted_behavior"]?["performance_monitoring_enabled"]?.GetValue<bool>() ?? false;
+        var modeActive = root["scripted_behavior"]?["performance_mode_active"]?.GetValue<bool>() ?? false;
+        var ratioScripted = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_scripted_ratio"], 1f), 0f, 1f);
+        var ratioSpark = Math.Clamp(ReadSingle(root["scripted_behavior"]?["monitored_spark_ratio"], 0f), 0f, 1f);
+        var reason = root["scripted_behavior"]?["performance_reason"]?.GetValue<string>() ?? "monitoring_off";
+        var selectedTag = SelectedDialogEntityId > 0 ? $"selected_npc={SelectedDialogEntityId}" : "selected_npc=none";
+        if (!monitoringEnabled)
+        {
+            return $"Hybrid scripted behavior active. Performance monitoring off ({selectedTag}).";
+        }
+
+        return modeActive
+            ? $"Performance Mode Active ({selectedTag}) • ratio scripted/spark={ratioScripted:0.00}/{ratioSpark:0.00} • reason={reason}."
+            : $"Hybrid scripted behavior normal ({selectedTag}) • ratio scripted/spark={ratioScripted:0.00}/{ratioSpark:0.00}.";
     }
 
     private string? ResolveBehaviorDefinitionsPath(string? definitionsPath)

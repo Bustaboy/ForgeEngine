@@ -1049,6 +1049,7 @@
                 </Grid>
                 <TextBox Text="{Binding LivingNpcsModelPathEditor}" Watermark="llama.cpp model path (e.g., models/llm-q4-k.gguf)" />
                 <Button Classes="system-action" Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
+                <TextBlock Text="{Binding LivingNpcsPerformanceSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                 <TextBlock Text="Scripted Behaviors (SB2)" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                   <TextBlock Text="State" Foreground="#AFC2DF" VerticalAlignment="Center" />
