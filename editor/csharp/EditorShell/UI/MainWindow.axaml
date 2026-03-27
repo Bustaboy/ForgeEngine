@@ -1052,6 +1052,9 @@
                 <TextBlock Text="{Binding LivingNpcsPerformanceSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding LivingNpcsRagCacheSize, StringFormat=RAG Cache Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" />
                 <TextBlock Text="{Binding LivingNpcsRagHitRate, StringFormat=RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsNarrativeFlavorHitRate, StringFormat=Narrative Flavor Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLastMsqAdaptationSource, StringFormat=Last MSQ Adaptation Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpoint, StringFormat=Last Narrative Checkpoint: {0}}" Foreground="#8EA5C7" FontSize="11" />
                 <TextBlock Text="{Binding LivingNpcsSparkSourcePreference, StringFormat=Spark Source Priority: {0}}" Foreground="#8EA5C7" FontSize="11" />
                 <TextBlock Text="{Binding LivingNpcsSelectedSparkSource, StringFormat=Selected NPC Last Spark Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
                 <TextBlock Text="{Binding LivingNpcsSelectedRagHitRate, StringFormat=Selected NPC RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />

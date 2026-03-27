@@ -477,6 +477,9 @@ public sealed partial class MainWindowViewModel
     public IReadOnlyList<string> LivingNpcsRecentSparks => _livingNpcs.RecentSparks;
     public int LivingNpcsRagCacheSize => _livingNpcs.RagCacheSize;
     public float LivingNpcsRagHitRate => _livingNpcs.RagHitRate;
+    public float LivingNpcsNarrativeFlavorHitRate => _livingNpcs.NarrativeFlavorHitRate;
+    public string LivingNpcsLastMsqAdaptationSource => _livingNpcs.LastMsqAdaptationSource;
+    public string LivingNpcsLastNarrativeCheckpoint => _livingNpcs.LastNarrativeCheckpoint;
     public string LivingNpcsSparkSourcePreference => _livingNpcs.SparkSourcePreference;
     public string LivingNpcsSelectedSparkSource => _livingNpcs.SparkSourceForNpc(SelectedDialogEntityId);
     public float LivingNpcsSelectedRagHitRate => _livingNpcs.RagHitRateForNpc(SelectedDialogEntityId);
@@ -2710,6 +2713,9 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsRecentSparks));
             OnPropertyChanged(nameof(LivingNpcsRagCacheSize));
             OnPropertyChanged(nameof(LivingNpcsRagHitRate));
+            OnPropertyChanged(nameof(LivingNpcsNarrativeFlavorHitRate));
+            OnPropertyChanged(nameof(LivingNpcsLastMsqAdaptationSource));
+            OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpoint));
             OnPropertyChanged(nameof(LivingNpcsSparkSourcePreference));
             OnPropertyChanged(nameof(LivingNpcsSelectedSparkSource));
             OnPropertyChanged(nameof(LivingNpcsSelectedRagHitRate));

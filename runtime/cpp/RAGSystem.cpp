@@ -20,12 +20,21 @@ constexpr std::size_t kDefaultMaxEntries = 256U;
 constexpr std::size_t kPerformanceMaxEntries = 96U;
 constexpr float kDefaultSimilarityThreshold = 0.78F;
 constexpr float kGenerationBudgetSeconds = 8.0F;
+constexpr std::uint32_t kPerformanceNarrativeStride = 3U;
 
 struct FlavorTemplate {
     const char* line;
     const char* activity;
     const char* location;
     float hours;
+    const char* tags;
+};
+
+struct NarrativeTemplate {
+    const char* checkpoint;
+    const char* dialog_tone;
+    const char* msq_branch;
+    const char* event_color;
     const char* tags;
 };
 
@@ -42,6 +51,21 @@ constexpr std::array<FlavorTemplate, 12> kSparkFlavorTemplates{{
     {"Practices drills for a short confidence boost.", "work", "work", 0.24F, "spark combat readiness"},
     {"Visits a favorite landmark to reflect on recent events.", "free_time", "town", 0.27F, "spark memory recent_actions"},
     {"Brings supplies to a neighbor and returns to schedule.", "socialize", "town", 0.23F, "spark support relationship"},
+}};
+
+constexpr std::array<NarrativeTemplate, 12> kNarrativeFlavorTemplates{{
+    {"workshop_milestone", "hopeful", "msq_workshop_unity", "artisan_pride", "art_bible workshop craft community"},
+    {"workshop_milestone", "determined", "msq_workshop_recovery", "forged_urgency", "art_bible workshop pressure grit"},
+    {"relationship_threshold", "warm", "msq_relationship_trust", "intimate_reflection", "relationship trust loyalty hearth"},
+    {"relationship_threshold", "guarded", "msq_relationship_fragile", "tense_repair", "relationship grudge debt apology"},
+    {"season_change", "wistful", "msq_season_memory", "harvest_glow", "season autumn ritual memory"},
+    {"season_change", "optimistic", "msq_season_new_path", "spring_bloom", "season spring renewal"},
+    {"moral_choice", "solemn", "msq_moral_consequence", "quiet_judgment", "moral choice consequence justice"},
+    {"moral_choice", "resolute", "msq_moral_resolve", "frontier_oath", "moral choice resolve frontier"},
+    {"performance_snapshot", "focused", "msq_efficiency_push", "workshop_rhythm", "performance productivity cadence"},
+    {"scripted_behavior", "playful", "msq_behavior_sync", "town_banter", "scripted behavior social spark"},
+    {"major_story_beat", "cinematic", "msq_major_beat", "dramatic_contrast", "story beat narrator cadence"},
+    {"generic", "grounded", "msq_default", "ambient_texture", "fallback grounded stylized frontier"},
 }};
 
 std::string ToLower(std::string value) {
@@ -155,6 +179,8 @@ void AppendTemplate(Scene& scene, const FlavorTemplate& templ) {
     entry.text = templ.line;
     entry.activity = templ.activity;
     entry.location = templ.location;
+    entry.checkpoint = "generic";
+    entry.category = "spark";
     entry.duration_hours = templ.hours;
     entry.tags = templ.tags;
 
@@ -163,6 +189,28 @@ void AppendTemplate(Scene& scene, const FlavorTemplate& templ) {
     entry.embedding.assign(embedded.begin(), embedded.end());
 
     scene.rag.spark_cache.push_back(entry);
+    ++scene.rag.cache_generation;
+}
+
+void AppendNarrativeTemplate(Scene& scene, const NarrativeTemplate& templ) {
+    RAGCacheEntry entry{};
+    entry.id = "narrative_template_" + std::to_string(scene.rag.cache_generation);
+    entry.text = std::string("dialog_tone=") + templ.dialog_tone +
+        " msq_branch=" + templ.msq_branch +
+        " event_color=" + templ.event_color;
+    entry.activity = "narrative";
+    entry.location = "story";
+    entry.checkpoint = templ.checkpoint;
+    entry.category = "narrative";
+    entry.tags = templ.tags;
+    entry.duration_hours = 0.0F;
+
+    const std::array<float, kEmbeddingDim> embedded = EmbedText(
+        std::string(templ.checkpoint) + " " + templ.dialog_tone + " " + templ.msq_branch + " " +
+        templ.event_color + " " + templ.tags + " " + scene.world_style_guide);
+    entry.embedding.assign(embedded.begin(), embedded.end());
+
+    scene.rag.narrative_cache.push_back(entry);
     ++scene.rag.cache_generation;
 }
 
@@ -175,15 +223,73 @@ void RebuildCacheIfNeeded(Scene& scene) {
     for (const FlavorTemplate& templ : kSparkFlavorTemplates) {
         AppendTemplate(scene, templ);
     }
+    scene.rag.narrative_cache.clear();
+    for (const NarrativeTemplate& templ : kNarrativeFlavorTemplates) {
+        AppendNarrativeTemplate(scene, templ);
+    }
 }
 
 void TrimCache(Scene& scene) {
-    if (scene.rag.spark_cache.size() <= scene.rag.max_entries) {
-        return;
+    if (scene.rag.spark_cache.size() > scene.rag.max_entries) {
+        const std::size_t overshoot = scene.rag.spark_cache.size() - scene.rag.max_entries;
+        scene.rag.spark_cache.erase(scene.rag.spark_cache.begin(), scene.rag.spark_cache.begin() + static_cast<std::ptrdiff_t>(overshoot));
     }
 
-    const std::size_t overshoot = scene.rag.spark_cache.size() - scene.rag.max_entries;
-    scene.rag.spark_cache.erase(scene.rag.spark_cache.begin(), scene.rag.spark_cache.begin() + static_cast<std::ptrdiff_t>(overshoot));
+    if (scene.rag.narrative_cache.size() > scene.rag.max_entries) {
+        const std::size_t narrative_overshoot = scene.rag.narrative_cache.size() - scene.rag.max_entries;
+        scene.rag.narrative_cache.erase(
+            scene.rag.narrative_cache.begin(),
+            scene.rag.narrative_cache.begin() + static_cast<std::ptrdiff_t>(narrative_overshoot));
+    }
+}
+
+std::string BuildNarrativeQueryText(const Scene& scene, const std::string& checkpoint, const Entity* focus_npc) {
+    std::ostringstream query;
+    query << "checkpoint " << checkpoint
+          << " weather " << scene.weather.current_weather
+          << " tone " << scene.weather.dialog_tone
+          << " style " << scene.world_style_guide
+          << " morale " << static_cast<int>(std::round(scene.settlement.morale))
+          << " day " << scene.day_count;
+
+    const std::size_t action_count = scene.recent_actions.size();
+    const std::size_t start = action_count > 7U ? action_count - 7U : 0U;
+    for (std::size_t i = start; i < action_count; ++i) {
+        query << " change_log " << scene.recent_actions[i];
+    }
+
+    if (focus_npc != nullptr) {
+        query << " npc " << focus_npc->id
+              << " activity " << focus_npc->schedule.current_activity
+              << " scripted_state " << focus_npc->scripted_behavior.current_state;
+        auto relation_it = scene.relationships.find(focus_npc->id);
+        if (relation_it != scene.relationships.end()) {
+            query << " trust " << static_cast<int>(std::round(relation_it->second.trust))
+                  << " respect " << static_cast<int>(std::round(relation_it->second.respect))
+                  << " grudge " << static_cast<int>(std::round(relation_it->second.grudge));
+        }
+    }
+    return ToLower(query.str());
+}
+
+RAGNarrativeFlavor FlavorFromEntry(const RAGCacheEntry& entry, float score, const std::string& source) {
+    RAGNarrativeFlavor flavor{};
+    flavor.checkpoint = entry.checkpoint;
+    flavor.dialog_tone = "neutral";
+    flavor.msq_branch = "default";
+    flavor.event_color = "grounded";
+    flavor.similarity = score;
+    flavor.source = source;
+
+    for (const NarrativeTemplate& templ : kNarrativeFlavorTemplates) {
+        if (entry.checkpoint == templ.checkpoint && entry.tags.find(templ.tags) != std::string::npos) {
+            flavor.dialog_tone = templ.dialog_tone;
+            flavor.msq_branch = templ.msq_branch;
+            flavor.event_color = templ.event_color;
+            break;
+        }
+    }
+    return flavor;
 }
 
 }  // namespace
@@ -207,7 +313,8 @@ void RAGSystem::EnsureDefaults(Scene& scene) {
     RebuildCacheIfNeeded(scene);
     TrimCache(scene);
 
-    const float bytes = static_cast<float>(scene.rag.spark_cache.size()) * static_cast<float>(kEmbeddingDim * sizeof(float) + 256U);
+    const std::size_t total_entries = scene.rag.spark_cache.size() + scene.rag.narrative_cache.size();
+    const float bytes = static_cast<float>(total_entries) * static_cast<float>(kEmbeddingDim * sizeof(float) + 256U);
     scene.rag.cache_size_mb = bytes / (1024.0F * 1024.0F);
     scene.rag.cache_size_mb = std::clamp(scene.rag.cache_size_mb, 0.0F, 49.5F);
 }
@@ -273,6 +380,90 @@ std::optional<RAGSparkDirective> RAGSystem::RetrieveSparkFlavor(Scene& scene, co
     return directive;
 }
 
+std::optional<RAGNarrativeFlavor> RAGSystem::RetrieveNarrativeFlavor(
+    Scene& scene,
+    const std::string& checkpoint,
+    const Entity* focus_npc) {
+    EnsureDefaults(scene);
+    if (!scene.rag.enabled || scene.rag.narrative_cache.empty()) {
+        ++scene.rag.narrative_misses;
+        scene.rag.last_narrative_source = "miss";
+        return std::nullopt;
+    }
+
+    const std::array<float, kEmbeddingDim> query = EmbedText(BuildNarrativeQueryText(scene, checkpoint, focus_npc));
+    float best_score = -1.0F;
+    const RAGCacheEntry* best_entry = nullptr;
+    for (const RAGCacheEntry& entry : scene.rag.narrative_cache) {
+        if (entry.category != "narrative") {
+            continue;
+        }
+        if (entry.checkpoint != checkpoint && entry.checkpoint != "generic") {
+            continue;
+        }
+        const float score = CosineSimilarity(entry.embedding, query);
+        if (score > best_score) {
+            best_score = score;
+            best_entry = &entry;
+        }
+    }
+
+    if (best_entry == nullptr || best_score < scene.rag.similarity_threshold) {
+        ++scene.rag.narrative_misses;
+        scene.rag.last_narrative_source = "miss";
+        scene.rag.last_narrative_checkpoint = checkpoint;
+        scene.rag.last_narrative_similarity = best_score;
+        return std::nullopt;
+    }
+
+    ++scene.rag.narrative_hits;
+    scene.rag.last_narrative_source = "rag";
+    scene.rag.last_narrative_checkpoint = checkpoint;
+    scene.rag.last_narrative_similarity = best_score;
+    const RAGNarrativeFlavor flavor = FlavorFromEntry(*best_entry, best_score, "rag");
+    scene.rag.last_narrative_dialog_tone = flavor.dialog_tone;
+    scene.rag.last_narrative_msq_branch = flavor.msq_branch;
+    scene.rag.last_narrative_event_color = flavor.event_color;
+    return flavor;
+}
+
+bool RAGSystem::EvaluateNarrativeCheckpoint(Scene& scene, const std::string& checkpoint) {
+    EnsureDefaults(scene);
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    if (performance_mode && (scene.rag.narrative_retrieve_tick++ % kPerformanceNarrativeStride) != 0U) {
+        scene.rag.last_narrative_source = "throttled";
+        scene.rag.last_narrative_checkpoint = checkpoint;
+        return false;
+    }
+
+    const Entity* focus_npc = nullptr;
+    if (scene.active_dialog_npc_id != 0U) {
+        for (const Entity& entity : scene.entities) {
+            if (entity.id == scene.active_dialog_npc_id) {
+                focus_npc = &entity;
+                break;
+            }
+        }
+    }
+
+    std::optional<RAGNarrativeFlavor> flavor = RetrieveNarrativeFlavor(scene, checkpoint, focus_npc);
+    if (!flavor.has_value()) {
+        scene.rag.last_narrative_source = "scripted";
+        scene.rag.last_narrative_checkpoint = checkpoint;
+        scene.rag.last_narrative_dialog_tone = "neutral";
+        scene.rag.last_narrative_msq_branch = "msq_scripted_variation";
+        scene.rag.last_narrative_event_color = "grounded";
+        if (!performance_mode && scene.rag.live_fallback_enabled && scene.free_will.llm_enabled && !scene.free_will.model_path.empty()) {
+            scene.rag.last_narrative_source = "llm";
+            scene.rag.last_narrative_msq_branch = "msq_micro_llm_variation";
+            ++scene.rag.narrative_live_fallback_calls;
+        }
+        return false;
+    }
+
+    return true;
+}
+
 std::string RAGSystem::BuildDebugSummary(Scene& scene, std::uint64_t npc_id) {
     EnsureDefaults(scene);
     std::ostringstream out;
@@ -282,6 +473,11 @@ std::string RAGSystem::BuildDebugSummary(Scene& scene, std::uint64_t npc_id) {
         << " hit=" << scene.rag.cache_hits
         << " miss=" << scene.rag.cache_misses
         << " fallback_calls=" << scene.rag.live_fallback_calls
+        << " narrative_hit=" << scene.rag.narrative_hits
+        << " narrative_miss=" << scene.rag.narrative_misses
+        << " narrative_fallback_calls=" << scene.rag.narrative_live_fallback_calls
+        << " narrative_source=" << scene.rag.last_narrative_source
+        << " narrative_checkpoint=" << scene.rag.last_narrative_checkpoint
         << " last_source=" << scene.rag.last_source
         << " last_similarity=" << scene.rag.last_similarity;
     return out.str();

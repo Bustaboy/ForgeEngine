@@ -1337,9 +1337,20 @@ json RAGStateToJson(const RAGState& rag) {
         {"cache_generation", rag.cache_generation},
         {"cache_hits", rag.cache_hits},
         {"cache_misses", rag.cache_misses},
+        {"narrative_hits", rag.narrative_hits},
+        {"narrative_misses", rag.narrative_misses},
         {"live_fallback_calls", rag.live_fallback_calls},
+        {"narrative_live_fallback_calls", rag.narrative_live_fallback_calls},
         {"last_source", rag.last_source},
+        {"last_narrative_source", rag.last_narrative_source},
+        {"last_narrative_checkpoint", rag.last_narrative_checkpoint},
+        {"last_narrative_dialog_tone", rag.last_narrative_dialog_tone},
+        {"last_narrative_msq_branch", rag.last_narrative_msq_branch},
+        {"last_narrative_event_color", rag.last_narrative_event_color},
+        {"last_narrative_similarity", rag.last_narrative_similarity},
+        {"narrative_retrieve_tick", rag.narrative_retrieve_tick},
         {"spark_cache", json::array()},
+        {"narrative_cache", json::array()},
     };
 
     for (const RAGCacheEntry& entry : rag.spark_cache) {
@@ -1348,6 +1359,8 @@ json RAGStateToJson(const RAGState& rag) {
             {"text", entry.text},
             {"activity", entry.activity},
             {"location", entry.location},
+            {"checkpoint", entry.checkpoint},
+            {"category", entry.category},
             {"tags", entry.tags},
             {"duration_hours", entry.duration_hours},
             {"embedding", json::array()},
@@ -1356,6 +1369,23 @@ json RAGStateToJson(const RAGState& rag) {
             cached["embedding"].push_back(value);
         }
         node["spark_cache"].push_back(cached);
+    }
+    for (const RAGCacheEntry& entry : rag.narrative_cache) {
+        json cached = json{
+            {"id", entry.id},
+            {"text", entry.text},
+            {"activity", entry.activity},
+            {"location", entry.location},
+            {"checkpoint", entry.checkpoint},
+            {"category", entry.category},
+            {"tags", entry.tags},
+            {"duration_hours", entry.duration_hours},
+            {"embedding", json::array()},
+        };
+        for (const float value : entry.embedding) {
+            cached["embedding"].push_back(value);
+        }
+        node["narrative_cache"].push_back(cached);
     }
 
     return node;
@@ -1371,9 +1401,20 @@ RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
     rag.cache_generation = node.value("cache_generation", rag.cache_generation);
     rag.cache_hits = node.value("cache_hits", rag.cache_hits);
     rag.cache_misses = node.value("cache_misses", rag.cache_misses);
+    rag.narrative_hits = node.value("narrative_hits", rag.narrative_hits);
+    rag.narrative_misses = node.value("narrative_misses", rag.narrative_misses);
     rag.live_fallback_calls = node.value("live_fallback_calls", rag.live_fallback_calls);
+    rag.narrative_live_fallback_calls = node.value("narrative_live_fallback_calls", rag.narrative_live_fallback_calls);
     rag.last_source = node.value("last_source", rag.last_source);
+    rag.last_narrative_source = node.value("last_narrative_source", rag.last_narrative_source);
+    rag.last_narrative_checkpoint = node.value("last_narrative_checkpoint", rag.last_narrative_checkpoint);
+    rag.last_narrative_dialog_tone = node.value("last_narrative_dialog_tone", rag.last_narrative_dialog_tone);
+    rag.last_narrative_msq_branch = node.value("last_narrative_msq_branch", rag.last_narrative_msq_branch);
+    rag.last_narrative_event_color = node.value("last_narrative_event_color", rag.last_narrative_event_color);
+    rag.last_narrative_similarity = node.value("last_narrative_similarity", rag.last_narrative_similarity);
+    rag.narrative_retrieve_tick = node.value("narrative_retrieve_tick", rag.narrative_retrieve_tick);
     rag.spark_cache.clear();
+    rag.narrative_cache.clear();
 
     if (node.contains("spark_cache") && node["spark_cache"].is_array()) {
         for (const json& cache_node : node["spark_cache"]) {
@@ -1385,6 +1426,8 @@ RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
             entry.text = cache_node.value("text", entry.text);
             entry.activity = cache_node.value("activity", entry.activity);
             entry.location = cache_node.value("location", entry.location);
+            entry.checkpoint = cache_node.value("checkpoint", entry.checkpoint);
+            entry.category = cache_node.value("category", entry.category);
             entry.tags = cache_node.value("tags", entry.tags);
             entry.duration_hours = std::clamp(cache_node.value("duration_hours", entry.duration_hours), 0.1F, 0.75F);
             if (cache_node.contains("embedding") && cache_node["embedding"].is_array()) {
@@ -1396,6 +1439,33 @@ RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
             }
             rag.spark_cache.push_back(std::move(entry));
             if (rag.spark_cache.size() >= rag.max_entries) {
+                break;
+            }
+        }
+    }
+    if (node.contains("narrative_cache") && node["narrative_cache"].is_array()) {
+        for (const json& cache_node : node["narrative_cache"]) {
+            if (!cache_node.is_object()) {
+                continue;
+            }
+            RAGCacheEntry entry{};
+            entry.id = cache_node.value("id", entry.id);
+            entry.text = cache_node.value("text", entry.text);
+            entry.activity = cache_node.value("activity", entry.activity);
+            entry.location = cache_node.value("location", entry.location);
+            entry.checkpoint = cache_node.value("checkpoint", entry.checkpoint);
+            entry.category = cache_node.value("category", entry.category);
+            entry.tags = cache_node.value("tags", entry.tags);
+            entry.duration_hours = std::clamp(cache_node.value("duration_hours", entry.duration_hours), 0.0F, 0.75F);
+            if (cache_node.contains("embedding") && cache_node["embedding"].is_array()) {
+                for (const json& scalar : cache_node["embedding"]) {
+                    if (scalar.is_number()) {
+                        entry.embedding.push_back(scalar.get<float>());
+                    }
+                }
+            }
+            rag.narrative_cache.push_back(std::move(entry));
+            if (rag.narrative_cache.size() >= rag.max_entries) {
                 break;
             }
         }
