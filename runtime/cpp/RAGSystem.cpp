@@ -18,6 +18,8 @@ namespace {
 constexpr std::size_t kEmbeddingDim = 24U;
 constexpr std::size_t kDefaultMaxEntries = 256U;
 constexpr std::size_t kPerformanceMaxEntries = 96U;
+constexpr std::size_t kDefaultLegacyMaxEntries = 192U;
+constexpr std::size_t kPerformanceLegacyMaxEntries = 64U;
 constexpr float kDefaultSimilarityThreshold = 0.78F;
 constexpr float kGenerationBudgetSeconds = 8.0F;
 constexpr std::uint32_t kPerformanceNarrativeStride = 3U;
@@ -169,6 +171,12 @@ std::string BuildQueryText(const Scene& scene, const Entity& npc) {
     for (std::size_t i = start; i < action_count; ++i) {
         query << " log " << scene.recent_actions[i];
     }
+    if (!scene.compressed_event_log.empty()) {
+        const CompressedLegacyEvent& latest_legacy = scene.compressed_event_log.back();
+        query << " legacy generation=" << latest_legacy.generation
+              << " type=" << latest_legacy.event_type
+              << " memory " << latest_legacy.summary;
+    }
 
     return ToLower(query.str());
 }
@@ -269,7 +277,86 @@ std::string BuildNarrativeQueryText(const Scene& scene, const std::string& check
                   << " grudge " << static_cast<int>(std::round(relation_it->second.grudge));
         }
     }
+    if (!scene.compressed_event_log.empty()) {
+        const CompressedLegacyEvent& latest_legacy = scene.compressed_event_log.back();
+        query << " legacy generation=" << latest_legacy.generation
+              << " event=" << latest_legacy.event_type
+              << " note=" << latest_legacy.summary;
+    }
     return ToLower(query.str());
+}
+
+bool ContainsLegacyTrigger(const std::string& action_lower) {
+    return action_lower.find("retirement") != std::string::npos ||
+        action_lower.find("inheritance") != std::string::npos ||
+        action_lower.find("legacy trigger") != std::string::npos ||
+        action_lower.find("major legacy") != std::string::npos;
+}
+
+void TryCreateLegacySummaryFromRecentActions(Scene& scene) {
+    if (scene.recent_actions.empty()) {
+        return;
+    }
+
+    const std::string latest = ToLower(scene.recent_actions.back());
+    if (!ContainsLegacyTrigger(latest)) {
+        return;
+    }
+
+    if (!scene.compressed_event_log.empty() && scene.compressed_event_log.back().summary == scene.recent_actions.back()) {
+        return;
+    }
+
+    const std::string event_type = latest.find("retirement") != std::string::npos
+        ? "retirement"
+        : (latest.find("inheritance") != std::string::npos ? "inheritance" : "major_legacy_trigger");
+    std::hash<std::string> hasher{};
+    const std::uint32_t seed = static_cast<std::uint32_t>(hasher(scene.recent_actions.back() + scene.legacy_summary_seed));
+    RAGSystem::RecordLegacyEvent(scene, event_type, scene.recent_actions.back(), seed);
+}
+
+std::optional<RAGLegacyRecall> ResolveLegacyRecall(Scene& scene, const std::string& event_hint, bool count_metrics) {
+    if (!scene.rag.enabled || scene.compressed_event_log.empty()) {
+        if (count_metrics) {
+            ++scene.rag.legacy_misses;
+            scene.rag.last_legacy_source = "miss";
+            scene.rag.last_legacy_similarity = -1.0F;
+        }
+        return std::nullopt;
+    }
+
+    const std::array<float, kEmbeddingDim> query = EmbedText(event_hint);
+    float best_score = -1.0F;
+    const CompressedLegacyEvent* best_entry = nullptr;
+    for (const CompressedLegacyEvent& entry : scene.compressed_event_log) {
+        const float score = CosineSimilarity(entry.embedding, query);
+        if (score > best_score) {
+            best_score = score;
+            best_entry = &entry;
+        }
+    }
+
+    if (best_entry == nullptr || best_score < scene.rag.similarity_threshold) {
+        if (count_metrics) {
+            ++scene.rag.legacy_misses;
+            scene.rag.last_legacy_source = "miss";
+            scene.rag.last_legacy_similarity = best_score;
+        }
+        return std::nullopt;
+    }
+
+    RAGLegacyRecall recall{};
+    recall.summary = best_entry->summary;
+    recall.event_type = best_entry->event_type;
+    recall.generation = best_entry->generation;
+    recall.similarity = best_score;
+    recall.source = "legacy_rag";
+    if (count_metrics) {
+        ++scene.rag.legacy_hits;
+        scene.rag.last_legacy_source = recall.source;
+        scene.rag.last_legacy_similarity = best_score;
+    }
+    return recall;
 }
 
 RAGNarrativeFlavor FlavorFromEntry(const RAGCacheEntry& entry, float score, const std::string& source) {
@@ -309,9 +396,23 @@ void RAGSystem::EnsureDefaults(Scene& scene) {
         scene.rag.max_entries = std::min<std::uint32_t>(scene.rag.max_entries, static_cast<std::uint32_t>(kPerformanceMaxEntries));
         scene.rag.live_fallback_enabled = false;
     }
+    const std::size_t max_legacy_entries = performance_mode ? kPerformanceLegacyMaxEntries : kDefaultLegacyMaxEntries;
+    if (scene.compressed_event_log.size() > max_legacy_entries) {
+        scene.compressed_event_log.erase(
+            scene.compressed_event_log.begin(),
+            scene.compressed_event_log.begin() +
+                static_cast<std::ptrdiff_t>(scene.compressed_event_log.size() - max_legacy_entries));
+    }
+    if (scene.current_generation == 0U) {
+        scene.current_generation = 1U;
+    }
+    if (scene.legacy_summary_seed.empty()) {
+        scene.legacy_summary_seed = scene.world_style_guide + "_gen_" + std::to_string(scene.current_generation);
+    }
 
     RebuildCacheIfNeeded(scene);
     TrimCache(scene);
+    TryCreateLegacySummaryFromRecentActions(scene);
 
     const std::size_t total_entries = scene.rag.spark_cache.size() + scene.rag.narrative_cache.size();
     const float bytes = static_cast<float>(total_entries) * static_cast<float>(kEmbeddingDim * sizeof(float) + 256U);
@@ -391,7 +492,11 @@ std::optional<RAGNarrativeFlavor> RAGSystem::RetrieveNarrativeFlavor(
         return std::nullopt;
     }
 
-    const std::array<float, kEmbeddingDim> query = EmbedText(BuildNarrativeQueryText(scene, checkpoint, focus_npc));
+    std::string query_text = BuildNarrativeQueryText(scene, checkpoint, focus_npc);
+    if (const std::optional<RAGLegacyRecall> legacy = ResolveLegacyRecall(scene, query_text, false); legacy.has_value()) {
+        query_text += " legacy_recall " + legacy->summary;
+    }
+    const std::array<float, kEmbeddingDim> query = EmbedText(query_text);
     float best_score = -1.0F;
     const RAGCacheEntry* best_entry = nullptr;
     for (const RAGCacheEntry& entry : scene.rag.narrative_cache) {
@@ -464,11 +569,47 @@ bool RAGSystem::EvaluateNarrativeCheckpoint(Scene& scene, const std::string& che
     return true;
 }
 
+void RAGSystem::RecordLegacyEvent(Scene& scene, const std::string& event_type, const std::string& summary, std::uint32_t seed) {
+    if (summary.empty()) {
+        return;
+    }
+
+    CompressedLegacyEvent event{};
+    event.event_type = event_type.empty() ? "major_event" : ToLower(event_type);
+    event.summary = summary;
+    event.tags = "legacy generation memory";
+    event.generation = std::max(1U, scene.current_generation);
+    if (seed == 0U) {
+        std::hash<std::string> hasher{};
+        seed = static_cast<std::uint32_t>(hasher(summary + scene.legacy_summary_seed + event.event_type));
+    }
+    event.seed = seed;
+    const std::array<float, kEmbeddingDim> embedded = EmbedText(
+        event.event_type + " " + summary + " generation_" + std::to_string(event.generation) + " seed_" + std::to_string(seed));
+    event.embedding.assign(embedded.begin(), embedded.end());
+    scene.compressed_event_log.push_back(std::move(event));
+    if (scene.compressed_event_log.size() > SceneLimits::kLegacyEventLogCap) {
+        scene.compressed_event_log.erase(scene.compressed_event_log.begin());
+    }
+}
+
+std::optional<RAGLegacyRecall> RAGSystem::RetrieveLegacyRecall(Scene& scene, const std::string& event_hint) {
+    EnsureDefaults(scene);
+    const bool performance_mode = scene.optimization_overrides.lightweight_mode == "performance";
+    if (performance_mode && (scene.rag.legacy_retrieve_tick++ % kPerformanceNarrativeStride) != 0U) {
+        scene.rag.last_legacy_source = "throttled";
+        scene.rag.last_legacy_similarity = -1.0F;
+        return std::nullopt;
+    }
+    return ResolveLegacyRecall(scene, event_hint, true);
+}
+
 std::string RAGSystem::BuildDebugSummary(Scene& scene, std::uint64_t npc_id) {
     EnsureDefaults(scene);
     std::ostringstream out;
     out << "RAG npc=" << npc_id
         << " entries=" << scene.rag.spark_cache.size()
+        << " legacy_entries=" << scene.compressed_event_log.size()
         << " size_mb=" << scene.rag.cache_size_mb
         << " hit=" << scene.rag.cache_hits
         << " miss=" << scene.rag.cache_misses
@@ -477,6 +618,9 @@ std::string RAGSystem::BuildDebugSummary(Scene& scene, std::uint64_t npc_id) {
         << " narrative_miss=" << scene.rag.narrative_misses
         << " narrative_fallback_calls=" << scene.rag.narrative_live_fallback_calls
         << " narrative_source=" << scene.rag.last_narrative_source
+        << " legacy_source=" << scene.rag.last_legacy_source
+        << " legacy_hit=" << scene.rag.legacy_hits
+        << " legacy_miss=" << scene.rag.legacy_misses
         << " narrative_checkpoint=" << scene.rag.last_narrative_checkpoint
         << " last_source=" << scene.rag.last_source
         << " last_similarity=" << scene.rag.last_similarity;

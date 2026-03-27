@@ -1327,6 +1327,39 @@ CutsceneState CutsceneStateFromJson(const json& node) {
 
 
 
+json CompressedLegacyEventToJson(const CompressedLegacyEvent& event) {
+    json node = json{
+        {"event_type", event.event_type},
+        {"summary", event.summary},
+        {"tags", event.tags},
+        {"generation", event.generation},
+        {"seed", event.seed},
+        {"embedding", json::array()},
+    };
+    for (const float value : event.embedding) {
+        node["embedding"].push_back(value);
+    }
+    return node;
+}
+
+CompressedLegacyEvent CompressedLegacyEventFromJson(const json& node, const CompressedLegacyEvent& fallback) {
+    CompressedLegacyEvent event = fallback;
+    event.event_type = node.value("event_type", event.event_type);
+    event.summary = node.value("summary", event.summary);
+    event.tags = node.value("tags", event.tags);
+    event.generation = std::max(1U, node.value("generation", event.generation));
+    event.seed = node.value("seed", event.seed);
+    event.embedding.clear();
+    if (node.contains("embedding") && node["embedding"].is_array()) {
+        for (const json& scalar : node["embedding"]) {
+            if (scalar.is_number()) {
+                event.embedding.push_back(scalar.get<float>());
+            }
+        }
+    }
+    return event;
+}
+
 json RAGStateToJson(const RAGState& rag) {
     json node = json{
         {"enabled", rag.enabled},
@@ -1341,13 +1374,18 @@ json RAGStateToJson(const RAGState& rag) {
         {"narrative_misses", rag.narrative_misses},
         {"live_fallback_calls", rag.live_fallback_calls},
         {"narrative_live_fallback_calls", rag.narrative_live_fallback_calls},
+        {"legacy_hits", rag.legacy_hits},
+        {"legacy_misses", rag.legacy_misses},
+        {"legacy_retrieve_tick", rag.legacy_retrieve_tick},
         {"last_source", rag.last_source},
         {"last_narrative_source", rag.last_narrative_source},
+        {"last_legacy_source", rag.last_legacy_source},
         {"last_narrative_checkpoint", rag.last_narrative_checkpoint},
         {"last_narrative_dialog_tone", rag.last_narrative_dialog_tone},
         {"last_narrative_msq_branch", rag.last_narrative_msq_branch},
         {"last_narrative_event_color", rag.last_narrative_event_color},
         {"last_narrative_similarity", rag.last_narrative_similarity},
+        {"last_legacy_similarity", rag.last_legacy_similarity},
         {"narrative_retrieve_tick", rag.narrative_retrieve_tick},
         {"spark_cache", json::array()},
         {"narrative_cache", json::array()},
@@ -1405,13 +1443,18 @@ RAGState RAGStateFromJson(const json& node, const RAGState& fallback) {
     rag.narrative_misses = node.value("narrative_misses", rag.narrative_misses);
     rag.live_fallback_calls = node.value("live_fallback_calls", rag.live_fallback_calls);
     rag.narrative_live_fallback_calls = node.value("narrative_live_fallback_calls", rag.narrative_live_fallback_calls);
+    rag.legacy_hits = node.value("legacy_hits", rag.legacy_hits);
+    rag.legacy_misses = node.value("legacy_misses", rag.legacy_misses);
+    rag.legacy_retrieve_tick = node.value("legacy_retrieve_tick", rag.legacy_retrieve_tick);
     rag.last_source = node.value("last_source", rag.last_source);
     rag.last_narrative_source = node.value("last_narrative_source", rag.last_narrative_source);
+    rag.last_legacy_source = node.value("last_legacy_source", rag.last_legacy_source);
     rag.last_narrative_checkpoint = node.value("last_narrative_checkpoint", rag.last_narrative_checkpoint);
     rag.last_narrative_dialog_tone = node.value("last_narrative_dialog_tone", rag.last_narrative_dialog_tone);
     rag.last_narrative_msq_branch = node.value("last_narrative_msq_branch", rag.last_narrative_msq_branch);
     rag.last_narrative_event_color = node.value("last_narrative_event_color", rag.last_narrative_event_color);
     rag.last_narrative_similarity = node.value("last_narrative_similarity", rag.last_narrative_similarity);
+    rag.last_legacy_similarity = node.value("last_legacy_similarity", rag.last_legacy_similarity);
     rag.narrative_retrieve_tick = node.value("narrative_retrieve_tick", rag.narrative_retrieve_tick);
     rag.spark_cache.clear();
     rag.narrative_cache.clear();
@@ -1970,6 +2013,9 @@ std::set<std::string> RootFieldAllowList() {
         "day_progress",
         "day_cycle_speed",
         "day_count",
+        "current_generation",
+        "legacy_summary_seed",
+        "compressed_event_log",
         "world_time",
         "biome",
         "world_style_guide",
@@ -1997,6 +2043,8 @@ std::set<std::string> RootFieldAllowList() {
         "narrator",
         "cutscene",
         "free_will",
+        "rag",
+        "scripted_behavior",
         "render_2d",
         "post_processing",
         "quality_metadata",
@@ -2239,6 +2287,8 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
     scene.day_progress = Clamp01(document.value("day_progress", scene.day_progress));
     scene.day_cycle_speed = std::max(0.0F, document.value("day_cycle_speed", scene.day_cycle_speed));
     scene.day_count = std::max(1U, document.value("day_count", scene.day_count));
+    scene.current_generation = std::max(1U, document.value("current_generation", scene.current_generation));
+    scene.legacy_summary_seed = document.value("legacy_summary_seed", scene.legacy_summary_seed);
     scene.world_time.elapsed_seconds = scene.elapsed_seconds;
     scene.world_time.day_progress = scene.day_progress;
     scene.world_time.day_cycle_speed = scene.day_cycle_speed;
@@ -2407,6 +2457,18 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
         for (const json& action_node : document["recent_actions"]) {
             if (action_node.is_string()) {
                 scene.recent_actions.push_back(action_node.get<std::string>());
+            }
+        }
+    }
+    scene.compressed_event_log.clear();
+    if (document.contains("compressed_event_log") && document["compressed_event_log"].is_array()) {
+        for (const json& event_node : document["compressed_event_log"]) {
+            if (!event_node.is_object()) {
+                continue;
+            }
+            scene.compressed_event_log.push_back(CompressedLegacyEventFromJson(event_node, CompressedLegacyEvent{}));
+            if (scene.compressed_event_log.size() >= SceneLimits::kLegacyEventLogCap) {
+                break;
             }
         }
     }
@@ -2658,6 +2720,8 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["day_progress"] = scene.day_progress;
     document["day_cycle_speed"] = scene.day_cycle_speed;
     document["day_count"] = scene.day_count;
+    document["current_generation"] = scene.current_generation;
+    document["legacy_summary_seed"] = scene.legacy_summary_seed;
     document["world_time"] = WorldTimeToJson(scene.world_time);
     document["biome"] = scene.biome;
     document["world_style_guide"] = scene.world_style_guide;
@@ -2716,6 +2780,10 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     document["recent_actions"] = json::array();
     for (const std::string& action : scene.recent_actions) {
         document["recent_actions"].push_back(action);
+    }
+    document["compressed_event_log"] = json::array();
+    for (const CompressedLegacyEvent& event : scene.compressed_event_log) {
+        document["compressed_event_log"].push_back(CompressedLegacyEventToJson(event));
     }
     document["co_creator_queue"] = json::array();
     for (const CoCreatorQueuedMutation& mutation : scene.co_creator_queue) {

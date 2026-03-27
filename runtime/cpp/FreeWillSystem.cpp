@@ -255,6 +255,12 @@ bool ApplySpark(Scene& scene, const FreeWillSparkRequest& request, std::minstd_r
     if (narrative_flavor.has_value()) {
         directive->line = "[" + narrative_flavor->event_color + "] " + directive->line;
     }
+    if (const std::optional<RAGLegacyRecall> legacy = RAGSystem::RetrieveLegacyRecall(
+            scene,
+            "npc spark continuity npc=" + std::to_string(request.npc_id) + " " + directive->line);
+        legacy.has_value()) {
+        directive->line += " (Legacy: gen " + std::to_string(legacy->generation) + " " + legacy->summary + ")";
+    }
 
     const bool llm_fallback_allowed =
         scene.free_will.llm_enabled &&

@@ -27,6 +27,8 @@ public sealed class LivingNpcsPanelState
     public float NarrativeFlavorHitRate { get; private set; }
     public string LastMsqAdaptationSource { get; private set; } = "none";
     public string LastNarrativeCheckpoint { get; private set; } = "none";
+    public int GenerationalMemorySize { get; private set; }
+    public float LegacyRecallHitRate { get; private set; }
     public string SparkSourcePreference { get; private set; } = "rag > scripted > llm";
     public bool LightweightPerformanceMode { get; private set; }
     private Dictionary<ulong, string> LastSparkSourceByNpc { get; } = [];
@@ -130,7 +132,11 @@ public sealed class LivingNpcsPanelState
             state.NarrativeFlavorHitRate = narrativeHits + narrativeMisses > 0 ? (float)narrativeHits / (narrativeHits + narrativeMisses) : 0f;
             state.LastMsqAdaptationSource = rag["last_narrative_source"]?.GetValue<string>() ?? "none";
             state.LastNarrativeCheckpoint = rag["last_narrative_checkpoint"]?.GetValue<string>() ?? "none";
+            var legacyHits = Math.Max(0, ReadInt32(rag["legacy_hits"], 0));
+            var legacyMisses = Math.Max(0, ReadInt32(rag["legacy_misses"], 0));
+            state.LegacyRecallHitRate = legacyHits + legacyMisses > 0 ? (float)legacyHits / (legacyHits + legacyMisses) : 0f;
         }
+        state.GenerationalMemorySize = root["compressed_event_log"] is JsonArray legacyLog ? Math.Max(0, legacyLog.Count) : 0;
         if (root["optimization_overrides"] is JsonObject optimization
             && string.Equals(optimization["lightweight_mode"]?.GetValue<string>(), "performance", StringComparison.OrdinalIgnoreCase))
         {

@@ -478,6 +478,8 @@ public sealed partial class MainWindowViewModel
     public int LivingNpcsRagCacheSize => _livingNpcs.RagCacheSize;
     public float LivingNpcsRagHitRate => _livingNpcs.RagHitRate;
     public float LivingNpcsNarrativeFlavorHitRate => _livingNpcs.NarrativeFlavorHitRate;
+    public int LivingNpcsGenerationalMemorySize => _livingNpcs.GenerationalMemorySize;
+    public float LivingNpcsLegacyRecallHitRate => _livingNpcs.LegacyRecallHitRate;
     public string LivingNpcsLastMsqAdaptationSource => _livingNpcs.LastMsqAdaptationSource;
     public string LivingNpcsLastNarrativeCheckpoint => _livingNpcs.LastNarrativeCheckpoint;
     public string LivingNpcsSparkSourcePreference => _livingNpcs.SparkSourcePreference;
@@ -2714,6 +2716,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(LivingNpcsRagCacheSize));
             OnPropertyChanged(nameof(LivingNpcsRagHitRate));
             OnPropertyChanged(nameof(LivingNpcsNarrativeFlavorHitRate));
+            OnPropertyChanged(nameof(LivingNpcsGenerationalMemorySize));
+            OnPropertyChanged(nameof(LivingNpcsLegacyRecallHitRate));
             OnPropertyChanged(nameof(LivingNpcsLastMsqAdaptationSource));
             OnPropertyChanged(nameof(LivingNpcsLastNarrativeCheckpoint));
             OnPropertyChanged(nameof(LivingNpcsSparkSourcePreference));

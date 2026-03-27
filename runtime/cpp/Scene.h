@@ -23,6 +23,7 @@ namespace SceneLimits {
     inline constexpr std::size_t kFreeWillMapCap   = 512U;
     inline constexpr std::size_t kCombatStateCap   = 48U;
     inline constexpr std::size_t kRagEntriesCap    = 512U;
+    inline constexpr std::size_t kLegacyEventLogCap = 192U;
 }
 
 struct CoCreatorQueuedMutation {
@@ -188,6 +189,15 @@ struct RAGCacheEntry {
     std::vector<float> embedding{};
 };
 
+struct CompressedLegacyEvent {
+    std::string event_type{"major_event"};
+    std::string summary{};
+    std::string tags{};
+    std::uint32_t generation = 1;
+    std::uint32_t seed = 0;
+    std::vector<float> embedding{};
+};
+
 struct RAGState {
     bool enabled = false;
     bool live_fallback_enabled = true;
@@ -203,13 +213,18 @@ struct RAGState {
     std::uint32_t narrative_misses = 0;
     std::uint32_t live_fallback_calls = 0;
     std::uint32_t narrative_live_fallback_calls = 0;
+    std::uint32_t legacy_hits = 0;
+    std::uint32_t legacy_misses = 0;
+    std::uint32_t legacy_retrieve_tick = 0;
     std::string last_source = "none";
     std::string last_narrative_source = "none";
+    std::string last_legacy_source = "none";
     std::string last_narrative_checkpoint = "none";
     std::string last_narrative_dialog_tone = "neutral";
     std::string last_narrative_msq_branch = "default";
     std::string last_narrative_event_color = "grounded";
     float last_narrative_similarity = -1.0F;
+    float last_legacy_similarity = -1.0F;
     std::uint32_t narrative_retrieve_tick = 0;
     std::vector<RAGCacheEntry> spark_cache{};
     std::vector<RAGCacheEntry> narrative_cache{};
@@ -470,6 +485,9 @@ struct Scene {
     float day_progress = 0.25F;
     float day_cycle_speed = 0.01F;
     std::uint32_t day_count = 1;
+    std::uint32_t current_generation = 1;
+    std::string legacy_summary_seed{};
+    std::vector<CompressedLegacyEvent> compressed_event_log{};
     std::string biome = "temperate";
     std::string world_style_guide = "grounded stylized frontier";
     WeatherState weather{};
