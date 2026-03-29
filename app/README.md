@@ -11,6 +11,10 @@ Bootstrap commands:
 - Ubuntu/Linux: `./scripts/bootstrap.sh`
 - Windows: `pwsh -f scripts/bootstrap.ps1`
 
+Automation-only launcher smoke commands:
+- Ubuntu/Linux: `./scripts/bootstrap.sh --launcher-smoke`
+- Windows: `pwsh -f scripts/bootstrap.ps1 -LauncherSmoke`
+
 
 Interview state contract (V1):
 - **Language-agnostic source of truth:** `app/schemas/interview-session.v1.schema.json`

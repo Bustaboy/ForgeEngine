@@ -19,9 +19,9 @@ Smoke = verify the repo boots, runtime compiles, core launcher path starts, and 
 
 This runbook uses only existing project commands:
 - `./scripts/bootstrap.sh --runtime-only`
-- `./scripts/bootstrap.sh` (when `dotnet` is installed)
+- `./scripts/bootstrap.sh --launcher-smoke` (when `dotnet` is installed)
 - `pwsh -f scripts/bootstrap.ps1 -RuntimeOnly`
-- `pwsh -f scripts/bootstrap.ps1`
+- `pwsh -f scripts/bootstrap.ps1 -LauncherSmoke`
 - `pytest -q`
 - `python3 ai-orchestration/python/orchestrator.py --benchmark --benchmark-no-prepare`
 
@@ -72,7 +72,7 @@ BOOTSTRAP_RUNTIME_ONLY_EXIT=$?
 dotnet --version >/dev/null 2>&1
 DOTNET_PRESENT=$?
 if [ "$DOTNET_PRESENT" -eq 0 ]; then
-  ./scripts/bootstrap.sh 2>&1 | tee docs/release/evidence/logs/ubuntu/bootstrap_full.log
+  ./scripts/bootstrap.sh --launcher-smoke 2>&1 | tee docs/release/evidence/logs/ubuntu/bootstrap_full.log
   BOOTSTRAP_FULL_EXIT=$?
 else
   echo "dotnet not found; full bootstrap skipped" | tee docs/release/evidence/logs/ubuntu/bootstrap_full.log
@@ -174,7 +174,7 @@ try {
 }
 
 if ($DOTNET_PRESENT -eq 1) {
-  pwsh -f scripts/bootstrap.ps1 *>&1 | Tee-Object docs/release/evidence/logs/windows/bootstrap_full.log
+  pwsh -f scripts/bootstrap.ps1 -LauncherSmoke *>&1 | Tee-Object docs/release/evidence/logs/windows/bootstrap_full.log
   $BOOTSTRAP_FULL_EXIT = $LASTEXITCODE
 } else {
   "dotnet not found; full bootstrap skipped" | Tee-Object docs/release/evidence/logs/windows/bootstrap_full.log

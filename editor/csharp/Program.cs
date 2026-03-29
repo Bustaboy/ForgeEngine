@@ -7,6 +7,10 @@ using GameForge.Editor.Interview;
 
 internal static class Program
 {
+    private static readonly string DefaultRuntimePath = OperatingSystem.IsWindows()
+        ? Path.Combine("build", "bin", "forge_runtime.exe")
+        : Path.Combine("build", "bin", "forge_runtime");
+
     public static async Task<int> Main(string[] args)
     {
         EditorDiagnosticsLog.InitializeSession(args);
@@ -126,6 +130,12 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "--launcher-smoke")
+        {
+            var runtimePath = args.Length > 1 ? args[1] : DefaultRuntimePath;
+            return RunLauncherSmoke(runtimePath);
+        }
+
         if (args.Length > 0 && args[0] == "--editor-ui")
         {
             try
@@ -142,7 +152,18 @@ internal static class Program
             }
         }
 
-        var runtimePath = args.Length > 0 ? args[0] : "build/runtime/gameforge_runtime";
+        if (args.Length > 0 && args[0].StartsWith("--", StringComparison.Ordinal))
+        {
+            Console.WriteLine($"Unknown launcher command: {args[0]}");
+            return 8;
+        }
+
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        return 0;
+    }
+
+    private static int RunLauncherSmoke(string runtimePath)
+    {
         var fullRuntimePath = Path.GetFullPath(runtimePath);
 
         Console.WriteLine($"Runtime binary path: {fullRuntimePath}");

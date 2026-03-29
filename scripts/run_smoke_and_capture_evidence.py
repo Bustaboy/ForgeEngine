@@ -129,7 +129,7 @@ def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | N
         (
             CommandSpec(
                 name="bootstrap_full",
-                command=["./scripts/bootstrap.sh"],
+                command=["./scripts/bootstrap.sh", "--launcher-smoke"],
                 expected_signatures=[
                     "== Starting C# App Entrypoint ==",
                     "Editor launcher started successfully.",
@@ -166,7 +166,7 @@ def _build_windows_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | 
         (
             CommandSpec(
                 name="bootstrap_full",
-                command=["pwsh", "-f", "scripts/bootstrap.ps1"],
+                command=["pwsh", "-f", "scripts/bootstrap.ps1", "-LauncherSmoke"],
                 expected_signatures=[
                     "== Starting C# App Entrypoint ==",
                     "Editor launcher started successfully.",

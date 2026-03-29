@@ -1,5 +1,6 @@
 param(
-    [switch]$RuntimeOnly
+    [switch]$RuntimeOnly,
+    [switch]$LauncherSmoke
 )
 
 $ErrorActionPreference = "Stop"
