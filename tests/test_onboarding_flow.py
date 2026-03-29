@@ -141,6 +141,45 @@ class OnboardingFlowTests(unittest.TestCase):
             self.assertEqual(result["coding"]["friendly_name"], "coding")
             self.assertTrue(any("first prototype" in line.lower() for line in result["summary"]))
 
+    def test_download_model_reports_missing_python_dependency_as_managed_error(self):
+        with _temporary_repo_dir() as temp_dir:
+            models_json_path = temp_dir / "models.json"
+            models_json_path.write_text(json.dumps({"models": {}}), encoding="utf-8")
+
+            original_snapshot_download = model_manager.snapshot_download
+            try:
+                model_manager.snapshot_download = None
+                with self.assertRaises(model_manager.ManagedModelDownloadError) as context:
+                    model_manager.download_model(
+                        friendly_name="forgeguard",
+                        models_json_path=models_json_path,
+                    )
+            finally:
+                model_manager.snapshot_download = original_snapshot_download
+
+            self.assertEqual("missing_python_dependency", context.exception.code)
+            self.assertIn("dependencies are missing", context.exception.user_message.lower())
+
+    def test_download_model_requires_hugging_face_token(self):
+        with _temporary_repo_dir() as temp_dir:
+            models_json_path = temp_dir / "models.json"
+            models_json_path.write_text(json.dumps({"models": {}}), encoding="utf-8")
+
+            with mock.patch.dict("os.environ", {"HF_TOKEN": "", "HUGGINGFACE_TOKEN": ""}, clear=False):
+                original_snapshot_download = model_manager.snapshot_download
+                try:
+                    model_manager.snapshot_download = lambda **_kwargs: str(temp_dir / "snapshot")
+                    with self.assertRaises(model_manager.ManagedModelDownloadError) as context:
+                        model_manager.download_model(
+                            friendly_name="forgeguard",
+                            models_json_path=models_json_path,
+                        )
+                finally:
+                    model_manager.snapshot_download = original_snapshot_download
+
+            self.assertEqual("token_required", context.exception.code)
+            self.assertIn("token", context.exception.user_message.lower())
+
     def test_onboarding_command_dispatches(self):
         with mock.patch.object(orchestrator, "run_onboarding", return_value={"status": "ok"}) as mocked:
             rc = orchestrator._try_run_forge_hooks_cli(["/onboarding_run"])

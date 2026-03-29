@@ -273,6 +273,12 @@ public partial class MainWindow : Window
                         },
                         new TextBlock
                         {
+                            Text = "Before the first download, add your Hugging Face token in Models & LLM. Soul Loom can open the sign-up, login, and access-token pages for you.",
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                        },
+                        new TextBlock
+                        {
                             Text = "Keep ForgeGuard installed: it powers local guardrails, critique passes, and lightweight decisions across workflows.",
                             TextWrapping = TextWrapping.Wrap,
                             Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
@@ -697,6 +703,8 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _viewModel.CancelActiveModelOperation();
+
         var editor = this.FindControl<TextEditor>("CodeEditor");
         if (editor is not null)
         {
@@ -2124,6 +2132,9 @@ public partial class MainWindow : Window
                     _viewModel.ForgeGuardKeepInstalledMessage,
                     _viewModel.ModelManagerStatus,
                     _viewModel.CanRunModelManagerActions);
+                settingsWindow.UpdateHuggingFaceTokenState(
+                    _viewModel.GetHuggingFaceTokenStatus(),
+                    _viewModel.IsHuggingFaceTokenConfigured());
             }
 
             settingsWindow.QuickStartModelsRequested += async () =>
@@ -2162,12 +2173,25 @@ public partial class MainWindow : Window
                 await RefreshSettingsModelsAsync();
             };
             settingsWindow.RefreshModelsRequested += RefreshSettingsModelsAsync;
+            settingsWindow.SaveHuggingFaceTokenRequested += async token =>
+            {
+                await _viewModel.SaveHuggingFaceTokenAsync(token);
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.ClearHuggingFaceTokenRequested += async () =>
+            {
+                await _viewModel.ClearHuggingFaceTokenAsync();
+                await RefreshSettingsModelsAsync();
+            };
             settingsWindow.UpdateModelManagerState(
                 _viewModel.ModelManagerEntries,
                 _viewModel.ModelRecommendationSummary,
                 _viewModel.ForgeGuardKeepInstalledMessage,
                 _viewModel.ModelManagerStatus,
                 _viewModel.CanRunModelManagerActions);
+            settingsWindow.UpdateHuggingFaceTokenState(
+                _viewModel.GetHuggingFaceTokenStatus(),
+                _viewModel.IsHuggingFaceTokenConfigured());
             await settingsWindow.ShowDialog(this);
             if (settingsWindow.Result is null)
             {

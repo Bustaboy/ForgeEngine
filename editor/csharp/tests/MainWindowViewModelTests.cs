@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using GameForge.Editor.EditorShell.EditorSystems;
@@ -118,6 +119,33 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal(prototypeRoot, viewModel.PrototypeRoot);
 
         orchestrator.VerifyAll();
+    }
+
+    [Fact]
+    public void CreateBriefFromChatPrompt_WritesUtf8WithoutBom()
+    {
+        var originalDirectory = Environment.CurrentDirectory;
+        Environment.CurrentDirectory = _tempRoot;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(_tempRoot, "ai-orchestration", "python"));
+            File.WriteAllText(
+                Path.Combine(_tempRoot, "ai-orchestration", "python", "orchestrator.py"),
+                "# placeholder",
+                Encoding.UTF8);
+
+            var briefPath = OrchestratorClient.CreateBriefFromChatPrompt("small town with 3 npcs");
+            var bytes = File.ReadAllBytes(briefPath);
+
+            Assert.False(bytes.Length >= 3
+                && bytes[0] == 0xEF
+                && bytes[1] == 0xBB
+                && bytes[2] == 0xBF);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = originalDirectory;
+        }
     }
 
     [Fact]
@@ -740,6 +768,25 @@ public sealed class MainWindowViewModelTests : IDisposable
         Assert.Equal("Hardware benchmark complete. Preparing ForgeGuard download...", viewModel.DownloadProgressSummary);
         Assert.Equal("Benchmark finished. Contacting the model host...", viewModel.DownloadProgressCurrentFile);
         Assert.True(viewModel.IsDownloadProgressIndeterminate);
+    }
+
+    [Fact]
+    public void ParseModelOperationError_RecognizesMissingDownloadDependencies()
+    {
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object);
+
+        var state = InvokePrivate<object?>(
+            viewModel,
+            "ParseModelOperationError",
+            string.Empty,
+            "RuntimeError: huggingface_hub is required for /download_model. Install with: pip install huggingface_hub");
+
+        Assert.NotNull(state);
+        Assert.Equal(
+            "Python model download dependencies are missing.",
+            state!.GetType().GetProperty("UserMessage")!.GetValue(state));
     }
 
     [Fact]

@@ -7,7 +7,10 @@ public static class AiOrchestrationPanel
     public static ProcessStartInfo CreateOrchestratorStartInfo(string repositoryRoot, params string[] args)
     {
         var scriptPath = Path.Combine(repositoryRoot, "ai-orchestration", "python", "orchestrator.py");
-        var pythonExe = PythonEnvironment.ResolvePythonExecutable(repositoryRoot);
+        var venvPython = PythonEnvironment.GetRepositoryVirtualEnvironmentPythonExecutable(repositoryRoot);
+        var pythonExe = File.Exists(venvPython)
+            ? venvPython
+            : PythonEnvironment.ResolvePythonExecutable(repositoryRoot);
 
         var processStartInfo = new ProcessStartInfo
         {
@@ -27,6 +30,7 @@ public static class AiOrchestrationPanel
             processStartInfo.ArgumentList.Add(arg);
         }
 
+        HuggingFaceTokenStore.ApplyToProcessStartInfo(processStartInfo, repositoryRoot);
         return processStartInfo;
     }
 }

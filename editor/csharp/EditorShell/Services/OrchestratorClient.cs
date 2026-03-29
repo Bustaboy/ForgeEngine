@@ -48,6 +48,8 @@ public sealed record PipelineRunResponse
 
 public sealed class OrchestratorClient
 {
+    private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
+
     public async Task<PipelineRunResponse> RunGenerationPipelineAsync(string briefPath, bool launchRuntime, CancellationToken cancellationToken = default)
     {
         var projectRoot = ResolveProjectRoot();
@@ -58,7 +60,9 @@ public sealed class OrchestratorClient
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = PythonEnvironment.ResolvePythonExecutable(projectRoot),
+            FileName = File.Exists(PythonEnvironment.GetRepositoryVirtualEnvironmentPythonExecutable(projectRoot))
+                ? PythonEnvironment.GetRepositoryVirtualEnvironmentPythonExecutable(projectRoot)
+                : PythonEnvironment.ResolvePythonExecutable(projectRoot),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -71,6 +75,7 @@ public sealed class OrchestratorClient
         startInfo.ArgumentList.Add("--output");
         startInfo.ArgumentList.Add(outputPath);
         startInfo.ArgumentList.Add(launchRuntime ? "--launch-runtime" : "--no-launch-runtime");
+        HuggingFaceTokenStore.ApplyToProcessStartInfo(startInfo, projectRoot);
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to launch orchestrator subprocess.");
@@ -128,7 +133,7 @@ public sealed class OrchestratorClient
             commercial_policy_acknowledged = false,
         };
 
-        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), Utf8WithoutBom);
         return path;
     }
 
@@ -179,7 +184,7 @@ public sealed class OrchestratorClient
             commercial_policy_acknowledged = false,
         };
 
-        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), Encoding.UTF8);
+        File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }), Utf8WithoutBom);
         return path;
     }
 

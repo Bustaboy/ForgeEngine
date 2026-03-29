@@ -2834,6 +2834,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             StatusMessage = BuildStatusMessage(response);
             if (response.ExitCode != 0)
             {
+                EditorDiagnosticsLog.LogError($"Generation pipeline details:{Environment.NewLine}{StatusMessage}");
                 PipelineProgress = "Failed";
                 ShowFailureToast(
                     "Generation pipeline failed",

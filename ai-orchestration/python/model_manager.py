@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,10 +22,11 @@ if str(PYTHON_ROOT) not in sys.path:
 from benchmark import run_benchmark_as_dict
 
 try:
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import HfApi, snapshot_download
     from huggingface_hub.errors import HfHubHTTPError
     from tqdm import tqdm as tqdm_base
 except ImportError:  # pragma: no cover - optional dependency at runtime
+    HfApi = None
     snapshot_download = None
     tqdm_base = None
 
@@ -36,6 +38,7 @@ DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "soul-loom" / "models"
 DEFAULT_QUANTIZATION = "Q4_K_M"
 TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACE_TOKEN")
 TOKEN_SESSION_MESSAGE = "Token used from environment only for this session. Not saved for security."
+WORKSPACE_TOKEN_MESSAGE = "Token loaded from ai-orchestration/python/.env for this workspace."
 
 FRIENDLY_NAME_ALIASES: dict[str, str] = {
     "coder": "coding",
@@ -127,6 +130,113 @@ def _safe_int(value: Any) -> int | None:
         return None
 
 
+def _repo_cache_directory(cache_root: Path, repo_id: str) -> Path:
+    normalized = repo_id.replace("/", "--")
+    return cache_root / f"models--{normalized}"
+
+
+def _resolve_expected_repo_file(
+    repo_id: str,
+    quantization: str,
+    token: str | None,
+) -> tuple[str | None, int | None]:
+    if HfApi is None:
+        return None, None
+
+    try:
+        info = HfApi(token=token).model_info(repo_id, files_metadata=True)
+    except Exception:  # noqa: BLE001 - best effort only
+        return None, None
+
+    quantization_lower = quantization.strip().lower()
+    candidates: list[tuple[str, int | None]] = []
+    for sibling in getattr(info, "siblings", []) or []:
+        file_name = str(getattr(sibling, "rfilename", "") or "")
+        if not file_name.lower().endswith(".gguf"):
+            continue
+        if quantization_lower and quantization_lower not in file_name.lower():
+            continue
+        candidates.append((file_name, _safe_int(getattr(sibling, "size", None))))
+
+    if not candidates:
+        return None, None
+
+    candidates.sort(key=lambda item: ("/" in item[0], len(item[0])))
+    return candidates[0]
+
+
+def _measure_repo_download_bytes(repo_cache_dir: Path, expected_file_name: str | None) -> tuple[int, str | None]:
+    if not repo_cache_dir.exists():
+        return 0, expected_file_name
+
+    partial_bytes = 0
+    for incomplete_file in repo_cache_dir.rglob("*.incomplete"):
+        try:
+            partial_bytes = max(partial_bytes, incomplete_file.stat().st_size)
+        except OSError:
+            continue
+
+    completed_bytes = 0
+    if expected_file_name:
+        for completed_file in repo_cache_dir.rglob(expected_file_name):
+            try:
+                completed_bytes = max(completed_bytes, completed_file.stat().st_size)
+            except OSError:
+                continue
+
+    downloaded_bytes = max(partial_bytes, completed_bytes)
+    return downloaded_bytes, expected_file_name
+
+
+def _start_snapshot_progress_probe(
+    *,
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    cancel_check: Callable[[], bool] | None,
+    friendly_name: str,
+    repo_cache_dir: Path,
+    expected_file_name: str | None,
+    total_bytes: int | None,
+) -> tuple[threading.Event, threading.Thread] | None:
+    if progress_callback is None:
+        return None
+
+    stop_event = threading.Event()
+
+    def probe() -> None:
+        last_downloaded_bytes = -1
+        while not stop_event.wait(0.5):
+            if cancel_check and cancel_check():
+                return
+
+            downloaded_bytes, current_file = _measure_repo_download_bytes(repo_cache_dir, expected_file_name)
+            if downloaded_bytes <= 0 and last_downloaded_bytes < 0:
+                continue
+            if downloaded_bytes == last_downloaded_bytes:
+                continue
+
+            last_downloaded_bytes = downloaded_bytes
+            progress_percent = None
+            if total_bytes and total_bytes > 0:
+                progress_percent = max(0.0, min(100.0, (downloaded_bytes / total_bytes) * 100.0))
+
+            progress_callback(
+                {
+                    "event": "download_progress",
+                    "friendly_name": friendly_name,
+                    "progress_percent": progress_percent,
+                    "downloaded_mb": round(downloaded_bytes / (1024 * 1024), 2),
+                    "total_mb": round(total_bytes / (1024 * 1024), 2) if total_bytes else None,
+                    "speed_mbps": None,
+                    "eta_seconds": None,
+                    "current_file": current_file or None,
+                }
+            )
+
+    thread = threading.Thread(target=probe, name="soul-loom-download-progress", daemon=True)
+    thread.start()
+    return stop_event, thread
+
+
 def _create_snapshot_progress_tqdm(
     progress_callback: Callable[[dict[str, Any]], None] | None,
     cancel_check: Callable[[], bool] | None,
@@ -197,7 +307,13 @@ def _load_models_config(models_json_path: Path | None = None) -> dict[str, Any]:
     path = _models_json_path(models_json_path)
     if not path.exists():
         return {"models": {}}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+        if not raw_text.strip():
+            return {"models": {}}
+        payload = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return {"models": {}}
     if not isinstance(payload, dict):
         return {"models": {}}
     payload.setdefault("models", {})
@@ -209,7 +325,10 @@ def _load_models_config(models_json_path: Path | None = None) -> dict[str, Any]:
 def _save_models_config(config: dict[str, Any], models_json_path: Path | None = None) -> Path:
     path = _models_json_path(models_json_path)
     config.pop("hf_token", None)
-    path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    os.replace(tmp_path, path)
     return path
 
 
@@ -266,7 +385,29 @@ def _choose_token(token: str | None = None, config: dict[str, Any] | None = None
             break
     if env_token:
         return env_token, "environment"
+    workspace_token = _load_workspace_env_token()
+    if workspace_token:
+        return workspace_token, "workspace_env"
     return None, "none"
+
+
+def _load_workspace_env_token() -> str | None:
+    env_path = PYTHON_ROOT / ".env"
+    if not env_path.exists():
+        return None
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        for env_key in TOKEN_ENV_KEYS:
+            prefix = f"{env_key}="
+            if not line.startswith(prefix):
+                continue
+            value = line[len(prefix):].strip().strip("'\"")
+            if value:
+                return value
+    return None
 
 
 def _find_quantized_file(snapshot_path: Path, quantization: str) -> Path | None:
@@ -444,18 +585,39 @@ def download_model(
     """Download (or resume/cached fetch) a model and persist path in models.json."""
 
     if snapshot_download is None:
-        raise RuntimeError(
-            "huggingface_hub is required for /download_model. Install with: pip install huggingface_hub"
+        raise ManagedModelDownloadError(
+            code="missing_python_dependency",
+            message="huggingface_hub is required for /download_model. Install with: pip install huggingface_hub",
+            user_message="Python model download dependencies are missing.",
+            suggested_action="Install ai-orchestration/python/requirements.txt into the repo .venv (or run scripts/Setup-Alpha.ps1), then retry.",
+            retryable=False,
         )
 
     normalized_name = _normalize_friendly_name(friendly_name)
     resolved_repo_id = _get_repo_id(normalized_name, repo_id=repo_id)
     config = _load_models_config(models_json_path)
     hf_token, token_source = _choose_token(token=token, config=config)
+    if not hf_token:
+        raise ManagedModelDownloadError(
+            code="token_required",
+            message="HF_TOKEN is required before model downloads can start.",
+            user_message="A Hugging Face access token is required before Soul Loom can download models.",
+            suggested_action="Add HF_TOKEN in Models & LLM or ai-orchestration/python/.env, then retry.",
+            retryable=False,
+        )
 
     download_cache_root = cache_root or DEFAULT_CACHE_ROOT
     allow_patterns = [f"*{quantization}*.gguf", "*.json", "tokenizer*", "*.model", "*.txt"]
     progress_tqdm = _create_snapshot_progress_tqdm(progress_callback, cancel_check)
+    expected_file_name, expected_total_bytes = _resolve_expected_repo_file(resolved_repo_id, quantization, hf_token)
+    progress_probe = _start_snapshot_progress_probe(
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+        friendly_name=normalized_name,
+        repo_cache_dir=_repo_cache_directory(download_cache_root, resolved_repo_id),
+        expected_file_name=expected_file_name,
+        total_bytes=expected_total_bytes,
+    )
 
     if progress_callback:
         progress_callback(
@@ -466,12 +628,31 @@ def download_model(
                 "quantization": quantization,
             }
         )
+        if expected_file_name or expected_total_bytes:
+            progress_callback(
+                {
+                    "event": "download_progress",
+                    "friendly_name": normalized_name,
+                    "progress_percent": 0.0,
+                    "downloaded_mb": 0.0,
+                    "total_mb": round(expected_total_bytes / (1024 * 1024), 2) if expected_total_bytes else None,
+                    "current_file": expected_file_name or None,
+                }
+            )
         if token_source == "environment":
             progress_callback(
                 {
                     "event": "token_notice",
                     "friendly_name": normalized_name,
                     "message": TOKEN_SESSION_MESSAGE,
+                }
+            )
+        elif token_source == "workspace_env":
+            progress_callback(
+                {
+                    "event": "token_notice",
+                    "friendly_name": normalized_name,
+                    "message": WORKSPACE_TOKEN_MESSAGE,
                 }
             )
 
@@ -523,6 +704,10 @@ def download_model(
             retryable=False,
         )
 
+    if progress_probe is not None:
+        progress_probe[0].set()
+        progress_probe[1].join(timeout=1.0)
+
     snapshot_path = Path(snapshot_dir)
     selected_path = _find_quantized_file(snapshot_path, quantization) or snapshot_path
 
@@ -561,7 +746,7 @@ def download_model(
         "models_json": str(config_path),
         "cache_root": str(download_cache_root),
         "used_token": bool(hf_token),
-        "token_message": TOKEN_SESSION_MESSAGE if token_source == "environment" else "",
+        "token_message": TOKEN_SESSION_MESSAGE if token_source == "environment" else WORKSPACE_TOKEN_MESSAGE if token_source == "workspace_env" else "",
         "token_source": token_source,
     }
 

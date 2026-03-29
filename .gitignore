@@ -2,11 +2,37 @@
 __pycache__/
 *.pyc
 
+# Local temp / scratch
+.tmp/
+.tmp*/
+pytest-cache-files-*/
+build_probe/
+
 # ForgeEngine AI model artifacts (downloaded locally on first run)
 ai-orchestration/python/models/artifacts/
+ai-orchestration/python/models/.first-run-state.json
 
 # Local orchestrator env files
 ai-orchestration/python/.env
 
 # Local virtual environment
 .venv/
+
+# Editor local state
+.soulloom/
+.forgeengine/
+forgeengine.log
+models.json
+
+# Build and generated output
+build/
+app/release/
+app/samples/generated-prototype/**/performance_history.json
+app/samples/generated-prototype/**/testing/reports/
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Downloaded local third-party header
+runtime/cpp/external/nlohmann/json.hpp

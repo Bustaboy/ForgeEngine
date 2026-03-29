@@ -26,11 +26,92 @@
       <Setter Property="BorderBrush" Value="#334257" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Foreground" Value="#E5EDF7" />
-      <Setter Property="Padding" Value="8" />
+      <Setter Property="Padding" Value="6" />
       <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Width" Value="58" />
-      <Setter Property="Height" Value="58" />
-      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <Style Selector="Button.ribbon-compact">
+      <Setter Property="Background" Value="#152034" />
+      <Setter Property="BorderBrush" Value="#334257" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#DCE8F7" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="MinWidth" Value="62" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style Selector="Button.menu-link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="#D7E4F6" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.menu-link:pointerover">
+      <Setter Property="Background" Value="#172134" />
+    </Style>
+
+    <Style Selector="Button.toolbar-action">
+      <Setter Property="Background" Value="#152034" />
+      <Setter Property="BorderBrush" Value="#334257" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#E6EEF9" />
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinWidth" Value="78" />
+    </Style>
+
+    <Style Selector="Button.toolbar-action.primary">
+      <Setter Property="Background" Value="#1D6EE8" />
+      <Setter Property="BorderBrush" Value="#3C8BFF" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.toolbar-action.quiet">
+      <Setter Property="Background" Value="#101826" />
+      <Setter Property="Foreground" Value="#BCD0E9" />
+      <Setter Property="MinWidth" Value="56" />
+      <Setter Property="Padding" Value="8,7" />
+    </Style>
+
+    <Style Selector="Border.ribbon-group">
+      <Setter Property="Background" Value="#101826" />
+      <Setter Property="BorderBrush" Value="#293349" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style Selector="TextBlock.ribbon-caption">
+      <Setter Property="Foreground" Value="#90A2BC" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Border.status-chip">
+      <Setter Property="Background" Value="#101826" />
+      <Setter Property="BorderBrush" Value="#2E3B53" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="8,5" />
+    </Style>
+
+    <Style Selector="Border.workspace-chip">
+      <Setter Property="Background" Value="#10213A" />
+      <Setter Property="BorderBrush" Value="#3A5D8E" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="8,6" />
     </Style>
 
     <Style Selector="Button.generate-cta">
@@ -127,76 +208,98 @@
   </Window.KeyBindings>
 
   <Grid x:Name="RootLayoutGrid" RowDefinitions="Auto,*,6,240,6,160,Auto" Margin="14" RowSpacing="0">
-    <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-        <StackPanel Orientation="Horizontal" Spacing="20">
-          <StackPanel Spacing="5">
-            <TextBlock Text="FILE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="🆕" Click="OnNewProjectClick" ToolTip.Tip="New Project Wizard&#x0a;Start a local-first single-player project.&#x0a;Shortcut: Ctrl+N" />
-              <Button Classes="ribbon-icon" Content="📂" Click="OnOpenProjectClick" ToolTip.Tip="Open Project (.gfproj.json)&#x0a;Load editor state from local project file." />
-              <Button Classes="ribbon-icon" Content="💾" Click="OnSaveProjectClick" ToolTip.Tip="Save Project (.gfproj.json)&#x0a;Saves current editor session and prototype root.&#x0a;Shortcut: Ctrl+S" />
-            </StackPanel>
+    <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="0">
+      <Grid RowDefinitions="36,52" RowSpacing="0">
+        <DockPanel Grid.Row="0" Background="#0F1420" LastChildFill="True">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="12,6,12,6">
+            <Border Classes="status-chip">
+              <TextBlock Text="{Binding ProjectFileStatusLabel}" Foreground="#BFD4EE" FontSize="11" />
+            </Border>
+            <Border Classes="status-chip">
+              <TextBlock Text="{Binding AutosaveStatusLabel}" Foreground="#BFD4EE" FontSize="11" />
+            </Border>
+            <Border Classes="status-chip">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="11" />
+                <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+            <Border Classes="workspace-chip">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <StackPanel Spacing="1">
+                  <TextBlock Text="{Binding WorkspaceModeLabel}" Foreground="#EEF4FF" FontSize="11" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding WorkspaceModeDescription}" Foreground="#9FC2E5" FontSize="9" MaxWidth="190" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Classes="toolbar-action quiet"
+                        Content="{Binding WorkspaceModeToggleLabel}"
+                        Click="OnToggleWorkspaceModeClick"
+                        ToolTip.Tip="Toggle between Creator Mode and Pro Mode layouts." />
+              </StackPanel>
+            </Border>
           </StackPanel>
 
-          <StackPanel Spacing="5">
-            <TextBlock Text="GENERATE" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="⚡" Click="OnGenerateFromBriefClick" ToolTip.Tip="Generate from Brief" />
-              <Button Classes="ribbon-icon" Content="🤖" Click="OnGenerateAndPlayClick" ToolTip.Tip="Generate &amp; Play" />
-            </StackPanel>
-          </StackPanel>
+          <Menu Background="Transparent"
+                Foreground="#DCE8F7"
+                Margin="8,2,0,2"
+                VerticalAlignment="Center">
+            <MenuItem Header="_File">
+              <MenuItem Header="_New Project" Click="OnNewProjectClick" />
+              <MenuItem Header="_Open Project" Click="OnOpenProjectClick" />
+              <MenuItem Header="_Save Project" Click="OnSaveProjectClick" />
+            </MenuItem>
+            <MenuItem Header="_Generate">
+              <MenuItem Header="_Generate from Brief" Click="OnGenerateFromBriefClick" />
+              <MenuItem Header="Generate _and Play" Click="OnGenerateAndPlayClick" />
+            </MenuItem>
+            <MenuItem Header="_Runtime">
+              <MenuItem Header="_Play Runtime" Click="OnPlayRuntimeClick" />
+            </MenuItem>
+            <MenuItem Header="_Window">
+              <MenuItem Header="Toggle _Left Dock" Click="OnToggleLeftPaneClick" />
+              <MenuItem Header="Toggle _Right Dock" Click="OnToggleRightPaneClick" />
+              <MenuItem Header="Toggle _Bottom Dock" Click="OnToggleBottomDockClick" />
+              <MenuItem Header="Toggle _Timeline" Click="OnToggleTimelineDockClick" />
+              <MenuItem Header="Toggle _Activity" Click="OnToggleActivityDockClick" />
+              <MenuItem Header="_Focus Mode" Click="OnToggleFocusModeClick" />
+            </MenuItem>
+            <MenuItem Header="_Tools">
+              <MenuItem Header="_Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
+              <MenuItem Header="_Preferences &amp; Settings" Click="OnOpenSettingsClick" />
+              <MenuItem Header="_Help Overlay" Command="{Binding ToggleHelpOverlayCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Export">
+              <MenuItem Header="_Checklist" Click="OnOpenExportChecklistClick" />
+              <MenuItem Header="_Build Installer" Click="OnBuildInstallerClick" />
+            </MenuItem>
+          </Menu>
+        </DockPanel>
 
-          <StackPanel Spacing="5">
-            <TextBlock Text="RUNTIME" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="12,8,12,8">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="▶" Click="OnPlayRuntimeClick" ToolTip.Tip="Play Runtime&#x0a;Build and launch the Vulkan runtime preview.&#x0a;Shortcut: Ctrl+Shift+P" />
-              <Button Classes="ribbon-icon" Content="⏹" ToolTip.Tip="Stop Runtime (placeholder)" />
+              <Button Classes="toolbar-action" Content="New" Click="OnNewProjectClick" />
+              <Button Classes="toolbar-action" Content="Open" Click="OnOpenProjectClick" />
+              <Button Classes="toolbar-action" Content="Save" Click="OnSaveProjectClick" />
+              <Button Classes="toolbar-action primary" Content="Generate" Click="OnGenerateFromBriefClick" />
+              <Button Classes="toolbar-action primary" Content="Generate + Play" Click="OnGenerateAndPlayClick" />
+              <Button Classes="toolbar-action" Content="Play Runtime" Click="OnPlayRuntimeClick" />
+              <Button Classes="toolbar-action" Content="Models" Click="OnOpenModelsAndLlmSettingsClick" />
+              <Button Classes="toolbar-action" Content="Settings" Click="OnOpenSettingsClick" />
+              <Button Classes="toolbar-action" Content="Export" Click="OnOpenExportChecklistClick" />
             </StackPanel>
-          </StackPanel>
+          </ScrollViewer>
 
-          <StackPanel Spacing="5">
-            <TextBlock Text="TOOLS" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="🧩" ToolTip.Tip="Inspector Tools (placeholder)" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
-              <Button Classes="ribbon-icon" Content="📊" ToolTip.Tip="Debug Console" />
-              <Button Classes="ribbon-icon" Content="🧠" Click="OnOpenModelsAndLlmSettingsClick" ToolTip.Tip="Models &amp; LLM&#x0a;Open model downloads, onboarding, and local LLM settings." />
-              <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings&#x0a;Tune autosave, theme, and runtime defaults with live preview.&#x0a;Shortcut: Ctrl+Shift+S" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
-              <Button Classes="ribbon-icon" Content="❔" Command="{Binding ToggleHelpOverlayCommand}" ToolTip.Tip="How to use overlay&#x0a;Quick workflow hints for no-code-first editing." />
-            </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+            <Border Classes="status-chip">
+              <TextBlock Text="{Binding RuntimePreferencesSummary}" Foreground="#BFD4EE" FontSize="11" />
+            </Border>
+            <Button Classes="toolbar-action quiet" Content="Left" Click="OnToggleLeftPaneClick" />
+            <Button Classes="toolbar-action quiet" Content="Right" Click="OnToggleRightPaneClick" />
+            <Button Classes="toolbar-action quiet" Content="Bottom" Click="OnToggleBottomDockClick" />
+            <Button Classes="toolbar-action quiet" Content="Focus" Click="OnToggleFocusModeClick" />
           </StackPanel>
-
-          <StackPanel Spacing="5">
-            <TextBlock Text="EXPORT" Foreground="#90A2BC" FontSize="11" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="ribbon-icon" Content="📦" Click="OnOpenExportChecklistClick" ToolTip.Tip="Open Export + Publish Checklist" />
-              <Button Classes="ribbon-icon" Content="🛠" Click="OnBuildInstallerClick" ToolTip.Tip="Build native installer (MSI / DEB / AppImage / DMG)" IsEnabled="{Binding CanRunInstallerBuild}" />
-            </StackPanel>
-          </StackPanel>
-        </StackPanel>
-
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-          <Border Background="#10213A" BorderBrush="#3A5D8E" BorderThickness="1" CornerRadius="8" Padding="10,6">
-            <StackPanel Spacing="1">
-              <TextBlock Text="{Binding WorkspaceModeLabel}" Foreground="#EEF4FF" FontSize="12" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding WorkspaceModeDescription}" Foreground="#9FC2E5" FontSize="10" MaxWidth="290" TextWrapping="Wrap" />
-            </StackPanel>
-          </Border>
-          <TextBlock Text="{Binding ProjectFileStatusLabel}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
-          <TextBlock Text="{Binding AutosaveStatusLabel}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
-          <TextBlock Text="{Binding RuntimePreferencesSummary}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
-          <Button Content="{Binding WorkspaceModeToggleLabel}"
-                  Click="OnToggleWorkspaceModeClick"
-                  ToolTip.Tip="Toggle between Creator Mode and Pro Mode layouts." />
-          <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="12" />
-          <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
-          <Button Content="◧ Left" Click="OnToggleLeftPaneClick" ToolTip.Tip="Show/hide the left panel dock." />
-          <Button Content="◨ Right" Click="OnToggleRightPaneClick" ToolTip.Tip="Show/hide the right panel dock." />
-          <Button Content="▤ Bottom" Click="OnToggleBottomDockClick" ToolTip.Tip="Show/hide timeline and activity docks." />
-          <Button Content="🎞 Timeline" Click="OnToggleTimelineDockClick" ToolTip.Tip="Show/hide the timeline dock." />
-          <Button Content="🧾 Activity" Click="OnToggleActivityDockClick" ToolTip.Tip="Show/hide the activity log dock." />
-          <Button Content="🎯 Focus" Click="OnToggleFocusModeClick" ToolTip.Tip="Focus mode: maximize viewport and hide surrounding docks." />
-        </StackPanel>
+        </Grid>
       </Grid>
     </Border>
 

@@ -119,9 +119,31 @@
             <StackPanel Margin="16" Spacing="12">
               <TextBlock Text="Local model setup and onboarding" Foreground="#DDEBFF" FontWeight="SemiBold" />
               <TextBlock Name="ModelRecommendationSummaryText"
-                         Text="ForgeGuard can be installed immediately. Run onboarding to unlock hardware-matched recommendations."
+                         Text="Add your Hugging Face token first, then Quick Setup can install ForgeGuard, Free-Will, and Coding."
                          Foreground="#97AECC"
                          TextWrapping="Wrap" />
+
+              <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Hugging Face access" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBlock Text="Soul Loom now requires your Hugging Face token before first model download so setup does not stall on anonymous rate limits."
+                             Foreground="#97AECC"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Paste token" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBox Name="HuggingFaceTokenTextBox" Watermark="hf_..." />
+                  <WrapPanel ItemWidth="170" Orientation="Horizontal">
+                    <Button Name="SaveHuggingFaceTokenButton" Content="Save Token" MinWidth="150" Margin="0,0,8,8" Click="OnSaveHuggingFaceTokenClick" />
+                    <Button Name="ClearHuggingFaceTokenButton" Content="Clear Token" MinWidth="150" Margin="0,0,8,8" Click="OnClearHuggingFaceTokenClick" />
+                    <Button Content="Create Account" MinWidth="150" Margin="0,0,8,8" Click="OnCreateHuggingFaceAccountClick" />
+                    <Button Content="Log In" MinWidth="150" Margin="0,0,8,8" Click="OnLoginHuggingFaceClick" />
+                    <Button Content="Open Access Tokens" MinWidth="170" Margin="0,0,8,8" Click="OnOpenHuggingFaceTokensClick" />
+                  </WrapPanel>
+                  <TextBlock Name="HuggingFaceTokenStatusText"
+                             Text="No Hugging Face token configured yet."
+                             Foreground="#AFC2DF"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
 
               <WrapPanel ItemWidth="180" Orientation="Horizontal">
                 <Button Name="QuickStartModelsButton" Content="Quick Start" MinWidth="170" Margin="0,0,8,8" Click="OnQuickStartModelsClick" />

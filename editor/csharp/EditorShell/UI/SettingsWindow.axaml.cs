@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor.EditorShell.ViewModels;
+using System.Diagnostics;
 
 namespace GameForge.Editor.EditorShell.UI;
 
@@ -33,6 +34,8 @@ public partial class SettingsWindow : Window
     public event Func<Task>? SetupFreeWillModelRequested;
     public event Func<Task>? RetryModelOperationRequested;
     public event Func<Task>? RefreshModelsRequested;
+    public event Func<string, Task>? SaveHuggingFaceTokenRequested;
+    public event Func<Task>? ClearHuggingFaceTokenRequested;
 
     private void InitializeComponent()
     {
@@ -150,6 +153,12 @@ public partial class SettingsWindow : Window
         SetButtonEnabled("SetupFreeWillModelButton", canRunActions);
         SetButtonEnabled("RetryModelOperationButton", canRunActions);
         SetButtonEnabled("RefreshModelsButton", canRunActions);
+    }
+
+    public void UpdateHuggingFaceTokenState(string statusMessage, bool hasTokenConfigured)
+    {
+        SetTextValue("HuggingFaceTokenStatusText", statusMessage);
+        SetButtonEnabled("ClearHuggingFaceTokenButton", hasTokenConfigured);
     }
 
     private static string BuildModelEntriesSummary(IReadOnlyList<MainWindowViewModel.ModelManagerEntry> entries)
@@ -360,6 +369,66 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private async void OnSaveHuggingFaceTokenClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var token = GetTextValue("HuggingFaceTokenTextBox", string.Empty);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                ShowValidationMessage("Paste your Hugging Face token first.");
+                return;
+            }
+
+            if (SaveHuggingFaceTokenRequested is not null)
+            {
+                await SaveHuggingFaceTokenRequested.Invoke(token);
+            }
+
+            SetTextValue("HuggingFaceTokenTextBox", string.Empty);
+            ShowValidationMessage("Hugging Face token saved locally for this workspace.");
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Saving Hugging Face token failed.", ex);
+            ShowValidationMessage($"Saving token failed: {ex.Message}");
+        }
+    }
+
+    private async void OnClearHuggingFaceTokenClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (ClearHuggingFaceTokenRequested is not null)
+            {
+                await ClearHuggingFaceTokenRequested.Invoke();
+            }
+
+            SetTextValue("HuggingFaceTokenTextBox", string.Empty);
+            ShowValidationMessage("Workspace Hugging Face token cleared.");
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Clearing Hugging Face token failed.", ex);
+            ShowValidationMessage($"Clearing token failed: {ex.Message}");
+        }
+    }
+
+    private void OnCreateHuggingFaceAccountClick(object? sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl("https://huggingface.co/join");
+    }
+
+    private void OnLoginHuggingFaceClick(object? sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl("https://huggingface.co/login");
+    }
+
+    private void OnOpenHuggingFaceTokensClick(object? sender, RoutedEventArgs e)
+    {
+        OpenExternalUrl("https://huggingface.co/settings/tokens");
+    }
+
     private void EmitPreviewIfReady()
     {
         if (_isInitializing)
@@ -462,15 +531,14 @@ public partial class SettingsWindow : Window
 
     private void SetTextValue(string controlName, string value)
     {
-        var textBox = this.FindControl<TextBox>(controlName);
-        if (textBox is not null)
+        var control = this.FindControl<Control>(controlName);
+        if (control is TextBox textBox)
         {
             textBox.Text = value;
             return;
         }
 
-        var textBlock = this.FindControl<TextBlock>(controlName);
-        if (textBlock is not null)
+        if (control is TextBlock textBlock)
         {
             textBlock.Text = value;
         }
@@ -478,8 +546,8 @@ public partial class SettingsWindow : Window
 
     private string GetTextValue(string controlName, string fallback)
     {
-        var textBox = this.FindControl<TextBox>(controlName);
-        var value = textBox?.Text?.Trim();
+        var control = this.FindControl<Control>(controlName);
+        var value = (control as TextBox)?.Text?.Trim();
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
@@ -519,6 +587,23 @@ public partial class SettingsWindow : Window
         if (validationMessage is not null)
         {
             validationMessage.Text = message;
+        }
+    }
+
+    private void OpenExternalUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException($"Opening external URL failed: {url}", ex);
+            ShowValidationMessage($"Could not open {url}");
         }
     }
 }

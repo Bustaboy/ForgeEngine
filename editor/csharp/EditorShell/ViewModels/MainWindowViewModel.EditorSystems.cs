@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
@@ -9,6 +10,16 @@ namespace GameForge.Editor.EditorShell.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
+    private static readonly string[] LightweightModelDownloadPackages =
+    [
+        "huggingface_hub>=0.25.0",
+        "filelock>=3.0.0",
+        "tqdm>=4.66.0",
+        "python-dotenv>=1.0.0",
+        "requests>=2.32.0",
+        "Pillow>=10.0.0",
+    ];
+
     private const string SystemTabDayNight = "DayNight";
     private const string SystemTabBuildings = "Buildings";
     private const string SystemTabInventoryRecipes = "InventoryRecipes";
@@ -22,6 +33,8 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabCombat = "Combat";
     private const string SystemTabModels = "Models";
     private const string SystemTabSettings = "Settings";
+    private const int ModelsJsonReadRetryCount = 8;
+    private static readonly TimeSpan ModelsJsonReadRetryDelay = TimeSpan.FromMilliseconds(120);
 
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
@@ -41,6 +54,7 @@ public sealed partial class MainWindowViewModel
     private CancellationTokenSource? _activeModelOperationCts;
     private string? _activeModelCancelFilePath;
     private string? _activeModelOperationLabel;
+    private ModelOperationErrorState? _activeModelOperationErrorState;
     private string? _activeModelCommand;
     private List<string> _activeModelArgs = [];
     private List<string> _activeTrackedModelNames = [];
@@ -1340,15 +1354,7 @@ public sealed partial class MainWindowViewModel
         {
             var repositoryRoot = ResolveRepositoryRoot();
             var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
-            JsonObject payload;
-            if (File.Exists(modelsJsonPath))
-            {
-                payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject ?? new JsonObject();
-            }
-            else
-            {
-                payload = new JsonObject();
-            }
+            var payload = await ReadModelsJsonObjectAsync(modelsJsonPath) ?? new JsonObject();
 
             RebuildModelManagerEntries(payload);
         }
@@ -1385,12 +1391,103 @@ public sealed partial class MainWindowViewModel
     private async Task<JsonObject?> LoadModelsPayloadAsync()
     {
         var modelsJsonPath = ResolveModelsJsonPath();
+        return await ReadModelsJsonObjectAsync(modelsJsonPath);
+    }
+
+    private static async Task<JsonObject?> ReadModelsJsonObjectAsync(string modelsJsonPath)
+    {
         if (!File.Exists(modelsJsonPath))
         {
             return null;
         }
 
-        return JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+        for (var attempt = 0; attempt < ModelsJsonReadRetryCount; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(
+                    modelsJsonPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8, true);
+                var json = await reader.ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    throw new JsonException("models.json is empty.");
+                }
+                return JsonNode.Parse(json) as JsonObject;
+            }
+            catch (IOException) when (attempt < ModelsJsonReadRetryCount - 1)
+            {
+                await Task.Delay(ModelsJsonReadRetryDelay);
+            }
+            catch (JsonException) when (attempt < ModelsJsonReadRetryCount - 1)
+            {
+                await Task.Delay(ModelsJsonReadRetryDelay);
+            }
+        }
+
+        await using var fallbackStream = new FileStream(
+            modelsJsonPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var fallbackReader = new StreamReader(fallbackStream, Encoding.UTF8, true);
+        var fallbackJson = await fallbackReader.ReadToEndAsync();
+        if (string.IsNullOrWhiteSpace(fallbackJson))
+        {
+            return null;
+        }
+        return JsonNode.Parse(fallbackJson) as JsonObject;
+    }
+
+    private static JsonObject? ReadModelsJsonObject(string modelsJsonPath)
+    {
+        if (!File.Exists(modelsJsonPath))
+        {
+            return null;
+        }
+
+        for (var attempt = 0; attempt < ModelsJsonReadRetryCount; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(
+                    modelsJsonPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8, true);
+                var json = reader.ReadToEnd();
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    throw new JsonException("models.json is empty.");
+                }
+                return JsonNode.Parse(json) as JsonObject;
+            }
+            catch (IOException) when (attempt < ModelsJsonReadRetryCount - 1)
+            {
+                Thread.Sleep(ModelsJsonReadRetryDelay);
+            }
+            catch (JsonException) when (attempt < ModelsJsonReadRetryCount - 1)
+            {
+                Thread.Sleep(ModelsJsonReadRetryDelay);
+            }
+        }
+
+        using var fallbackStream = new FileStream(
+            modelsJsonPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var fallbackReader = new StreamReader(fallbackStream, Encoding.UTF8, true);
+        var fallbackJson = fallbackReader.ReadToEnd();
+        if (string.IsNullOrWhiteSpace(fallbackJson))
+        {
+            return null;
+        }
+        return JsonNode.Parse(fallbackJson) as JsonObject;
     }
 
     private static JsonObject? GetConfiguredModelEntry(JsonObject? configuredModels, string friendlyName)
@@ -1586,9 +1683,13 @@ public sealed partial class MainWindowViewModel
         try
         {
             await RunModelOnboardingAsync();
-            foreach (var model in _modelManagerEntries.Where(item => item.ShouldDownloadByDefault))
+            var recommendedModels = _modelManagerEntries
+                .Where(item => item.ShouldDownloadByDefault)
+                .Select(item => item.FriendlyName)
+                .ToList();
+            foreach (var modelFriendlyName in recommendedModels)
             {
-                await DownloadManagedModelAsync(model.FriendlyName);
+                await DownloadManagedModelAsync(modelFriendlyName);
             }
 
             ModelManagerStatus = "Recommended model setup complete.";
@@ -1652,14 +1753,7 @@ public sealed partial class MainWindowViewModel
         {
             var repositoryRoot = ResolveRepositoryRoot();
             var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
-            if (File.Exists(modelsJsonPath))
-            {
-                modelsPayload = JsonNode.Parse(File.ReadAllText(modelsJsonPath)) as JsonObject ?? new JsonObject();
-            }
-            else
-            {
-                modelsPayload = new JsonObject();
-            }
+            modelsPayload = ReadModelsJsonObject(modelsJsonPath) ?? new JsonObject();
         }
 
         var onboarding = modelsPayload["onboarding"] as JsonObject;
@@ -1777,6 +1871,34 @@ public sealed partial class MainWindowViewModel
         IsModelErrorRetryEnabled = false;
     }
 
+    public string GetHuggingFaceTokenStatus()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        return HuggingFaceTokenStore.ResolveToken(repositoryRoot).StatusMessage;
+    }
+
+    public bool IsHuggingFaceTokenConfigured()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        return HuggingFaceTokenStore.ResolveToken(repositoryRoot).IsConfigured;
+    }
+
+    public Task SaveHuggingFaceTokenAsync(string token)
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        HuggingFaceTokenStore.SaveWorkspaceToken(repositoryRoot, token);
+        ModelManagerStatus = "Hugging Face token saved locally for this workspace.";
+        return Task.CompletedTask;
+    }
+
+    public Task ClearHuggingFaceTokenAsync()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        HuggingFaceTokenStore.ClearWorkspaceToken(repositoryRoot);
+        ModelManagerStatus = "Workspace Hugging Face token cleared. Add a new token before downloading models.";
+        return Task.CompletedTask;
+    }
+
     private async Task<bool> RunManagedModelOperationWithProgressAsync(
         string operationLabel,
         IReadOnlyList<string> trackedModelNames,
@@ -1798,6 +1920,7 @@ public sealed partial class MainWindowViewModel
         _activeModelCommand = command;
         _activeModelArgs = args.ToList();
         _activeTrackedModelNames = trackedModelNames.Select(item => item.ToLowerInvariant()).ToList();
+        _activeModelOperationErrorState = null;
         IsDownloadErrorVisible = false;
         IsModelErrorRetryEnabled = false;
         RebuildModelManagerEntries(null);
@@ -1827,6 +1950,40 @@ public sealed partial class MainWindowViewModel
         _activeModelCancelFilePath = Path.Combine(Path.GetTempPath(), $"soulloom-model-cancel-{Guid.NewGuid():N}.flag");
         try
         {
+            var tokenError = EnsureHuggingFaceTokenConfigured();
+            if (tokenError is not null)
+            {
+                ModelManagerStatus = tokenError.UserMessage;
+                DownloadErrorTitle = "Hugging Face token required";
+                DownloadErrorMessage = tokenError.UserMessage;
+                DownloadErrorGuidance = tokenError.SuggestedAction;
+                IsModelErrorRetryEnabled = tokenError.Retryable;
+                IsDownloadErrorVisible = true;
+                foreach (var modelName in trackedModelNames)
+                {
+                    _modelLastErrorByName[modelName] = tokenError.UserMessage;
+                }
+                RebuildModelManagerEntries(null);
+                return false;
+            }
+
+            var pythonEnvironmentError = await EnsurePythonModelDownloadEnvironmentAsync(cts.Token);
+            if (pythonEnvironmentError is not null)
+            {
+                ModelManagerStatus = pythonEnvironmentError.UserMessage;
+                DownloadErrorTitle = "Python environment needs attention";
+                DownloadErrorMessage = pythonEnvironmentError.UserMessage;
+                DownloadErrorGuidance = pythonEnvironmentError.SuggestedAction;
+                IsModelErrorRetryEnabled = pythonEnvironmentError.Retryable;
+                IsDownloadErrorVisible = true;
+                foreach (var modelName in trackedModelNames)
+                {
+                    _modelLastErrorByName[modelName] = pythonEnvironmentError.UserMessage;
+                }
+                RebuildModelManagerEntries(null);
+                return false;
+            }
+
             var progressArgs = new List<string> { command };
             progressArgs.AddRange(args);
             progressArgs.Add("--progress-json");
@@ -1841,7 +1998,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.ExitCode != 0)
             {
-                var operationError = ParseModelOperationError(result.Stdout, result.Stderr);
+                var operationError = _activeModelOperationErrorState ?? ParseModelOperationError(result.Stdout, result.Stderr);
                 var errorMessage = operationError?.UserMessage ?? "Model operation could not complete.";
                 var guidance = operationError?.SuggestedAction ?? "Retry from Models & LLM settings or check local network/disk access.";
                 ModelManagerStatus = errorMessage;
@@ -1878,6 +2035,7 @@ public sealed partial class MainWindowViewModel
             }
             _activeModelCancelFilePath = null;
             _activeModelOperationCts = null;
+            _activeModelOperationErrorState = null;
             if (!IsDownloadErrorVisible)
             {
                 IsDownloadProgressVisible = false;
@@ -1890,6 +2048,21 @@ public sealed partial class MainWindowViewModel
             }
             RebuildModelManagerEntries(null);
         }
+    }
+
+    private ModelOperationErrorState? EnsureHuggingFaceTokenConfigured()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        var tokenInfo = HuggingFaceTokenStore.ResolveToken(repositoryRoot);
+        if (tokenInfo.IsConfigured)
+        {
+            return null;
+        }
+
+        return new ModelOperationErrorState(
+            "Soul Loom needs your Hugging Face access token before it can download ForgeGuard, Free-Will, or Coding.",
+            "Open Models & LLM, paste your token, then use Create Account / Log In / Access Tokens if you still need one.",
+            false);
     }
 
     private async Task<(int ExitCode, string Stdout, string Stderr)> RunAiHookProcessWithProgressAsync(
@@ -1918,29 +2091,267 @@ public sealed partial class MainWindowViewModel
             // Best effort only. The editor never supplies stdin to orchestrator flows.
         }
 
-        var stdoutLines = new List<string>();
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
-            if (line is null)
+            var stdoutLines = new List<string>();
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            while (true)
             {
-                break;
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
+                if (line is null)
+                {
+                    break;
+                }
+
+                if (TryHandleModelProgressLine(line))
+                {
+                    continue;
+                }
+
+                stdoutLines.Add(line);
             }
 
-            if (TryHandleModelProgressLine(line))
+            await process.WaitForExitAsync(cancellationToken);
+            var stderr = await stderrTask;
+            var stdout = string.Join(Environment.NewLine, stdoutLines);
+            return (process.ExitCode, stdout, stderr);
+        }
+        finally
+        {
+            TryTerminateProcessTree(process);
+        }
+    }
+
+    private async Task<ModelOperationErrorState?> EnsurePythonModelDownloadEnvironmentAsync(CancellationToken cancellationToken)
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        var venvPython = PythonEnvironment.GetRepositoryVirtualEnvironmentPythonExecutable(repositoryRoot);
+        if (!File.Exists(venvPython))
+        {
+            DownloadProgressTitle = "Preparing local AI environment";
+            DownloadProgressSummary = "Creating a repository Python environment for model downloads...";
+            DownloadProgressCurrentFile = "Creating .venv for local AI tools...";
+            DownloadProgressSpeed = "Speed: --";
+            DownloadProgressEta = "ETA: --";
+            IsDownloadProgressIndeterminate = true;
+
+            var bootstrapPython = PythonEnvironment.ResolvePythonExecutable(repositoryRoot);
+            if (OperatingSystem.IsWindows() && PythonEnvironment.IsMsysPythonExecutable(bootstrapPython))
             {
-                continue;
+                return CreatePythonEnvironmentError(
+                    "The editor found an MSYS Python interpreter, which cannot provision the repository model-download environment on Windows.",
+                    "Run `pwsh -f scripts/Setup-Alpha.ps1 -Fresh` so Soul Loom can recreate `.venv` with the Windows Python install, then retry Quick Setup.",
+                    new ProcessResult(-1, string.Empty, bootstrapPython));
             }
 
-            stdoutLines.Add(line);
+            var createVenvResult = await RunExternalProcessAsync(
+                bootstrapPython,
+                repositoryRoot,
+                ["-m", "venv", Path.Combine(repositoryRoot, ".venv")],
+                cancellationToken);
+            if (createVenvResult.ExitCode != 0 || !File.Exists(venvPython))
+            {
+                return CreatePythonEnvironmentError(
+                    "The editor could not create the repository Python environment needed for model downloads.",
+                    "Run `pwsh -f scripts/Setup-Alpha.ps1` to provision `.venv`, then retry Quick Setup.",
+                    createVenvResult);
+            }
         }
 
-        await process.WaitForExitAsync(cancellationToken);
-        var stderr = await stderrTask;
-        var stdout = string.Join(Environment.NewLine, stdoutLines);
-        return (process.ExitCode, stdout, stderr);
+        var hasHub = await PythonCommandSucceedsAsync(
+            venvPython,
+            "from huggingface_hub import snapshot_download",
+            repositoryRoot,
+            cancellationToken);
+        var hasTqdm = await PythonModuleAvailableAsync(venvPython, "tqdm", repositoryRoot, cancellationToken);
+        if (hasHub && hasTqdm)
+        {
+            return null;
+        }
+
+        DownloadProgressTitle = "Preparing local AI environment";
+        DownloadProgressSummary = "Installing lightweight Python packages required for model downloads...";
+        DownloadProgressCurrentFile = "Installing huggingface_hub, tqdm, and related helpers into .venv...";
+        DownloadProgressSpeed = "Speed: --";
+        DownloadProgressEta = "ETA: --";
+        IsDownloadProgressIndeterminate = true;
+
+        var ensurePipResult = await RunExternalProcessAsync(
+            venvPython,
+            repositoryRoot,
+            ["-m", "ensurepip", "--upgrade"],
+            cancellationToken);
+        if (ensurePipResult.ExitCode != 0)
+        {
+            return CreatePythonEnvironmentError(
+                "The repository Python environment is missing pip support required for model downloads.",
+                "Run `pwsh -f scripts/Setup-Alpha.ps1` to repair `.venv`, then retry Quick Setup.",
+                ensurePipResult);
+        }
+
+        var pipUpgradeResult = await RunExternalProcessAsync(
+            venvPython,
+            repositoryRoot,
+            ["-m", "pip", "install", "--upgrade", "pip"],
+            cancellationToken);
+        if (pipUpgradeResult.ExitCode != 0)
+        {
+            return CreatePythonEnvironmentError(
+                "The editor could not prepare pip inside the repository Python environment.",
+                "Check internet access, then run `pwsh -f scripts/Setup-Alpha.ps1` or install dependencies manually into `.venv`.",
+                pipUpgradeResult);
+        }
+
+        var installArgs = new List<string> { "-m", "pip", "install" };
+        installArgs.AddRange(LightweightModelDownloadPackages);
+        var pipInstallResult = await RunExternalProcessAsync(
+            venvPython,
+            repositoryRoot,
+            installArgs,
+            cancellationToken);
+        if (pipInstallResult.ExitCode != 0)
+        {
+            return CreatePythonEnvironmentError(
+                "The editor could not install the Python packages required for model downloads.",
+                "Run `pwsh -f scripts/Setup-Alpha.ps1` or install `ai-orchestration/python/requirements.txt` into `.venv`, then retry.",
+                pipInstallResult);
+        }
+
+        DownloadProgressCurrentFile = "Python download environment ready. Starting model host contact...";
+        return null;
+    }
+
+    private async Task<bool> PythonModuleAvailableAsync(
+        string pythonExecutable,
+        string moduleName,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var result = await RunExternalProcessAsync(
+            pythonExecutable,
+            workingDirectory,
+            ["-c", $"import {moduleName}"],
+            cancellationToken,
+            logCommand: false);
+        return result.ExitCode == 0;
+    }
+
+    private async Task<bool> PythonCommandSucceedsAsync(
+        string pythonExecutable,
+        string command,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var result = await RunExternalProcessAsync(
+            pythonExecutable,
+            workingDirectory,
+            ["-c", command],
+            cancellationToken,
+            logCommand: false);
+        return result.ExitCode == 0;
+    }
+
+    private async Task<ProcessResult> RunExternalProcessAsync(
+        string fileName,
+        string workingDirectory,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken,
+        bool logCommand = true)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        if (logCommand)
+        {
+            var oneLine = $"{startInfo.FileName} {string.Join(" ", startInfo.ArgumentList.Select(item => item.Contains(' ') ? $"\"{item}\"" : item))}";
+            _aiCommandLog.Add($"[{DateTimeOffset.UtcNow:HH:mm:ss}] {oneLine}");
+            OnPropertyChanged(nameof(AiCommandLog));
+        }
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            return new ProcessResult(-1, string.Empty, $"{fileName} process failed to start.");
+        }
+
+        try
+        {
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+            return new ProcessResult(process.ExitCode, stdout, stderr);
+        }
+        finally
+        {
+            TryTerminateProcessTree(process);
+        }
+    }
+
+    private static void TryTerminateProcessTree(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit(5000);
+        }
+        catch
+        {
+            // Best effort only. This runs during cleanup after cancellation/errors/shutdown.
+        }
+    }
+
+    private static ModelOperationErrorState CreatePythonEnvironmentError(
+        string userMessage,
+        string suggestedAction,
+        ProcessResult result)
+    {
+        var detail = SummarizeProcessFailure(result);
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return new ModelOperationErrorState(userMessage, suggestedAction, false);
+        }
+
+        return new ModelOperationErrorState(
+            userMessage,
+            $"{suggestedAction}{Environment.NewLine}{Environment.NewLine}Last error:{Environment.NewLine}{detail}",
+            false);
+    }
+
+    private static string SummarizeProcessFailure(ProcessResult result)
+    {
+        var combined = string.Join(
+            Environment.NewLine,
+            new[] { result.Stderr, result.Stdout }.Where(text => !string.IsNullOrWhiteSpace(text)));
+        if (string.IsNullOrWhiteSpace(combined))
+        {
+            return string.Empty;
+        }
+
+        var lines = combined
+            .Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .TakeLast(8)
+            .ToArray();
+        return string.Join(Environment.NewLine, lines);
     }
 
     private bool TryHandleModelProgressLine(string line)
@@ -2081,6 +2492,7 @@ public sealed partial class MainWindowViewModel
             var errorState = ParseModelErrorPayload(payload["error"] as JsonObject);
             if (errorState is not null)
             {
+                _activeModelOperationErrorState = errorState;
                 DownloadErrorTitle = "Model setup needs attention";
                 DownloadErrorMessage = errorState.UserMessage;
                 DownloadErrorGuidance = errorState.SuggestedAction;
@@ -2100,6 +2512,17 @@ public sealed partial class MainWindowViewModel
             {
                 return state;
             }
+        }
+
+        var rawText = $"{stdout}{Environment.NewLine}{stderr}";
+        if (rawText.Contains("huggingface_hub is required", StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains("No module named 'huggingface_hub'", StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains("No module named 'tqdm'", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ModelOperationErrorState(
+                "Python model download dependencies are missing.",
+                "Run `pwsh -f scripts/Setup-Alpha.ps1` or let the editor create `.venv` and retry Quick Setup.",
+                false);
         }
 
         return null;
@@ -2201,12 +2624,7 @@ public sealed partial class MainWindowViewModel
     {
         var repositoryRoot = ResolveRepositoryRoot();
         var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
-        if (!File.Exists(modelsJsonPath))
-        {
-            return;
-        }
-
-        var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+        var payload = await ReadModelsJsonObjectAsync(modelsJsonPath);
         var freewillPath = payload?["models"]?["freewill"]?["path"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(freewillPath))
         {
