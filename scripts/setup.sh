@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # ------------------------------------------------------------
-# ForgeEngine Alpha Setup (Linux/macOS)
+# Soul Loom Setup (Linux/macOS)
 # One-command, idempotent environment bootstrap for testers.
 # ------------------------------------------------------------
 
@@ -37,7 +37,7 @@ trap 'on_error $LINENO' ERR
 
 usage() {
   cat <<USAGE
-ForgeEngine Alpha setup (Linux/macOS)
+Soul Loom setup (Linux/macOS)
 
 Usage:
   ./scripts/setup.sh [--fresh]
@@ -333,8 +333,8 @@ create_or_reuse_venv() {
 }
 
 run_bootstrap() {
-  CURRENT_STEP="running ForgeEngine bootstrap (compiling C++ runtime, verifying project structure)"
-  step "Running ForgeEngine bootstrap script"
+  CURRENT_STEP="running Soul Loom bootstrap (compiling C++ runtime, verifying project structure)"
+  step "Running Soul Loom bootstrap script"
   "$REPO_ROOT/scripts/bootstrap.sh"
   success "Bootstrap completed."
 }
@@ -363,7 +363,7 @@ run_models_if_needed() {
 
 main() {
   parse_args "$@"
-  step "Starting ForgeEngine Alpha one-command setup"
+  step "Starting Soul Loom one-command setup"
 
   case "$(uname -s)" in
     Linux)
@@ -391,9 +391,7 @@ main() {
   printf "  cd %q\n" "$REPO_ROOT"
   printf "  ./scripts/bootstrap.sh\n"
   printf "  # Or run editor directly:\n"
-  printf "  dotnet run --project editor/csharp/GameForge.Editor.csproj\n"
-  printf "  # CI/headless launcher smoke:\n"
-  printf "  ./scripts/bootstrap.sh --launcher-smoke\n"
+  printf "  pwsh -f scripts/bootstrap.ps1\n"
 }
 
 main "$@"

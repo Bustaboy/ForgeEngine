@@ -34,7 +34,7 @@ Paste exact commands executed (copy from terminal history).
 
 ### Output signature checks
 
-- [ ] Contains `GameForge V1 bootstrap (Windows)`
+- [ ] Contains `Soul Loom bootstrap (Windows)`
 - [ ] Contains `== Building Runtime Entrypoint (C++) ==`
 - [ ] Runtime-only exit code is `0`
 - [ ] Full bootstrap exit code is `0` or documented skip due to missing dotnet
@@ -61,3 +61,4 @@ Paste exact commands executed (copy from terminal history).
   - [ ] Other
 - Follow-up owner:
 - Next action:
+

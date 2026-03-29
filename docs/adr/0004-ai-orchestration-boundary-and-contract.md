@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-03-21
 - **Owners:** AI Orchestration + Architecture
-- **Deciders:** GameForge V1 maintainers
+- **Deciders:** Soul Loom maintainers
 
 ## Context
 V1 requires AI-assisted planning and automation while preserving user control and predictable editor/runtime behavior. The stack lock sets AI orchestration to Python. Architectural boundaries are needed so AI can propose/execute changes without directly mutating runtime internals in unsafe ways.
@@ -66,3 +66,4 @@ Use **Python** for AI orchestration as a separate orchestration layer that:
 ## References
 - Related ADRs: ADR-0001, ADR-0002, ADR-0003
 - External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+

@@ -1,4 +1,4 @@
-# ForgeEngine Hardware Benchmark Wizard (First Run)
+# Soul Loom Hardware Benchmark Wizard (First Run)
 
 This package provides first-launch hardware detection + model recommendations for the C# editor shell.
 
@@ -32,3 +32,4 @@ The example calls `orchestrator.py --benchmark`, parses JSON, then renders a sim
 - `python3 scripts/run_smoke_and_capture_evidence.py --help`
 
 Use the smoke evidence workflow templates in `docs/release/evidence/` to attach benchmark JSON output as part of launch validation notes.
+

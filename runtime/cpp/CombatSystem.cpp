@@ -87,8 +87,7 @@ float BuildMaxHealth(const Scene& scene, const Entity& entity) {
 
 std::uint32_t BuildMaxAp(const Entity& entity) {
     const float baseline = 2.0F + (entity.needs.energy / 33.0F);
-    const float rounded = static_cast<float>(std::round(baseline));
-    return static_cast<std::uint32_t>(std::clamp(rounded, 2.0F, 5.0F));
+    return static_cast<std::uint32_t>(std::clamp(std::round(baseline), 2.0F, 5.0F));
 }
 
 float BuildInitiative(const Scene& scene, const Entity& entity) {

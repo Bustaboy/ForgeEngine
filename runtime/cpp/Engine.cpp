@@ -1113,7 +1113,7 @@ void Engine::Run() {
                 overlay_status_message_,
                 debug_overlay_enabled_);
             renderer_.SetWindowTitle(
-                "ForgeEngine Runtime (Vulkan-first) | FPS: " + std::to_string(timer_.Fps()) +
+                "Soul Loom Runtime (Vulkan-first) | FPS: " + std::to_string(timer_.Fps()) +
                 " | Frame: " + timer_.FrameTimeMsText() + "ms | " + day_clock + " | " + overlay_status_message_);
             GF_LOG_INFO("Day time: " + std::to_string(scene_.day_progress));
         }
@@ -1148,7 +1148,7 @@ void Engine::RunHeadlessSmoke() {
 
 void Engine::Init() {
     Logger::Init();
-    GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");
+    GF_LOG_INFO("Soul Loom Vulkan runtime initialized");
 
     if (SceneLoader::Load(scene_path_, scene_)) {
         GF_LOG_INFO("Loaded scene: " + scene_path_);

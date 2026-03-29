@@ -9,11 +9,11 @@ $rid = "win-x64"
 $outputRoot = Join-Path $repoRoot "build/release/$rid"
 $publishDir = Join-Path $outputRoot "publish"
 $runtimeDir = Join-Path $outputRoot "runtime"
-$runtimeExe = Join-Path $runtimeDir "forgeengine_runtime.exe"
+$runtimeExe = Join-Path $runtimeDir "soul_loom_runtime.exe"
 $packageRoot = Join-Path $outputRoot "package"
-$appPayload = Join-Path $packageRoot "ForgeEngine"
-$wxsPath = Join-Path $packageRoot "ForgeEngine.wxs"
-$msiPath = Join-Path $outputRoot "ForgeEngine-$Version-win-x64.msi"
+$appPayload = Join-Path $packageRoot "SoulLoom"
+$wxsPath = Join-Path $packageRoot "SoulLoom.wxs"
+$msiPath = Join-Path $outputRoot "SoulLoom-$Version-win-x64.msi"
 $sampleBrief = Join-Path $repoRoot "app/samples/interview-brief.sample.json"
 $playtestScenario = Join-Path $repoRoot "app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json"
 $pythonPathRoot = Join-Path $repoRoot "ai-orchestration/python"
@@ -26,7 +26,7 @@ else {
 
 New-Item -ItemType Directory -Force -Path $publishDir, $runtimeDir, $packageRoot | Out-Null
 
-Write-Host "== ForgeEngine Windows packaging =="
+Write-Host "== Soul Loom Windows packaging =="
 Write-Host "Version: $Version"
 
 Write-Host "[1/7] Building C++ runtime"
@@ -47,7 +47,7 @@ Write-Host "[3/7] Staging app payload"
 if (Test-Path $appPayload) { Remove-Item -Recurse -Force $appPayload }
 New-Item -ItemType Directory -Path $appPayload | Out-Null
 Copy-Item -Recurse -Force (Join-Path $publishDir "*") $appPayload
-Copy-Item -Force $runtimeExe (Join-Path $appPayload "forgeengine_runtime.exe")
+Copy-Item -Force $runtimeExe (Join-Path $appPayload "soul_loom_runtime.exe")
 Copy-Item -Recurse -Force (Join-Path $repoRoot "ai-orchestration") (Join-Path $appPayload "ai-orchestration")
 Copy-Item -Recurse -Force (Join-Path $repoRoot "app") (Join-Path $appPayload "app")
 
@@ -68,16 +68,16 @@ if (-not $wix) { throw "wix CLI not found. Install WiX Toolset v4." }
 $appPayloadEscaped = $appPayload -replace "\\", "\\\\"
 @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="ForgeEngine" Manufacturer="ForgeEngine" Version="$Version" UpgradeCode="6F4F0A9F-409C-44AB-9883-9D0A9CE6D0BE">
+  <Package Name="Soul Loom" Manufacturer="Soul Loom LLC" Version="$Version" UpgradeCode="6F4F0A9F-409C-44AB-9883-9D0A9CE6D0BE">
     <MediaTemplate EmbedCab="yes" />
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="ForgeEngine">
+      <Directory Id="INSTALLFOLDER" Name="Soul Loom">
         <Component Id="MainExeComponent" Guid="3B3EE665-D90D-4A48-BA38-34F24DB0588D">
           <File Source="$appPayloadEscaped\\GameForge.Editor.exe" KeyPath="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
-    <Feature Id="MainFeature" Title="ForgeEngine" Level="1">
+    <Feature Id="MainFeature" Title="Soul Loom" Level="1">
       <ComponentRef Id="MainExeComponent" />
     </Feature>
   </Package>
@@ -91,7 +91,7 @@ Write-Host "[6/7] Writing manifest"
     version = $Version
     rid = $rid
     msi = (Split-Path $msiPath -Leaf)
-    runtime_binary = "forgeengine_runtime.exe"
+    runtime_binary = "soul_loom_runtime.exe"
     post_build_validation = @(
         "orchestrator.py --prepare-models",
         "orchestrator.py --benchmark",

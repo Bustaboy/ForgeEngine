@@ -1,26 +1,38 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor.EditorShell.ViewModels;
 
 namespace GameForge.Editor.EditorShell.UI;
 
 public partial class SettingsWindow : Window
 {
+    private readonly string? _initialTab;
     private readonly IReadOnlyList<MainWindowViewModel.ProjectTemplatePreset> _templates;
     private bool _isInitializing;
 
-    public SettingsWindow(EditorPreferences preferences)
+    public SettingsWindow(EditorPreferences preferences, string? initialTab = null)
     {
+        _initialTab = initialTab;
         InitializeComponent();
         _templates = MainWindowViewModel.GetProjectTemplatePresets();
         PopulateTemplateOptions();
         AttachPreviewHandlers();
         ApplyPreferences(preferences.Sanitize());
+        SelectInitialTab();
     }
 
     public EditorPreferences? Result { get; private set; }
     public event Action<EditorPreferences>? PreferencesPreviewChanged;
+    public event Func<Task>? QuickStartModelsRequested;
+    public event Func<Task>? DownloadForgeGuardRequested;
+    public event Func<Task>? DownloadCodingModelRequested;
+    public event Func<Task>? RunModelOnboardingRequested;
+    public event Func<Task>? SetupRecommendedModelsRequested;
+    public event Func<Task>? SetupFreeWillModelRequested;
+    public event Func<Task>? RetryModelOperationRequested;
+    public event Func<Task>? RefreshModelsRequested;
 
     private void InitializeComponent()
     {
@@ -45,6 +57,7 @@ public partial class SettingsWindow : Window
         this.FindControl<ToggleSwitch>("AutosaveToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<ComboBox>("ResolutionComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("FpsLimitNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
+        this.FindControl<ToggleSwitch>("CreatorModeToggle")!.IsCheckedChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("IconSizeNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<NumericUpDown>("HistoryLengthNumeric")!.ValueChanged += (_, _) => EmitPreviewIfReady();
         this.FindControl<ComboBox>("DefaultTemplateComboBox")!.SelectionChanged += (_, _) => EmitPreviewIfReady();
@@ -76,6 +89,11 @@ public partial class SettingsWindow : Window
 
         SetComboText("ResolutionComboBox", preferences.Runtime.VulkanResolution);
         SetNumericValue("FpsLimitNumeric", preferences.Runtime.FpsLimit);
+        var creatorModeToggle = this.FindControl<ToggleSwitch>("CreatorModeToggle");
+        if (creatorModeToggle is not null)
+        {
+            creatorModeToggle.IsChecked = preferences.Editor.CreatorModeEnabled;
+        }
         SetNumericValue("IconSizeNumeric", preferences.Editor.IconSize);
         SetNumericValue("HistoryLengthNumeric", preferences.Editor.HistoryLength);
         SetTextValue("MusicTrackTextBox", preferences.Runtime.Audio.MusicTrack);
@@ -112,6 +130,79 @@ public partial class SettingsWindow : Window
         _isInitializing = false;
     }
 
+    public void UpdateModelManagerState(
+        IReadOnlyList<MainWindowViewModel.ModelManagerEntry> entries,
+        string recommendationSummary,
+        string forgeGuardKeepInstalledMessage,
+        string managerStatus,
+        bool canRunActions)
+    {
+        SetTextValue("ModelRecommendationSummaryText", recommendationSummary);
+        SetTextValue("ForgeGuardKeepInstalledMessageText", forgeGuardKeepInstalledMessage);
+        SetTextValue("ModelManagerStatusText", managerStatus);
+        SetTextValue("ModelEntriesSummaryTextBox", BuildModelEntriesSummary(entries));
+
+        SetButtonEnabled("QuickStartModelsButton", canRunActions);
+        SetButtonEnabled("DownloadForgeGuardButton", canRunActions);
+        SetButtonEnabled("DownloadCodingModelButton", canRunActions);
+        SetButtonEnabled("RunOnboardingButton", canRunActions);
+        SetButtonEnabled("SetupRecommendedModelsButton", canRunActions);
+        SetButtonEnabled("SetupFreeWillModelButton", canRunActions);
+        SetButtonEnabled("RetryModelOperationButton", canRunActions);
+        SetButtonEnabled("RefreshModelsButton", canRunActions);
+    }
+
+    private static string BuildModelEntriesSummary(IReadOnlyList<MainWindowViewModel.ModelManagerEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return "No managed models loaded yet.";
+        }
+
+        return string.Join(
+            Environment.NewLine + Environment.NewLine,
+            entries.Select(entry =>
+            {
+                var lines = new List<string>
+                {
+                    $"{entry.DisplayName} [{entry.Status}]",
+                    $"Size: {entry.EstimatedSize}",
+                    entry.Recommendation,
+                };
+
+                if (!string.IsNullOrWhiteSpace(entry.LastError))
+                {
+                    lines.Add($"Last error: {entry.LastError}");
+                }
+
+                return string.Join(Environment.NewLine, lines);
+            }));
+    }
+
+    private void SelectInitialTab()
+    {
+        if (string.IsNullOrWhiteSpace(_initialTab))
+        {
+            return;
+        }
+
+        var tabs = this.FindControl<TabControl>("SettingsTabs");
+        if (tabs is null)
+        {
+            return;
+        }
+
+        if (string.Equals(_initialTab, "Models", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(_initialTab, "ModelsAndLlm", StringComparison.OrdinalIgnoreCase))
+        {
+            var modelsTab = this.FindControl<TabItem>("ModelsAndLlmTab");
+            if (modelsTab is not null)
+            {
+                tabs.SelectedItem = modelsTab;
+            }
+        }
+    }
+
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
         Close();
@@ -139,6 +230,134 @@ public partial class SettingsWindow : Window
 
         Result = BuildPreferencesFromControls();
         Close();
+    }
+
+    private async void OnQuickStartModelsClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (QuickStartModelsRequested is not null)
+            {
+                await QuickStartModelsRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM quick start failed.", ex);
+            ShowValidationMessage($"Quick Start failed: {ex.Message}");
+        }
+    }
+
+    private async void OnDownloadForgeGuardClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DownloadForgeGuardRequested is not null)
+            {
+                await DownloadForgeGuardRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM ForgeGuard download failed.", ex);
+            ShowValidationMessage($"ForgeGuard download failed: {ex.Message}");
+        }
+    }
+
+    private async void OnRunModelOnboardingClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (RunModelOnboardingRequested is not null)
+            {
+                await RunModelOnboardingRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM onboarding failed.", ex);
+            ShowValidationMessage($"Onboarding failed: {ex.Message}");
+        }
+    }
+
+    private async void OnDownloadCodingModelClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DownloadCodingModelRequested is not null)
+            {
+                await DownloadCodingModelRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM Coding download failed.", ex);
+            ShowValidationMessage($"Coding download failed: {ex.Message}");
+        }
+    }
+
+    private async void OnSetupRecommendedModelsClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (SetupRecommendedModelsRequested is not null)
+            {
+                await SetupRecommendedModelsRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM recommended setup failed.", ex);
+            ShowValidationMessage($"Recommended setup failed: {ex.Message}");
+        }
+    }
+
+    private async void OnSetupFreeWillModelClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (SetupFreeWillModelRequested is not null)
+            {
+                await SetupFreeWillModelRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM Free-Will setup failed.", ex);
+            ShowValidationMessage($"Free-Will setup failed: {ex.Message}");
+        }
+    }
+
+    private async void OnRetryModelOperationClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (RetryModelOperationRequested is not null)
+            {
+                await RetryModelOperationRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM retry failed.", ex);
+            ShowValidationMessage($"Retry failed: {ex.Message}");
+        }
+    }
+
+    private async void OnRefreshModelsClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (RefreshModelsRequested is not null)
+            {
+                await RefreshModelsRequested.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Settings Models & LLM refresh failed.", ex);
+            ShowValidationMessage($"Refresh failed: {ex.Message}");
+        }
     }
 
     private void EmitPreviewIfReady()
@@ -196,6 +415,7 @@ public partial class SettingsWindow : Window
                 IconSize = iconSize,
                 HistoryLength = historyLength,
                 DefaultTemplateId = templateId,
+                CreatorModeEnabled = this.FindControl<ToggleSwitch>("CreatorModeToggle")?.IsChecked ?? true,
             },
             AiOrchestration = new EditorPreferences.AiOrchestrationPreferences
             {
@@ -246,6 +466,13 @@ public partial class SettingsWindow : Window
         if (textBox is not null)
         {
             textBox.Text = value;
+            return;
+        }
+
+        var textBlock = this.FindControl<TextBlock>(controlName);
+        if (textBlock is not null)
+        {
+            textBlock.Text = value;
         }
     }
 
@@ -274,5 +501,24 @@ public partial class SettingsWindow : Window
         }
 
         return fallback;
+    }
+
+    private void SetButtonEnabled(string controlName, bool isEnabled)
+    {
+        var button = this.FindControl<Button>(controlName);
+        if (button is not null)
+        {
+            button.IsEnabled = isEnabled;
+        }
+    }
+
+    private void ShowValidationMessage(string message)
+    {
+        EditorDiagnosticsLog.LogWarning($"Settings validation message: {message}");
+        var validationMessage = this.FindControl<TextBlock>("ValidationMessageText");
+        if (validationMessage is not null)
+        {
+            validationMessage.Text = message;
+        }
     }
 }

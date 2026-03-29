@@ -60,7 +60,7 @@ Optional but recommended:
 
 ### 3.2 Commands (exact)
 
-Run from repository root (`ForgeEngine`):
+Run from repository root (`Soul Loom`):
 
 ```bash
 set -o pipefail
@@ -95,7 +95,7 @@ echo "benchmark_exit=$BENCHMARK_EXIT"
 ### 3.3 Expected output signatures
 
 Runtime-only bootstrap success indicators:
-- `GameForge V1 bootstrap (Ubuntu/Linux)`
+- `Soul Loom bootstrap (Ubuntu/Linux)`
 - `== Building Runtime Entrypoint (C++) ==`
 - `Runtime says hello from C++17` (or runtime launch confirmation)
 
@@ -157,7 +157,7 @@ Optional but recommended:
 
 ### 4.2 Commands (exact)
 
-Run from repository root (`ForgeEngine`) in `pwsh`:
+Run from repository root (`Soul Loom`) in `pwsh`:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path docs/release/evidence/logs/windows | Out-Null
@@ -196,7 +196,7 @@ $BENCHMARK_EXIT = $LASTEXITCODE
 ### 4.3 Expected output signatures
 
 Runtime-only bootstrap success indicators:
-- `GameForge V1 bootstrap (Windows)`
+- `Soul Loom bootstrap (Windows)`
 - `== Building Runtime Entrypoint (C++) ==`
 - runtime launch confirmation (for example `Runtime says hello from C++17`)
 
@@ -253,3 +253,4 @@ For each smoke run, ensure the corresponding filled template includes:
 Traceability references:
 - AT-010 ↔ this runbook (Windows section) + `windows_smoke_template.md`
 - AT-011 ↔ this runbook (Ubuntu section) + `ubuntu_smoke_template.md`
+

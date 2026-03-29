@@ -74,7 +74,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertEqual(run_proc.returncode, 0, run_proc.stdout + run_proc.stderr)
         stdout = run_proc.stdout + run_proc.stderr
 
-        self.assertIn("ForgeEngine Vulkan runtime initialized", stdout)
+        self.assertIn("Soul Loom Vulkan runtime initialized", stdout)
         self.assertIn("Render loop started", stdout)
 
     def test_bootstrap_sh_runtime_only(self):
@@ -121,6 +121,8 @@ class TestMilestone1Skeleton(unittest.TestCase):
         self.assertIn("[switch]$RuntimeOnly", script_text)
         self.assertIn("[switch]$LauncherSmoke", script_text)
         self.assertIn("$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot \"..\")).Path", script_text)
+        self.assertIn("Configure-RuntimeBuild", script_text)
+        self.assertIn("'--build'", script_text)
         self.assertIn("Starting C# App Entrypoint", script_text)
         self.assertIn("WARNING: dotnet SDK not found", script_text)
 

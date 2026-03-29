@@ -120,7 +120,7 @@ def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | N
                 name="bootstrap_runtime_only",
                 command=["./scripts/bootstrap.sh", "--runtime-only"],
                 expected_signatures=[
-                    "GameForge V1 bootstrap (Ubuntu/Linux)",
+                    "Soul Loom bootstrap (Ubuntu/Linux)",
                     "== Building Runtime Entrypoint (C++) ==",
                 ],
             ),
@@ -157,7 +157,7 @@ def _build_windows_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | 
                 name="bootstrap_runtime_only",
                 command=["pwsh", "-f", "scripts/bootstrap.ps1", "-RuntimeOnly"],
                 expected_signatures=[
-                    "GameForge V1 bootstrap (Windows)",
+                    "Soul Loom bootstrap (Windows)",
                     "== Building Runtime Entrypoint (C++) ==",
                 ],
             ),
@@ -360,3 +360,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

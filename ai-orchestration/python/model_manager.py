@@ -1,4 +1,4 @@
-"""Local-first Hugging Face model download and registry for ForgeEngine."""
+"""Local-first Hugging Face model download and registry for Soul Loom."""
 
 from __future__ import annotations
 
@@ -32,14 +32,22 @@ except ImportError:  # pragma: no cover - optional dependency at runtime
         """Fallback error type when huggingface_hub is unavailable."""
 
 DEFAULT_MODELS_JSON = "models.json"
-DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "forgeengine" / "models"
+DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "soul-loom" / "models"
 DEFAULT_QUANTIZATION = "Q4_K_M"
 TOKEN_ENV_KEYS = ("HF_TOKEN", "HUGGINGFACE_TOKEN")
 TOKEN_SESSION_MESSAGE = "Token used from environment only for this session. Not saved for security."
 
+FRIENDLY_NAME_ALIASES: dict[str, str] = {
+    "coder": "coding",
+    "free-will": "freewill",
+    "freewill-spark": "freewill",
+    "forge-guard": "forgeguard",
+    "orchestrator": "coding",
+}
+
 FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
-    "orchestrator": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+    "coding": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
     "assetgen": "stabilityai/stable-diffusion-2-1-base",
     "forgeguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
 }
@@ -195,7 +203,7 @@ def _load_models_config(models_json_path: Path | None = None) -> dict[str, Any]:
     payload.setdefault("models", {})
     if not isinstance(payload["models"], dict):
         payload["models"] = {}
-    return payload
+    return _canonicalize_models_config(payload)
 
 
 def _save_models_config(config: dict[str, Any], models_json_path: Path | None = None) -> Path:
@@ -206,7 +214,35 @@ def _save_models_config(config: dict[str, Any], models_json_path: Path | None = 
 
 
 def _normalize_friendly_name(name: str) -> str:
-    return str(name or "").strip().lower()
+    normalized = str(name or "").strip().lower()
+    normalized = re.sub(r"\s+", "-", normalized)
+    return FRIENDLY_NAME_ALIASES.get(normalized, normalized)
+
+
+def _canonicalize_name_map(payload: dict[str, Any]) -> dict[str, Any]:
+    canonicalized: dict[str, Any] = {}
+    for key, value in payload.items():
+        normalized = _normalize_friendly_name(key)
+        if normalized == key:
+            canonicalized[normalized] = value
+    for key, value in payload.items():
+        normalized = _normalize_friendly_name(key)
+        canonicalized.setdefault(normalized, value)
+    return canonicalized
+
+
+def _canonicalize_models_config(config: dict[str, Any]) -> dict[str, Any]:
+    models = config.get("models")
+    if isinstance(models, dict):
+        config["models"] = _canonicalize_name_map(models)
+
+    onboarding = config.get("onboarding")
+    if isinstance(onboarding, dict):
+        recommendations = onboarding.get("recommendations")
+        if isinstance(recommendations, dict):
+            onboarding["recommendations"] = _canonicalize_name_map(recommendations)
+
+    return config
 
 
 def _get_repo_id(friendly_name: str, repo_id: str | None = None) -> str:
@@ -861,7 +897,7 @@ def run_quick_setup(
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Run minimal first-launch setup: onboarding + ForgeGuard + Free-Will."""
+    """Run first-launch setup for the guided prototype path: ForgeGuard + Free-Will + Coding."""
 
     onboarding_result = run_onboarding(
         orchestrator_file=orchestrator_file,
@@ -883,6 +919,16 @@ def run_quick_setup(
         progress_callback=progress_callback,
         cancel_check=cancel_check,
     )
+    coding_recommendation = onboarding_result.get("recommendations", {}).get("coding", {})
+    coding_repo = str(coding_recommendation.get("repo_id", "")).strip() or FRIENDLY_MODEL_REPOS["coding"]
+    coding_record = download_model(
+        friendly_name="coding",
+        repo_id=coding_repo,
+        quantization=DEFAULT_QUANTIZATION,
+        models_json_path=resolved_models_path,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+    )
 
     config = _load_models_config(models_json_path=resolved_models_path)
     onboarding_payload = config.get("onboarding", {}) if isinstance(config.get("onboarding"), dict) else {}
@@ -894,13 +940,16 @@ def run_quick_setup(
     summary = [
         "ForgeGuard installed for guardrails, critique, and lightweight decisions.",
         "Free-Will model installed for local NPC/dialog + gameplay reasoning.",
-        "You can run full onboarding or manual downloads anytime in Settings → Models & LLM.",
+        "Coding model installed for local prototype/code generation.",
+        "Next step: open New Project in the editor and click Generate & Play for your first prototype.",
+        "Optional later: install Asset-Gen from Models & LLM if you also want local asset generation.",
     ]
 
     return {
         "onboarding": onboarding_result,
         "forgeguard": onboarding_result.get("forgeguard", {}),
         "freewill": freewill_record,
+        "coding": coding_record,
         "summary": summary,
         "models_json": str(resolved_models_path),
         "completed": True,

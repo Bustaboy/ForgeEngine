@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-03-21
 - **Owners:** Architecture + Tools
-- **Deciders:** GameForge V1 maintainers
+- **Deciders:** Soul Loom maintainers
 
 ## Context
 V1 needs a durable project representation for local save/load, AI-assisted edits, diffability in source control, and recovery-friendly workflows. The system must stay local-first and understandable for non-coder workflows while supporting future growth.
@@ -63,3 +63,4 @@ Adopt a **JSON-based project manifest and content document format** for V1 metad
 ## References
 - Related ADRs: ADR-0001, ADR-0002, ADR-0004
 - External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+

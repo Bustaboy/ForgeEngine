@@ -7,15 +7,17 @@ public static class AiOrchestrationPanel
     public static ProcessStartInfo CreateOrchestratorStartInfo(string repositoryRoot, params string[] args)
     {
         var scriptPath = Path.Combine(repositoryRoot, "ai-orchestration", "python", "orchestrator.py");
-        var pythonExe = OperatingSystem.IsWindows() ? "python" : "python3";
+        var pythonExe = PythonEnvironment.ResolvePythonExecutable(repositoryRoot);
 
         var processStartInfo = new ProcessStartInfo
         {
             FileName = pythonExe,
             WorkingDirectory = repositoryRoot,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            CreateNoWindow = true,
         };
 
         processStartInfo.ArgumentList.Add("-u");

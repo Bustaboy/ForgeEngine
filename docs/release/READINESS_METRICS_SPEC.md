@@ -78,3 +78,4 @@ dotnet run --project editor/csharp/GameForge.Editor.csproj -- \
 ```
 
 This keeps gate decision authority in the C# readiness flow while letting local collection remain script-driven and reproducible.
+

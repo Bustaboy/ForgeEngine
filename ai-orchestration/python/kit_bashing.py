@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Data-driven 2D modular kit-bashing helpers for ForgeEngine V1."""
+"""Data-driven 2D modular kit-bashing helpers for Soul Loom."""
 
 from __future__ import annotations
 
@@ -383,7 +383,7 @@ def apply_generated_loot_to_scene(
     if art_bible_path is not None and art_bible_path.exists():
         art_bible = ArtBible.from_json_file(art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "Soul Loom Project")
 
     generated = generate_loot(
         prompt=prompt,
@@ -700,7 +700,7 @@ def apply_kit_bash_to_scene(
     if art_bible_path is not None and art_bible_path.exists():
         art_bible = ArtBible.from_json_file(art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "Soul Loom Project")
 
     existing_modules = [
         {"module_id": str(item.get("module_id", ""))}
@@ -774,7 +774,7 @@ def apply_variations_to_scene(scene_path: Path, prompt: str, art_bible_path: Pat
     if art_bible_path is not None and art_bible_path.exists():
         art_bible = ArtBible.from_json_file(art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "Soul Loom Project")
 
     existing_modules = [
         str(item.get("module_id", ""))
@@ -809,3 +809,4 @@ def apply_variations_to_scene(scene_path: Path, prompt: str, art_bible_path: Pat
         "variation_seed": variation_seed,
         "sprites_updated": updated,
     }
+

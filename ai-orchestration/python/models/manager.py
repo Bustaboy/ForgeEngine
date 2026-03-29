@@ -1,4 +1,4 @@
-"""Local-first ForgeEngine model manager for orchestrator integration."""
+"""Local-first Soul Loom model manager for orchestrator integration."""
 
 from __future__ import annotations
 
@@ -105,3 +105,4 @@ def prepare_models_as_dict(orchestrator_file: Path | None = None) -> dict[str, o
     result = prepare_models(orchestrator_file=orchestrator_file)
     payload = asdict(result)
     return payload
+

@@ -26,7 +26,7 @@ class ArtBible:
     def from_dict(cls, payload: dict[str, object]) -> "ArtBible":
         return cls(
             schema=str(payload.get("schema", "gameforge.art-bible.v1")),
-            project_name=str(payload.get("project_name", "GameForge Project")),
+            project_name=str(payload.get("project_name", "Soul Loom Project")),
             art_direction=str(payload.get("art_direction", "stylized indie 3D")),
             rendering_keywords=[str(item) for item in payload.get("rendering_keywords", [])],
             palette_keywords=[str(item) for item in payload.get("palette_keywords", [])],
@@ -51,7 +51,7 @@ class ArtBible:
         return enhance_prompt(raw_prompt, self)
 
 
-def default_art_bible(project_name: str = "GameForge Project") -> ArtBible:
+def default_art_bible(project_name: str = "Soul Loom Project") -> ArtBible:
     return ArtBible(
         schema="gameforge.art-bible.v1",
         project_name=project_name,
@@ -109,7 +109,7 @@ def enhance_prompt(raw_prompt: str, art_bible: ArtBible) -> str:
     return "\n".join(section for section in sections if section.strip())
 
 
-def write_default_art_bible(destination: Path, project_name: str = "GameForge Project", overwrite: bool = False) -> ArtBible:
+def write_default_art_bible(destination: Path, project_name: str = "Soul Loom Project", overwrite: bool = False) -> ArtBible:
     if destination.exists() and not overwrite:
         raise FileExistsError(f"Art bible already exists at {destination}")
     art_bible = default_art_bible(project_name=project_name)

@@ -1,4 +1,4 @@
-"""Stable stage definitions for the GameForge V1 generation pipeline."""
+"""Stable stage definitions for the Soul Loom generation pipeline."""
 
 from __future__ import annotations
 
@@ -49,3 +49,4 @@ PIPELINE_STAGE_ORDER: tuple[StageDefinition, ...] = (
         description="Emit export-ready package metadata and shell handoff contract.",
     ),
 )
+

@@ -48,6 +48,7 @@ public sealed class EditorPreferences
                 IconSize = Editor.IconSize,
                 HistoryLength = Editor.HistoryLength,
                 DefaultTemplateId = Editor.DefaultTemplateId,
+                CreatorModeEnabled = Editor.CreatorModeEnabled,
             },
             AiOrchestration = new AiOrchestrationPreferences
             {
@@ -120,6 +121,7 @@ public sealed class EditorPreferences
                 IconSize = Math.Clamp(Editor.IconSize, 40, 84),
                 HistoryLength = Math.Clamp(Editor.HistoryLength, 10, 300),
                 DefaultTemplateId = normalizedTemplate,
+                CreatorModeEnabled = Editor.CreatorModeEnabled,
             },
             AiOrchestration = new AiOrchestrationPreferences
             {
@@ -210,6 +212,8 @@ public sealed class EditorPreferences
         public int HistoryLength { get; init; } = 120;
 
         public string DefaultTemplateId { get; init; } = "cozy-colony";
+
+        public bool CreatorModeEnabled { get; init; } = true;
     }
 
     public sealed class AiOrchestrationPreferences

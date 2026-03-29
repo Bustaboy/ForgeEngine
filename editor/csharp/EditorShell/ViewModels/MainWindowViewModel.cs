@@ -15,6 +15,7 @@ using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Media;
+using GameForge.Editor.EditorDiagnostics;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
 
@@ -156,11 +157,23 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     {
     }
 
+    private static string ResolveDefaultSettingsPath()
+    {
+        var soulLoomPath = Path.Combine(Environment.CurrentDirectory, ".soulloom", "settings.json");
+        var legacyPath = Path.Combine(Environment.CurrentDirectory, ".forgeengine", "settings.json");
+        if (!File.Exists(soulLoomPath) && File.Exists(legacyPath))
+        {
+            return legacyPath;
+        }
+
+        return soulLoomPath;
+    }
+
     internal MainWindowViewModel(IOrchestratorGateway orchestratorGateway, IRuntimeSupervisor runtimeSupervisor, string? settingsFilePath = null)
     {
         _orchestratorGateway = orchestratorGateway;
         _runtimeSupervisor = runtimeSupervisor;
-        _settingsFilePath = settingsFilePath ?? Path.Combine(Environment.CurrentDirectory, ".forgeengine", "settings.json");
+        _settingsFilePath = settingsFilePath ?? ResolveDefaultSettingsPath();
         _preferences = EditorPreferences.LoadOrDefault(_settingsFilePath);
         _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
@@ -329,14 +342,39 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public bool IsAdvancedInspectorEnabled
     {
         get => _isAdvancedInspectorEnabled;
-        set => SetField(ref _isAdvancedInspectorEnabled, value);
+        set
+        {
+            if (!SetField(ref _isAdvancedInspectorEnabled, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsSimpleInspectorEnabled));
+            OnPropertyChanged(nameof(InspectorDepthLabel));
+        }
     }
+
+    public bool IsSimpleInspectorEnabled => !IsAdvancedInspectorEnabled;
 
     public bool IsDebugConsoleEnabled
     {
         get => _isDebugConsoleEnabled;
         set => SetField(ref _isDebugConsoleEnabled, value);
     }
+
+    public bool IsCreatorModeEnabled => _preferences.Editor.CreatorModeEnabled;
+
+    public bool IsProModeEnabled => !IsCreatorModeEnabled;
+
+    public string WorkspaceModeLabel => IsCreatorModeEnabled ? "Creator Mode" : "Pro Mode";
+
+    public string WorkspaceModeToggleLabel => IsCreatorModeEnabled ? "Switch to Pro" : "Switch to Creator";
+
+    public string WorkspaceModeDescription => IsCreatorModeEnabled
+        ? "Clean default layout: viewport first, simple inspector, secondary panes tucked away."
+        : "Full editing workspace with outliner, timeline, activity, and advanced tools visible.";
+
+    public string InspectorDepthLabel => IsAdvancedInspectorEnabled ? "Advanced" : "Simple";
 
     public string StatusToastMessage
     {
@@ -1328,6 +1366,11 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         string quickConcept,
         CancellationToken cancellationToken = default)
     {
+        if (!await EnsureFirstPrototypeGenerationReadyAsync())
+        {
+            return;
+        }
+
         var sanitizedProjectName = string.IsNullOrWhiteSpace(projectName) ? template.DisplayName : projectName.Trim();
         var supplementalConcept = quickConcept?.Trim() ?? string.Empty;
 
@@ -1345,6 +1388,11 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         {
             StatusMessage = "Describe your game first to generate a prototype.";
             ShowToast("Brief required before generation.");
+            return;
+        }
+
+        if (!await EnsureFirstPrototypeGenerationReadyAsync())
+        {
             return;
         }
 
@@ -2458,6 +2506,11 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public void SetStatusMessage(string value)
     {
         StatusMessage = value;
+        if (LooksLikeProblemMessage(value))
+        {
+            EditorDiagnosticsLog.LogWarning($"Status message: {value}");
+        }
+
         ShowToast(value);
     }
 
@@ -2576,9 +2629,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var fileName = OperatingSystem.IsWindows() ? "python" : "python3";
+        var repositoryRoot = ResolveRepositoryRoot();
+        var fileName = PythonEnvironment.ResolvePythonExecutable(repositoryRoot);
         var arguments = $"\"{orchestratorPath}\" review-asset \"{assetPath}\" {decision}";
-        var result = await _runtimeSupervisor.RunProcessAsync(fileName, arguments, Environment.CurrentDirectory, cancellationToken);
+        var result = await _runtimeSupervisor.RunProcessAsync(fileName, arguments, repositoryRoot, cancellationToken);
         if (result.ExitCode == 0)
         {
             StatusMessage = $"Asset reviewed ({decision}): {Path.GetFileName(assetPath)}";
@@ -2686,16 +2740,49 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     public EditorPreferences GetPreferencesSnapshot() => _preferences.Clone();
 
+    public async Task SetCreatorModeEnabledAsync(bool creatorModeEnabled, CancellationToken cancellationToken = default)
+    {
+        if (creatorModeEnabled == IsCreatorModeEnabled)
+        {
+            return;
+        }
+
+        var updatedPreferences = _preferences.Clone();
+        updatedPreferences = new EditorPreferences
+        {
+            General = updatedPreferences.General,
+            Runtime = updatedPreferences.Runtime,
+            Editor = new EditorPreferences.EditorPanePreferences
+            {
+                IconSize = updatedPreferences.Editor.IconSize,
+                HistoryLength = updatedPreferences.Editor.HistoryLength,
+                DefaultTemplateId = updatedPreferences.Editor.DefaultTemplateId,
+                CreatorModeEnabled = creatorModeEnabled,
+            },
+            AiOrchestration = updatedPreferences.AiOrchestration,
+        };
+
+        await ApplyAndSavePreferencesAsync(
+            updatedPreferences,
+            cancellationToken,
+            creatorModeEnabled
+                ? "Creator Mode enabled. Workspace simplified around the viewport."
+                : "Pro Mode enabled. Full workspace restored.");
+    }
+
     public void ApplyPreferencesPreview(EditorPreferences updatedPreferences)
     {
         ApplyPreferencesCore(updatedPreferences, triggerToast: false, statusMessageOverride: null);
     }
 
-    public async Task ApplyAndSavePreferencesAsync(EditorPreferences updatedPreferences, CancellationToken cancellationToken = default)
+    public async Task ApplyAndSavePreferencesAsync(
+        EditorPreferences updatedPreferences,
+        CancellationToken cancellationToken = default,
+        string? statusMessageOverride = null)
     {
-        ApplyPreferencesCore(updatedPreferences, triggerToast: true, statusMessageOverride: null);
+        ApplyPreferencesCore(updatedPreferences, triggerToast: true, statusMessageOverride: statusMessageOverride);
         await _preferences.SaveAsync(_settingsFilePath, cancellationToken);
-        StatusMessage = $"Settings saved to {_settingsFilePath}";
+        StatusMessage = statusMessageOverride ?? $"Settings saved to {_settingsFilePath}";
     }
 
     private void ApplyPreferencesCore(EditorPreferences updatedPreferences, bool triggerToast, string? statusMessageOverride)
@@ -2710,6 +2797,12 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(LastSceneReviewSummaryStatus));
         OnPropertyChanged(nameof(RibbonIconSize));
         OnPropertyChanged(nameof(EditorDefaultTemplateId));
+        OnPropertyChanged(nameof(IsCreatorModeEnabled));
+        OnPropertyChanged(nameof(IsProModeEnabled));
+        OnPropertyChanged(nameof(WorkspaceModeLabel));
+        OnPropertyChanged(nameof(WorkspaceModeToggleLabel));
+        OnPropertyChanged(nameof(WorkspaceModeDescription));
+        OnPropertyChanged(nameof(InspectorDepthLabel));
         ThemePreferenceChanged?.Invoke(_preferences.General.Theme);
 
         if (!string.IsNullOrWhiteSpace(statusMessageOverride))
@@ -4651,7 +4744,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var settingsRoot = Path.GetDirectoryName(_settingsFilePath) ?? ".forgeengine";
+        var settingsRoot = Path.GetDirectoryName(_settingsFilePath) ?? ".soulloom";
         var autosavePath = Path.Combine(settingsRoot, "autosave", "scene_autosave.json");
         var autosaveDirectory = Path.GetDirectoryName(autosavePath);
         if (!string.IsNullOrWhiteSpace(autosaveDirectory))
@@ -5774,6 +5867,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     private void ShowFailureToast(string title, string message, string guidance, string? actionLabel = null, Func<Task>? action = null)
     {
+        EditorDiagnosticsLog.LogError($"{title}: {message} Guidance: {guidance}");
         ShowToast(message, title, guidance, isError: true, actionLabel, action);
     }
 
@@ -5792,6 +5886,22 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private void ShowToast(string message)
     {
         ShowToast(message, "Notice", string.Empty, isError: false, actionLabel: null, action: null);
+    }
+
+    private static bool LooksLikeProblemMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("failed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("warning", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unable", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("exception", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("crash", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

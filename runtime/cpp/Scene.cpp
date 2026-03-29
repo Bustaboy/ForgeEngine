@@ -30,6 +30,7 @@
 #include <unordered_set>
 #include <nlohmann/json.hpp>
 
+#include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/geometric.hpp>
 

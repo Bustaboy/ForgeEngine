@@ -3,10 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-03-21
 - **Owners:** Runtime + Architecture
-- **Deciders:** GameForge V1 maintainers
+- **Deciders:** Soul Loom maintainers
 
 ## Context
-GameForge V1 needs a foundational runtime decision that supports single-player game execution, performant simulation loops, and cross-platform desktop support (Windows + Ubuntu). The V1 blueprint and execution plan explicitly lock the runtime stack to C++ and define Vulkan-first rendering.
+Soul Loom needs a foundational runtime decision that supports single-player game execution, performant simulation loops, and cross-platform desktop support (Windows + Ubuntu). The V1 blueprint and execution plan explicitly lock the runtime stack to C++ and define Vulkan-first rendering.
 
 ## Decision
 Use **C++** as the runtime/engine implementation language and adopt a **Vulkan-first** rendering direction for V1.
@@ -63,3 +63,4 @@ Use **C++** as the runtime/engine implementation language and adopt a **Vulkan-f
 ## References
 - Related ADRs: ADR-0002, ADR-0003, ADR-0004
 - External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+

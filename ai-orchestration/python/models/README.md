@@ -1,4 +1,4 @@
-# ForgeEngine Model Management (Local-First)
+# Soul Loom Model Management (Local-First)
 
 This module is designed for `ai-orchestration/python/orchestrator.py` and C# shell subprocess calls.
 
@@ -35,3 +35,4 @@ var process = Process.Start(new ProcessStartInfo {
 });
 var modelJson = process.StandardOutput.ReadToEnd();
 ```
+

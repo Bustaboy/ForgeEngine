@@ -132,14 +132,7 @@ json Vec4ToJson(const glm::vec4& value) {
     return json{{"x", value.x}, {"y", value.y}, {"z", value.z}, {"w", value.w}};
 }
 
-glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
-    glm::vec4 value = fallback;
-    value.x = node.value("x", fallback.x);
-    value.y = node.value("y", fallback.y);
-    value.z = node.value("z", fallback.z);
-    value.w = node.value("w", fallback.w);
-    return value;
-}
+glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback);
 
 json SceneSprite2DToJson(const SceneSprite2D& sprite) {
     json node = json{

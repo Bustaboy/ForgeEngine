@@ -1,8 +1,10 @@
+from contextlib import contextmanager
 import importlib.util
 import json
+import shutil
 import sys
-import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -10,6 +12,7 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODEL_MANAGER_PATH = REPO_ROOT / "ai-orchestration" / "python" / "model_manager.py"
 ORCHESTRATOR_PATH = REPO_ROOT / "ai-orchestration" / "python" / "orchestrator.py"
+TEST_TEMP_ROOT = REPO_ROOT / ".tmp_testdata"
 
 
 def _load_module(name: str, path: Path):
@@ -21,14 +24,25 @@ def _load_module(name: str, path: Path):
     return module
 
 
+@contextmanager
+def _temporary_repo_dir():
+    TEST_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+    temp_dir = TEST_TEMP_ROOT / f"tmp-{uuid.uuid4().hex}"
+    temp_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        yield temp_dir
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 model_manager = _load_module("model_manager_under_test", MODEL_MANAGER_PATH)
 orchestrator = _load_module("orchestrator_under_test", ORCHESTRATOR_PATH)
 
 
 class OnboardingFlowTests(unittest.TestCase):
     def test_save_models_config_never_persists_hf_token(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            models_json_path = Path(temp_dir) / "models.json"
+        with _temporary_repo_dir() as temp_dir:
+            models_json_path = temp_dir / "models.json"
             model_manager._save_models_config(  # noqa: SLF001 - testing module helper
                 {"models": {}, "hf_token": "secret"},
                 models_json_path=models_json_path,
@@ -58,9 +72,14 @@ class OnboardingFlowTests(unittest.TestCase):
         self.assertEqual(set(recs.keys()), {"freewill", "coding", "assetgen", "forgeguard"})
         self.assertTrue(recs["forgeguard"]["kept_installed"])
 
+    def test_coding_aliases_resolve_to_same_repo(self):
+        coding_repo = model_manager._get_repo_id("coding")  # noqa: SLF001 - testing module helper
+        self.assertEqual(coding_repo, model_manager._get_repo_id("orchestrator"))  # noqa: SLF001
+        self.assertEqual(coding_repo, model_manager._get_repo_id("coder"))  # noqa: SLF001
+
     def test_run_onboarding_persists_state_and_message(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            models_json_path = Path(temp_dir) / "models.json"
+        with _temporary_repo_dir() as temp_dir:
+            models_json_path = temp_dir / "models.json"
             models_json_path.write_text(json.dumps({"models": {}}), encoding="utf-8")
 
             answers = iter(["hybrid", "high", "code-heavy", "quality"])
@@ -77,7 +96,7 @@ class OnboardingFlowTests(unittest.TestCase):
                 ),
             ):
                 result = model_manager.run_onboarding(
-                    orchestrator_file=Path(temp_dir) / "orchestrator.py",
+                    orchestrator_file=temp_dir / "orchestrator.py",
                     models_json_path=models_json_path,
                     input_fn=lambda _prompt: next(answers),
                 )
@@ -87,6 +106,40 @@ class OnboardingFlowTests(unittest.TestCase):
             self.assertIn("recommendations", payload["onboarding"])
             self.assertIn("ForgeGuard", payload["onboarding"]["forgeguard_keep_message"])
             self.assertIn("ForgeGuard", result["message"])
+
+    def test_run_quick_setup_downloads_core_models_for_first_prototype(self):
+        with _temporary_repo_dir() as temp_dir:
+            models_json_path = temp_dir / "models.json"
+            models_json_path.write_text(json.dumps({"models": {}}), encoding="utf-8")
+
+            download_calls: list[tuple[str, str | None]] = []
+
+            def fake_download_model(*, friendly_name: str, repo_id: str | None = None, **_kwargs):
+                download_calls.append((friendly_name, repo_id))
+                return {
+                    "friendly_name": friendly_name,
+                    "repo_id": repo_id or f"repo/{friendly_name}",
+                    "path": f"{friendly_name}.gguf",
+                }
+
+            with (
+                mock.patch.object(
+                    model_manager,
+                    "run_benchmark_as_dict",
+                    return_value={"hardware": {"gpu_vram_gb": 8, "gpu_name": "TestGPU"}},
+                ),
+                mock.patch.object(model_manager, "download_model", side_effect=fake_download_model),
+            ):
+                result = model_manager.run_quick_setup(
+                    orchestrator_file=temp_dir / "orchestrator.py",
+                    models_json_path=models_json_path,
+                )
+
+            payload = json.loads(models_json_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["onboarding"]["completed"])
+            self.assertEqual([name for name, _repo in download_calls], ["forgeguard", "freewill", "coding"])
+            self.assertEqual(result["coding"]["friendly_name"], "coding")
+            self.assertTrue(any("first prototype" in line.lower() for line in result["summary"]))
 
     def test_onboarding_command_dispatches(self):
         with mock.patch.object(orchestrator, "run_onboarding", return_value={"status": "ok"}) as mocked:

@@ -13,7 +13,7 @@
 
 class Logger {
 public:
-    static void Init(const std::string& file_path = "forgeengine.log") {
+    static void Init(const std::string& file_path = "soul_loom.log") {
         std::lock_guard<std::mutex> lock(Mutex());
         File().open(file_path, std::ios::out | std::ios::trunc);
     }

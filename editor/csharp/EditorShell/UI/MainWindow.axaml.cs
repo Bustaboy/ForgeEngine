@@ -9,6 +9,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
+using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor.EditorShell.EditorSystems;
 using GameForge.Editor.EditorShell.ViewModels;
 using System.ComponentModel;
@@ -36,6 +37,7 @@ public partial class MainWindow : Window
     private Border? _startupOnboardingOverlay;
     private TextBlock? _startupOnboardingStatusText;
     private ProgressBar? _startupOnboardingProgressBar;
+    private Grid? _rootLayoutGrid;
     private Border? _topRibbonBorder;
     private Grid? _workspaceGrid;
     private Border? _toolRailBorder;
@@ -43,12 +45,22 @@ public partial class MainWindow : Window
     private Border? _rightDockBorder;
     private Border? _timelineDockBorder;
     private Border? _activityDockBorder;
+    private Button? _focusModeExitButton;
+    private GridSplitter? _leftCenterSplitter;
+    private GridSplitter? _centerRightSplitter;
+    private GridSplitter? _workspaceTimelineSplitter;
+    private GridSplitter? _timelineActivitySplitter;
     private bool _isToolRailVisible = true;
     private bool _isLeftDockVisible = true;
     private bool _isRightDockVisible = true;
-    private bool _isBottomDockVisible = true;
+    private bool _isTimelineDockVisible = true;
+    private bool _isActivityDockVisible = true;
     private bool _isTopRibbonVisible = true;
     private bool _isFocusModeEnabled;
+    private GridLength _leftDockWidth = new(2.3, GridUnitType.Star);
+    private GridLength _rightDockWidth = new(2.8, GridUnitType.Star);
+    private GridLength _timelineDockHeight = new(240);
+    private GridLength _activityDockHeight = new(160);
 
     public MainWindow()
     {
@@ -56,6 +68,7 @@ public partial class MainWindow : Window
         ConfigureCodeEditor();
         ConfigureViewportSurface();
         DataContext = _viewModel;
+        ApplyWorkspaceModePreference(forceReset: true);
         AddHandler(DragDrop.DragOverEvent, OnWindowAssetDragOver);
         AddHandler(DragDrop.DropEvent, OnWindowAssetDrop);
         AddHandler(DragDrop.DragLeaveEvent, OnWindowAssetDragLeave);
@@ -72,6 +85,7 @@ public partial class MainWindow : Window
         _startupOnboardingOverlay = this.FindControl<Border>("StartupOnboardingOverlay");
         _startupOnboardingStatusText = this.FindControl<TextBlock>("StartupOnboardingStatusText");
         _startupOnboardingProgressBar = this.FindControl<ProgressBar>("StartupOnboardingProgressBar");
+        _rootLayoutGrid = this.FindControl<Grid>("RootLayoutGrid");
         _topRibbonBorder = this.FindControl<Border>("TopRibbonBorder");
         _workspaceGrid = this.FindControl<Grid>("WorkspaceGrid");
         _toolRailBorder = this.FindControl<Border>("ToolRailBorder");
@@ -79,6 +93,11 @@ public partial class MainWindow : Window
         _rightDockBorder = this.FindControl<Border>("RightDockBorder");
         _timelineDockBorder = this.FindControl<Border>("TimelineDockBorder");
         _activityDockBorder = this.FindControl<Border>("ActivityDockBorder");
+        _focusModeExitButton = this.FindControl<Button>("FocusModeExitButton");
+        _leftCenterSplitter = this.FindControl<GridSplitter>("LeftCenterSplitter");
+        _centerRightSplitter = this.FindControl<GridSplitter>("CenterRightSplitter");
+        _workspaceTimelineSplitter = this.FindControl<GridSplitter>("WorkspaceTimelineSplitter");
+        _timelineActivitySplitter = this.FindControl<GridSplitter>("TimelineActivitySplitter");
         ApplyWorkspaceLayout();
     }
 
@@ -136,6 +155,12 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsCreatorModeEnabled))
+        {
+            ApplyWorkspaceModePreference(forceReset: true);
+            return;
+        }
+
         if (e.PropertyName != nameof(MainWindowViewModel.MonacoEditorContent))
         {
             return;
@@ -184,6 +209,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            EditorDiagnosticsLog.LogException("Quick setup startup check failed.", ex);
             _viewModel.SetStatusMessage($"Quick setup startup check warning: {ex.Message}");
             await _viewModel.RefreshModelManagerAsync();
         }
@@ -210,12 +236,14 @@ public partial class MainWindow : Window
     private async Task ShowFirstLaunchQuickSetupDialogAsync()
     {
         var shouldRunQuickSetup = false;
+        var shouldOpenModels = false;
         var modal = new Window
         {
             Title = "Welcome / Quick Setup",
             Width = 680,
-            Height = 360,
+            Height = 390,
             CanResize = false,
+            Background = new SolidColorBrush(Color.Parse("#08111B")),
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new Border
             {
@@ -232,14 +260,14 @@ public partial class MainWindow : Window
                     {
                         new TextBlock
                         {
-                            Text = "Welcome to GameForge",
+                            Text = "Welcome to Soul Loom",
                             FontSize = 24,
                             FontWeight = FontWeight.Bold,
                             Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
                         },
                         new TextBlock
                         {
-                            Text = "Quick Setup installs the two essentials for V1: ForgeGuard + Free-Will.",
+                            Text = "Quick Setup installs the first-boot path for V1: ForgeGuard, Free-Will, and Coding.",
                             TextWrapping = TextWrapping.Wrap,
                             Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
                         },
@@ -251,7 +279,7 @@ public partial class MainWindow : Window
                         },
                         new TextBlock
                         {
-                            Text = "You can still run full onboarding or manual model downloads later in Settings → Models & LLM.",
+                            Text = "If you prefer to review each model manually first, open Models & LLM instead of running the guided setup.",
                             TextWrapping = TextWrapping.Wrap,
                             Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
                         },
@@ -264,7 +292,7 @@ public partial class MainWindow : Window
                             Children =
                             {
                                 new Button { Content = "Later", MinWidth = 90 },
-                                new Button { Content = "Open Settings", MinWidth = 110 },
+                                new Button { Content = "Open Models & LLM", MinWidth = 150 },
                                 new Button
                                 {
                                     Content = "Run Quick Setup",
@@ -289,7 +317,7 @@ public partial class MainWindow : Window
             {
                 settingsButton.Click += (_, _) =>
                 {
-                    _viewModel.SetSystemTab("Settings");
+                    shouldOpenModels = true;
                     modal.Close();
                 };
             }
@@ -306,6 +334,10 @@ public partial class MainWindow : Window
         await modal.ShowDialog(this);
         if (!shouldRunQuickSetup)
         {
+            if (shouldOpenModels)
+            {
+                await ShowSettingsWindowAsync("Models");
+            }
             return;
         }
 
@@ -319,12 +351,15 @@ public partial class MainWindow : Window
     private async Task ShowQuickSetupSummaryDialogAsync()
     {
         var summary = await _viewModel.BuildQuickSetupSummaryAsync();
+        var shouldOpenModels = false;
+        var shouldCreateFirstPrototype = false;
         var modal = new Window
         {
             Title = "Quick Setup Complete",
             Width = 620,
-            Height = 330,
+            Height = 380,
             CanResize = false,
+            Background = new SolidColorBrush(Color.Parse("#08111B")),
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new Border
             {
@@ -348,7 +383,7 @@ public partial class MainWindow : Window
                         },
                         new TextBlock
                         {
-                            Text = "Installed now: ForgeGuard + Free-Will.",
+                            Text = "Installed now: ForgeGuard + Free-Will + Coding.",
                             TextWrapping = TextWrapping.Wrap,
                             Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
                         },
@@ -364,28 +399,71 @@ public partial class MainWindow : Window
                             TextWrapping = TextWrapping.Wrap,
                             Foreground = new SolidColorBrush(Color.Parse("#AFC2DF")),
                         },
-                        new Button
+                        new StackPanel
                         {
-                            Content = "Continue",
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
                             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
                             Margin = new Thickness(0, 8, 0, 0),
+                            Children =
+                            {
+                                new Button { Content = "Close", MinWidth = 90 },
+                                new Button { Content = "Open Models & LLM", MinWidth = 150 },
+                                new Button
+                                {
+                                    Content = "Create First Prototype",
+                                    MinWidth = 180,
+                                    Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
+                                    Foreground = Brushes.White,
+                                },
+                            },
                         },
                     }
                 },
             },
         };
 
-        if (modal.Content is Border { Child: StackPanel panel } && panel.Children[^1] is Button button)
+        if (modal.Content is Border { Child: StackPanel panel } && panel.Children[^1] is StackPanel actions)
         {
-            button.Click += (_, _) => modal.Close();
+            if (actions.Children[0] is Button closeButton)
+            {
+                closeButton.Click += (_, _) => modal.Close();
+            }
+            if (actions.Children[1] is Button openModelsButton)
+            {
+                openModelsButton.Click += (_, _) =>
+                {
+                    shouldOpenModels = true;
+                    modal.Close();
+                };
+            }
+            if (actions.Children[2] is Button createFirstPrototypeButton)
+            {
+                createFirstPrototypeButton.Click += (_, _) =>
+                {
+                    shouldCreateFirstPrototype = true;
+                    modal.Close();
+                };
+            }
         }
 
         await modal.ShowDialog(this);
+        if (shouldOpenModels)
+        {
+            await ShowSettingsWindowAsync("Models");
+        }
+        else if (shouldCreateFirstPrototype)
+        {
+            OnNewProjectClick(this, new RoutedEventArgs());
+        }
     }
 
     private void ApplyWorkspaceLayout()
     {
-        if (_workspaceGrid is null || _workspaceGrid.ColumnDefinitions.Count < 4)
+        if (_rootLayoutGrid is null
+            || _rootLayoutGrid.RowDefinitions.Count < 7
+            || _workspaceGrid is null
+            || _workspaceGrid.ColumnDefinitions.Count < 6)
         {
             return;
         }
@@ -412,22 +490,124 @@ public partial class MainWindow : Window
 
         if (_timelineDockBorder is not null)
         {
-            _timelineDockBorder.IsVisible = _isBottomDockVisible;
+            _timelineDockBorder.IsVisible = _isTimelineDockVisible;
         }
 
         if (_activityDockBorder is not null)
         {
-            _activityDockBorder.IsVisible = _isBottomDockVisible;
+            _activityDockBorder.IsVisible = _isActivityDockVisible;
+        }
+
+        if (_focusModeExitButton is not null)
+        {
+            _focusModeExitButton.IsVisible = _isFocusModeEnabled;
+        }
+
+        if (_leftCenterSplitter is not null)
+        {
+            _leftCenterSplitter.IsVisible = _isLeftDockVisible;
+        }
+
+        if (_centerRightSplitter is not null)
+        {
+            _centerRightSplitter.IsVisible = _isRightDockVisible;
+        }
+
+        var hasBottomDock = _isTimelineDockVisible || _isActivityDockVisible;
+        if (_workspaceTimelineSplitter is not null)
+        {
+            _workspaceTimelineSplitter.IsVisible = hasBottomDock;
+        }
+
+        if (_timelineActivitySplitter is not null)
+        {
+            _timelineActivitySplitter.IsVisible = _isTimelineDockVisible && _isActivityDockVisible;
         }
 
         _workspaceGrid.ColumnDefinitions[0].Width = _isToolRailVisible ? new GridLength(72) : new GridLength(0);
-        _workspaceGrid.ColumnDefinitions[1].Width = _isLeftDockVisible ? new GridLength(2.3, GridUnitType.Star) : new GridLength(0);
-        _workspaceGrid.ColumnDefinitions[2].Width = new GridLength(4.8, GridUnitType.Star);
-        _workspaceGrid.ColumnDefinitions[3].Width = _isRightDockVisible ? new GridLength(2.8, GridUnitType.Star) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[1].Width = _isLeftDockVisible ? _leftDockWidth : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[2].Width = _isLeftDockVisible ? new GridLength(6) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[3].Width = new GridLength(1, GridUnitType.Star);
+        _workspaceGrid.ColumnDefinitions[4].Width = _isRightDockVisible ? new GridLength(6) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[5].Width = _isRightDockVisible ? _rightDockWidth : new GridLength(0);
+
+        _rootLayoutGrid.RowDefinitions[0].Height = _isTopRibbonVisible ? GridLength.Auto : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[1].Height = new GridLength(1, GridUnitType.Star);
+        _rootLayoutGrid.RowDefinitions[2].Height = hasBottomDock ? new GridLength(6) : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[3].Height = _isTimelineDockVisible ? _timelineDockHeight : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[4].Height = _isTimelineDockVisible && _isActivityDockVisible ? new GridLength(6) : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[5].Height = _isActivityDockVisible ? _activityDockHeight : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[6].Height = GridLength.Auto;
+    }
+
+    private void RememberCurrentDockSizes()
+    {
+        if (_leftDockBorder is not null && _leftDockBorder.IsVisible && _leftDockBorder.Bounds.Width > 0)
+        {
+            _leftDockWidth = new GridLength(_leftDockBorder.Bounds.Width);
+        }
+
+        if (_rightDockBorder is not null && _rightDockBorder.IsVisible && _rightDockBorder.Bounds.Width > 0)
+        {
+            _rightDockWidth = new GridLength(_rightDockBorder.Bounds.Width);
+        }
+
+        if (_timelineDockBorder is not null && _timelineDockBorder.IsVisible && _timelineDockBorder.Bounds.Height > 0)
+        {
+            _timelineDockHeight = new GridLength(_timelineDockBorder.Bounds.Height);
+        }
+
+        if (_activityDockBorder is not null && _activityDockBorder.IsVisible && _activityDockBorder.Bounds.Height > 0)
+        {
+            _activityDockHeight = new GridLength(_activityDockBorder.Bounds.Height);
+        }
+    }
+
+    private void ApplyWorkspaceModePreference(bool forceReset)
+    {
+        if (_isFocusModeEnabled && !forceReset)
+        {
+            return;
+        }
+
+        _isFocusModeEnabled = false;
+        _isTopRibbonVisible = true;
+        _isRightDockVisible = true;
+
+        if (_viewModel.IsCreatorModeEnabled)
+        {
+            _isToolRailVisible = false;
+            _isLeftDockVisible = false;
+            _isTimelineDockVisible = false;
+            _isActivityDockVisible = false;
+            _viewModel.IsAdvancedInspectorEnabled = false;
+            if (forceReset)
+            {
+                _rightDockWidth = new GridLength(420);
+            }
+        }
+        else
+        {
+            _isToolRailVisible = true;
+            _isLeftDockVisible = true;
+            _isTimelineDockVisible = true;
+            _isActivityDockVisible = true;
+            _viewModel.IsAdvancedInspectorEnabled = true;
+            if (forceReset)
+            {
+                _leftDockWidth = new GridLength(2.3, GridUnitType.Star);
+                _rightDockWidth = new GridLength(2.8, GridUnitType.Star);
+                _timelineDockHeight = new GridLength(240);
+                _activityDockHeight = new GridLength(160);
+            }
+        }
+
+        ApplyWorkspaceLayout();
     }
 
     private void OnToggleLeftPaneClick(object? sender, RoutedEventArgs e)
     {
+        RememberCurrentDockSizes();
         _isFocusModeEnabled = false;
         _isLeftDockVisible = !_isLeftDockVisible;
         ApplyWorkspaceLayout();
@@ -435,6 +615,7 @@ public partial class MainWindow : Window
 
     private void OnToggleRightPaneClick(object? sender, RoutedEventArgs e)
     {
+        RememberCurrentDockSizes();
         _isFocusModeEnabled = false;
         _isRightDockVisible = !_isRightDockVisible;
         ApplyWorkspaceLayout();
@@ -442,13 +623,41 @@ public partial class MainWindow : Window
 
     private void OnToggleBottomDockClick(object? sender, RoutedEventArgs e)
     {
+        RememberCurrentDockSizes();
         _isFocusModeEnabled = false;
-        _isBottomDockVisible = !_isBottomDockVisible;
+        var hasBottomDock = _isTimelineDockVisible || _isActivityDockVisible;
+        if (hasBottomDock)
+        {
+            _isTimelineDockVisible = false;
+            _isActivityDockVisible = false;
+        }
+        else
+        {
+            _isTimelineDockVisible = true;
+            _isActivityDockVisible = true;
+        }
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnToggleTimelineDockClick(object? sender, RoutedEventArgs e)
+    {
+        RememberCurrentDockSizes();
+        _isFocusModeEnabled = false;
+        _isTimelineDockVisible = !_isTimelineDockVisible;
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnToggleActivityDockClick(object? sender, RoutedEventArgs e)
+    {
+        RememberCurrentDockSizes();
+        _isFocusModeEnabled = false;
+        _isActivityDockVisible = !_isActivityDockVisible;
         ApplyWorkspaceLayout();
     }
 
     private void OnToggleFocusModeClick(object? sender, RoutedEventArgs e)
     {
+        RememberCurrentDockSizes();
         _isFocusModeEnabled = !_isFocusModeEnabled;
         if (_isFocusModeEnabled)
         {
@@ -456,17 +665,33 @@ public partial class MainWindow : Window
             _isToolRailVisible = false;
             _isLeftDockVisible = false;
             _isRightDockVisible = false;
-            _isBottomDockVisible = false;
+            _isTimelineDockVisible = false;
+            _isActivityDockVisible = false;
         }
         else
         {
-            _isTopRibbonVisible = true;
-            _isToolRailVisible = true;
-            _isLeftDockVisible = true;
-            _isRightDockVisible = true;
-            _isBottomDockVisible = true;
+            ApplyWorkspaceModePreference(forceReset: false);
+            return;
         }
 
+        ApplyWorkspaceLayout();
+    }
+
+    private async void OnToggleWorkspaceModeClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetCreatorModeEnabledAsync(!_viewModel.IsCreatorModeEnabled);
+    }
+
+    private void OnShowSimpleInspectorClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.IsAdvancedInspectorEnabled = false;
+    }
+
+    private void OnShowAdvancedInspectorClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.IsAdvancedInspectorEnabled = true;
+        _isRightDockVisible = true;
+        _isFocusModeEnabled = false;
         ApplyWorkspaceLayout();
     }
 
@@ -1208,7 +1433,7 @@ public partial class MainWindow : Window
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("GameForge V1 Assets")
+                new FilePickerFileType("Soul Loom Assets")
                 {
                     Patterns = ["*.png", "*.obj"],
                 },
@@ -1448,7 +1673,20 @@ public partial class MainWindow : Window
     {
         if (sender is Control control && control.Tag is string tab)
         {
+            RememberCurrentDockSizes();
+            _isFocusModeEnabled = false;
+            _isRightDockVisible = true;
+            _isTopRibbonVisible = true;
+            _viewModel.IsAdvancedInspectorEnabled = !string.Equals(tab, "Settings", StringComparison.Ordinal)
+                && !string.Equals(tab, "Models", StringComparison.Ordinal);
+            if (string.Equals(tab, "Models", StringComparison.Ordinal))
+            {
+                _isTimelineDockVisible = false;
+                _isActivityDockVisible = false;
+                _viewModel.IsCodeMode = false;
+            }
             _viewModel.SetSystemTab(tab);
+            ApplyWorkspaceLayout();
         }
     }
 
@@ -1797,11 +2035,11 @@ public partial class MainWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open GameForge Project",
+            Title = "Open Soul Loom Project",
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("GameForge Project")
+                new FilePickerFileType("Soul Loom Project")
                 {
                     Patterns = ["*.gfproj.json", "*.json"],
                 },
@@ -1834,11 +2072,11 @@ public partial class MainWindow : Window
 
         var target = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save GameForge Project",
-            SuggestedFileName = "gameforge-project.gfproj.json",
+            Title = "Save Soul Loom Project",
+            SuggestedFileName = "soul-loom-project.gfproj.json",
             FileTypeChoices =
             [
-                new FilePickerFileType("GameForge Project")
+                new FilePickerFileType("Soul Loom Project")
                 {
                     Patterns = ["*.gfproj.json"],
                 },
@@ -1869,19 +2107,97 @@ public partial class MainWindow : Window
         await _viewModel.GenerateFromBriefAsync(launchRuntime: true);
     }
 
-    private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
+    private async Task ShowSettingsWindowAsync(string? initialTab = null)
     {
         var originalPreferences = _viewModel.GetPreferencesSnapshot();
-        var settingsWindow = new SettingsWindow(originalPreferences);
-        settingsWindow.PreferencesPreviewChanged += preview => _viewModel.ApplyPreferencesPreview(preview);
-        await settingsWindow.ShowDialog(this);
-        if (settingsWindow.Result is null)
+        try
         {
+            await _viewModel.RefreshModelManagerAsync();
+            var settingsWindow = new SettingsWindow(originalPreferences, initialTab);
+            settingsWindow.PreferencesPreviewChanged += preview => _viewModel.ApplyPreferencesPreview(preview);
+            async Task RefreshSettingsModelsAsync()
+            {
+                await _viewModel.RefreshModelManagerAsync();
+                settingsWindow.UpdateModelManagerState(
+                    _viewModel.ModelManagerEntries,
+                    _viewModel.ModelRecommendationSummary,
+                    _viewModel.ForgeGuardKeepInstalledMessage,
+                    _viewModel.ModelManagerStatus,
+                    _viewModel.CanRunModelManagerActions);
+            }
+
+            settingsWindow.QuickStartModelsRequested += async () =>
+            {
+                await _viewModel.RunQuickStartSetupAsync();
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.DownloadForgeGuardRequested += async () =>
+            {
+                await _viewModel.DownloadManagedModelAsync("forgeguard");
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.DownloadCodingModelRequested += async () =>
+            {
+                await _viewModel.DownloadManagedModelAsync("coding");
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.RunModelOnboardingRequested += async () =>
+            {
+                await _viewModel.RunModelOnboardingAsync();
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.SetupRecommendedModelsRequested += async () =>
+            {
+                await _viewModel.SetupRecommendedModelsAsync();
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.SetupFreeWillModelRequested += async () =>
+            {
+                await _viewModel.SetupFreeWillModelAsync();
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.RetryModelOperationRequested += async () =>
+            {
+                await _viewModel.RetryLastModelOperationAsync();
+                await RefreshSettingsModelsAsync();
+            };
+            settingsWindow.RefreshModelsRequested += RefreshSettingsModelsAsync;
+            settingsWindow.UpdateModelManagerState(
+                _viewModel.ModelManagerEntries,
+                _viewModel.ModelRecommendationSummary,
+                _viewModel.ForgeGuardKeepInstalledMessage,
+                _viewModel.ModelManagerStatus,
+                _viewModel.CanRunModelManagerActions);
+            await settingsWindow.ShowDialog(this);
+            if (settingsWindow.Result is null)
+            {
+                _viewModel.ApplyPreferencesPreview(originalPreferences);
+                return;
+            }
+
+            await _viewModel.ApplyAndSavePreferencesAsync(settingsWindow.Result);
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Unable to open Preferences & Settings window.", ex);
             _viewModel.ApplyPreferencesPreview(originalPreferences);
-            return;
+            _viewModel.SetStatusMessage($"Unable to open Preferences & Settings: {ex.Message}");
+        }
+    }
+
+    private async void OnOpenSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        await ShowSettingsWindowAsync();
+    }
+
+    private async void OnOpenModelsAndLlmSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsDownloadErrorVisible)
+        {
+            _viewModel.DismissModelErrorDialog();
         }
 
-        await _viewModel.ApplyAndSavePreferencesAsync(settingsWindow.Result);
+        await ShowSettingsWindowAsync("Models");
     }
 
     private async void OnSaveCodeClick(object? sender, RoutedEventArgs e)
@@ -1959,6 +2275,13 @@ public partial class MainWindow : Window
 
     private async void OnMainWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _isFocusModeEnabled)
+        {
+            OnToggleFocusModeClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Delete && !IsTextEntryFocused())
         {
             await _viewModel.HandleDeleteShortcutAsync();

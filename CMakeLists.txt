@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(ForgeEngineRuntime VERSION 0.1.0 LANGUAGES CXX)
+project(SoulLoomRuntime VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,11 +21,10 @@ foreach(candidate ${FORGE_JSON_HEADER_CANDIDATES})
 endforeach()
 if(FORGE_JSON_HEADER_PATH STREQUAL "")
     message(FATAL_ERROR
-        "Missing vendored nlohmann/json header under runtime/cpp/external.\n"
+        "Missing vendored nlohmann/json header. Expected one of:\n"
+        "  runtime/cpp/external/nlohmann/json.hpp\n"
+        "  runtime/cpp/external/nlohmann_json/single_include/nlohmann/json.hpp\n"
         "Download once, then re-run CMake:\n"
-        "Windows (curl):\n"
-        "  mkdir runtime\\cpp\\external\\nlohmann\n"
-        "  curl -L https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -o runtime\\cpp\\external\\nlohmann\\json.hpp\n"
         "Windows (PowerShell):\n"
         "  New-Item -ItemType Directory -Force runtime/cpp/external/nlohmann | Out-Null\n"
         "  Invoke-WebRequest -Uri https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp -OutFile runtime/cpp/external/nlohmann/json.hpp\n"
@@ -146,6 +145,7 @@ target_include_directories(forge_runtime
     PRIVATE
         runtime/cpp
         runtime/cpp/external
+        runtime/cpp/external/nlohmann
         runtime/cpp/external/nlohmann_json/single_include
         ${FORGE_GLM_INCLUDE_ROOT}
 )

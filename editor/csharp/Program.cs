@@ -1,4 +1,5 @@
 using Avalonia;
+using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor;
 using System.Text.Json;
 using GameForge.Editor.EditorShell;
@@ -12,9 +13,13 @@ internal static class Program
 
     public static async Task<int> Main(string[] args)
     {
-        Console.WriteLine("GameForge V1 editor launcher (C# app entrypoint)");
+        EditorDiagnosticsLog.InitializeSession(args);
+        RegisterGlobalExceptionHandlers();
+
+        Console.WriteLine("Soul Loom editor launcher (C# app entrypoint)");
         Console.WriteLine("Mode: local-first, single-player, no-code-first");
         Console.WriteLine("Target OS: Windows + Ubuntu");
+        Console.WriteLine($"Editor diagnostics log: {EditorDiagnosticsLog.CurrentLogPath}");
 
         if (args.Length > 0 && args[0] == "--interview-persistence-smoke")
         {
@@ -133,8 +138,18 @@ internal static class Program
 
         if (args.Length > 0 && args[0] == "--editor-ui")
         {
-            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-            return 0;
+            try
+            {
+                EditorDiagnosticsLog.LogInfo("Launching Avalonia editor UI.");
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                EditorDiagnosticsLog.LogException("Editor UI bootstrap failed.", ex, isFatal: true);
+                Console.Error.WriteLine($"Editor UI bootstrap failed. See {EditorDiagnosticsLog.CurrentLogPath}");
+                return 1;
+            }
         }
 
         if (args.Length > 0 && args[0].StartsWith("--", StringComparison.Ordinal))
@@ -158,6 +173,30 @@ internal static class Program
 
         Console.WriteLine("Editor launcher started successfully.");
         return 0;
+    }
+
+    private static void RegisterGlobalExceptionHandlers()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+        {
+            if (eventArgs.ExceptionObject is Exception exception)
+            {
+                EditorDiagnosticsLog.LogException(
+                    $"AppDomain unhandled exception (terminating={eventArgs.IsTerminating})",
+                    exception,
+                    isFatal: true);
+                return;
+            }
+
+            EditorDiagnosticsLog.LogError(
+                $"AppDomain unhandled exception (terminating={eventArgs.IsTerminating}) with non-Exception payload.");
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+        {
+            EditorDiagnosticsLog.LogException("Unobserved task exception.", eventArgs.Exception);
+            eventArgs.SetObserved();
+        };
     }
 
     public static AppBuilder BuildAvaloniaApp()

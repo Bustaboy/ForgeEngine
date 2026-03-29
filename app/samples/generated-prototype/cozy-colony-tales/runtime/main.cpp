@@ -3,7 +3,7 @@
 #include <string>
 
 int main() {
-    std::cout << "GameForge V1 prototype runtime (C++ baseline)\n";
+    std::cout << "Soul Loom prototype runtime (C++ baseline)\n";
     std::cout << "Mode: local-first, single-player, no-code-first\n";
     std::cout << "Rendering direction: Vulkan-first\n";
     std::cout << "Project: Cozy Colony Tales\n";

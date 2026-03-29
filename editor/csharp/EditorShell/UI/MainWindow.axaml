@@ -6,9 +6,10 @@
         xmlns:vm="clr-namespace:GameForge.Editor.EditorShell.ViewModels"
         x:Name="RootWindow"
         x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
-        Title="GameForge Editor Shell"
+        Title="Soul Loom Editor"
         Width="1460"
         Height="920"
+        WindowState="Maximized"
         MinWidth="1180"
         MinHeight="760"
         Background="#080A0F"
@@ -125,7 +126,7 @@
     <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding PlayRuntimeCommand}" />
   </Window.KeyBindings>
 
-  <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" Margin="14" RowSpacing="12">
+  <Grid x:Name="RootLayoutGrid" RowDefinitions="Auto,*,6,240,6,160,Auto" Margin="14" RowSpacing="0">
     <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12,10">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
         <StackPanel Orientation="Horizontal" Spacing="20">
@@ -159,6 +160,7 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Classes="ribbon-icon" Content="🧩" ToolTip.Tip="Inspector Tools (placeholder)" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
               <Button Classes="ribbon-icon" Content="📊" ToolTip.Tip="Debug Console" />
+              <Button Classes="ribbon-icon" Content="🧠" Click="OnOpenModelsAndLlmSettingsClick" ToolTip.Tip="Models &amp; LLM&#x0a;Open model downloads, onboarding, and local LLM settings." />
               <Button Classes="ribbon-icon" Content="⚙" Click="OnOpenSettingsClick" ToolTip.Tip="Preferences &amp; Settings&#x0a;Tune autosave, theme, and runtime defaults with live preview.&#x0a;Shortcut: Ctrl+Shift+S" Width="{Binding RibbonIconSize}" Height="{Binding RibbonIconSize}" />
               <Button Classes="ribbon-icon" Content="❔" Command="{Binding ToggleHelpOverlayCommand}" ToolTip.Tip="How to use overlay&#x0a;Quick workflow hints for no-code-first editing." />
             </StackPanel>
@@ -174,20 +176,31 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+          <Border Background="#10213A" BorderBrush="#3A5D8E" BorderThickness="1" CornerRadius="8" Padding="10,6">
+            <StackPanel Spacing="1">
+              <TextBlock Text="{Binding WorkspaceModeLabel}" Foreground="#EEF4FF" FontSize="12" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding WorkspaceModeDescription}" Foreground="#9FC2E5" FontSize="10" MaxWidth="290" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
           <TextBlock Text="{Binding ProjectFileStatusLabel}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
           <TextBlock Text="{Binding AutosaveStatusLabel}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
           <TextBlock Text="{Binding RuntimePreferencesSummary}" VerticalAlignment="Center" Foreground="#9FC2E5" FontSize="12" />
+          <Button Content="{Binding WorkspaceModeToggleLabel}"
+                  Click="OnToggleWorkspaceModeClick"
+                  ToolTip.Tip="Toggle between Creator Mode and Pro Mode layouts." />
           <TextBlock Text="Code Mode" VerticalAlignment="Center" Foreground="#D2DEEE" FontSize="12" />
           <ToggleSwitch Classes="deep-toggle" IsChecked="{Binding IsCodeMode}" VerticalAlignment="Center" />
           <Button Content="◧ Left" Click="OnToggleLeftPaneClick" ToolTip.Tip="Show/hide the left panel dock." />
           <Button Content="◨ Right" Click="OnToggleRightPaneClick" ToolTip.Tip="Show/hide the right panel dock." />
           <Button Content="▤ Bottom" Click="OnToggleBottomDockClick" ToolTip.Tip="Show/hide timeline and activity docks." />
+          <Button Content="🎞 Timeline" Click="OnToggleTimelineDockClick" ToolTip.Tip="Show/hide the timeline dock." />
+          <Button Content="🧾 Activity" Click="OnToggleActivityDockClick" ToolTip.Tip="Show/hide the activity log dock." />
           <Button Content="🎯 Focus" Click="OnToggleFocusModeClick" ToolTip.Tip="Focus mode: maximize viewport and hide surrounding docks." />
         </StackPanel>
       </Grid>
     </Border>
 
-    <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="72,2.3*,4.8*,2.8*" RowDefinitions="*" ColumnSpacing="12">
+    <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="72,2.3*,6,4.8*,6,2.8*" RowDefinitions="*" ColumnSpacing="0" Margin="0,12,0,12">
       <Border x:Name="ToolRailBorder" Grid.Column="0" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="8">
         <StackPanel Spacing="8" HorizontalAlignment="Center">
           <Button Classes="ribbon-icon" Width="46" Height="46" Content="🖱" ToolTip.Tip="Select" />
@@ -573,7 +586,15 @@
         </Grid>
       </Border>
 
-      <Grid Grid.Column="2" RowDefinitions="*,220" RowSpacing="12">
+      <GridSplitter x:Name="LeftCenterSplitter"
+                    Grid.Column="2"
+                    Width="6"
+                    Background="#22354F"
+                    ResizeDirection="Columns"
+                    ResizeBehavior="PreviousAndNext"
+                    ShowsPreview="True" />
+
+      <Grid Grid.Column="3" RowDefinitions="*,220" RowSpacing="12" Margin="12,0">
         <Border Grid.Row="0" Background="#0A0D13" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsViewportMode}">
           <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
@@ -785,20 +806,70 @@
         </Border>
       </Grid>
 
-      <Border x:Name="RightDockBorder" Grid.Column="3" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12">
+      <GridSplitter x:Name="CenterRightSplitter"
+                    Grid.Column="4"
+                    Width="6"
+                    Background="#22354F"
+                    ResizeDirection="Columns"
+                    ResizeBehavior="PreviousAndNext"
+                    ShowsPreview="True" />
+
+      <Border x:Name="RightDockBorder" Grid.Column="5" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12" Margin="12,0,0,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
-          <TextBlock Text="Properties Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
-          <TextBlock Grid.Row="1" Text="Beginner-first defaults with optional professional depth." Foreground="#9DB0CC" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBlock Text="Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
+            <Button Grid.Column="1" Content="Hide" Click="OnToggleRightPaneClick" />
+          </Grid>
+          <TextBlock Grid.Row="1"
+                     Text="Simple keeps the core editing flow visible. Advanced reveals scene systems, diagnostics, and publishing tools."
+                     Foreground="#9DB0CC"
+                     TextWrapping="Wrap" />
 
-          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-            <TextBlock Text="Advanced Inspector" Foreground="#D5E4F8" VerticalAlignment="Center" />
-            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsAdvancedInspectorEnabled}" ToolTip.Tip="Settings field&#x0a;Enable deeper entity/runtime controls for power users." />
+          <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6" Margin="0,2,0,0">
+            <Button Classes="panel-tab active"
+                    Content="Simple"
+                    Click="OnShowSimpleInspectorClick"
+                    IsVisible="{Binding IsSimpleInspectorEnabled}" />
+            <Button Classes="panel-tab"
+                    Content="Simple"
+                    Click="OnShowSimpleInspectorClick"
+                    IsVisible="{Binding IsAdvancedInspectorEnabled}" />
+            <Button Grid.Column="1"
+                    Classes="panel-tab active"
+                    Content="Advanced"
+                    Click="OnShowAdvancedInspectorClick"
+                    IsVisible="{Binding IsAdvancedInspectorEnabled}" />
+            <Button Grid.Column="1"
+                    Classes="panel-tab"
+                    Content="Advanced"
+                    Click="OnShowAdvancedInspectorClick"
+                    IsVisible="{Binding IsSimpleInspectorEnabled}" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding InspectorDepthLabel, StringFormat=Inspector: {0}}"
+                       Foreground="#8EA5C7"
+                       FontSize="11"
+                       VerticalAlignment="Center" />
+            <Grid Grid.Column="3" ColumnDefinitions="Auto,Auto" ColumnSpacing="6" IsVisible="{Binding IsAdvancedInspectorEnabled}">
+              <TextBlock Text="Debug Console" Foreground="#D5E4F8" VerticalAlignment="Center" />
+              <ToggleSwitch Grid.Column="1"
+                            Classes="deep-toggle"
+                            IsChecked="{Binding IsDebugConsoleEnabled}"
+                            ToolTip.Tip="Show runtime diagnostics and development logs." />
+            </Grid>
           </Grid>
 
-          <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
-            <TextBlock Text="Debug Console" Foreground="#D5E4F8" VerticalAlignment="Center" />
-            <ToggleSwitch Grid.Column="1" Classes="deep-toggle" IsChecked="{Binding IsDebugConsoleEnabled}" ToolTip.Tip="Settings field&#x0a;Show runtime diagnostics and development logs." />
-          </Grid>
+          <Border Grid.Row="3"
+                  Background="#0B1524"
+                  BorderBrush="#264566"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="10,8">
+            <TextBlock Text="{Binding WorkspaceModeDescription}"
+                       Foreground="#AFC2DF"
+                       FontSize="11"
+                       TextWrapping="Wrap" />
+          </Border>
 
           <Border Grid.Row="4" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="8">
@@ -827,7 +898,7 @@
                   Background="#101722"
                   CornerRadius="8"
                   Padding="10"
-                  IsVisible="{Binding IsExportChecklistVisible}">
+                  IsVisible="{Binding IsAdvancedInspectorEnabled}">
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" RowSpacing="8">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <TextBlock Text="🚀" FontSize="16" VerticalAlignment="Center" />
@@ -985,7 +1056,13 @@
           </Border>
 
 
-          <Border Grid.Row="8" BorderBrush="#2B3446" BorderThickness="1" Background="#101722" CornerRadius="8" Padding="10">
+          <Border Grid.Row="8"
+                  BorderBrush="#2B3446"
+                  BorderThickness="1"
+                  Background="#101722"
+                  CornerRadius="8"
+                  Padding="10"
+                  IsVisible="{Binding IsAdvancedInspectorEnabled}">
             <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
               <TextBlock Text="🧠 Scene Systems + AI" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
               <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
@@ -1000,6 +1077,7 @@
                 <Button Classes="panel-tab" Content="💬" Click="OnSystemTabClick" Tag="Dialogs" />
                 <Button Classes="panel-tab" Content="🤖" Click="OnSystemTabClick" Tag="AI" />
                 <Button Classes="panel-tab" Content="🧠" Click="OnSystemTabClick" Tag="CoCreator" />
+                <Button Classes="panel-tab" Content="⬇" Click="OnOpenModelsAndLlmSettingsClick" ToolTip.Tip="Models &amp; LLM" />
                 <Button Classes="panel-tab" Content="⚙" Click="OnSystemTabClick" Tag="Settings" />
               </StackPanel>
 
@@ -1276,17 +1354,16 @@
                                FontSize="11"
                                TextWrapping="Wrap" />
                     <Button Content="Open Models &amp; LLM Settings"
-                            Click="OnSystemTabClick"
-                            Tag="Settings"
+                            Click="OnOpenModelsAndLlmSettingsClick"
                             HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </StackPanel>
 
-              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsSettingsTabActive}">
-                <TextBlock Text="Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                <TextBlock Text="Configure editor-level systems and model behavior from one place."
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsModelsTabActive}">
+                <TextBlock Text="Models &amp; LLM" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBlock Text="Download models, retry failed setup, and manage local LLM onboarding from one place."
                            Foreground="#9FC2E5"
                            FontSize="11"
                            TextWrapping="Wrap" />
@@ -1348,6 +1425,27 @@
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBlock Text="{Binding ForgeGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsSettingsTabActive}">
+                <TextBlock Text="Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                <TextBlock Text="Configure editor-level systems and workspace behavior from one place."
+                           Foreground="#9FC2E5"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+                <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Text="Model Setup" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                      <Button Grid.Column="1" Content="Open Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
+                    </Grid>
+                    <TextBlock Text="Model downloads and onboarding now live in Preferences &amp; Settings under Models &amp; LLM."
+                               Foreground="#9FC2E5"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
                     <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
@@ -1596,12 +1694,21 @@
             </Grid>
           </Border>
         </Grid>
+        </ScrollViewer>
       </Border>
     </Grid>
 
-    <Border x:Name="TimelineDockBorder" Grid.Row="2" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+    <GridSplitter x:Name="WorkspaceTimelineSplitter"
+                  Grid.Row="2"
+                  Height="6"
+                  Background="#22354F"
+                  ResizeDirection="Rows"
+                  ResizeBehavior="PreviousAndNext"
+                  ShowsPreview="True" />
+
+    <Border x:Name="TimelineDockBorder" Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,12">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="Timeline" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
           <Button Grid.Column="2" Classes="timeline-icon" Content="{Binding TimelinePlayPauseGlyph}" Command="{Binding ToggleTimelinePlaybackCommand}" ToolTip.Tip="Play/Pause timeline preview" />
@@ -1616,6 +1723,7 @@
           </Border>
           <TextBlock Grid.Column="8" Text="{Binding TimelineCurrentTimeLabel}" Foreground="#AFC2DF" VerticalAlignment="Center" />
           <TextBlock Grid.Column="9" Text="{Binding TimelineMode, StringFormat=Mode: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+          <Button Grid.Column="10" Content="Hide" Click="OnToggleTimelineDockClick" />
         </Grid>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
@@ -1695,12 +1803,21 @@
       </Grid>
     </Border>
 
-    <Border x:Name="ActivityDockBorder" Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+    <GridSplitter x:Name="TimelineActivitySplitter"
+                  Grid.Row="4"
+                  Height="6"
+                  Background="#22354F"
+                  ResizeDirection="Rows"
+                  ResizeBehavior="PreviousAndNext"
+                  ShowsPreview="True" />
+
+    <Border x:Name="ActivityDockBorder" Grid.Row="5" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,12">
       <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
-        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🧾" FontSize="16" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" Text="Activity Log" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
           <TextBlock Grid.Column="2" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
+          <Button Grid.Column="3" Content="Hide" Click="OnToggleActivityDockClick" />
         </Grid>
         <TextBlock Grid.Row="1"
                    Text="{Binding StatusMessage}"
@@ -1719,9 +1836,9 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="4" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8">
+    <Border Grid.Row="6" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8" Margin="0,12,0,0">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="4">
-        <TextBlock Text="GameForge V1 — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
+        <TextBlock Text="Soul Loom — local-first, single-player, no-code-first, Windows + Ubuntu, Vulkan-first direction" Foreground="#9DB0CC" FontSize="11" />
         <TextBlock Grid.Column="1" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="2" Text="{Binding RuntimeLaunchStatus, StringFormat=Runtime: {0}}" Foreground="#AFC2DF" FontSize="11" />
         <TextBlock Grid.Column="3" Text="{Binding RuntimePidLabel, StringFormat=PID: {0}}" Foreground="#AFC2DF" FontSize="11" />
@@ -1736,7 +1853,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.RowSpan="5"
+    <Border Grid.RowSpan="7"
             IsVisible="{Binding IsHelpOverlayVisible}"
             Background="#081120E8"
             BorderBrush="#4AA3FF"
@@ -1755,7 +1872,7 @@
     </Border>
 
     <Border x:Name="StartupOnboardingOverlay"
-            Grid.RowSpan="5"
+            Grid.RowSpan="7"
             IsVisible="False"
             Background="#070F1BEF"
             BorderBrush="#4AA3FF"
@@ -1764,8 +1881,8 @@
             Padding="18"
             Margin="34,24"
             ZIndex="20">
-      <StackPanel Spacing="10" MaxWidth="720">
-        <TextBlock Text="Welcome to GameForge" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
+        <StackPanel Spacing="10" MaxWidth="720">
+        <TextBlock Text="Welcome to Soul Loom" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
         <TextBlock Text="Setting up first-run onboarding, hardware profile, and lightweight local model availability."
                    Foreground="#CFE5FF"
                    TextWrapping="Wrap" />
@@ -1782,15 +1899,31 @@
       </StackPanel>
     </Border>
 
-    <Grid Grid.RowSpan="5"
+    <Button x:Name="FocusModeExitButton"
+            Grid.RowSpan="7"
+            IsVisible="False"
+            Content="Exit Focus"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,10,10,0"
+            Padding="12,7"
+            Background="#102742"
+            BorderBrush="#5AAFFF"
+            BorderThickness="1.2"
+            Foreground="#E8F3FF"
+            CornerRadius="8"
+            ZIndex="23"
+            Click="OnToggleFocusModeClick" />
+
+    <Grid Grid.RowSpan="7"
           IsVisible="{Binding IsDownloadProgressVisible}"
-          Background="#050C15AA"
+          Background="#09111CF4"
           ZIndex="24">
       <Border HorizontalAlignment="Center"
               VerticalAlignment="Center"
               Width="720"
               MaxWidth="760"
-              Background="#0A1627F4"
+              Background="#0C1626"
               BorderBrush="#5AAFFF"
               BorderThickness="1.2"
               CornerRadius="12"
@@ -1821,15 +1954,15 @@
       </Border>
     </Grid>
 
-    <Grid Grid.RowSpan="5"
+    <Grid Grid.RowSpan="7"
           IsVisible="{Binding IsDownloadErrorVisible}"
-          Background="#050C15CC"
+          Background="#09111CF6"
           ZIndex="25">
       <Border HorizontalAlignment="Center"
               VerticalAlignment="Center"
               Width="680"
               MaxWidth="760"
-              Background="#1B1113F5"
+              Background="#1B1113"
               BorderBrush="#FF8A73"
               BorderThickness="1.2"
               CornerRadius="12"
@@ -1840,6 +1973,7 @@
           <TextBlock Text="{Binding DownloadErrorGuidance}" Foreground="#FBCABF" FontSize="12" TextWrapping="Wrap" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <Button Content="Cancel" Click="OnDismissModelErrorClick" />
+            <Button Content="Open Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
             <Button Content="Retry"
                     Click="OnRetryModelOperationClick"
                     IsEnabled="{Binding IsModelErrorRetryEnabled}" />
