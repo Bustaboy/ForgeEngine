@@ -1,4 +1,4 @@
-# GameForge V1 Setup (Windows + Ubuntu)
+# Soul Loom Setup (Windows + Ubuntu)
 
 This setup is intentionally simple and local-first for Milestone 1.
 
@@ -33,14 +33,14 @@ This setup is intentionally simple and local-first for Milestone 1.
 ### Ubuntu/Linux
 ```bash
 git clone <repo-url>
-cd ForgeEngine
+cd Soul Loom
 ./scripts/bootstrap.sh
 ```
 
 ### Windows (PowerShell)
 ```powershell
 git clone <repo-url>
-cd ForgeEngine
+cd Soul Loom
 pwsh -f scripts/bootstrap.ps1
 ```
 
@@ -68,7 +68,7 @@ pwsh -f scripts/bootstrap.ps1 -RuntimeOnly
 
 ### Ubuntu verification
 Expected successful output includes:
-- `GameForge V1 bootstrap (Ubuntu/Linux)`
+- `Soul Loom bootstrap (Ubuntu/Linux)`
 - `OK - app`
 - `OK - editor/csharp`
 - `OK - runtime/cpp`
@@ -79,8 +79,9 @@ Expected successful output includes:
 
 ### Windows verification
 Expected successful output includes:
-- `GameForge V1 bootstrap (Windows)`
+- `Soul Loom bootstrap (Windows)`
 - The same `OK - ...` structure checks as Ubuntu.
 - `== Building Runtime Entrypoint (C++) ==`
 - `== Starting C# App Entrypoint ==`
 - `Editor launcher started successfully.`
+

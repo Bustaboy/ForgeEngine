@@ -1,4 +1,4 @@
-# GameForge V1 Acceptance Traceability Matrix (Milestone 8 hardening)
+# Soul Loom Acceptance Traceability Matrix (Milestone 8 hardening)
 
 This artifact maps **AT-001..AT-031** to current evidence and release-governance metadata.
 
@@ -65,3 +65,4 @@ Source references used:
 ## Notes and limitations
 - Coverage statuses are based on repository-visible automated tests/documents at analysis time.
 - Cross-platform and performance acceptance rows still require target-hardware and OS evidence expansion for release hardening.
+

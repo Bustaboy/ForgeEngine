@@ -58,7 +58,7 @@ public sealed class OrchestratorClient
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = ResolvePythonExecutable(),
+            FileName = PythonEnvironment.ResolvePythonExecutable(projectRoot),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -221,17 +221,6 @@ public sealed class OrchestratorClient
         }
 
         throw new DirectoryNotFoundException($"Could not resolve repository root from '{AppContext.BaseDirectory}'.");
-    }
-
-    private static string ResolvePythonExecutable()
-    {
-        var pinned = Environment.GetEnvironmentVariable("PYTHON_EXECUTABLE");
-        if (!string.IsNullOrWhiteSpace(pinned))
-        {
-            return pinned;
-        }
-
-        return OperatingSystem.IsWindows() ? "python" : "python3";
     }
 
     private static string Slugify(string value)

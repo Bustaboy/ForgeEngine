@@ -8,9 +8,9 @@ RID="linux-x64"
 OUTPUT_ROOT="$REPO_ROOT/build/release/$RID"
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 RUNTIME_BIN_DIR="$OUTPUT_ROOT/runtime"
-RUNTIME_BIN="$RUNTIME_BIN_DIR/forgeengine_runtime"
+RUNTIME_BIN="$RUNTIME_BIN_DIR/soul_loom_runtime"
 PACKAGE_ROOT="$OUTPUT_ROOT/package"
-APP_DIR="$PACKAGE_ROOT/ForgeEngine"
+APP_DIR="$PACKAGE_ROOT/SoulLoom"
 DEB_ROOT="$PACKAGE_ROOT/deb"
 APPIMAGE_ROOT="$PACKAGE_ROOT/appimage"
 SAMPLE_BRIEF="$REPO_ROOT/app/samples/interview-brief.sample.json"
@@ -21,7 +21,7 @@ export PYTHONPATH="$PYTHONPATH_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 mkdir -p "$PUBLISH_DIR" "$RUNTIME_BIN_DIR" "$PACKAGE_ROOT"
 
-echo "== ForgeEngine Ubuntu packaging =="
+echo "== Soul Loom Ubuntu packaging =="
 echo "Version: $VERSION"
 
 echo "[1/8] Building C++ runtime"
@@ -40,7 +40,7 @@ echo "[3/8] Staging app payload"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR"
 cp -R "$PUBLISH_DIR"/* "$APP_DIR/"
-cp "$RUNTIME_BIN" "$APP_DIR/forgeengine_runtime"
+cp "$RUNTIME_BIN" "$APP_DIR/soul_loom_runtime"
 cp -R "$REPO_ROOT/ai-orchestration" "$APP_DIR/ai-orchestration"
 cp -R "$REPO_ROOT/app" "$APP_DIR/app"
 
@@ -59,36 +59,36 @@ python3 "$REPO_ROOT/scripts/run_smoke_and_capture_evidence.py" \
 
 echo "[5/8] Building DEB"
 rm -rf "$DEB_ROOT"
-mkdir -p "$DEB_ROOT/DEBIAN" "$DEB_ROOT/opt/forgeengine" "$DEB_ROOT/usr/share/applications"
-cp -R "$APP_DIR"/* "$DEB_ROOT/opt/forgeengine/"
+mkdir -p "$DEB_ROOT/DEBIAN" "$DEB_ROOT/opt/soul-loom" "$DEB_ROOT/usr/share/applications"
+cp -R "$APP_DIR"/* "$DEB_ROOT/opt/soul-loom/"
 cat > "$DEB_ROOT/DEBIAN/control" <<CONTROL
-Package: forgeengine
+Package: soul-loom
 Version: $VERSION
 Section: games
 Priority: optional
 Architecture: amd64
-Maintainer: ForgeEngine Team <release@forgeengine.local>
-Description: ForgeEngine local-first editor + runtime
+Maintainer: Soul Loom LLC <release@soulloom.local>
+Description: Soul Loom local-first editor + runtime
 Depends: libc6 (>= 2.35), libstdc++6
 CONTROL
-cat > "$DEB_ROOT/usr/share/applications/forgeengine.desktop" <<DESKTOP
+cat > "$DEB_ROOT/usr/share/applications/soul-loom.desktop" <<DESKTOP
 [Desktop Entry]
 Version=1.0
-Name=ForgeEngine
-Exec=/opt/forgeengine/GameForge.Editor
+Name=Soul Loom
+Exec=/opt/soul-loom/GameForge.Editor
 Terminal=false
 Type=Application
 Categories=Game;Development;
 DESKTOP
-DEB_PATH="$OUTPUT_ROOT/ForgeEngine-${VERSION}-linux-amd64.deb"
+DEB_PATH="$OUTPUT_ROOT/SoulLoom-${VERSION}-linux-amd64.deb"
 dpkg-deb --build "$DEB_ROOT" "$DEB_PATH"
 
 echo "[6/8] Building AppImage"
 rm -rf "$APPIMAGE_ROOT"
-APPDIR="$APPIMAGE_ROOT/ForgeEngine.AppDir"
+APPDIR="$APPIMAGE_ROOT/SoulLoom.AppDir"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications"
 cp -R "$APP_DIR"/* "$APPDIR/usr/bin/"
-cp "$DEB_ROOT/usr/share/applications/forgeengine.desktop" "$APPDIR/forgeengine.desktop"
+cp "$DEB_ROOT/usr/share/applications/soul-loom.desktop" "$APPDIR/soul-loom.desktop"
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "$0")")"
@@ -99,7 +99,7 @@ if ! command -v appimagetool >/dev/null 2>&1; then
   echo "Missing appimagetool. Install it (or set APPIMAGETOOL) before running packaging." >&2
   exit 1
 fi
-APPIMAGE_PATH="$OUTPUT_ROOT/ForgeEngine-${VERSION}-linux-x86_64.AppImage"
+APPIMAGE_PATH="$OUTPUT_ROOT/SoulLoom-${VERSION}-linux-x86_64.AppImage"
 appimagetool "$APPDIR" "$APPIMAGE_PATH"
 
 echo "[7/8] Manifest"
@@ -109,7 +109,7 @@ cat > "$OUTPUT_ROOT/release_manifest.json" <<MANIFEST
   "rid": "$RID",
   "deb": "$(basename "$DEB_PATH")",
   "appimage": "$(basename "$APPIMAGE_PATH")",
-  "runtime_binary": "forgeengine_runtime",
+  "runtime_binary": "soul_loom_runtime",
   "post_build_validation": [
     "orchestrator.py --prepare-models",
     "orchestrator.py --benchmark",

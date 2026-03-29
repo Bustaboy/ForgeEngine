@@ -256,6 +256,30 @@ public sealed class EditorShellTests
         Assert.Equal("-u", startInfo.ArgumentList[0]);
         Assert.EndsWith(Path.Combine("ai-orchestration", "python", "orchestrator.py"), startInfo.ArgumentList[1]);
         Assert.Equal("quick-setup", startInfo.ArgumentList[2]);
+        Assert.True(startInfo.RedirectStandardInput);
+        Assert.True(startInfo.CreateNoWindow);
+    }
+
+    [Fact]
+    public void CreateOrchestratorStartInfo_PrefersRepositoryVenvPythonWhenPresent()
+    {
+        var repositoryRoot = Path.Combine(Path.GetTempPath(), $"soulloom-python-env-{Guid.NewGuid():N}");
+        var pythonPath = OperatingSystem.IsWindows()
+            ? Path.Combine(repositoryRoot, ".venv", "Scripts", "python.exe")
+            : Path.Combine(repositoryRoot, ".venv", "bin", "python3");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(pythonPath)!);
+        File.WriteAllText(pythonPath, string.Empty);
+
+        try
+        {
+            var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(repositoryRoot, "quick-setup");
+            Assert.Equal(pythonPath, startInfo.FileName);
+        }
+        finally
+        {
+            Directory.Delete(repositoryRoot, recursive: true);
+        }
     }
 
 

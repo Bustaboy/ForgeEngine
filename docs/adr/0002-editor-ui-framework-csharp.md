@@ -3,10 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-03-21
 - **Owners:** Editor + UX
-- **Deciders:** GameForge V1 maintainers
+- **Deciders:** Soul Loom maintainers
 
 ## Context
-GameForge V1 requires a desktop editor oriented to non-coders with rapid iteration on UX. The V1 stack lock fixes editor/tooling UI language to C#, and V1 targets Windows and Ubuntu.
+Soul Loom requires a desktop editor oriented to non-coders with rapid iteration on UX. The V1 stack lock fixes editor/tooling UI language to C#, and V1 targets Windows and Ubuntu.
 
 ## Decision
 Use **C#** for editor and tooling UI, with architecture that keeps UX logic and domain contracts independent from runtime internals.
@@ -62,3 +62,4 @@ Use **C#** for editor and tooling UI, with architecture that keeps UX logic and 
 ## References
 - Related ADRs: ADR-0001, ADR-0003, ADR-0004
 - External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+

@@ -1,4 +1,4 @@
-"""Model registry definitions for local-first ForgeEngine orchestration."""
+"""Model registry definitions for local-first Soul Loom orchestration."""
 
 from __future__ import annotations
 
@@ -56,3 +56,4 @@ DEFAULT_MODEL_SET: tuple[ModelSpec, ...] = (
         role="retrieval",
     ),
 )
+

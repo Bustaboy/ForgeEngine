@@ -1,0 +1,14 @@
+# Soul Loom AI dependencies - lightweight & local-first
+
+# Model download
+huggingface_hub>=0.25.0
+tqdm>=4.66.0
+
+# GGUF inference (core for ForgeGuard + Free Will Spark + Orchestrator)
+llama-cpp-python>=0.3.0
+
+# Utilities
+python-dotenv>=1.0.0     # Load HF_TOKEN from .env cleanly
+requests>=2.32.0
+Pillow>=10.0.0           # For any image/asset handling
+

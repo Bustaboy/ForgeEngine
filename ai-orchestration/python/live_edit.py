@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live natural-language scene editing helpers for ForgeEngine V1."""
+"""Live natural-language scene editing helpers for Soul Loom."""
 
 from __future__ import annotations
 
@@ -236,7 +236,7 @@ def edit_scene_from_prompt(scene_json_path: Path, prompt: str, art_bible_path: P
     if art_bible_path is not None and art_bible_path.exists():
         art_bible = ArtBible.from_json_file(art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=scene_json_path.parent.name or "GameForge Project")
+        art_bible = default_art_bible(project_name=scene_json_path.parent.name or "Soul Loom Project")
 
     patch = natural_language_edit(scene_json_path, prompt, art_bible)
     applied = apply_scene_patch(scene_json_path, patch)
@@ -247,3 +247,4 @@ def edit_scene_from_prompt(scene_json_path: Path, prompt: str, art_bible_path: P
         "patch": patch,
         "applied": applied,
     }
+

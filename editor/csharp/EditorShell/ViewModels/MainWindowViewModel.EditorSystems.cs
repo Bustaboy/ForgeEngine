@@ -20,6 +20,7 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabLivingNpcs = "LivingNpcs";
     private const string SystemTabSettlement = "Settlement";
     private const string SystemTabCombat = "Combat";
+    private const string SystemTabModels = "Models";
     private const string SystemTabSettings = "Settings";
 
     private string _activeSystemTab = SystemTabDayNight;
@@ -184,6 +185,7 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsLivingNpcsTabActive));
             OnPropertyChanged(nameof(IsSettlementTabActive));
             OnPropertyChanged(nameof(IsCombatTabActive));
+            OnPropertyChanged(nameof(IsModelsTabActive));
             OnPropertyChanged(nameof(IsSettingsTabActive));
         }
     }
@@ -199,6 +201,7 @@ public sealed partial class MainWindowViewModel
     public bool IsLivingNpcsTabActive => string.Equals(ActiveSystemTab, SystemTabLivingNpcs, StringComparison.Ordinal);
     public bool IsSettlementTabActive => string.Equals(ActiveSystemTab, SystemTabSettlement, StringComparison.Ordinal);
     public bool IsCombatTabActive => string.Equals(ActiveSystemTab, SystemTabCombat, StringComparison.Ordinal);
+    public bool IsModelsTabActive => string.Equals(ActiveSystemTab, SystemTabModels, StringComparison.Ordinal);
     public bool IsSettingsTabActive => string.Equals(ActiveSystemTab, SystemTabSettings, StringComparison.Ordinal);
 
     public float DayCycleSpeedEditor
@@ -1359,14 +1362,12 @@ public sealed partial class MainWindowViewModel
     {
         try
         {
-            var repositoryRoot = ResolveRepositoryRoot();
-            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
-            if (!File.Exists(modelsJsonPath))
+            var payload = await LoadModelsPayloadAsync();
+            if (payload is null)
             {
                 return false;
             }
 
-            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
             return payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
         }
         catch
@@ -1375,26 +1376,160 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    private string ResolveModelsJsonPath()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        return Path.Combine(repositoryRoot, "models.json");
+    }
+
+    private async Task<JsonObject?> LoadModelsPayloadAsync()
+    {
+        var modelsJsonPath = ResolveModelsJsonPath();
+        if (!File.Exists(modelsJsonPath))
+        {
+            return null;
+        }
+
+        return JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
+    }
+
+    private static JsonObject? GetConfiguredModelEntry(JsonObject? configuredModels, string friendlyName)
+    {
+        if (configuredModels is null)
+        {
+            return null;
+        }
+
+        if (configuredModels[friendlyName] is JsonObject configured)
+        {
+            return configured;
+        }
+
+        if (string.Equals(friendlyName, "coding", StringComparison.Ordinal) &&
+            configuredModels["orchestrator"] is JsonObject legacyCoding)
+        {
+            return legacyCoding;
+        }
+
+        return null;
+    }
+
+    private static bool IsModelInstalled(JsonObject? configuredModels, string friendlyName)
+    {
+        var configured = GetConfiguredModelEntry(configuredModels, friendlyName);
+        var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    }
+
+    private async Task RunQuickSetupFromGuidanceAsync()
+    {
+        if (await RunQuickStartSetupAsync())
+        {
+            ShowToast(
+                "Quick Setup complete. ForgeGuard, Free-Will, and Coding are ready.",
+                "Models Ready",
+                "Next step: click New Project and then Generate & Play for your first prototype.",
+                isError: false,
+                actionLabel: null,
+                action: null);
+        }
+    }
+
+    private async Task DownloadCodingFromGuidanceAsync()
+    {
+        await DownloadManagedModelAsync("coding");
+        ShowToast(
+            "Coding model download finished.",
+            "Coding Ready",
+            "Try Generate & Play again to create your first prototype.",
+            isError: false,
+            actionLabel: null,
+            action: null);
+    }
+
+    private async Task<bool> EnsureFirstPrototypeGenerationReadyAsync()
+    {
+        JsonObject? payload;
+        try
+        {
+            payload = await LoadModelsPayloadAsync();
+        }
+        catch
+        {
+            payload = null;
+        }
+
+        var onboardingCompleted = payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
+        var configuredModels = payload?["models"] as JsonObject;
+        var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+        var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
+        var codingInstalled = IsModelInstalled(configuredModels, "coding");
+
+        if (onboardingCompleted && forgeGuardInstalled && freeWillInstalled && codingInstalled)
+        {
+            return true;
+        }
+
+        if (!onboardingCompleted || !forgeGuardInstalled || !freeWillInstalled)
+        {
+            ShowFailureToast(
+                "Quick Setup Required",
+                "Complete Quick Setup before generating your first prototype.",
+                "Quick Setup installs ForgeGuard, Free-Will, and Coding in the recommended first-boot order.",
+                "Run Quick Setup",
+                RunQuickSetupFromGuidanceAsync);
+            return false;
+        }
+
+        ShowFailureToast(
+            "Coding Model Required",
+            "Install the Coding model before generating your first prototype.",
+            "ForgeGuard and Free-Will are ready. The final step is downloading the Coding model used for local prototype/code generation.",
+            "Download Coding",
+            DownloadCodingFromGuidanceAsync);
+        return false;
+    }
+
     public async Task<string> BuildQuickSetupSummaryAsync()
     {
         try
         {
-            var repositoryRoot = ResolveRepositoryRoot();
-            var modelsJsonPath = Path.Combine(repositoryRoot, "models.json");
-            if (!File.Exists(modelsJsonPath))
+            var payload = await LoadModelsPayloadAsync();
+            if (payload is null)
             {
-                return "Recommended next models: Coding + Asset-Gen (optional).";
+                return "Quick Setup installs ForgeGuard, Free-Will, and Coding. Next step: create a new project and click Generate & Play.";
             }
 
-            var payload = JsonNode.Parse(await File.ReadAllTextAsync(modelsJsonPath)) as JsonObject;
             var recommendations = payload?["onboarding"]?["recommendations"] as JsonObject;
-            var codingReason = recommendations?["coding"]?["reason"]?.GetValue<string>() ?? "Optional coding assistant model.";
+            var configuredModels = payload?["models"] as JsonObject;
+            var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+            var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
+            var codingInstalled = IsModelInstalled(configuredModels, "coding");
             var assetReason = recommendations?["assetgen"]?["reason"]?.GetValue<string>() ?? "Optional local asset generation model.";
-            return $"Recommended next models: Coding and Asset-Gen.\n- Coding: {codingReason}\n- Asset-Gen: {assetReason}";
+            if (forgeGuardInstalled && freeWillInstalled && codingInstalled)
+            {
+                return $"Ready for your first prototype.\n- Next step: click Create First Prototype below.\n- Optional later: Asset-Gen remains available from Models & LLM.\n- Asset-Gen: {assetReason}";
+            }
+
+            var missing = new List<string>();
+            if (!forgeGuardInstalled)
+            {
+                missing.Add("ForgeGuard");
+            }
+            if (!freeWillInstalled)
+            {
+                missing.Add("Free-Will");
+            }
+            if (!codingInstalled)
+            {
+                missing.Add("Coding");
+            }
+
+            return $"Quick Setup finished, but these core models still need attention: {string.Join(", ", missing)}.\nUse Open Models & LLM below to retry or inspect model status.\n- Optional later: Asset-Gen: {assetReason}";
         }
         catch
         {
-            return "Recommended next models: Coding + Asset-Gen (optional).";
+            return "Quick Setup installs ForgeGuard, Free-Will, and Coding. If anything still needs attention, open Models & LLM below and retry the missing step.";
         }
     }
 
@@ -1433,13 +1568,13 @@ public sealed partial class MainWindowViewModel
     public async Task<bool> RunQuickStartSetupAsync()
     {
         var completed = await RunManagedModelOperationWithProgressAsync(
-            operationLabel: "Running Quick Setup (ForgeGuard + Free-Will)",
-            trackedModelNames: ["forgeguard", "freewill"],
+            operationLabel: "Running Quick Setup (ForgeGuard + Free-Will + Coding)",
+            trackedModelNames: ["forgeguard", "freewill", "coding"],
             command: "quick-setup",
             args: []);
         if (completed)
         {
-            ModelManagerStatus = "Quick Setup complete. ForgeGuard and Free-Will are ready.";
+            ModelManagerStatus = "Quick Setup complete. ForgeGuard, Free-Will, and Coding are ready for first prototype generation.";
         }
 
         return completed;
@@ -1551,16 +1686,21 @@ public sealed partial class MainWindowViewModel
         foreach (var model in defaults)
         {
             var recommendation = recommendations?[model.Friendly] as JsonObject;
-            var configured = configuredModels?[model.Friendly] as JsonObject;
+            var configured = GetConfiguredModelEntry(configuredModels, model.Friendly);
             var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
             var installed = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
             var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
             var progressStatus = _modelDownloadProgressByName.TryGetValue(model.Friendly, out var progress) ? progress : "Downloading";
             var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
             var lastError = _modelLastErrorByName.TryGetValue(model.Friendly, out var errorText) ? errorText : string.Empty;
-            var reason = recommendation?["reason"]?.GetValue<string>() ?? "No recommendation yet. Run onboarding.";
+            var reason = recommendation?["reason"]?.GetValue<string>()
+                ?? (string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal)
+                    ? "Core helper model for onboarding, guardrails, critique passes, and lightweight decisions. It can be installed before onboarding completes."
+                    : "No recommendation yet. Run onboarding.");
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
-            var shouldDownload = recommendation is not null && !installed && !string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
+            var shouldDownload = string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal)
+                ? !installed
+                : recommendation is not null && !installed;
             var removable = string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
             _modelManagerEntries.Add(new ModelManagerEntry(
                 model.Friendly,
@@ -1574,8 +1714,16 @@ public sealed partial class MainWindowViewModel
                 !string.IsNullOrWhiteSpace(lastError)));
         }
 
-        ModelRecommendationSummary = _modelManagerEntries.FirstOrDefault(item => item.FriendlyName == "freewill")?.Recommendation
-            ?? "Run onboarding to receive hardware-matched model recommendations.";
+        var onboardingCompleted = onboarding?["completed"]?.GetValue<bool?>() == true;
+        var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+        var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
+        var codingInstalled = IsModelInstalled(configuredModels, "coding");
+        ModelRecommendationSummary =
+            onboardingCompleted && forgeGuardInstalled && freeWillInstalled && codingInstalled
+                ? "First prototype ready: ForgeGuard, Free-Will, and Coding are installed. Next step: New Project → Generate & Play."
+                : onboardingCompleted
+                    ? $"Core model path in progress. Missing: {string.Join(", ", new[] { ("ForgeGuard", forgeGuardInstalled), ("Free-Will", freeWillInstalled), ("Coding", codingInstalled) }.Where(item => !item.Item2).Select(item => item.Item1))}. Asset-Gen stays optional."
+                    : "Quick Setup installs ForgeGuard, Free-Will, and Coding so new users can generate a first prototype without manual model hunting.";
         ForgeGuardKeepInstalledMessage = onboarding?["forgeguard_keep_message"]?.GetValue<string>()
             ?? "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
         if (_modelManagerEntries.Count > 0 && string.Equals(ModelManagerStatus, "Model manager idle.", StringComparison.Ordinal))
@@ -1676,7 +1824,7 @@ public sealed partial class MainWindowViewModel
 
         using var cts = new CancellationTokenSource();
         _activeModelOperationCts = cts;
-        _activeModelCancelFilePath = Path.Combine(Path.GetTempPath(), $"forgeengine-model-cancel-{Guid.NewGuid():N}.flag");
+        _activeModelCancelFilePath = Path.Combine(Path.GetTempPath(), $"soulloom-model-cancel-{Guid.NewGuid():N}.flag");
         try
         {
             var progressArgs = new List<string> { command };
@@ -1759,6 +1907,15 @@ public sealed partial class MainWindowViewModel
         if (process is null)
         {
             return (-1, string.Empty, $"Failed to start orchestrator.py ({command}).");
+        }
+
+        try
+        {
+            process.StandardInput.Close();
+        }
+        catch
+        {
+            // Best effort only. The editor never supplies stdin to orchestrator flows.
         }
 
         var stdoutLines = new List<string>();

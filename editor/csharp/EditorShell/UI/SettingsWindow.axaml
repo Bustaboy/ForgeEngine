@@ -114,8 +114,71 @@
           </StackPanel>
         </TabItem>
 
+        <TabItem Header="🧠 Models &amp; LLM" Name="ModelsAndLlmTab">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="16" Spacing="12">
+              <TextBlock Text="Local model setup and onboarding" Foreground="#DDEBFF" FontWeight="SemiBold" />
+              <TextBlock Name="ModelRecommendationSummaryText"
+                         Text="ForgeGuard can be installed immediately. Run onboarding to unlock hardware-matched recommendations."
+                         Foreground="#97AECC"
+                         TextWrapping="Wrap" />
+
+              <WrapPanel ItemWidth="180" Orientation="Horizontal">
+                <Button Name="QuickStartModelsButton" Content="Quick Start" MinWidth="170" Margin="0,0,8,8" Click="OnQuickStartModelsClick" />
+                <Button Name="DownloadForgeGuardButton" Content="Download ForgeGuard" MinWidth="170" Margin="0,0,8,8" Click="OnDownloadForgeGuardClick" />
+                <Button Name="RunOnboardingButton" Content="Run Onboarding" MinWidth="170" Margin="0,0,8,8" Click="OnRunModelOnboardingClick" />
+                <Button Name="SetupRecommendedModelsButton" Content="Setup Recommended" MinWidth="170" Margin="0,0,8,8" Click="OnSetupRecommendedModelsClick" />
+                <Button Name="SetupFreeWillModelButton" Content="Download Free-Will" MinWidth="170" Margin="0,0,8,8" Click="OnSetupFreeWillModelClick" />
+                <Button Name="DownloadCodingModelButton" Content="Download Coding" MinWidth="170" Margin="0,0,8,8" Click="OnDownloadCodingModelClick" />
+                <Button Name="RetryModelOperationButton" Content="Retry Last Operation" MinWidth="170" Margin="0,0,8,8" Click="OnRetryModelOperationClick" />
+                <Button Name="RefreshModelsButton" Content="Refresh Models" MinWidth="170" Margin="0,0,8,8" Click="OnRefreshModelsClick" />
+              </WrapPanel>
+
+              <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Managed model status" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBox Name="ModelEntriesSummaryTextBox"
+                           IsReadOnly="True"
+                           AcceptsReturn="True"
+                           TextWrapping="Wrap"
+                           Height="190"
+                           Background="#09111D"
+                           Foreground="#DDEBFF" />
+                  <TextBlock Name="ForgeGuardKeepInstalledMessageText"
+                             Text="ForgeGuard stays installed as a permanent helper for guardrails and critique passes."
+                             Foreground="#AFC2DF"
+                             TextWrapping="Wrap" />
+                  <TextBlock Name="ModelManagerStatusText"
+                             Text="Model manager idle."
+                             Foreground="#97AECC"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+
         <TabItem Header="🧰 Editor">
           <StackPanel Margin="16" Spacing="12">
+            <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="12">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Creator Mode (recommended)" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                    <TextBlock Text="Keeps the viewport front-and-center, starts with the simple inspector, and collapses secondary panes by default."
+                               Foreground="#97AECC"
+                               FontSize="11"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1" Name="CreatorModeToggle" OnContent="On" OffContent="Off" />
+                </Grid>
+                <TextBlock Text="Turn this off for the denser power-user workspace with outliner, timeline, activity log, and advanced inspector tools visible."
+                           Foreground="#7FA6CF"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
             <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <NumericUpDown Name="IconSizeNumeric" Minimum="40" Maximum="84" Increment="2" Value="58" />
 

@@ -1,6 +1,6 @@
 # App Module
 
-GameForge V1 application startup is anchored to the **C# editor/launcher shell** (`editor/csharp/Program.cs`).
+Soul Loom application startup is anchored to the **C# editor/launcher shell** (`editor/csharp/Program.cs`).
 
 Module boundaries for V1:
 - **App entrypoint (launcher/editor shell):** C#
@@ -21,3 +21,4 @@ Interview state contract (V1):
 Prototype generation sample assets (Milestone 3):
 - Sample interview brief: `app/samples/interview-brief.sample.json`
 - Generated prototype scaffold example: `app/samples/generated-prototype/cozy-colony-tales/`
+

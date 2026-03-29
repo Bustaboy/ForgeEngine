@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GameForge V1 AI orchestration entrypoint and interview helpers."""
+"""Soul Loom AI orchestration entrypoint and interview helpers."""
 
 from __future__ import annotations
 
@@ -1512,7 +1512,7 @@ def _generate_with_debug_backend(enhanced_prompt: str, seed: int, output_path: P
     bucket = sum(normalized) % 255
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
 <rect width="1024" height="1024" fill="rgb({bucket}, {(bucket * 3) % 255}, {(bucket * 7) % 255})"/>
-<text x="40" y="512" fill="white" font-size="36">GameForge Local Debug Asset</text>
+<text x="40" y="512" fill="white" font-size="36">Soul Loom Local Debug Asset</text>
 <text x="40" y="572" fill="white" font-size="24">type={asset_type} seed={seed}</text>
 </svg>
 """
@@ -1535,7 +1535,7 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
     if art_bible_path is not None and art_bible_path.exists():
         art_bible = ArtBible.from_json_file(art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=scene_path.parent.name or "GameForge Project")
+        art_bible = default_art_bible(project_name=scene_path.parent.name or "Soul Loom Project")
 
     quality = quality_score(scene_payload, art_bible=art_bible)
     consistency = consistency_score(scene_payload, art_bible=art_bible)
@@ -1994,10 +1994,15 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         except (json.JSONDecodeError, OSError):
             models_payload = {}
     installed_models = models_payload.get("installed_models", []) if isinstance(models_payload, dict) else []
+    managed_models = models_payload.get("models", {}) if isinstance(models_payload, dict) else {}
     forgeguard_available = any(
         isinstance(entry, dict) and str(entry.get("friendly_name", "")).strip().lower() == "forgeguard"
         for entry in installed_models if isinstance(installed_models, list)
     )
+    if not forgeguard_available and isinstance(managed_models, dict):
+        forgeguard_entry = managed_models.get("forgeguard", {})
+        forgeguard_path = str(forgeguard_entry.get("path", "")).strip() if isinstance(forgeguard_entry, dict) else ""
+        forgeguard_available = bool(forgeguard_path)
 
     optimization_overrides = scene_payload.get("optimization_overrides", {})
     if not isinstance(optimization_overrides, dict):
@@ -2753,7 +2758,7 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         art_bible = ArtBible.from_json_file(resolved_art_bible_path)
         art_bible_source: str | None = str(resolved_art_bible_path)
     else:
-        art_bible = default_art_bible(project_name=Path.cwd().name or "GameForge Project")
+        art_bible = default_art_bible(project_name=Path.cwd().name or "Soul Loom Project")
         art_bible_source = None
     enhanced_prompt = art_bible.enhance_prompt(prompt_clean)
     safe_count = max(1, int(count))
@@ -2974,7 +2979,7 @@ def _execute_generation_pipeline(
     def stage_story_analysis() -> tuple[dict[str, object], list[str]]:
         story = {
             "schema": "gameforge.pipeline.story_analysis.v1",
-            "concept": str(brief.get("concept", "GameForge Prototype")).strip(),
+            "concept": str(brief.get("concept", "Soul Loom Prototype")).strip(),
             "narrative_weight": brief.get("narrative", {}),
             "constraints": {"single_player_only": True, "local_first": True},
             "generated_at_utc": _utc_now_iso(),
@@ -2984,7 +2989,7 @@ def _execute_generation_pipeline(
         return story, [str(artifact)]
 
     def stage_concept_doc() -> tuple[dict[str, object], list[str]]:
-        concept = str(brief.get("concept", "GameForge Prototype")).strip()
+        concept = str(brief.get("concept", "Soul Loom Prototype")).strip()
         mechanics = brief.get("mechanics", {})
         markdown = "\n".join(
             [
@@ -3067,7 +3072,7 @@ def _execute_generation_pipeline(
         asset_plan_payload = json.loads((prototype_root / "pipeline" / "03_asset_plan.v1.json").read_text(encoding="utf-8"))
         generated_runtime = _render_generated_runtime_templates(
             prototype_root=prototype_root,
-            concept=str(brief.get("concept", "GameForge Prototype")),
+            concept=str(brief.get("concept", "Soul Loom Prototype")),
             scene=scene_payload,
             asset_plan=asset_plan_payload,
         )
@@ -3158,7 +3163,7 @@ def _execute_generation_pipeline(
 
 def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     brief = json.loads(brief_path.read_text(encoding="utf-8"))
-    concept = brief.get("concept", "GameForge Prototype")
+    concept = brief.get("concept", "Soul Loom Prototype")
     mechanics = brief.get("mechanics", {})
     style = brief.get("style", {})
     narrative = brief.get("narrative", {})
@@ -3426,7 +3431,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
 #include <string>
 
 int main() {{
-    std::cout << "GameForge V1 prototype runtime (C++ baseline)\\n";
+    std::cout << "Soul Loom prototype runtime (C++ baseline)\\n";
     std::cout << "Mode: local-first, single-player, no-code-first\\n";
     std::cout << "Rendering direction: Vulkan-first\\n";
     std::cout << "Project: {escaped_concept}\\n";
@@ -4015,7 +4020,7 @@ def generate_actionable_playtest_report(result: BotPlaytestResult) -> Actionable
 
 def _write_playtest_report_markdown(report: ActionablePlaytestReport, destination: Path) -> None:
     lines = [
-        "# GameForge V1 Playtest Report",
+        "# Soul Loom Playtest Report",
         "",
         f"- Report ID: `{report.report_id}`",
         f"- Scenario: `{report.scenario_id}`",
@@ -4201,7 +4206,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
 
     if command == "create-art-bible":
         destination = Path(raw_args[1]) if len(raw_args) >= 2 else Path.cwd() / "art_bible.json"
-        project_name = raw_args[2] if len(raw_args) >= 3 else destination.parent.name or "GameForge Project"
+        project_name = raw_args[2] if len(raw_args) >= 3 else destination.parent.name or "Soul Loom Project"
         art_bible = write_default_art_bible(destination, project_name=project_name)
         print(
             json.dumps(
@@ -4506,7 +4511,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="GameForge V1 AI orchestration skeleton")
+    parser = argparse.ArgumentParser(description="Soul Loom AI orchestration skeleton")
     parser.add_argument("--suggest-uncertain", dest="uncertain_input", help="User reply to evaluate for uncertainty")
     parser.add_argument("--think-for-me", dest="think_for_me_input", help="User reply to evaluate for think-for-me mode")
     parser.add_argument("--topic", default="game-direction", help="Interview topic for the option ids")
@@ -4728,7 +4733,7 @@ def main() -> int:
         )
         return 0 if result.status != "failed" else 1
 
-    print("GameForge V1 AI orchestration skeleton (Python)")
+    print("Soul Loom AI orchestration skeleton (Python)")
     print("Local-first orchestration placeholder")
     print(
         "Console commands: /orchestrate <narrative_checkpoint|npc_day|scene_review> <scene_json_path> [target] "

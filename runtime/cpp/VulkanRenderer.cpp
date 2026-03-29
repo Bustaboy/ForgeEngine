@@ -135,7 +135,7 @@ void VulkanRenderer::Init() {
     window_ = glfwCreateWindow(
         static_cast<int>(kWindowWidth),
         static_cast<int>(kWindowHeight),
-        "ForgeEngine Runtime (Vulkan-first)",
+        "Soul Loom Runtime (Vulkan-first)",
         nullptr,
         nullptr);
     if (window_ == nullptr) {
@@ -307,9 +307,9 @@ void VulkanRenderer::CreateInstance() {
 
     VkApplicationInfo application_info{};
     application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    application_info.pApplicationName = "ForgeEngineRuntime";
+    application_info.pApplicationName = "SoulLoomRuntime";
     application_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    application_info.pEngineName = "ForgeEngine";
+    application_info.pEngineName = "Soul Loom";
     application_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
     application_info.apiVersion = VK_API_VERSION_1_0;
 

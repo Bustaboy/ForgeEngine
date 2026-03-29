@@ -1,4 +1,4 @@
-"""JSON-compatible AI orchestration hooks for ForgeEngine V1 runtime systems.
+"""JSON-compatible AI orchestration hooks for Soul Loom runtime systems.
 
 These hooks are intentionally local-first and deterministic. They generate
 runtime-compatible JSON payloads that can be loaded by `SceneLoader.cpp` while
@@ -742,3 +742,4 @@ def apply_to_scene_file(scene_path: str, instruction: str) -> dict[str, Any]:
     updated = modify_scene(payload, instruction)
     path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
     return updated
+

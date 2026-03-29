@@ -1,4 +1,4 @@
-# GameForge V1 RC Readiness Handoff
+# Soul Loom RC Readiness Handoff
 
 - **Date (UTC):** 2026-03-22
 - **Prepared by:** Release Handoff Agent (GPT-5.2-Codex)
@@ -13,7 +13,7 @@
 
 ## 1) Overall readiness summary
 
-GameForge V1 is **not yet RC-ship ready** under the current acceptance policy because multiple **P0 acceptance tests are partial** and require additional production-evidence closure (especially cross-platform smoke and long-session/fresh-install validation).
+Soul Loom is **not yet RC-ship ready** under the current acceptance policy because multiple **P0 acceptance tests are partial** and require additional production-evidence closure (especially cross-platform smoke and long-session/fresh-install validation).
 
 Current P0 snapshot from the traceability source:
 
@@ -171,3 +171,4 @@ Interpretation: environment limitation, not a test-failure verdict.
 - **QA sign-off (name/date):** _TBD_
 - **Engineering sign-off (name/date):** _TBD_
 - **Release sign-off (name/date):** _TBD_
+

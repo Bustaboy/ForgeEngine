@@ -58,7 +58,7 @@ public static class FirstRunBenchmarkExample
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = ResolvePythonExecutable(),
+            FileName = PythonEnvironment.ResolvePythonExecutable(projectRoot),
             ArgumentList = { scriptPath, "--benchmark" },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -127,14 +127,4 @@ public static class FirstRunBenchmarkExample
         throw new DirectoryNotFoundException($"Could not resolve repository root from '{AppContext.BaseDirectory}'.");
     }
 
-    private static string ResolvePythonExecutable()
-    {
-        var pinned = Environment.GetEnvironmentVariable("PYTHON_EXECUTABLE");
-        if (!string.IsNullOrWhiteSpace(pinned))
-        {
-            return pinned;
-        }
-
-        return OperatingSystem.IsWindows() ? "python" : "python3";
-    }
 }

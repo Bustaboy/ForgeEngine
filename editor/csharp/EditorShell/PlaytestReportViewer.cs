@@ -92,7 +92,7 @@ public static class PlaytestReportViewer
     {
         var lines = new List<string>
         {
-            "=== GameForge Playtest Report Viewer ===",
+            "=== Soul Loom Playtest Report Viewer ===",
             $"Report ID: {report.ReportId}",
             $"Scenario: {report.ScenarioId}",
             $"Generated (UTC): {report.GeneratedAtUtc}",
@@ -116,7 +116,7 @@ public static class PlaytestReportViewer
     public static void ExportMarkdown(PlaytestReportView report, string destinationPath)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("# GameForge V1 Playtest Report");
+        builder.AppendLine("# Soul Loom Playtest Report");
         builder.AppendLine();
         builder.AppendLine($"- Report ID: `{report.ReportId}`");
         builder.AppendLine($"- Scenario: `{report.ScenarioId}`");

@@ -1,6 +1,6 @@
-# GameForge V1 Architecture Decisions (ADR Index)
+# Soul Loom Architecture Decisions (ADR Index)
 
-This folder captures baseline architecture decisions for GameForge V1 so core stack choices are not re-decided repeatedly.
+This folder captures baseline architecture decisions for Soul Loom so core stack choices are not re-decided repeatedly.
 
 ## V1 Decision Baseline
 - [ADR 0001: Runtime Engine Language and Rendering Direction](./0001-runtime-engine-language-and-rendering-direction.md)
@@ -12,7 +12,7 @@ This folder captures baseline architecture decisions for GameForge V1 so core st
 - [ADR 0000 Template](./0000-template.md)
 
 ## Architecture Overview (V1)
-GameForge V1 architecture is organized into three locked stack zones:
+Soul Loom architecture is organized into three locked stack zones:
 1. **Runtime/Engine (C++ + Vulkan-first):** Executes game simulation and rendering locally.
 2. **Editor/Tooling (C#):** Provides no-code-first visual workflows, project editing, and UX surfaces.
 3. **AI Orchestration (Python):** Generates plans and controlled change requests through explicit APIs.
@@ -23,3 +23,4 @@ Projects are stored locally with JSON-based manifests/documents and file-referen
 - Single-player only in V1.
 - No marketplace in V1.
 - No first-party cloud hosting in V1.
+

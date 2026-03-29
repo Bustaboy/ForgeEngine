@@ -1,6 +1,6 @@
 #requires -Version 7.0
 <#
-  ForgeEngine Alpha Setup (Windows 10/11)
+  Soul Loom Setup (Windows 10/11)
   One-command, idempotent environment bootstrap for testers.
 #>
 
@@ -318,11 +318,11 @@ function Run-OrchestratorStep {
 # ------------------------------------------------------------
 Write-Host ''
 Write-Host '╔══════════════════════════════════════════════════╗' -ForegroundColor Cyan
-Write-Host '║       ForgeEngine Alpha Setup — Windows          ║' -ForegroundColor Cyan
+Write-Host '║         Soul Loom Setup — Windows               ║' -ForegroundColor Cyan
 Write-Host '╚══════════════════════════════════════════════════╝' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This script will install the following (skipping anything already present):' -ForegroundColor White
-Write-Host '  • .NET 8 SDK          — runs the ForgeEngine editor' -ForegroundColor Gray
+Write-Host '  • .NET 8 SDK          — runs the Soul Loom editor' -ForegroundColor Gray
 Write-Host '  • CMake + Ninja       — C++ build system' -ForegroundColor Gray
 Write-Host '  • Python 3.12         — AI orchestration layer' -ForegroundColor Gray
 Write-Host '  • Vulkan SDK          — graphics API' -ForegroundColor Gray
@@ -334,7 +334,7 @@ Write-Host ''
 
 $script:SetupStartTime = Get-Date
 
-Write-Step 'Starting ForgeEngine Alpha setup for Windows 10/11'
+Write-Step 'Starting Soul Loom setup for Windows 10/11'
 Ensure-Command -Command 'winget' -Hint 'Install/enable App Installer from Microsoft Store, then rerun this script.'
 
 Write-Host ''
@@ -353,7 +353,7 @@ Ensure-MsysGpp
 
 Write-Host ''
 Write-Host '── Building runtime ────────────────────────────────' -ForegroundColor DarkGray
-Write-Step 'Running ForgeEngine bootstrap (compiling C++ runtime)'
+Write-Step 'Running Soul Loom bootstrap (compiling C++ runtime)'
 Invoke-CheckedNative -FilePath 'pwsh' -Arguments @('-f', $BootstrapScript) -FailureMessage 'bootstrap.ps1 failed'
 Write-Ok 'Bootstrap completed.'
 
@@ -383,10 +383,10 @@ Write-Host '║' -ForegroundColor Green
 Write-Host '╚══════════════════════════════════════════════════╝' -ForegroundColor Green
 Write-Host ''
 Write-Host 'To launch the editor:' -ForegroundColor White
-Write-Host '  dotnet run --project editor/csharp/GameForge.Editor.csproj' -ForegroundColor Cyan
+Write-Host '  pwsh -f scripts/bootstrap.ps1' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'To launch just the runtime:' -ForegroundColor White
-Write-Host '  pwsh -f scripts/bootstrap.ps1' -ForegroundColor Cyan
+Write-Host '  pwsh -f scripts/bootstrap.ps1 -RuntimeOnly' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'To do a full clean reinstall next time:' -ForegroundColor DarkGray
 Write-Host '  pwsh -f scripts/Setup-Alpha.ps1 -Fresh' -ForegroundColor DarkGray

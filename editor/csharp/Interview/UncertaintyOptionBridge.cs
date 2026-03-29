@@ -111,7 +111,7 @@ public static class UncertaintyOptionBridge
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = ResolvePythonExecutable(),
+            FileName = PythonEnvironment.ResolvePythonExecutable(projectRoot),
             ArgumentList =
             {
                 scriptPath,
@@ -162,14 +162,4 @@ public static class UncertaintyOptionBridge
             $"Could not resolve GameForge repository root from '{AppContext.BaseDirectory}'.");
     }
 
-    private static string ResolvePythonExecutable()
-    {
-        var pinned = Environment.GetEnvironmentVariable("PYTHON_EXECUTABLE");
-        if (!string.IsNullOrWhiteSpace(pinned))
-        {
-            return pinned;
-        }
-
-        return OperatingSystem.IsWindows() ? "python" : "python3";
-    }
 }

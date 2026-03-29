@@ -1,4 +1,4 @@
-# GameForge V1 Architecture Overview
+# Soul Loom Architecture Overview
 
 This page summarizes V1 architecture boundaries and links to the baseline ADR set.
 
@@ -19,3 +19,4 @@ This page summarizes V1 architecture boundaries and links to the baseline ADR se
 - Single-player workflows only for V1.
 - Windows and Ubuntu are first-class targets.
 - No marketplace and no first-party cloud hosting in V1.
+

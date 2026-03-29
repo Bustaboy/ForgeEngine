@@ -132,6 +132,8 @@ json Vec4ToJson(const glm::vec4& value) {
     return json{{"x", value.x}, {"y", value.y}, {"z", value.z}, {"w", value.w}};
 }
 
+glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback);
+
 json SceneSprite2DToJson(const SceneSprite2D& sprite) {
     json node = json{
         {"asset_id", sprite.asset_id},
@@ -538,7 +540,6 @@ json DialogNodeToJson(const DialogNode& dialog_node) {
         {"text", dialog_node.text},
         {"choices", json::array()},
     };
-    node["choices"].reserve(dialog_node.choices.size());
     for (const DialogChoice& choice : dialog_node.choices) {
         node["choices"].push_back(DialogChoiceToJson(choice));
     }
@@ -567,7 +568,6 @@ json DialogComponentToJson(const DialogComponent& dialog) {
         {"in_progress", dialog.in_progress},
     };
 
-    node["nodes"].reserve(dialog.nodes.size());
     for (const DialogNode& dialog_node : dialog.nodes) {
         node["nodes"].push_back(DialogNodeToJson(dialog_node));
     }
@@ -2711,8 +2711,6 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     json document;
     document["schema_version"] = kCurrentSceneSchemaVersion;
     document["entities"] = json::array();
-    document["entities"].reserve(scene.entities.size());
-
     for (const Entity& entity : scene.entities) {
         document["entities"].push_back(EntityToJson(entity));
     }

@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build/runtime"
 RUNTIME_SRC="$REPO_ROOT/runtime/cpp/main.cpp"
-RUNTIME_BIN="$BUILD_DIR/gameforge_runtime"
+RUNTIME_BIN="$BUILD_DIR/soul_loom_runtime"
 EDITOR_PROJECT="$REPO_ROOT/editor/csharp/GameForge.Editor.csproj"
 RUNTIME_ONLY="${1:-}"
 JSON_HEADER="$REPO_ROOT/runtime/cpp/external/nlohmann/json.hpp"
@@ -19,7 +19,7 @@ required_paths=(
   "$REPO_ROOT/scripts"
 )
 
-echo "GameForge V1 bootstrap (Ubuntu/Linux)"
+echo "Soul Loom bootstrap (Ubuntu/Linux)"
 echo "Mode: local-first, single-player, no-code-first"
 
 echo "== Repository Structure =="
