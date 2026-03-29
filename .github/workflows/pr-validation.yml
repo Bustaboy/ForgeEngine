@@ -1,0 +1,104 @@
+name: PR Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  traceability:
+    runs-on: ubuntu-latest
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp/traceability
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create temp directory
+        run: mkdir -p "$TMPDIR"
+
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Validate traceability metadata
+        run: python scripts/validate_traceability.py
+
+      - name: Run traceability validator tests
+        run: python -m pytest -q tests/test_traceability_validator.py -p no:cacheprovider
+
+  python-contracts:
+    runs-on: ubuntu-latest
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp/python-contracts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Create temp directory
+        run: mkdir -p "$TMPDIR"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ cmake ninja-build libvulkan-dev libglfw3-dev
+
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Run Python contract subset
+        run: python -m pytest -q tests/test_m1_skeleton.py tests/test_traceability_validator.py -p no:cacheprovider
+
+  csharp-contracts:
+    runs-on: ubuntu-latest
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp/csharp-contracts
+      AVALONIA_TELEMETRY_OPTOUT: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Create temp directory
+        run: mkdir -p "$TMPDIR"
+
+      - name: Restore C# test project
+        run: dotnet restore editor/csharp/tests/GameForge.Editor.Tests.csproj --nologo
+
+      - name: Run C# editor contract subset
+        run: >
+          dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj
+          --filter
+          "FullyQualifiedName~GameForge.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~GameForge.Editor.Tests.SteamReadinessPolicyTests"
+          --no-restore
+          -v minimal
+          --nologo

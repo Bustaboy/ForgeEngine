@@ -86,8 +86,20 @@ endif()
 FetchContent_Declare(
     glm
     URL https://github.com/g-truc/glm/releases/download/1.0.1/glm-1.0.1-light.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(glm)
+
+set(FORGE_GLM_INCLUDE_ROOT "${glm_SOURCE_DIR}")
+if(EXISTS "${glm_SOURCE_DIR}/glm/vec3.hpp")
+    set(FORGE_GLM_INCLUDE_ROOT "${glm_SOURCE_DIR}")
+elseif(EXISTS "${glm_SOURCE_DIR}/vec3.hpp")
+    set(FORGE_GLM_INCLUDE_ROOT "${CMAKE_BINARY_DIR}/_deps/glm-normalized")
+    file(MAKE_DIRECTORY "${FORGE_GLM_INCLUDE_ROOT}")
+    file(COPY "${glm_SOURCE_DIR}/" DESTINATION "${FORGE_GLM_INCLUDE_ROOT}/glm")
+else()
+    message(FATAL_ERROR "Unable to locate GLM headers in fetched content at ${glm_SOURCE_DIR}")
+endif()
 
 set(FORGE_RUNTIME_SOURCES
     runtime/cpp/main.cpp
@@ -135,7 +147,7 @@ target_include_directories(forge_runtime
         runtime/cpp/external
         runtime/cpp/external/nlohmann
         runtime/cpp/external/nlohmann_json/single_include
-        ${glm_SOURCE_DIR}
+        ${FORGE_GLM_INCLUDE_ROOT}
 )
 
 target_link_libraries(forge_runtime

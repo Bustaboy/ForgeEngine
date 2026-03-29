@@ -44,6 +44,18 @@ cd Soul Loom
 pwsh -f scripts/bootstrap.ps1
 ```
 
+For headless launcher verification in automation:
+
+Ubuntu/Linux:
+```bash
+./scripts/bootstrap.sh --launcher-smoke
+```
+
+Windows (PowerShell):
+```powershell
+pwsh -f scripts/bootstrap.ps1 -LauncherSmoke
+```
+
 ## Optional Runtime-Only Mode
 
 Use this when the C# toolchain is not installed yet but you want to verify runtime compilation.
@@ -60,7 +72,7 @@ pwsh -f scripts/bootstrap.ps1 -RuntimeOnly
 
 ## What Bootstrap Does
 1. Verifies required repository folders exist.
-2. Compiles the C++ runtime entrypoint from `runtime/cpp/main.cpp`.
+2. Configures and builds the C++ `forge_runtime` target via CMake.
 3. Starts C# app entrypoint (`editor/csharp/Program.cs` via `dotnet run`) by default.
 4. If runtime-only mode is used, starts the C++ runtime binary directly.
 
@@ -75,6 +87,9 @@ Expected successful output includes:
 - `OK - ai-orchestration/python`
 - `== Building Runtime Entrypoint (C++) ==`
 - `== Starting C# App Entrypoint ==`
+- an editor window opens
+
+For headless launcher smoke, expect:
 - `Editor launcher started successfully.`
 
 ### Windows verification
@@ -83,5 +98,8 @@ Expected successful output includes:
 - The same `OK - ...` structure checks as Ubuntu.
 - `== Building Runtime Entrypoint (C++) ==`
 - `== Starting C# App Entrypoint ==`
+- an editor window opens
+
+For headless launcher smoke, expect:
 - `Editor launcher started successfully.`
 

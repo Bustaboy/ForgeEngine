@@ -7,6 +7,10 @@ RUNTIME_SRC="$REPO_ROOT/runtime/cpp/main.cpp"
 RUNTIME_BIN="$BUILD_DIR/soul_loom_runtime"
 EDITOR_PROJECT="$REPO_ROOT/editor/csharp/GameForge.Editor.csproj"
 RUNTIME_ONLY="${1:-}"
+LAUNCHER_SMOKE=0
+if [[ "${1:-}" == "--launcher-smoke" ]]; then
+  LAUNCHER_SMOKE=1
+fi
 JSON_HEADER="$REPO_ROOT/runtime/cpp/external/nlohmann/json.hpp"
 JSON_URL="https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp"
 
@@ -21,6 +25,28 @@ required_paths=(
 
 echo "Soul Loom bootstrap (Ubuntu/Linux)"
 echo "Mode: local-first, single-player, no-code-first"
+
+is_headless_runtime_host() {
+  [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]
+}
+
+configure_runtime_build() {
+  local cmake_args=(
+    -S "$REPO_ROOT"
+    -B "$BUILD_DIR"
+    -DCMAKE_BUILD_TYPE=Release
+  )
+
+  if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    if command -v ninja >/dev/null 2>&1; then
+      cmake_args+=(-G Ninja)
+    else
+      cmake_args+=(-G "Unix Makefiles")
+    fi
+  fi
+
+  cmake "${cmake_args[@]}"
+}
 
 echo "== Repository Structure =="
 missing_paths=()
@@ -75,23 +101,30 @@ if ! command -v g++ >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v cmake >/dev/null 2>&1; then
+  echo "ERROR: Missing required build tool: cmake"
+  echo "  Fix: sudo apt-get install cmake"
+  exit 1
+fi
+
 mkdir -p "$BUILD_DIR"
 
 echo "== Building Runtime Entrypoint (C++) =="
-runtime_build_ok=0
-if g++ -std=c++17 "$RUNTIME_SRC" -o "$RUNTIME_BIN"; then
-  runtime_build_ok=1
-else
-  echo "WARNING: Runtime build failed (Vulkan/GLFW dependencies may be missing)."
-  echo "Continuing bootstrap in degraded mode."
-fi
+configure_runtime_build
+cmake --build "$BUILD_DIR" --config Release --target forge_runtime -j 4
 
 if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
-  if [[ "$runtime_build_ok" -eq 1 ]]; then
-    echo "== Starting Runtime Only =="
-    "$RUNTIME_BIN" "$REPO_ROOT"
+  if [[ -x "$RUNTIME_BIN" ]]; then
+    if is_headless_runtime_host; then
+      echo "== Starting Runtime Only (Headless Smoke) =="
+      "$RUNTIME_BIN" --smoke-headless "$REPO_ROOT"
+    else
+      echo "== Starting Runtime Only =="
+      "$RUNTIME_BIN" "$REPO_ROOT"
+    fi
   else
-    echo "== Runtime-only launch skipped (runtime binary unavailable) =="
+    echo "ERROR: Runtime binary unavailable after successful build."
+    exit 1
   fi
   echo "Bootstrap completed successfully (runtime-only)."
   exit 0
@@ -104,6 +137,10 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 
 echo "== Starting C# App Entrypoint =="
-dotnet run --project "$EDITOR_PROJECT" -- "$RUNTIME_BIN"
+if [[ "$LAUNCHER_SMOKE" -eq 1 ]]; then
+  dotnet run --project "$EDITOR_PROJECT" -- --launcher-smoke "$RUNTIME_BIN"
+else
+  dotnet run --project "$EDITOR_PROJECT" -- --editor-ui "$RUNTIME_BIN"
+fi
 
 echo "Bootstrap completed successfully."

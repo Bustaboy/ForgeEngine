@@ -208,15 +208,6 @@ SceneTilemap2D SceneTilemap2DFromJson(const json& node, const SceneTilemap2D& fa
     return tilemap;
 }
 
-glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
-    glm::vec4 value = fallback;
-    value.x = node.value("x", fallback.x);
-    value.y = node.value("y", fallback.y);
-    value.z = node.value("z", fallback.z);
-    value.w = node.value("w", fallback.w);
-    return value;
-}
-
 float Clamp01(float value) {
     return std::clamp(value, 0.0F, 1.0F);
 }
