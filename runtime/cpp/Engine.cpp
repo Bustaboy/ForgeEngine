@@ -1142,7 +1142,7 @@ void Engine::Run() {
 
 void Engine::RunHeadlessSmoke() {
     Logger::Init();
-    GF_LOG_INFO("ForgeEngine Vulkan runtime initialized");
+    GF_LOG_INFO("Soul Loom Vulkan runtime initialized");
 
     if (SceneLoader::Load(scene_path_, scene_)) {
         GF_LOG_INFO("Loaded scene: " + scene_path_);

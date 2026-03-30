@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build/runtime"
 RUNTIME_SRC="$REPO_ROOT/runtime/cpp/main.cpp"
-RUNTIME_BIN="$BUILD_DIR/soul_loom_runtime"
+RUNTIME_BIN="$BUILD_DIR/bin/forge_runtime"
 EDITOR_PROJECT="$REPO_ROOT/editor/csharp/GameForge.Editor.csproj"
 RUNTIME_ONLY="${1:-}"
 LAUNCHER_SMOKE=0
