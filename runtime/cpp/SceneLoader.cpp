@@ -2,6 +2,7 @@
 
 #include "Logger.h"
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <ctime>
@@ -24,6 +25,14 @@ std::string TrimCopy(const std::string& value) {
     }
     const auto last = value.find_last_not_of(" \t\r\n");
     return value.substr(first, last - first + 1);
+}
+
+std::string NormalizeSpriteKey(const std::string& value) {
+    std::string normalized = TrimCopy(value);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return normalized;
 }
 
 bool ReadJsonIfObject(const std::filesystem::path& path, json& out) {
@@ -132,7 +141,14 @@ json Vec4ToJson(const glm::vec4& value) {
     return json{{"x", value.x}, {"y", value.y}, {"z", value.z}, {"w", value.w}};
 }
 
-glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback);
+glm::vec4 Vec4FromJson(const json& node, const glm::vec4& fallback) {
+    glm::vec4 value = fallback;
+    value.x = node.value("x", fallback.x);
+    value.y = node.value("y", fallback.y);
+    value.z = node.value("z", fallback.z);
+    value.w = node.value("w", fallback.w);
+    return value;
+}
 
 json SceneSprite2DToJson(const SceneSprite2D& sprite) {
     json node = json{
@@ -681,6 +697,9 @@ json EntityToJson(const Entity& entity) {
         {"velocity", Vec3ToJson(entity.velocity)},
         {"animation", {{"motion_phase", entity.animation.motion_phase}, {"left_foot_offset", entity.animation.left_foot_offset}, {"right_foot_offset", entity.animation.right_foot_offset}}},
     };
+    if (!entity.sprite_asset_id.empty()) {
+        node["sprite_asset_id"] = entity.sprite_asset_id;
+    }
 
     if (entity.buildable.IsValid()) {
         node["buildable"] = json{
@@ -744,6 +763,7 @@ json EntityToJson(const Entity& entity) {
 Entity EntityFromJson(const json& node) {
     Entity entity{};
     entity.id = node.value("id", entity.id);
+    entity.sprite_asset_id = node.value("sprite_asset_id", entity.sprite_asset_id);
 
     if (node.contains("transform") && node["transform"].is_object()) {
         const json& transform = node["transform"];
@@ -2589,11 +2609,12 @@ bool SceneLoader::Load(const std::string& path, Scene& scene) {
                 if (!asset_id_node.is_string()) {
                     continue;
                 }
-                const std::string asset_id = asset_id_node.get<std::string>();
-                if (entity_type.empty() || asset_id.empty()) {
+                const std::string normalized_entity_type = NormalizeSpriteKey(entity_type);
+                const std::string asset_id = NormalizeSpriteKey(asset_id_node.get<std::string>());
+                if (normalized_entity_type.empty() || asset_id.empty()) {
                     continue;
                 }
-                scene.render_2d.entity_sprite_map[entity_type] = asset_id;
+                scene.render_2d.entity_sprite_map[normalized_entity_type] = asset_id;
             }
         }
         if (render_2d.contains("tilemaps") && render_2d["tilemaps"].is_array()) {
@@ -2828,10 +2849,12 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
     }
     render_2d["entity_sprite_map"] = json::object();
     for (const auto& [entity_type, asset_id] : scene.render_2d.entity_sprite_map) {
-        if (entity_type.empty() || asset_id.empty()) {
+        const std::string normalized_entity_type = NormalizeSpriteKey(entity_type);
+        const std::string normalized_asset_id = NormalizeSpriteKey(asset_id);
+        if (normalized_entity_type.empty() || normalized_asset_id.empty()) {
             continue;
         }
-        render_2d["entity_sprite_map"][entity_type] = asset_id;
+        render_2d["entity_sprite_map"][normalized_entity_type] = normalized_asset_id;
     }
     render_2d["tilemaps"] = json::array();
     for (const SceneTilemap2D& tilemap : scene.render_2d.tilemaps) {

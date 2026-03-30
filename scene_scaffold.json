@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "entities": [
+    {
+      "id": 1,
+      "transform": {
+        "pos": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "rot": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "scale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "renderable": {
+        "color": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0,
+          "w": 1.0
+        }
+      },
+      "sprite_asset_id": "villager"
+    }
+  ],
+  "render_2d": {
+    "enabled": true,
+    "render_mode": "2D",
+    "entity_sprite_map": {
+      "villager": "villager"
+    }
+  }
+}

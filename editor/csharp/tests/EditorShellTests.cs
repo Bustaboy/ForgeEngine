@@ -282,6 +282,67 @@ public sealed class EditorShellTests
         }
     }
 
+    [Fact]
+    public void CreateOrchestratorStartInfo_UsesMsysStyleVenvLayoutWhenPresent()
+    {
+        var repositoryRoot = Path.Combine(Path.GetTempPath(), $"soulloom-python-msys-{Guid.NewGuid():N}");
+        var pythonPath = Path.Combine(repositoryRoot, ".venv", "bin", OperatingSystem.IsWindows() ? "python.exe" : "python");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(pythonPath)!);
+        File.WriteAllText(pythonPath, string.Empty);
+
+        try
+        {
+            var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo(repositoryRoot, "quick-setup");
+            Assert.Equal(pythonPath, startInfo.FileName);
+        }
+        finally
+        {
+            Directory.Delete(repositoryRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void GetRepositoryVirtualEnvironmentPythonExecutable_PrefersExistingMsysStylePython()
+    {
+        var repositoryRoot = Path.Combine(Path.GetTempPath(), $"soulloom-python-select-{Guid.NewGuid():N}");
+        var pythonPath = Path.Combine(repositoryRoot, ".venv", "bin", OperatingSystem.IsWindows() ? "python.exe" : "python");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(pythonPath)!);
+        File.WriteAllText(pythonPath, string.Empty);
+
+        try
+        {
+            var resolved = PythonEnvironment.GetRepositoryVirtualEnvironmentPythonExecutable(repositoryRoot);
+            Assert.Equal(pythonPath, resolved);
+        }
+        finally
+        {
+            Directory.Delete(repositoryRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void HuggingFaceTokenStore_ReadsWorkspaceTokenFromDotEnv()
+    {
+        var repositoryRoot = Path.Combine(Path.GetTempPath(), $"soulloom-hf-token-{Guid.NewGuid():N}");
+        var envPath = Path.Combine(repositoryRoot, "ai-orchestration", "python", ".env");
+        Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
+        File.WriteAllText(envPath, "HF_TOKEN=\"hf_example_token_1234\"", System.Text.Encoding.UTF8);
+
+        try
+        {
+            var tokenInfo = HuggingFaceTokenStore.ResolveToken(repositoryRoot);
+            Assert.True(tokenInfo.IsConfigured);
+            Assert.Equal("workspace_env", tokenInfo.Source);
+            Assert.Equal("hf_example_token_1234", tokenInfo.Token);
+        }
+        finally
+        {
+            Directory.Delete(repositoryRoot, recursive: true);
+        }
+    }
+
 
     [Fact]
     public async Task CommercialDeclaration_CanBeUpdatedWithAuditEntry()

@@ -231,13 +231,49 @@ function Ensure-VulkanSdk {
 }
 
 function Get-PythonLauncher {
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCmd) { return @('python') }
+    $preferredWindowsPython = Join-Path $env:LocalAppData 'Programs\Python\Python312\python.exe'
+    if (Test-Path $preferredWindowsPython) {
+        return @($preferredWindowsPython)
+    }
 
     $pyCmd = Get-Command py -ErrorAction SilentlyContinue
     if ($pyCmd) { return @('py', '-3') }
 
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) { return @($pythonCmd.Source) }
+
     throw 'Could not find python or py launcher after installation.'
+}
+
+function Resolve-VenvActivateScript {
+    $candidates = @(
+        (Join-Path $VenvPath 'Scripts\Activate.ps1').TrimEnd(' '),
+        (Join-Path $VenvPath 'bin\Activate.ps1').TrimEnd(' ')
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Resolve-VenvPython {
+    $candidates = @(
+        (Join-Path $VenvPath 'Scripts\python.exe').TrimEnd(' '),
+        (Join-Path $VenvPath 'bin\python.exe').TrimEnd(' '),
+        (Join-Path $VenvPath 'bin\python').TrimEnd(' ')
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
 }
 
 function Ensure-Venv {
@@ -258,23 +294,23 @@ function Ensure-Venv {
             Invoke-CheckedNative -FilePath 'py' -Arguments @('-3', '-m', 'venv', $VenvPath) -FailureMessage 'Failed to create virtual environment with py launcher'
         }
         else {
-            Invoke-CheckedNative -FilePath 'python' -Arguments @('-m', 'venv', $VenvPath) -FailureMessage 'Failed to create virtual environment with python'
+            Invoke-CheckedNative -FilePath $launcher[0] -Arguments @('-m', 'venv', $VenvPath) -FailureMessage 'Failed to create virtual environment with python'
         }
 
         $createdFresh = $true
     }
 
-    $activateScript = (Join-Path $VenvPath 'Scripts\Activate.ps1').TrimEnd(' ')
-    if (-not (Test-Path $activateScript)) {
-        throw "Could not find venv activation script at $activateScript"
+    $activateScript = Resolve-VenvActivateScript
+    if (-not $activateScript) {
+        throw "Could not find venv activation script under $VenvPath\Scripts or $VenvPath\bin"
     }
 
     Write-Step 'Activating virtual environment'
     . $activateScript
 
-    $venvPython = (Join-Path $VenvPath 'Scripts\python.exe').TrimEnd(' ')
-    if (-not (Test-Path $venvPython)) {
-        throw "Virtual environment python not found at $venvPython"
+    $venvPython = Resolve-VenvPython
+    if (-not $venvPython) {
+        throw "Virtual environment python not found under $VenvPath\Scripts or $VenvPath\bin"
     }
 
     Write-Step 'Creating/updating forge.pth for ai-orchestration/python'

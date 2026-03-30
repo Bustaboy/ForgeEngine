@@ -2929,7 +2929,7 @@ def _execute_generation_pipeline(
     playtest_scenario_path: Path | None = None,
     launch_runtime: bool = True,
 ) -> PipelineExecutionResult:
-    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    brief = json.loads(brief_path.read_text(encoding="utf-8-sig"))
     pipeline_dir = output_root / "pipeline"
     pipeline_dir.mkdir(parents=True, exist_ok=True)
     benchmark_result = run_benchmark_as_dict(orchestrator_file=Path(__file__).resolve(), auto_prepare_models=True)
@@ -3069,7 +3069,14 @@ def _execute_generation_pipeline(
             raise ValueError("Prototype root missing from code generation stage.")
         artifact = prototype_root / "pipeline" / "07_export_manifest.v1.json"
         scene_payload = json.loads((prototype_root / "scene" / "scene_scaffold.json").read_text(encoding="utf-8"))
-        asset_plan_payload = json.loads((prototype_root / "pipeline" / "03_asset_plan.v1.json").read_text(encoding="utf-8"))
+        asset_plan_path = prototype_root / "pipeline" / "03_asset_plan.v1.json"
+        if asset_plan_path.exists():
+            asset_plan_payload = json.loads(asset_plan_path.read_text(encoding="utf-8"))
+        else:
+            fallback_asset_plan_path = pipeline_dir / "03_asset_plan.v1.json"
+            asset_plan_payload = json.loads(fallback_asset_plan_path.read_text(encoding="utf-8"))
+            asset_plan_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_json(asset_plan_path, asset_plan_payload)
         generated_runtime = _render_generated_runtime_templates(
             prototype_root=prototype_root,
             concept=str(brief.get("concept", "Soul Loom Prototype")),
@@ -3162,7 +3169,7 @@ def _execute_generation_pipeline(
 
 
 def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
-    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    brief = json.loads(brief_path.read_text(encoding="utf-8-sig"))
     concept = brief.get("concept", "Soul Loom Prototype")
     mechanics = brief.get("mechanics", {})
     style = brief.get("style", {})

@@ -139,6 +139,41 @@ class TestPrototypeGeneration(unittest.TestCase):
                 ], cwd=output_dir / "my-quoted-game")
                 self.assertEqual(compile_proc.returncode, 0, compile_proc.stdout + compile_proc.stderr)
 
+    def test_orchestrator_accepts_bom_prefixed_brief_json(self):
+        bom_brief = {
+            "concept": "BOM Village",
+            "mechanics": {"core_loop": "Gather -> Build -> Progress"},
+            "style": {"ui_direction": "Minimal readable HUD"},
+            "narrative": {"world_notes": "BOM compatibility check."},
+        }
+
+        temp_root = REPO_ROOT / "build" / "test-temp"
+        run_root = temp_root / f"bom-brief-{os.getpid()}-{next(tempfile._get_candidate_names())}"
+        shutil.rmtree(run_root, ignore_errors=True)
+        run_root.mkdir(parents=True, exist_ok=True)
+
+        try:
+            brief_path = run_root / "brief.json"
+            brief_path.write_text(json.dumps(bom_brief), encoding="utf-8-sig")
+            output_dir = run_root / "out"
+
+            proc = run_cmd([
+                sys.executable,
+                str(ORCHESTRATOR),
+                "--run-generation-pipeline",
+                "--generate-prototype",
+                str(brief_path),
+                "--output",
+                str(output_dir),
+                "--no-launch-runtime",
+            ])
+
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "passed")
+        finally:
+            shutil.rmtree(run_root, ignore_errors=True)
+
     def test_orchestrator_launch_without_gpp_returns_controlled_error(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "out"
