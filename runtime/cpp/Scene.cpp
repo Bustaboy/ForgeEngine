@@ -25,6 +25,7 @@
 #include "Logger.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <unordered_set>
@@ -37,6 +38,24 @@
 namespace {
 float Clamp01(float value) {
     return std::clamp(value, 0.0F, 1.0F);
+}
+
+std::string NormalizeSpriteKey(const std::string& value) {
+    std::string normalized = value;
+    normalized.erase(
+        normalized.begin(),
+        std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }));
+    normalized.erase(
+        std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }).base(),
+        normalized.end());
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return normalized;
 }
 
 glm::vec3 Lerp(const glm::vec3& start, const glm::vec3& end, float t) {
@@ -428,7 +447,12 @@ bool Scene::ApplyPatch(const std::string& patch_json) {
             if (!asset_id_node.is_string()) {
                 continue;
             }
-            render_2d.entity_sprite_map[entity_type] = asset_id_node.get<std::string>();
+            const std::string normalized_entity_type = NormalizeSpriteKey(entity_type);
+            const std::string normalized_asset_id = NormalizeSpriteKey(asset_id_node.get<std::string>());
+            if (normalized_entity_type.empty() || normalized_asset_id.empty()) {
+                continue;
+            }
+            render_2d.entity_sprite_map[normalized_entity_type] = normalized_asset_id;
         }
     }
 

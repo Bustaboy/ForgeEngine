@@ -218,6 +218,7 @@ struct Entity {
     std::uint64_t id = 0;
     Transform transform{};
     Renderable renderable{};
+    std::string sprite_asset_id{};
     BuildableComponent buildable{};
     InventoryComponent inventory{};
     FactionComponent faction{};

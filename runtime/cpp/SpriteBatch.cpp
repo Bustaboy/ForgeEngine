@@ -15,6 +15,24 @@ float SnapToPixel(float value, float pixels_per_unit) {
     }
     return std::round(value * pixels_per_unit) / pixels_per_unit;
 }
+
+std::string NormalizeSpriteKey(const std::string& value) {
+    std::string normalized = value;
+    normalized.erase(
+        normalized.begin(),
+        std::find_if(normalized.begin(), normalized.end(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }));
+    normalized.erase(
+        std::find_if(normalized.rbegin(), normalized.rend(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }).base(),
+        normalized.end());
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return normalized;
+}
 }  // namespace
 
 void SpriteBatch::LoadApprovedAssets(const std::string& approved_assets_root) {
@@ -41,28 +59,36 @@ void SpriteBatch::LoadApprovedAssets(const std::string& approved_assets_root) {
             continue;
         }
 
-        approved_texture_path_by_asset_id_[entry.path().stem().string()] = entry.path().string();
+        approved_texture_path_by_asset_id_[NormalizeSpriteKey(entry.path().stem().string())] = entry.path().string();
     }
 }
 
 std::string SpriteBatch::ResolveAssetId(const Scene& scene, const SceneSprite2D& sprite) const {
+    const std::string direct_asset_id = NormalizeSpriteKey(sprite.asset_id);
+    if (!direct_asset_id.empty() && approved_texture_path_by_asset_id_.find(direct_asset_id) != approved_texture_path_by_asset_id_.end()) {
+        return direct_asset_id;
+    }
+
+    std::string normalized_entity_type = NormalizeSpriteKey(sprite.entity_type);
     if (!sprite.asset_id.empty()) {
-        return sprite.asset_id;
+        if (normalized_entity_type.empty()) {
+            normalized_entity_type = direct_asset_id;
+        }
     }
-    if (sprite.entity_type.empty()) {
-        return {};
+    if (normalized_entity_type.empty()) {
+        return direct_asset_id;
     }
 
-    const auto scene_override_it = scene.render_2d.entity_sprite_map.find(sprite.entity_type);
+    const auto scene_override_it = scene.render_2d.entity_sprite_map.find(normalized_entity_type);
     if (scene_override_it != scene.render_2d.entity_sprite_map.end()) {
-        return scene_override_it->second;
+        return NormalizeSpriteKey(scene_override_it->second);
     }
 
-    const auto default_it = default_entity_type_to_asset_id_.find(sprite.entity_type);
+    const auto default_it = default_entity_type_to_asset_id_.find(normalized_entity_type);
     if (default_it != default_entity_type_to_asset_id_.end()) {
-        return default_it->second;
+        return NormalizeSpriteKey(default_it->second);
     }
-    return {};
+    return direct_asset_id;
 }
 
 bool SpriteBatch::RebuildTextureIndexForScene(const Scene& scene) {
@@ -75,23 +101,24 @@ bool SpriteBatch::RebuildTextureIndexForScene(const Scene& scene) {
     new_index_by_asset_id["__default_white__"] = 0;
 
     auto register_if_approved = [&](const std::string& asset_id) {
-        if (asset_id.empty()) {
+        const std::string normalized_asset_id = NormalizeSpriteKey(asset_id);
+        if (normalized_asset_id.empty()) {
             return;
         }
 
-        if (new_index_by_asset_id.find(asset_id) != new_index_by_asset_id.end()) {
+        if (new_index_by_asset_id.find(normalized_asset_id) != new_index_by_asset_id.end()) {
             return;
         }
 
-        const auto approved_it = approved_texture_path_by_asset_id_.find(asset_id);
+        const auto approved_it = approved_texture_path_by_asset_id_.find(normalized_asset_id);
         if (approved_it == approved_texture_path_by_asset_id_.end()) {
             return;
         }
 
         const std::uint32_t index = static_cast<std::uint32_t>(new_asset_ids.size());
-        new_asset_ids.push_back(asset_id);
+        new_asset_ids.push_back(normalized_asset_id);
         new_texture_paths.push_back(approved_it->second);
-        new_index_by_asset_id[asset_id] = index;
+        new_index_by_asset_id[normalized_asset_id] = index;
     };
 
     if (scene.render_2d.enabled) {

@@ -125,6 +125,14 @@ std::string Trim(const std::string& value) {
     return value.substr(start, end - start);
 }
 
+std::string NormalizeSpriteKey(const std::string& value) {
+    std::string normalized = Trim(value);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return normalized;
+}
+
 std::map<std::string, float> ParseBehaviorParams(std::istringstream& parser, bool& schedule_override, std::uint64_t& target_entity_id) {
     std::map<std::string, float> parameters{};
     schedule_override = true;
@@ -1008,13 +1016,15 @@ void ProcessConsoleCommands(
         std::string entity_type;
         std::string asset_id;
         parser >> entity_type >> asset_id;
-        if (entity_type.empty() || asset_id.empty()) {
+        const std::string normalized_entity_type = NormalizeSpriteKey(entity_type);
+        const std::string normalized_asset_id = NormalizeSpriteKey(asset_id);
+        if (normalized_entity_type.empty() || normalized_asset_id.empty()) {
             GF_LOG_INFO("Usage: /map_entity <entity_type> <asset_id>");
             return;
         }
 
-        scene.render_2d.entity_sprite_map[entity_type] = asset_id;
-        GF_LOG_INFO("Mapped entity type '" + entity_type + "' to asset '" + asset_id + "'.");
+        scene.render_2d.entity_sprite_map[normalized_entity_type] = normalized_asset_id;
+        GF_LOG_INFO("Mapped entity type '" + normalized_entity_type + "' to asset '" + normalized_asset_id + "'.");
         SetOverlayStatusMessage(overlay_status_message, "Entity sprite mapped");
         return;
     }

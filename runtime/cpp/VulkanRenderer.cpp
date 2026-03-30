@@ -26,6 +26,7 @@ constexpr std::uint32_t kWindowHeight = 720;
 constexpr int kMaxFramesInFlight = 2;
 constexpr std::uint32_t kQuadVertexCount = 6;
 constexpr std::uint32_t kMaxBindlessTextures = 512;
+constexpr float kEntitySpriteLayer = 0.0F;
 
 const std::vector<const char*> kValidationLayers = {"VK_LAYER_KHRONOS_validation"};
 const std::vector<const char*> kRequiredDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -2486,6 +2487,22 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
     }
 
     Scene draw_scene = scene;
+    for (const Entity& entity : scene.entities) {
+        if (entity.sprite_asset_id.empty()) {
+            continue;
+        }
+
+        SceneSprite2D sprite{};
+        sprite.asset_id = entity.sprite_asset_id;
+        sprite.entity_type = entity.sprite_asset_id;
+        sprite.position = glm::vec2(entity.transform.pos.x, entity.transform.pos.z);
+        sprite.size = glm::vec2(
+            std::max(0.001F, entity.transform.scale.x),
+            std::max(0.001F, entity.transform.scale.z));
+        sprite.tint = entity.renderable.color;
+        sprite.layer = kEntitySpriteLayer;
+        draw_scene.render_2d.sprites.push_back(sprite);
+    }
     auto tile_sprites = tilemap_chunk_.ExpandVisibleTiles(scene);
     draw_scene.render_2d.sprites.insert(draw_scene.render_2d.sprites.end(), tile_sprites.begin(), tile_sprites.end());
 
