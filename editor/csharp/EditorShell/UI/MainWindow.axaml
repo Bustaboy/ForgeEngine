@@ -15,17 +15,32 @@
         Background="#080A0F"
         mc:Ignorable="d">
   <Window.Resources>
-    <SolidColorBrush x:Key="PanelBrush" Color="#12161F" />
-    <SolidColorBrush x:Key="PanelBorderBrush" Color="#2B3446" />
+    <!-- Spacing Tokens -->
+    <Thickness x:Key="SpacingSmall">6</Thickness>
+    <Thickness x:Key="SpacingMedium">10</Thickness>
+    <Thickness x:Key="SpacingLarge">12</Thickness>
+
+    <!-- Shell And Border Tokens -->
     <SolidColorBrush x:Key="AccentBrush" Color="#4AA3FF" />
-    <SolidColorBrush x:Key="PanelChromeBrush" Color="#0C1018" />
-    <SolidColorBrush x:Key="SubpanelBrush" Color="#0B1524" />
-    <SolidColorBrush x:Key="SubpanelBorderBrush" Color="#264566" />
+    <SolidColorBrush x:Key="PanelShellBrush" Color="#0C1018" />
+    <SolidColorBrush x:Key="PanelShellBorderBrush" Color="#293349" />
+    <SolidColorBrush x:Key="PanelSurfaceBrush" Color="#0B1524" />
+    <SolidColorBrush x:Key="PanelSurfaceBorderBrush" Color="#264566" />
     <SolidColorBrush x:Key="PanelHoverBrush" Color="#162132" />
-    <Thickness x:Key="PanelPadding">12</Thickness>
+    <SolidColorBrush x:Key="BadgeBrush" Color="#12243A" />
+    <SolidColorBrush x:Key="BadgeBorderBrush" Color="#355B85" />
+
+    <!-- Toast Variant Tokens -->
+    <SolidColorBrush x:Key="ToastSuccessBackgroundBrush" Color="#14301E" />
+    <SolidColorBrush x:Key="ToastSuccessBorderBrush" Color="#4C9A73" />
+    <SolidColorBrush x:Key="ToastWarningBackgroundBrush" Color="#3C2A14" />
+    <SolidColorBrush x:Key="ToastWarningBorderBrush" Color="#C79649" />
+    <SolidColorBrush x:Key="ToastErrorBackgroundBrush" Color="#3A171B" />
+    <SolidColorBrush x:Key="ToastErrorBorderBrush" Color="#B95A63" />
   </Window.Resources>
 
   <Window.Styles>
+    <!-- Ribbon Buttons -->
     <Style Selector="Button.ribbon-icon">
       <Setter Property="Background" Value="#1A2232" />
       <Setter Property="BorderBrush" Value="#334257" />
@@ -59,7 +74,11 @@
       <Setter Property="Background" Value="#1A2942" />
       <Setter Property="BorderBrush" Value="#4D6E9B" />
     </Style>
+    <Style Selector="Button.ribbon-compact:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
+    <!-- Top Menu Buttons -->
     <Style Selector="Button.menu-link">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
@@ -75,6 +94,7 @@
       <Setter Property="Background" Value="#172134" />
     </Style>
 
+    <!-- Toolbar Action Buttons -->
     <Style Selector="Button.toolbar-action">
       <Setter Property="Background" Value="#152034" />
       <Setter Property="BorderBrush" Value="#334257" />
@@ -115,9 +135,10 @@
       <Setter Property="BorderBrush" Value="#44617F" />
     </Style>
 
+    <!-- Ribbon And Status Surfaces -->
     <Style Selector="Border.ribbon-group">
       <Setter Property="Background" Value="#101826" />
-      <Setter Property="BorderBrush" Value="#293349" />
+      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="8,6" />
@@ -137,20 +158,25 @@
       <Setter Property="Padding" Value="8,5" />
     </Style>
 
+    <!-- Panel Shells -->
     <Style Selector="Border.panel-shell">
-      <Setter Property="Background" Value="{StaticResource PanelChromeBrush}" />
-      <Setter Property="BorderBrush" Value="#293349" />
+      <Setter Property="Background" Value="{StaticResource PanelShellBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="{StaticResource PanelPadding}" />
+      <Setter Property="Padding" Value="{StaticResource SpacingLarge}" />
     </Style>
 
     <Style Selector="Border.subpanel-shell">
-      <Setter Property="Background" Value="{StaticResource SubpanelBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource SubpanelBorderBrush}" />
+      <Setter Property="Background" Value="{StaticResource PanelSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource PanelSurfaceBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Padding" Value="10" />
+      <Setter Property="Padding" Value="{StaticResource SpacingMedium}" />
+    </Style>
+
+    <Style Selector="Grid.panel-header">
+      <Setter Property="ColumnSpacing" Value="10" />
     </Style>
 
     <Style Selector="TextBlock.panel-title">
@@ -178,7 +204,11 @@
       <Setter Property="Background" Value="#172438" />
       <Setter Property="BorderBrush" Value="#4A6B96" />
     </Style>
+    <Style Selector="Button.panel-header-action:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
+    <!-- Panel Buttons -->
     <Style Selector="Button.panel-action-button">
       <Setter Property="Background" Value="#152034" />
       <Setter Property="BorderBrush" Value="#334257" />
@@ -193,6 +223,9 @@
     <Style Selector="Button.panel-action-button:pointerover">
       <Setter Property="Background" Value="#1A2940" />
       <Setter Property="BorderBrush" Value="#4B6C98" />
+    </Style>
+    <Style Selector="Button.panel-action-button:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
     </Style>
 
     <Style Selector="Button.panel-action-button.primary">
@@ -218,20 +251,43 @@
       <Setter Property="BorderBrush" Value="#B05E6B" />
     </Style>
 
+    <!-- Badges And Chips -->
     <Style Selector="Border.badge">
-      <Setter Property="Background" Value="#12243A" />
-      <Setter Property="BorderBrush" Value="#355B85" />
+      <Setter Property="Background" Value="{StaticResource BadgeBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BadgeBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="999" />
       <Setter Property="Padding" Value="8,3" />
     </Style>
 
+    <Style Selector="Border.viewport-chip">
+      <Setter Property="Background" Value="{StaticResource BadgeBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BadgeBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
+
+    <!-- Toasts -->
     <Style Selector="Border.toast-shell">
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="12,10" />
       <Setter Property="BorderThickness" Value="1.2" />
     </Style>
+    <Style Selector="Border.toast-shell.toast-success">
+      <Setter Property="Background" Value="{StaticResource ToastSuccessBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ToastSuccessBorderBrush}" />
+    </Style>
+    <Style Selector="Border.toast-shell.toast-warning">
+      <Setter Property="Background" Value="{StaticResource ToastWarningBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ToastWarningBorderBrush}" />
+    </Style>
+    <Style Selector="Border.toast-shell.toast-error">
+      <Setter Property="Background" Value="{StaticResource ToastErrorBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource ToastErrorBorderBrush}" />
+    </Style>
 
+    <!-- Assets And Suggestion Cards -->
     <Style Selector="Button.suggestion-card">
       <Setter Property="Background" Value="#12243A" />
       <Setter Property="BorderBrush" Value="#315273" />
@@ -268,12 +324,20 @@
       <Setter Property="Padding" Value="14,10" />
       <Setter Property="CornerRadius" Value="8" />
     </Style>
+    <Style Selector="Button.generate-cta:pointerover">
+      <Setter Property="Background" Value="#267AF6" />
+      <Setter Property="BorderBrush" Value="#78B7FF" />
+    </Style>
+    <Style Selector="Button.generate-cta:focus">
+      <Setter Property="BorderBrush" Value="#A3D1FF" />
+    </Style>
 
     <Style Selector="ToggleSwitch.deep-toggle">
       <Setter Property="OnContent" Value="On" />
       <Setter Property="OffContent" Value="Off" />
     </Style>
 
+    <!-- Timeline And History -->
     <Style Selector="Button.history-chip">
       <Setter Property="Background" Value="#111929" />
       <Setter Property="BorderBrush" Value="#2B3A52" />
@@ -282,6 +346,13 @@
       <Setter Property="Padding" Value="8,6" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.history-chip:pointerover">
+      <Setter Property="Background" Value="#172437" />
+      <Setter Property="BorderBrush" Value="#4970A0" />
+    </Style>
+    <Style Selector="Button.history-chip:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
     </Style>
 
     <Style Selector="Button.timeline-icon">
@@ -294,6 +365,13 @@
       <Setter Property="MinWidth" Value="44" />
       <Setter Property="FontSize" Value="16" />
     </Style>
+    <Style Selector="Button.timeline-icon:pointerover">
+      <Setter Property="Background" Value="#1A2940" />
+      <Setter Property="BorderBrush" Value="#4970A0" />
+    </Style>
+    <Style Selector="Button.timeline-icon:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
     <Style Selector="Button.timeline-mode">
       <Setter Property="Background" Value="#101A29" />
@@ -303,6 +381,13 @@
       <Setter Property="Foreground" Value="#AFC2DF" />
       <Setter Property="Padding" Value="9,6" />
       <Setter Property="MinWidth" Value="54" />
+    </Style>
+    <Style Selector="Button.timeline-mode:pointerover">
+      <Setter Property="Background" Value="#172437" />
+      <Setter Property="BorderBrush" Value="#4970A0" />
+    </Style>
+    <Style Selector="Button.timeline-mode:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
     </Style>
 
     <Style Selector="Button.panel-tab">
@@ -319,6 +404,9 @@
       <Setter Property="Background" Value="#172437" />
       <Setter Property="BorderBrush" Value="#4970A0" />
     </Style>
+    <Style Selector="Button.panel-tab:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
     <Style Selector="Button.panel-tab.active">
       <Setter Property="Background" Value="#1D2D46" />
@@ -334,6 +422,13 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="10,7" />
     </Style>
+    <Style Selector="Button.system-action:pointerover">
+      <Setter Property="Background" Value="#1D3D66" />
+      <Setter Property="BorderBrush" Value="#5E8FC6" />
+    </Style>
+    <Style Selector="Button.system-action:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
     <Style Selector="Border.asset-card">
       <Setter Property="Background" Value="#0B1524" />
@@ -347,8 +442,15 @@
       <Setter Property="BorderThickness" Value="1.4" />
     </Style>
 
+    <!-- Hierarchy -->
     <Style Selector="TreeView#HierarchyTree TreeViewItem">
       <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="TreeView.panel-tree">
+      <Setter Property="Background" Value="#09111D" />
+      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="8" />
     </Style>
   </Window.Styles>
   <Window.KeyBindings>
@@ -474,13 +576,13 @@
       <Border x:Name="LeftDockBorder" Grid.Column="1" Classes="panel-shell">
         <Grid x:Name="LeftDockContentGrid" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
+            <Border Classes="badge">
               <TextBlock Text="{Binding ActiveLeftPanelIcon}" FontSize="16" />
             </Border>
             <StackPanel Spacing="1">
-              <TextBlock Text="{Binding ActiveLeftPanelTitle}" Foreground="#EEF4FF" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ActiveLeftPanelTitle}" Classes="panel-title" ToolTip.Tip="Primary left-dock workspace panel." />
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="{Binding ActiveLeftPanelSubtitle}" Foreground="#8EA5C7" FontSize="11" />
+                <TextBlock Text="{Binding ActiveLeftPanelSubtitle}" Classes="panel-subtitle" />
                 <TextBlock Text="{Binding HierarchyEntityCountBadge}" Foreground="#7EC0FF" FontSize="11" IsVisible="{Binding IsHierarchyTabActive}" />
                 <TextBlock Text="{Binding HierarchySelectionBadge}" Foreground="#7EC0FF" FontSize="11" IsVisible="{Binding IsHierarchyTabActive}" />
               </StackPanel>
@@ -528,10 +630,7 @@
 
           <Border Grid.Row="2"
                   IsVisible="{Binding IsHierarchyTabActive}"
-                  Background="#0B1524"
-                  BorderBrush="#2B3A52"
-                  BorderThickness="1"
-                  CornerRadius="8"
+                  Classes="subpanel-shell"
                   Padding="8,6"
                   Margin="0,0,0,8"
                   VerticalAlignment="Top">
@@ -564,22 +663,17 @@
           </Border>
 
           <TreeView Grid.Row="3"
+                    Classes="panel-tree"
                     Name="HierarchyTree"
                     ItemsSource="{Binding HierarchyRoots}"
                     SelectedItem="{Binding SelectedHierarchyNode}"
                     IsVisible="{Binding IsHierarchyTabActive}"
-                    Background="#09111D"
-                    BorderBrush="#2B3446"
-                    BorderThickness="1"
                     Padding="8">
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:MainWindowViewModel+HierarchyNode" ItemsSource="{Binding Children}">
                 <Border Padding="5,4" CornerRadius="5" Tag="{Binding EntityId}" PointerPressed="OnHierarchyNodePointerPressed" DragDrop.AllowDrop="True" DragDrop.Drop="OnHierarchyNodeDrop" DragDrop.DragOver="OnHierarchyNodeDragOver" ToolTip.Tip="Hierarchy item&#x0a;Click to select, drag to re-parent onto groups in scene tree.">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Border Background="#14243B"
-                            BorderBrush="#36557E"
-                            BorderThickness="1"
-                            CornerRadius="6"
+                    <Border Classes="badge"
                             Padding="4,2"
                             VerticalAlignment="Top">
                       <TextBlock Text="{Binding Icon}" Foreground="#D6E9FF" />
@@ -612,10 +706,7 @@
 
           <Border Grid.Row="3"
                   IsVisible="{Binding IsHierarchyTabActive}"
-                  Background="#0B1524"
-                  BorderBrush="#2B3A52"
-                  BorderThickness="1"
-                  CornerRadius="8"
+                  Classes="subpanel-shell"
                   Padding="8,6"
                   Margin="8"
                   VerticalAlignment="Bottom"
@@ -636,7 +727,7 @@
                   SizeChanged="OnAssetsPanelSizeChanged"
                   Classes="subpanel-shell">
             <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <Grid Classes="panel-header" ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
                   <TextBlock Classes="panel-title" Text="Assets" ToolTip.Tip="Generated and reviewed graphics assets." />
                   <TextBlock Classes="panel-subtitle" Text="Generate, review, approve, and place approved art assets." />
@@ -714,7 +805,7 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate>
-                        <Border Classes="asset-card" Width="176" Margin="0,0,8,8" Padding="10" CornerRadius="8">
+                        <Border Classes="asset-card" Width="176" Margin="0,0,8,8" Padding="10" CornerRadius="8" ToolTip.Tip="{Binding Prompt}">
                           <Grid RowDefinitions="96,Auto,Auto,Auto" RowSpacing="6">
                             <Border Background="#132A43" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
                               <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
@@ -841,9 +932,12 @@
                             <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="28" />
                           </StackPanel>
-                          <Border Grid.Column="2" Classes="badge" Padding="6,2" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
-                          </Border>
+                          <StackPanel Grid.Column="2" Spacing="6" HorizontalAlignment="Right">
+                            <Border Classes="badge" Padding="6,2" HorizontalAlignment="Right">
+                              <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="{Binding QualityScoreLabel}" Foreground="#6FA8FF" FontSize="10" HorizontalAlignment="Right" />
+                          </StackPanel>
                         </Grid>
                       </Border>
                     </DataTemplate>
@@ -886,16 +980,11 @@
 
           <Border Grid.Row="3"
                   IsVisible="{Binding IsHistoryTabActive}"
-                  Background="#09111D"
-                  BorderBrush="#2B3446"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  Padding="10">
+                  Classes="subpanel-shell">
             <StackPanel Spacing="6">
-              <TextBlock Text="🕘 History tab is staged." Foreground="#D6E9FF" FontWeight="SemiBold" />
+              <TextBlock Text="🕘 History tab is staged." Classes="panel-title" FontSize="14" />
               <TextBlock Text="Undo/redo history remains active in the dedicated timeline panel below."
-                         Foreground="#8EA5C7"
-                         FontSize="11"
+                         Classes="panel-subtitle"
                          TextWrapping="Wrap" />
             </StackPanel>
           </Border>
@@ -911,7 +1000,7 @@
                     ShowsPreview="True" />
 
       <Grid Grid.Column="3" RowDefinitions="*,220" RowSpacing="12" Margin="12,0">
-        <Border Grid.Row="0" Background="#0A0D13" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" IsVisible="{Binding IsViewportMode}">
+        <Border Grid.Row="0" Classes="panel-shell" Background="#0A0D13" IsVisible="{Binding IsViewportMode}">
           <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
               <TextBlock Text="Scene Viewport" Foreground="#EEF4FF" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -924,13 +1013,13 @@
             </Grid>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+              <Border Classes="viewport-chip">
                 <TextBlock Text="🖱 Drag" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
               </Border>
-              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+              <Border Classes="viewport-chip">
                 <TextBlock Text="✏ Double-click Edit" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
               </Border>
-              <Border Background="#12243A" BorderBrush="#2F4F77" BorderThickness="1" CornerRadius="6" Padding="8,3">
+              <Border Classes="viewport-chip">
                 <TextBlock Text="🗑 Delete key / Menu" Foreground="#CFE5FF" FontSize="11" FontWeight="SemiBold" />
               </Border>
               <TextBlock Text="Undo/redo tracks add, move, and delete."
@@ -980,10 +1069,10 @@
 
                     <Grid Grid.Row="1">
                       <Canvas Name="ViewportCanvas" Background="#070B14" ClipToBounds="True" Focusable="True" />
-                      <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322DD" CornerRadius="12" Padding="30,26" HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <Border IsVisible="{Binding IsViewportEmpty}" Classes="subpanel-shell" Background="#0B1322DD" CornerRadius="12" Padding="30,26" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <StackPanel Spacing="12" Width="360">
-                          <TextBlock Text="No scene loaded" Foreground="#EAF3FF" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                          <TextBlock Text="Create a new scene or open an existing one to begin editing." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" />
+                          <TextBlock Text="No scene loaded" Classes="panel-title" FontSize="22" HorizontalAlignment="Center" />
+                          <TextBlock Text="Create a new scene or open an existing one to begin editing." Classes="panel-subtitle" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" />
                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
                             <Button Classes="panel-action-button primary" Content="Create New Scene" Click="OnNewSceneClick" />
                             <Button Classes="panel-action-button" Content="Open Existing Scene" Click="OnOpenSceneClick" />
@@ -1000,14 +1089,14 @@
                   </Grid>
                 </Border>
 
-                <Border Grid.Column="1" Background="#0B1524" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="1" Classes="subpanel-shell">
                   <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
-                    <TextBlock Text="Selection Inspector" Foreground="#EEF4FF" FontWeight="SemiBold" />
+                    <TextBlock Text="Selection Inspector" Classes="panel-title" FontSize="14" />
                     <TextBlock Grid.Row="1" Text="{Binding SelectedEntitySummary}" Foreground="#C8D6EA" TextWrapping="Wrap" />
                     <TextBlock Grid.Row="2" Text="{Binding ViewportPlaybackSummary}" Foreground="#8FC2FF" FontSize="11" />
                     <ScrollViewer Grid.Row="3" MaxHeight="280">
                       <StackPanel Spacing="8">
-                        <Border Background="#102038" CornerRadius="6" Padding="8,6">
+                        <Border Classes="subpanel-shell" Padding="8,6">
                           <TextBlock Text="{Binding SelectionInteractionHint}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                         </Border>
                         <ItemsControl ItemsSource="{Binding ViewportEntities}" IsVisible="{Binding IsViewportEntityPreviewListVisible}">
@@ -1069,9 +1158,9 @@
           </Grid>
         </Border>
 
-        <Border Grid.Row="1" Background="#101722" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12">
+        <Border Grid.Row="1" Classes="panel-shell" Background="#101722">
           <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
-            <TextBlock Text="Chat Co-Pilot" FontSize="18" FontWeight="Bold" Foreground="#EEF4FF" />
+            <TextBlock Text="Chat Co-Pilot" Classes="panel-title" FontSize="18" />
 
             <StackPanel Grid.Row="1" Spacing="8">
               <TextBlock Text="Describe Your Game" Foreground="#C8D6EA" FontSize="13" FontWeight="SemiBold" />
@@ -1079,52 +1168,6 @@
               <Button Classes="generate-cta" Content="{Binding GenerateButtonLabel}" Click="OnGenerateAndPlayClick" IsEnabled="{Binding CanGenerate}" />
               <TextBlock Text="{Binding StatusMessage}" Foreground="#AFC2DF" TextWrapping="Wrap" FontSize="12" />
             </StackPanel>
-
-            <Border Grid.Row="2"
-                    IsVisible="False"
-                    Background="#17304D"
-                    BorderBrush="#3F6EA1"
-                    BorderThickness="1.2"
-                    CornerRadius="9"
-                    Padding="12,10"
-                    HorizontalAlignment="Stretch">
-              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
-                <TextBlock Text="{Binding StatusToastTitle}" Foreground="#F3F8FF" FontSize="12" FontWeight="Bold" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                  <Button Content="{Binding StatusToastActionLabel}"
-                          Command="{Binding StatusToastActionCommand}"
-                          IsVisible="{Binding IsStatusToastActionVisible}"
-                          Background="#2B6CB0"
-                          Foreground="#F3F8FF"
-                          BorderBrush="#5A95D4"
-                          BorderThickness="1"
-                          CornerRadius="6"
-                          Padding="10,4" />
-                  <Button Content="Dismiss"
-                          Command="{Binding DismissStatusToastCommand}"
-                          Background="#263C58"
-                          Foreground="#D9E9FF"
-                          BorderBrush="#466383"
-                          BorderThickness="1"
-                          CornerRadius="6"
-                          Padding="10,4" />
-                </StackPanel>
-                <TextBlock Grid.Row="1"
-                           Grid.ColumnSpan="2"
-                           Text="{Binding StatusToastMessage}"
-                           Foreground="#E8F3FF"
-                           FontSize="12"
-                           FontWeight="SemiBold"
-                           TextWrapping="Wrap" />
-                <TextBlock Grid.Row="2"
-                           Grid.ColumnSpan="2"
-                           Text="{Binding StatusToastGuidance}"
-                           Foreground="#9FCCFF"
-                           FontSize="11"
-                           TextWrapping="Wrap"
-                           IsVisible="{Binding IsStatusToastError}" />
-              </Grid>
-            </Border>
           </Grid>
         </Border>
       </Grid>
@@ -1143,7 +1186,7 @@
         <ContentControl x:Name="AssetsPanelRightHost" />
         <ContentControl x:Name="AiInterviewRightHost" />
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <Grid Classes="panel-header" ColumnDefinitions="*,Auto" ColumnSpacing="8">
             <StackPanel Spacing="2">
               <TextBlock Text="Inspector" Classes="panel-title" FontSize="18" ToolTip.Tip="Selection properties, scene systems, and runtime tools." />
               <TextBlock Text="Properties, runtime tools, and advanced scene systems." Classes="panel-subtitle" />
@@ -2146,7 +2189,7 @@
         <TabItem x:Name="AiInterviewDockTab" Header="AI Interview">
           <ContentControl x:Name="AiInterviewBottomHost">
           <Grid x:Name="AiInterviewPanelHost" Margin="4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <Grid Classes="panel-header" ColumnDefinitions="*,Auto,Auto">
               <StackPanel Spacing="2">
                 <TextBlock Text="{Binding AiInterviewHeader}" Classes="panel-title" ToolTip.Tip="Structured AI interview for shaping the active project." />
                 <TextBlock Text="Capture focused project direction step by step." Classes="panel-subtitle" />
@@ -2155,6 +2198,7 @@
               <Button Grid.Column="2" Classes="panel-header-action" Content="⋯" ToolTip.Tip="AI Interview panel placement">
                 <Button.ContextMenu>
                   <ContextMenu>
+                    <MenuItem Header="Dock Left" IsEnabled="False" />
                     <MenuItem Header="Dock Right" Click="OnDockAiInterviewRightClick" />
                     <MenuItem Header="Dock Bottom" Click="OnDockAiInterviewBottomClick" />
                     <MenuItem Header="Float" Click="OnFloatAiInterviewClick" />
@@ -2225,7 +2269,7 @@
         </TabItem>
         <TabItem Header="Activity">
           <Grid Margin="4" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+            <Grid Classes="panel-header" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
               <TextBlock Text="🧾" FontSize="16" VerticalAlignment="Center" />
               <TextBlock Grid.Column="1" Text="Activity Log" Classes="panel-title" VerticalAlignment="Center" />
               <TextBlock Grid.Column="2" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
