@@ -900,7 +900,10 @@ public sealed partial class MainWindowViewModel
             cancellationToken);
 
     public async Task AssignScriptedBehaviorToSelectionAsync(CancellationToken cancellationToken = default)
-        => await ApplySceneMutationAsync(
+    {
+        string? finalStatus = null;
+
+        await ApplySceneMutationAsync(
             "Scripted behavior assigned",
             root =>
             {
@@ -912,7 +915,8 @@ public sealed partial class MainWindowViewModel
                 var state = (ScriptedBehaviorStateEditor ?? string.Empty).Trim().ToLowerInvariant();
                 if (string.IsNullOrWhiteSpace(state))
                 {
-                    ScriptedBehaviorStatus = "Enter a scripted behavior state first.";
+                    finalStatus = "Enter a scripted behavior state first.";
+                    ScriptedBehaviorStatus = finalStatus;
                     return false;
                 }
 
@@ -959,12 +963,19 @@ public sealed partial class MainWindowViewModel
                     updatedCount++;
                 }
 
-                ScriptedBehaviorStatus = updatedCount == 0
+                finalStatus = updatedCount == 0
                     ? "No NPCs selected for scripted behavior assignment."
                     : BuildScriptedBehaviorAssignmentStatus(state, updatedCount);
+                ScriptedBehaviorStatus = finalStatus;
                 return updatedCount > 0;
             },
             cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(finalStatus))
+        {
+            ScriptedBehaviorStatus = finalStatus;
+        }
+    }
 
     public Task RefreshScriptedBehaviorCatalogAsync(CancellationToken cancellationToken = default)
     {

@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="GameForge.Editor.EditorShell.UI.SettingsWindow"
-        Title="Preferences &amp; Settings"
+        Title="ForgeEngine Settings"
         Width="720"
         Height="540"
         MinWidth="680"
@@ -12,12 +12,12 @@
   <Border Padding="18" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="12" Background="#0B111D">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
       <StackPanel>
-        <TextBlock Text="⚙ Preferences &amp; Settings" Foreground="#EDF5FF" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Local-first editor and runtime controls" Foreground="#97AECC" Margin="0,4,0,0" />
+        <TextBlock Text="ForgeEngine Settings" Foreground="#EDF5FF" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Project-wide settings saved to .soulloom/settings.json" Foreground="#97AECC" Margin="0,4,0,0" />
       </StackPanel>
 
       <TabControl Grid.Row="1" Name="SettingsTabs" Background="#101B2B" BorderBrush="#2D405D" BorderThickness="1">
-        <TabItem Header="🎨 General">
+        <TabItem Header="General">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Theme" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <ComboBox Name="ThemeComboBox">
@@ -33,7 +33,7 @@
           </StackPanel>
         </TabItem>
 
-        <TabItem Header="🎮 Runtime">
+        <TabItem Header="Graphics">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Vulkan preview resolution" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <ComboBox Name="ResolutionComboBox">
@@ -49,7 +49,7 @@
         </TabItem>
 
 
-        <TabItem Header="🔊 Audio">
+        <TabItem Header="Audio">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Exploration music track" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <TextBox Name="MusicTrackTextBox" Watermark="music_exploration" />
@@ -97,7 +97,7 @@
           </StackPanel>
         </TabItem>
 
-        <TabItem Header="🧠 AI Orchestration">
+        <TabItem Header="Performance">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <TextBlock
@@ -114,7 +114,7 @@
           </StackPanel>
         </TabItem>
 
-        <TabItem Header="🧠 Models &amp; LLM" Name="ModelsAndLlmTab">
+        <TabItem Header="AI Models" Name="ModelsAndLlmTab">
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="16" Spacing="12">
               <TextBlock Text="Local model setup and onboarding" Foreground="#DDEBFF" FontWeight="SemiBold" />
@@ -180,21 +180,21 @@
           </ScrollViewer>
         </TabItem>
 
-        <TabItem Header="🧰 Editor">
+        <TabItem Header="Shortcuts">
           <StackPanel Margin="16" Spacing="12">
             <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="12">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                   <StackPanel Spacing="2">
-                    <TextBlock Text="Creator Mode (recommended)" Foreground="#DDEBFF" FontWeight="SemiBold" />
-                    <TextBlock Text="Keeps the viewport front-and-center, starts with the simple inspector, and collapses secondary panes by default."
+                    <TextBlock Text="Shortcut Summary" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                    <TextBlock Text="Ctrl+N New Scene, Ctrl+O Open Scene, Ctrl+S Save Scene, Ctrl+Shift+S Save Scene As, Ctrl+E Export."
                                Foreground="#97AECC"
                                FontSize="11"
                                TextWrapping="Wrap" />
                   </StackPanel>
                   <ToggleSwitch Grid.Column="1" Name="CreatorModeToggle" OnContent="On" OffContent="Off" />
                 </Grid>
-                <TextBlock Text="Turn this off for the denser power-user workspace with outliner, timeline, activity log, and advanced inspector tools visible."
+                <TextBlock Text="Additional editor defaults remain available below so existing behavior stays backward compatible."
                            Foreground="#7FA6CF"
                            FontSize="11"
                            TextWrapping="Wrap" />
@@ -209,6 +209,18 @@
 
             <TextBlock Text="Default new-project template" Foreground="#DDEBFF" FontWeight="SemiBold" />
             <ComboBox Name="DefaultTemplateComboBox" />
+          </StackPanel>
+        </TabItem>
+
+        <TabItem Header="About">
+          <StackPanel Margin="16" Spacing="12">
+            <TextBlock Text="ForgeEngine Editor V1" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Scene-first editing on top of project storage. Settings are project-wide; scenes remain the primary editing unit."
+                       Foreground="#97AECC"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="This pass focuses on polish: menus, viewport behavior, assets, AI interview, status feedback, and shell consistency."
+                       Foreground="#97AECC"
+                       TextWrapping="Wrap" />
           </StackPanel>
         </TabItem>
       </TabControl>

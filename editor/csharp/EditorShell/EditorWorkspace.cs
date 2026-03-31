@@ -445,48 +445,90 @@ public sealed class EditorWorkspace
 
     private static InspectorView BuildInspector(SceneObject sceneObject)
     {
+        var displayProperties = BuildDisplayProperties(sceneObject);
         var simple = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Name"] = sceneObject.DisplayName,
             ["Type"] = sceneObject.ObjectType,
         };
 
-        foreach (var property in sceneObject.Properties)
+        foreach (var property in displayProperties)
         {
             if (property.Key is "x" or "y" or "z" or "mode")
             {
-                simple[property.Key] = ToDisplayText(property.Value);
+                simple[property.Key] = property.Value;
             }
         }
-
-        var advanced = sceneObject.Properties.ToDictionary(
-            property => property.Key,
-            property => ToDisplayText(property.Value),
-            StringComparer.OrdinalIgnoreCase);
 
         return new InspectorView
         {
             ObjectId = sceneObject.ObjectId,
             ObjectLabel = sceneObject.DisplayName,
             SimpleSection = simple,
-            AdvancedSection = advanced,
+            AdvancedSection = displayProperties,
         };
     }
 
     private static AiSelectionContext BuildAiContext(SceneObject sceneObject)
+    {
+        return new AiSelectionContext
+        {
+            ObjectId = sceneObject.ObjectId,
+            ObjectLabel = sceneObject.DisplayName,
+            ObjectType = sceneObject.ObjectType,
+            Properties = BuildDisplayProperties(sceneObject),
+        };
+    }
+
+    private static Dictionary<string, string> BuildDisplayProperties(SceneObject sceneObject)
     {
         var properties = sceneObject.Properties.ToDictionary(
             property => property.Key,
             property => ToDisplayText(property.Value),
             StringComparer.OrdinalIgnoreCase);
 
-        return new AiSelectionContext
+        if (TryResolveDisplayMode(sceneObject, out var mode))
         {
-            ObjectId = sceneObject.ObjectId,
-            ObjectLabel = sceneObject.DisplayName,
-            ObjectType = sceneObject.ObjectType,
-            Properties = properties,
-        };
+            properties["mode"] = mode;
+        }
+
+        return properties;
+    }
+
+    private static bool TryResolveDisplayMode(SceneObject sceneObject, out string mode)
+    {
+        if (sceneObject.Properties.TryGetValue("follow_player", out var followPlayer)
+            && followPlayer.ValueKind == JsonValueKind.True)
+        {
+            if (sceneObject.Properties.TryGetValue("mode", out var explicitMode))
+            {
+                var explicitText = ToDisplayText(explicitMode);
+                if (!string.Equals(explicitText, "third_person", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(explicitText))
+                {
+                    mode = explicitText;
+                    return true;
+                }
+            }
+
+            mode = "follow_player";
+            return true;
+        }
+
+        if (sceneObject.Properties.TryGetValue("mode", out var modeValue))
+        {
+            mode = ToDisplayText(modeValue);
+            return !string.IsNullOrWhiteSpace(mode);
+        }
+
+        if (string.Equals(sceneObject.ObjectId, "player-spawn", StringComparison.OrdinalIgnoreCase))
+        {
+            mode = "follow_player";
+            return true;
+        }
+
+        mode = string.Empty;
+        return false;
     }
 
     private static string ToDisplayText(JsonElement element) => element.ValueKind switch
