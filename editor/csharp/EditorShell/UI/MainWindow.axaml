@@ -18,6 +18,11 @@
     <SolidColorBrush x:Key="PanelBrush" Color="#12161F" />
     <SolidColorBrush x:Key="PanelBorderBrush" Color="#2B3446" />
     <SolidColorBrush x:Key="AccentBrush" Color="#4AA3FF" />
+    <SolidColorBrush x:Key="PanelChromeBrush" Color="#0C1018" />
+    <SolidColorBrush x:Key="SubpanelBrush" Color="#0B1524" />
+    <SolidColorBrush x:Key="SubpanelBorderBrush" Color="#264566" />
+    <SolidColorBrush x:Key="PanelHoverBrush" Color="#162132" />
+    <Thickness x:Key="PanelPadding">12</Thickness>
   </Window.Resources>
 
   <Window.Styles>
@@ -32,6 +37,13 @@
       <Setter Property="Height" Value="44" />
       <Setter Property="FontSize" Value="15" />
     </Style>
+    <Style Selector="Button.ribbon-icon:pointerover">
+      <Setter Property="Background" Value="#213149" />
+      <Setter Property="BorderBrush" Value="#4B6A94" />
+    </Style>
+    <Style Selector="Button.ribbon-icon:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
     <Style Selector="Button.ribbon-compact">
       <Setter Property="Background" Value="#152034" />
@@ -42,6 +54,10 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="MinWidth" Value="62" />
       <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Button.ribbon-compact:pointerover">
+      <Setter Property="Background" Value="#1A2942" />
+      <Setter Property="BorderBrush" Value="#4D6E9B" />
     </Style>
 
     <Style Selector="Button.menu-link">
@@ -69,6 +85,13 @@
       <Setter Property="FontSize" Value="12" />
       <Setter Property="MinWidth" Value="78" />
     </Style>
+    <Style Selector="Button.toolbar-action:pointerover">
+      <Setter Property="Background" Value="#1B2940" />
+      <Setter Property="BorderBrush" Value="#4B6C98" />
+    </Style>
+    <Style Selector="Button.toolbar-action:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
+    </Style>
 
     <Style Selector="Button.toolbar-action.primary">
       <Setter Property="Background" Value="#1D6EE8" />
@@ -76,12 +99,20 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="Button.toolbar-action.primary:pointerover">
+      <Setter Property="Background" Value="#267AF6" />
+      <Setter Property="BorderBrush" Value="#74B3FF" />
+    </Style>
 
     <Style Selector="Button.toolbar-action.quiet">
       <Setter Property="Background" Value="#101826" />
       <Setter Property="Foreground" Value="#BCD0E9" />
       <Setter Property="MinWidth" Value="56" />
       <Setter Property="Padding" Value="8,7" />
+    </Style>
+    <Style Selector="Button.toolbar-action.quiet:pointerover">
+      <Setter Property="Background" Value="#152235" />
+      <Setter Property="BorderBrush" Value="#44617F" />
     </Style>
 
     <Style Selector="Border.ribbon-group">
@@ -104,6 +135,121 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="999" />
       <Setter Property="Padding" Value="8,5" />
+    </Style>
+
+    <Style Selector="Border.panel-shell">
+      <Setter Property="Background" Value="{StaticResource PanelChromeBrush}" />
+      <Setter Property="BorderBrush" Value="#293349" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="{StaticResource PanelPadding}" />
+    </Style>
+
+    <Style Selector="Border.subpanel-shell">
+      <Setter Property="Background" Value="{StaticResource SubpanelBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource SubpanelBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10" />
+    </Style>
+
+    <Style Selector="TextBlock.panel-title">
+      <Setter Property="Foreground" Value="#EEF4FF" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.panel-subtitle">
+      <Setter Property="Foreground" Value="#8EA5C7" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style Selector="Button.panel-header-action">
+      <Setter Property="Background" Value="#101826" />
+      <Setter Property="BorderBrush" Value="#2E3B53" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#D6E9FF" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="MinWidth" Value="34" />
+    </Style>
+
+    <Style Selector="Button.panel-header-action:pointerover">
+      <Setter Property="Background" Value="#172438" />
+      <Setter Property="BorderBrush" Value="#4A6B96" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button">
+      <Setter Property="Background" Value="#152034" />
+      <Setter Property="BorderBrush" Value="#334257" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#E6EEF9" />
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinWidth" Value="80" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button:pointerover">
+      <Setter Property="Background" Value="#1A2940" />
+      <Setter Property="BorderBrush" Value="#4B6C98" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button.primary">
+      <Setter Property="Background" Value="#1D6EE8" />
+      <Setter Property="BorderBrush" Value="#4C98FF" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button.primary:pointerover">
+      <Setter Property="Background" Value="#267AF6" />
+      <Setter Property="BorderBrush" Value="#78B7FF" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button.danger">
+      <Setter Property="Background" Value="#3B1A1F" />
+      <Setter Property="BorderBrush" Value="#8D4853" />
+      <Setter Property="Foreground" Value="#FFE6E8" />
+    </Style>
+
+    <Style Selector="Button.panel-action-button.danger:pointerover">
+      <Setter Property="Background" Value="#4A2028" />
+      <Setter Property="BorderBrush" Value="#B05E6B" />
+    </Style>
+
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="#12243A" />
+      <Setter Property="BorderBrush" Value="#355B85" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
+
+    <Style Selector="Border.toast-shell">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="BorderThickness" Value="1.2" />
+    </Style>
+
+    <Style Selector="Button.suggestion-card">
+      <Setter Property="Background" Value="#12243A" />
+      <Setter Property="BorderBrush" Value="#315273" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#EAF3FF" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,9" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="MinHeight" Value="72" />
+    </Style>
+
+    <Style Selector="Button.suggestion-card:pointerover">
+      <Setter Property="Background" Value="#17304A" />
+      <Setter Property="BorderBrush" Value="#58A3FF" />
+    </Style>
+
+    <Style Selector="Button.suggestion-card:focus">
+      <Setter Property="BorderBrush" Value="#4AA3FF" />
     </Style>
 
     <Style Selector="Border.workspace-chip">
@@ -168,6 +314,10 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="MinWidth" Value="40" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.panel-tab:pointerover">
+      <Setter Property="Background" Value="#172437" />
+      <Setter Property="BorderBrush" Value="#4970A0" />
     </Style>
 
     <Style Selector="Button.panel-tab.active">
@@ -321,8 +471,8 @@
         </StackPanel>
       </Border>
 
-      <Border x:Name="LeftDockBorder" Grid.Column="1" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="10">
-        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
+      <Border x:Name="LeftDockBorder" Grid.Column="1" Classes="panel-shell">
+        <Grid x:Name="LeftDockContentGrid" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Border Background="#1D2D46" CornerRadius="7" Padding="8,5">
               <TextBlock Text="{Binding ActiveLeftPanelIcon}" FontSize="16" />
@@ -479,113 +629,259 @@
                        HorizontalAlignment="Center" />
           </Border>
 
-          <Border Grid.Row="3"
-                  IsVisible="{Binding IsAssetsTabActive}"
-                  Name="AssetsPanelHost"
+          <ContentControl Grid.Row="3"
+                          x:Name="AssetsPanelLeftHost"
+                          IsVisible="{Binding IsAssetsPanelVisibleInLeftDock}">
+          <Border Name="AssetsPanelHost"
                   SizeChanged="OnAssetsPanelSizeChanged"
-                  Background="#09111D"
-                  BorderBrush="#2B3446"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  Padding="10">
-            <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
-              <Border Background="#0A1728" BorderBrush="#2C4A6B" BorderThickness="1" CornerRadius="8" Padding="10">
+                  Classes="subpanel-shell">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="10">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="panel-title" Text="Assets" ToolTip.Tip="Generated and reviewed graphics assets." />
+                  <TextBlock Classes="panel-subtitle" Text="Generate, review, approve, and place approved art assets." />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="panel-header-action" Content="⋯" ToolTip.Tip="Assets panel placement">
+                  <Button.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Dock Left" Click="OnDockAssetsLeftClick" />
+                      <MenuItem Header="Dock Right" Click="OnDockAssetsRightClick" />
+                      <MenuItem Header="Dock Bottom" Click="OnDockAssetsBottomClick" />
+                      <MenuItem Header="Float" Click="OnFloatAssetsClick" />
+                      <MenuItem Header="Hide" Click="OnHideAssetsClick" />
+                    </ContextMenu>
+                  </Button.ContextMenu>
+                </Button>
+              </Grid>
+
+              <Border Grid.Row="1" Classes="subpanel-shell" Padding="10,10,10,8">
                 <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
-                  <TextBlock Text="Generate New Asset" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                  <Grid Grid.Row="1" ColumnDefinitions="*,120,Auto" ColumnSpacing="8">
+                  <Grid ColumnDefinitions="*,120,Auto" ColumnSpacing="8">
                     <TextBox Watermark="Describe the asset to generate..."
                              Text="{Binding AssetGenerationPrompt}" />
                     <ComboBox Grid.Column="1"
                               SelectedItem="{Binding AssetGenerationType}"
                               ItemsSource="{Binding AssetGenerationTypeOptions}" />
-                    <Button Grid.Column="2" Content="Generate" Click="OnGenerateAssetClick" IsEnabled="{Binding IsAssetGenerationIdle}" />
+                    <Button Grid.Column="2"
+                            Classes="panel-action-button primary"
+                            Content="Generate"
+                            Click="OnGenerateAssetClick"
+                            IsEnabled="{Binding IsAssetGenerationIdle}"
+                            ToolTip.Tip="Generate a new asset from the current prompt and type." />
                   </Grid>
+                  <Border Grid.Row="1"
+                          IsVisible="{Binding IsAssetGenerationInProgress}"
+                          Classes="badge"
+                          Background="#10213A"
+                          BorderBrush="#355B85"
+                          Padding="10,7">
+                    <Grid ColumnDefinitions="120,*" ColumnSpacing="10">
+                      <ProgressBar Width="120" IsIndeterminate="True" Height="6" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding AssetGenerationStatus}" Foreground="#CFE5FF" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </Grid>
+                  </Border>
                 </Grid>
               </Border>
-              <Border Grid.Row="1" IsVisible="{Binding IsAssetGenerationInProgress}" Background="#10213A" BorderBrush="#355B85" BorderThickness="1" CornerRadius="8" Padding="8,6">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <ProgressBar Width="120" IsIndeterminate="True" />
-                  <TextBlock Text="{Binding AssetGenerationStatus}" Foreground="#AFC2DF" VerticalAlignment="Center" />
-                </StackPanel>
-              </Border>
-              <Grid Grid.Row="2" ColumnDefinitions="*,120,Auto,Auto,Auto" ColumnSpacing="6">
+
+              <Grid Grid.Row="2" ColumnDefinitions="*,120,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6">
                 <TextBox Watermark="Search assets" Text="{Binding AssetSearchText}" />
                 <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedAssetKindFilter}" ItemsSource="{Binding AssetKindFilterOptions}" />
-                <Button Grid.Column="2" Content="Approved" Click="OnApprovedAssetsTabClick" />
-                <Button Grid.Column="3" Content="Pending" Click="OnPendingAssetsTabClick" />
-                <Button Grid.Column="4" Content="Rejected" Click="OnRejectedAssetsTabClick" />
+                <Button Grid.Column="2" Classes="panel-tab active" Content="Grid" Click="OnAssetGridViewClick" IsVisible="{Binding IsAssetGridView}" />
+                <Button Grid.Column="2" Classes="panel-tab" Content="Grid" Click="OnAssetGridViewClick" IsVisible="{Binding IsAssetListView}" />
+                <Button Grid.Column="3" Classes="panel-tab active" Content="List" Click="OnAssetListViewClick" IsVisible="{Binding IsAssetListView}" />
+                <Button Grid.Column="3" Classes="panel-tab" Content="List" Click="OnAssetListViewClick" IsVisible="{Binding IsAssetGridView}" />
+                <Button Grid.Column="4" Classes="panel-tab active" Content="Approved" Click="OnApprovedAssetsTabClick" IsVisible="{Binding IsApprovedAssetTabActive}" />
+                <Button Grid.Column="4" Classes="panel-tab" Content="Approved" Click="OnApprovedAssetsTabClick" IsVisible="{Binding IsPendingAssetTabActive}" />
+                <Button Grid.Column="4" Classes="panel-tab" Content="Approved" Click="OnApprovedAssetsTabClick" IsVisible="{Binding IsRejectedAssetTabActive}" />
+                <Button Grid.Column="5" Classes="panel-tab active" Content="Pending" Click="OnPendingAssetsTabClick" IsVisible="{Binding IsPendingAssetTabActive}" />
+                <Button Grid.Column="5" Classes="panel-tab" Content="Pending" Click="OnPendingAssetsTabClick" IsVisible="{Binding IsApprovedAssetTabActive}" />
+                <Button Grid.Column="5" Classes="panel-tab" Content="Pending" Click="OnPendingAssetsTabClick" IsVisible="{Binding IsRejectedAssetTabActive}" />
+                <Button Grid.Column="6" Classes="panel-tab active" Content="Rejected" Click="OnRejectedAssetsTabClick" IsVisible="{Binding IsRejectedAssetTabActive}" />
+                <Button Grid.Column="6" Classes="panel-tab" Content="Rejected" Click="OnRejectedAssetsTabClick" IsVisible="{Binding IsApprovedAssetTabActive}" />
+                <Button Grid.Column="6" Classes="panel-tab" Content="Rejected" Click="OnRejectedAssetsTabClick" IsVisible="{Binding IsPendingAssetTabActive}" />
               </Grid>
-              <Grid Grid.Row="3" RowDefinitions="Auto,*" ColumnDefinitions="*" RowSpacing="8">
-                <TextBlock Text="{Binding VisibleAssetLibrarySummary}" Foreground="#8EA5C7" FontSize="11" />
-                <Grid Grid.Row="1" ColumnDefinitions="2*,1.2*" ColumnSpacing="8" IsVisible="{Binding IsAssetPreviewSideBySide}">
+
+              <TextBlock Grid.Row="3" Text="{Binding VisibleAssetLibrarySummary}" Classes="panel-subtitle" />
+
+              <Grid Grid.Row="4" ColumnDefinitions="2*,1.15*" ColumnSpacing="10" IsVisible="{Binding IsAssetPreviewSideBySide}">
+                <Grid RowDefinitions="*" IsVisible="{Binding IsAssetGridView}">
                   <ListBox ItemsSource="{Binding VisibleAssetLibraryItems}"
-                           SelectedItem="{Binding SelectedAssetLibraryItem}"
-                           SelectionChanged="OnAssetLibrarySelectionChanged">
+                           SelectedItem="{Binding SelectedAssetLibraryItem}">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate>
-                        <Border Background="#0E2137" BorderBrush="#315273" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,6">
-                          <Grid ColumnDefinitions="52,*,Auto" ColumnSpacing="8">
-                            <Border Width="48" Height="48" CornerRadius="6" Background="#132A43" BorderBrush="#355B85" BorderThickness="1">
+                        <Border Classes="asset-card" Width="176" Margin="0,0,8,8" Padding="10" CornerRadius="8">
+                          <Grid RowDefinitions="96,Auto,Auto,Auto" RowSpacing="6">
+                            <Border Background="#132A43" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
                               <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
                             </Border>
-                            <StackPanel Grid.Column="1" Spacing="2">
-                              <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                              <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextTrimming="CharacterEllipsis" />
-                              <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="{Binding QualityScoreLabel}" Foreground="#6FA8FF" FontSize="10" />
-                                <TextBlock Text="{Binding StatusBadge}" Foreground="#AFC2DF" FontSize="10" />
-                              </StackPanel>
-                            </StackPanel>
-                            <TextBlock Grid.Column="2" Text="{Binding AssetType}" Foreground="#AFC2DF" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" TextWrapping="Wrap" MaxHeight="34" />
+                            <TextBlock Grid.Row="2" Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="32" />
+                            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                              <Border Classes="badge" Padding="6,2">
+                                <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
+                              </Border>
+                              <TextBlock Grid.Column="1" Text="{Binding QualityScoreLabel}" Foreground="#6FA8FF" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                            </Grid>
                           </Grid>
                         </Border>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Border Grid.Column="1" Background="#12263D" BorderBrush="#355B85" BorderThickness="1" CornerRadius="8" Padding="10">
-                    <StackPanel Spacing="8">
-                      <Border Height="180" Background="#0E2137" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
-                        <Grid>
-                          <Image Source="{Binding SelectedAssetLibraryPreviewPath}" Stretch="Uniform" IsVisible="{Binding SelectedAssetLibraryPreviewHasImage}" />
-                          <TextBlock Text="No Preview" IsVisible="{Binding HasNoSelectedAssetLibraryItem}" Foreground="#8EA5C7" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+                <ListBox Grid.Row="0"
+                         ItemsSource="{Binding VisibleAssetLibraryItems}"
+                         SelectedItem="{Binding SelectedAssetLibraryItem}"
+                         IsVisible="{Binding IsAssetListView}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="asset-card" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="56,*,Auto" ColumnSpacing="10">
+                          <Border Width="52" Height="52" CornerRadius="6" Background="#132A43" BorderBrush="#355B85" BorderThickness="1">
+                            <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="28" />
+                            <TextBlock Text="{Binding AssetType}" Foreground="#7FA2CD" FontSize="10" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" Spacing="6" HorizontalAlignment="Right">
+                            <Border Classes="badge" Padding="6,2" HorizontalAlignment="Right">
+                              <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="{Binding QualityScoreLabel}" Foreground="#6FA8FF" FontSize="10" HorizontalAlignment="Right" />
+                          </StackPanel>
                         </Grid>
                       </Border>
-                      <TextBlock Text="{Binding SelectedAssetLibraryPrompt}" Foreground="#9BB8DA" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding SelectedAssetLibraryMetadata}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
-                      <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
-                        <Button Content="Approve" Click="OnApproveSelectedAssetClick" IsEnabled="{Binding CanApproveSelectedAsset}" />
-                        <Button Grid.Column="1" Content="Reject" Click="OnRejectSelectedAssetClick" IsEnabled="{Binding CanRejectSelectedAsset}" />
-                        <Button Grid.Column="2" Content="Regenerate" Click="OnRegenerateSelectedAssetClick" IsEnabled="{Binding CanRegenerateSelectedAsset}" />
-                        <Button Grid.Column="3" Content="Delete" Click="OnDeleteSelectedAssetClick" IsEnabled="{Binding CanDeleteSelectedAsset}" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <Border Grid.Column="1" Classes="subpanel-shell">
+                  <Grid RowDefinitions="Auto,180,Auto,*,Auto" RowSpacing="8">
+                    <TextBlock Classes="panel-title" FontSize="14" Text="Preview" />
+                    <Border Grid.Row="1" Background="#0E2137" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
+                      <Grid>
+                        <Image Source="{Binding SelectedAssetLibraryPreviewPath}" Stretch="Uniform" IsVisible="{Binding SelectedAssetLibraryPreviewHasImage}" />
+                        <TextBlock Text="No Preview" IsVisible="{Binding HasNoSelectedAssetLibraryItem}" Foreground="#8EA5C7" HorizontalAlignment="Center" VerticalAlignment="Center" />
                       </Grid>
-                    </StackPanel>
-                  </Border>
-                </Grid>
-                <Grid Grid.Row="1" RowDefinitions="*,Auto" RowSpacing="8" IsVisible="{Binding IsAssetPreviewStacked}">
-                  <ListBox ItemsSource="{Binding VisibleAssetLibraryItems}"
-                           SelectedItem="{Binding SelectedAssetLibraryItem}"
-                           SelectionChanged="OnAssetLibrarySelectionChanged">
+                    </Border>
+                    <TextBlock Grid.Row="2" Text="{Binding SelectedAssetLibraryPrompt}" Foreground="#9BB8DA" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="3" Text="{Binding SelectedAssetLibraryMetadata}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <Grid Grid.Row="4" ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                      <Button Classes="panel-action-button"
+                              Content="Approve"
+                              Click="OnApproveSelectedAssetClick"
+                              IsEnabled="{Binding CanApproveSelectedAsset}"
+                              ToolTip.Tip="Move this asset into Assets/Approved and make it available for placement." />
+                      <Button Grid.Column="1"
+                              Classes="panel-action-button"
+                              Content="Reject"
+                              Click="OnRejectSelectedAssetClick"
+                              IsEnabled="{Binding CanRejectSelectedAsset}"
+                              ToolTip.Tip="Move this asset into Assets/Rejected." />
+                      <Button Grid.Column="2"
+                              Classes="panel-action-button"
+                              Content="Regenerate"
+                              Click="OnRegenerateSelectedAssetClick"
+                              IsEnabled="{Binding CanRegenerateSelectedAsset}"
+                              ToolTip.Tip="Generate a fresh variation using the stored prompt." />
+                      <Button Grid.Column="3"
+                              Classes="panel-action-button danger"
+                              Content="Delete"
+                              Click="OnDeleteSelectedAssetClick"
+                              IsEnabled="{Binding CanDeleteSelectedAsset}"
+                              ToolTip.Tip="Delete the selected asset file and its metadata." />
+                    </Grid>
+                  </Grid>
+                </Border>
+              </Grid>
+
+              <Grid Grid.Row="4" RowDefinitions="*,Auto" RowSpacing="10" IsVisible="{Binding IsAssetPreviewStacked}">
+                <Grid RowDefinitions="*" IsVisible="{Binding IsAssetGridView}">
+                  <ListBox ItemsSource="{Binding VisibleAssetLibraryItems}" SelectedItem="{Binding SelectedAssetLibraryItem}">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate>
-                        <Border Background="#0E2137" BorderBrush="#315273" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,6">
-                          <StackPanel Spacing="2">
-                            <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding StatusBadge}" Foreground="#AFC2DF" FontSize="10" />
-                          </StackPanel>
+                        <Border Classes="asset-card" Width="168" Margin="0,0,8,8" Padding="10" CornerRadius="8">
+                          <Grid RowDefinitions="88,Auto,Auto,Auto" RowSpacing="6">
+                            <Border Background="#132A43" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
+                              <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
+                            </Border>
+                            <TextBlock Grid.Row="1" Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="2" Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="30" />
+                            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                              <Border Classes="badge" Padding="6,2" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
+                              </Border>
+                              <TextBlock Grid.Column="1" Text="{Binding QualityScoreLabel}" Foreground="#6FA8FF" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                            </Grid>
+                          </Grid>
                         </Border>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Border Grid.Row="1" Background="#12263D" BorderBrush="#355B85" BorderThickness="1" CornerRadius="8" Padding="10">
-                    <StackPanel Spacing="8">
-                      <Image Height="160" Source="{Binding SelectedAssetLibraryPreviewPath}" Stretch="Uniform" IsVisible="{Binding SelectedAssetLibraryPreviewHasImage}" />
-                      <TextBlock Text="{Binding SelectedAssetLibraryMetadata}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
-                    </StackPanel>
-                  </Border>
                 </Grid>
+                <ListBox Grid.Row="0" ItemsSource="{Binding VisibleAssetLibraryItems}" SelectedItem="{Binding SelectedAssetLibraryItem}" IsVisible="{Binding IsAssetListView}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="asset-card" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="52,*,Auto" ColumnSpacing="10">
+                          <Border Width="48" Height="48" CornerRadius="6" Background="#132A43" BorderBrush="#355B85" BorderThickness="1">
+                            <Image Source="{Binding AssetPath}" Stretch="UniformToFill" />
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="{Binding DisplayName}" Foreground="#D6E9FF" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding PromptSnippet}" Foreground="#9BB8DA" FontSize="10" TextWrapping="Wrap" MaxHeight="28" />
+                          </StackPanel>
+                          <Border Grid.Column="2" Classes="badge" Padding="6,2" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding StatusBadge}" Foreground="#DDEEFF" FontSize="9" FontWeight="SemiBold" />
+                          </Border>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <Border Grid.Row="1" Classes="subpanel-shell">
+                  <Grid RowDefinitions="Auto,160,Auto,Auto,Auto" RowSpacing="8">
+                    <TextBlock Classes="panel-title" FontSize="14" Text="Preview" />
+                    <Border Grid.Row="1" Background="#0E2137" BorderBrush="#355B85" BorderThickness="1" CornerRadius="6">
+                      <Grid>
+                        <Image Source="{Binding SelectedAssetLibraryPreviewPath}" Stretch="Uniform" IsVisible="{Binding SelectedAssetLibraryPreviewHasImage}" />
+                        <TextBlock Text="No Preview" IsVisible="{Binding HasNoSelectedAssetLibraryItem}" Foreground="#8EA5C7" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                    <TextBlock Grid.Row="2" Text="{Binding SelectedAssetLibraryPrompt}" Foreground="#9BB8DA" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="3" Text="{Binding SelectedAssetLibraryMetadata}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <Grid Grid.Row="4" ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                      <Button Classes="panel-action-button" Content="Approve" Click="OnApproveSelectedAssetClick" IsEnabled="{Binding CanApproveSelectedAsset}" ToolTip.Tip="Move this asset into Assets/Approved and make it available for placement." />
+                      <Button Grid.Column="1" Classes="panel-action-button" Content="Reject" Click="OnRejectSelectedAssetClick" IsEnabled="{Binding CanRejectSelectedAsset}" ToolTip.Tip="Move this asset into Assets/Rejected." />
+                      <Button Grid.Column="2" Classes="panel-action-button" Content="Regenerate" Click="OnRegenerateSelectedAssetClick" IsEnabled="{Binding CanRegenerateSelectedAsset}" ToolTip.Tip="Generate a fresh variation using the stored prompt." />
+                      <Button Grid.Column="3" Classes="panel-action-button danger" Content="Delete" Click="OnDeleteSelectedAssetClick" IsEnabled="{Binding CanDeleteSelectedAsset}" ToolTip.Tip="Delete the selected asset file and its metadata." />
+                    </Grid>
+                  </Grid>
+                </Border>
               </Grid>
             </Grid>
+          </Border>
+          </ContentControl>
+
+          <Border Grid.Row="3"
+                  IsVisible="{Binding IsAssetsPanelNoticeVisibleInLeftDock}"
+                  Classes="subpanel-shell">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="panel-title" FontSize="14" Text="Assets Docked Elsewhere" />
+              <TextBlock Classes="panel-subtitle"
+                         Text="{Binding AssetsPanelPlacement, StringFormat=The Assets panel is currently docked in: {0}. Use its header menu to dock it back here.}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
           </Border>
 
           <Border Grid.Row="3"
@@ -684,13 +980,13 @@
 
                     <Grid Grid.Row="1">
                       <Canvas Name="ViewportCanvas" Background="#070B14" ClipToBounds="True" Focusable="True" />
-                      <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322DD" CornerRadius="10" Padding="18,16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <StackPanel Spacing="10" Width="320">
+                      <Border IsVisible="{Binding IsViewportEmpty}" Background="#0B1322DD" CornerRadius="12" Padding="30,26" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel Spacing="12" Width="360">
                           <TextBlock Text="No scene loaded" Foreground="#EAF3FF" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
                           <TextBlock Text="Create a new scene or open an existing one to begin editing." Foreground="#9FB7D8" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" />
-                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                            <Button Content="Create New Scene" Click="OnNewSceneClick" />
-                            <Button Content="Open Existing Scene" Click="OnOpenSceneClick" />
+                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                            <Button Classes="panel-action-button primary" Content="Create New Scene" Click="OnNewSceneClick" />
+                            <Button Classes="panel-action-button" Content="Open Existing Scene" Click="OnOpenSceneClick" />
                           </StackPanel>
                         </StackPanel>
                       </Border>
@@ -841,12 +1137,18 @@
                     ResizeBehavior="PreviousAndNext"
                     ShowsPreview="True" />
 
-      <Border x:Name="RightDockBorder" Grid.Column="5" Background="#0C1018" BorderBrush="#293349" BorderThickness="1" CornerRadius="10" Padding="12" Margin="12,0,0,0">
+      <Border x:Name="RightDockBorder" Grid.Column="5" Classes="panel-shell" Margin="12,0,0,0">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="RightDockDetachedPanelsHost" Spacing="10">
+        <ContentControl x:Name="AssetsPanelRightHost" />
+        <ContentControl x:Name="AiInterviewRightHost" />
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <TextBlock Text="Inspector" Foreground="#EEF4FF" FontSize="18" FontWeight="Bold" />
-            <Button Grid.Column="1" Content="Hide" Click="OnToggleRightPaneClick" />
+            <StackPanel Spacing="2">
+              <TextBlock Text="Inspector" Classes="panel-title" FontSize="18" ToolTip.Tip="Selection properties, scene systems, and runtime tools." />
+              <TextBlock Text="Properties, runtime tools, and advanced scene systems." Classes="panel-subtitle" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="panel-header-action" Content="Hide" Click="OnToggleRightPaneClick" ToolTip.Tip="Hide the right dock." />
           </Grid>
           <TextBlock Grid.Row="1"
                      Text="Simple keeps the core editing flow visible. Advanced reveals scene systems, diagnostics, and publishing tools."
@@ -1721,6 +2023,7 @@
             </Grid>
           </Border>
         </Grid>
+        </StackPanel>
         </ScrollViewer>
       </Border>
     </Grid>
@@ -1733,7 +2036,7 @@
                   ResizeBehavior="PreviousAndNext"
                   ShowsPreview="True" />
 
-    <Border x:Name="TimelineDockBorder" Grid.Row="3" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,12">
+    <Border x:Name="TimelineDockBorder" Grid.Row="3" Classes="panel-shell" Margin="0,12,0,12">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="🎞" FontSize="16" VerticalAlignment="Center" />
@@ -1838,53 +2141,95 @@
                   ResizeBehavior="PreviousAndNext"
                   ShowsPreview="True" />
 
-    <Border x:Name="ActivityDockBorder" Grid.Row="5" Background="#0C1018" BorderBrush="#2B3446" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,12,0,12">
+    <Border x:Name="ActivityDockBorder" Grid.Row="5" Classes="panel-shell" Margin="0,12,0,12">
       <TabControl>
-        <TabItem Header="AI Interview">
-          <Grid Margin="4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-              <TextBlock Text="{Binding AiInterviewHeader}" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" />
+        <TabItem x:Name="AiInterviewDockTab" Header="AI Interview">
+          <ContentControl x:Name="AiInterviewBottomHost">
+          <Grid x:Name="AiInterviewPanelHost" Margin="4" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="10">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+              <StackPanel Spacing="2">
+                <TextBlock Text="{Binding AiInterviewHeader}" Classes="panel-title" ToolTip.Tip="Structured AI interview for shaping the active project." />
+                <TextBlock Text="Capture focused project direction step by step." Classes="panel-subtitle" />
+              </StackPanel>
               <TextBlock Grid.Column="1" Text="{Binding AiInterviewProgressLabel}" Foreground="#8EA5C7" VerticalAlignment="Center" />
-              <Button Grid.Column="2" Content="Hide" Click="OnToggleActivityDockClick" />
+              <Button Grid.Column="2" Classes="panel-header-action" Content="⋯" ToolTip.Tip="AI Interview panel placement">
+                <Button.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="Dock Right" Click="OnDockAiInterviewRightClick" />
+                    <MenuItem Header="Dock Bottom" Click="OnDockAiInterviewBottomClick" />
+                    <MenuItem Header="Float" Click="OnFloatAiInterviewClick" />
+                    <MenuItem Header="Hide" Click="OnHideAiInterviewClick" />
+                  </ContextMenu>
+                </Button.ContextMenu>
+              </Button>
             </Grid>
             <ProgressBar Grid.Row="1" Minimum="0" Maximum="{Binding AiInterviewProgressMaximum}" Value="{Binding AiInterviewProgressValue}" Height="8" />
-            <TextBlock Grid.Row="2" Text="{Binding AiInterviewQuestion}" Foreground="#EAF3FF" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <StackPanel Grid.Row="3" Spacing="8">
-              <Button Content="Think of something" HorizontalAlignment="Left" Click="OnShowAiInterviewSuggestionsClick" />
-              <WrapPanel IsVisible="{Binding IsAiInterviewSuggestionsVisible}" ItemWidth="220">
-                <Button Content="{Binding AiInterviewSuggestionOne}" Tag="{Binding AiInterviewSuggestionOne}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
-                <Button Content="{Binding AiInterviewSuggestionTwo}" Tag="{Binding AiInterviewSuggestionTwo}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
-                <Button Content="{Binding AiInterviewSuggestionThree}" Tag="{Binding AiInterviewSuggestionThree}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
+            <Border Grid.Row="2" Classes="subpanel-shell" Padding="12">
+              <TextBlock Text="{Binding AiInterviewQuestion}" Foreground="#EAF3FF" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+            </Border>
+            <StackPanel Grid.Row="3" Spacing="10">
+              <Button Classes="panel-action-button"
+                      Content="Think of something"
+                      HorizontalAlignment="Left"
+                      Click="OnShowAiInterviewSuggestionsClick"
+                      ToolTip.Tip="Show three suggestion cards to help unblock your answer." />
+              <WrapPanel IsVisible="{Binding IsAiInterviewSuggestionsVisible}" ItemWidth="220" Orientation="Horizontal">
+                <Button Classes="suggestion-card" Content="{Binding AiInterviewSuggestionOne}" Tag="{Binding AiInterviewSuggestionOne}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
+                <Button Classes="suggestion-card" Content="{Binding AiInterviewSuggestionTwo}" Tag="{Binding AiInterviewSuggestionTwo}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
+                <Button Classes="suggestion-card" Content="{Binding AiInterviewSuggestionThree}" Tag="{Binding AiInterviewSuggestionThree}" Click="OnAiInterviewSuggestionClick" Margin="0,0,8,8" />
               </WrapPanel>
             </StackPanel>
-            <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <TextBox Text="{Binding AiInterviewAnswer}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="88" Watermark="Write your answer here..." />
-              <Button Grid.Column="1" Content="Send" VerticalAlignment="Bottom" Click="OnSendAiInterviewAnswerClick" />
+            <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <Border Classes="subpanel-shell" Padding="10">
+                <TextBox Text="{Binding AiInterviewAnswer}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="116" Watermark="Write your answer here..." />
+              </Border>
+              <Button Grid.Column="1"
+                      Classes="panel-action-button primary"
+                      Content="Send"
+                      VerticalAlignment="Bottom"
+                      Click="OnSendAiInterviewAnswerClick"
+                      ToolTip.Tip="Submit this answer. Shortcut: Ctrl+Enter" />
             </Grid>
             <ScrollViewer Grid.Row="5" VerticalScrollBarVisibility="Auto">
               <ItemsControl ItemsSource="{Binding AiInterviewHistory}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Expander Header="{Binding StepTitle}" IsExpanded="False">
-                      <StackPanel Margin="8" Spacing="6">
-                        <TextBlock Text="{Binding Question}" Foreground="#D6E9FF" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Answer}" Foreground="#AFC2DF" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding FollowUp}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-                      </StackPanel>
-                    </Expander>
+                    <Border Classes="subpanel-shell" Margin="0,0,0,10" Padding="0">
+                      <Expander IsExpanded="False">
+                        <Expander.Header>
+                          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="10,8">
+                            <Border Classes="badge" Padding="8,2">
+                              <TextBlock Text="{Binding StepBadge}" Foreground="#DDEEFF" FontSize="10" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="{Binding Question}" Foreground="#D6E9FF" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          </Grid>
+                        </Expander.Header>
+                        <StackPanel Margin="12,0,12,12" Spacing="8">
+                          <TextBlock Text="Question" Foreground="#8EA5C7" FontSize="10" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Question}" Foreground="#D6E9FF" TextWrapping="Wrap" />
+                          <TextBlock Text="Answer" Foreground="#8EA5C7" FontSize="10" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding Answer}" Foreground="#CFE5FF" TextWrapping="Wrap" />
+                          <TextBlock Text="{Binding FollowUp}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Expander>
+                    </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
           </Grid>
+          </ContentControl>
+        </TabItem>
+        <TabItem x:Name="AssetsDockTab" Header="Assets" IsVisible="False">
+          <ContentControl x:Name="AssetsPanelBottomHost" Margin="4" />
         </TabItem>
         <TabItem Header="Activity">
           <Grid Margin="4" RowDefinitions="Auto,Auto,*" RowSpacing="8">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
               <TextBlock Text="🧾" FontSize="16" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="1" Text="Activity Log" Foreground="#EEF4FF" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="Activity Log" Classes="panel-title" VerticalAlignment="Center" />
               <TextBlock Grid.Column="2" Text="{Binding PipelineProgress, StringFormat=Pipeline: {0}}" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
-              <Button Grid.Column="3" Content="Hide" Click="OnToggleActivityDockClick" />
+              <Button Grid.Column="3" Classes="panel-header-action" Content="Hide" Click="OnToggleActivityDockClick" ToolTip.Tip="Hide the bottom activity dock." />
             </Grid>
             <TextBlock Grid.Row="1"
                        Text="{Binding StatusMessage}"
@@ -1905,14 +2250,17 @@
       </TabControl>
     </Border>
 
-    <Border Grid.Row="6" Background="#0C1018" BorderBrush="#2A3448" BorderThickness="1" CornerRadius="10" Padding="10,8" Margin="0,12,0,0">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnSpacing="12">
-        <TextBlock Text="{Binding SceneNameLabel}" Foreground="#EAF3FF" FontSize="11" FontWeight="SemiBold" />
-        <TextBlock Grid.Column="1" Text="{Binding SceneDirtyLabel}" Foreground="#AFC2DF" FontSize="11" />
-        <TextBlock Grid.Column="2" Text="{Binding SceneValidationStatus}" Foreground="#AFC2DF" FontSize="11" />
-        <TextBlock Grid.Column="3" Text="{Binding FpsStatusLabel}" Foreground="#AFC2DF" FontSize="11" />
-        <TextBlock Grid.Column="4" Text="{Binding NpcCountStatusLabel}" Foreground="#AFC2DF" FontSize="11" />
-        <TextBlock Grid.Column="5" Text="{Binding ShortcutHintBar}" Foreground="#8EA5C7" FontSize="10" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" ToolTip.Tip="{Binding ShortcutHintBar}" />
+    <Border Grid.Row="6" Classes="panel-shell" Padding="10,8" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+        <Border Classes="badge">
+          <TextBlock Text="{Binding SceneNameLabel}" Foreground="#EAF3FF" FontSize="11" FontWeight="SemiBold" />
+        </Border>
+        <Border Grid.Column="1" Classes="badge" Background="#16273F" BorderBrush="#4E7DB0">
+          <TextBlock Text="{Binding SceneDirtyLabel}" Foreground="#DDEEFF" FontSize="11" FontWeight="SemiBold" />
+        </Border>
+        <TextBlock Grid.Column="2" Text="{Binding SceneValidationStatus}" Foreground="#AFC2DF" FontSize="11" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3" Text="{Binding FpsStatusLabel}" Foreground="#AFC2DF" FontSize="11" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="4" Text="{Binding NpcCountStatusLabel}" Foreground="#AFC2DF" FontSize="11" VerticalAlignment="Center" />
       </Grid>
     </Border>
 
@@ -1922,11 +2270,9 @@
             VerticalAlignment="Top"
             Margin="0,22,22,0"
             Width="360"
-            Background="#16314E"
-            BorderBrush="#3F6EA1"
-            BorderThickness="1.2"
-            CornerRadius="10"
-            Padding="12,10"
+            Classes="toast-shell"
+            Background="{Binding StatusToastBackground}"
+            BorderBrush="{Binding StatusToastBorderBrush}"
             ZIndex="18">
       <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
         <TextBlock Text="{Binding StatusToastTitle}" Foreground="#F3F8FF" FontSize="12" FontWeight="Bold" />
@@ -1934,9 +2280,9 @@
           <Button Content="{Binding StatusToastActionLabel}"
                   Command="{Binding StatusToastActionCommand}"
                   IsVisible="{Binding IsStatusToastActionVisible}"
-                  Background="#2B6CB0"
+                  Background="{Binding StatusToastActionBackground}"
                   Foreground="#F3F8FF"
-                  BorderBrush="#5A95D4"
+                  BorderBrush="{Binding StatusToastActionBorderBrush}"
                   BorderThickness="1"
                   CornerRadius="6"
                   Padding="10,4" />
@@ -1959,7 +2305,7 @@
         <TextBlock Grid.Row="2"
                    Grid.ColumnSpan="2"
                    Text="{Binding StatusToastGuidance}"
-                   Foreground="#9FCCFF"
+                   Foreground="{Binding StatusToastAccentBrush}"
                    FontSize="11"
                    TextWrapping="Wrap"
                    IsVisible="{Binding IsStatusToastError}" />

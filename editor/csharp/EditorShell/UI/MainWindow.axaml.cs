@@ -50,6 +50,15 @@ public partial class MainWindow : Window
     private Border? _rightDockBorder;
     private Border? _timelineDockBorder;
     private Border? _activityDockBorder;
+    private ContentControl? _assetsPanelLeftHost;
+    private ContentControl? _assetsPanelRightHost;
+    private ContentControl? _assetsPanelBottomHost;
+    private Border? _assetsPanelHost;
+    private ContentControl? _aiInterviewBottomHost;
+    private ContentControl? _aiInterviewRightHost;
+    private Grid? _aiInterviewPanelHost;
+    private TabItem? _assetsDockTab;
+    private TabItem? _aiInterviewDockTab;
     private Button? _focusModeExitButton;
     private GridSplitter? _leftCenterSplitter;
     private GridSplitter? _centerRightSplitter;
@@ -66,6 +75,10 @@ public partial class MainWindow : Window
     private GridLength _rightDockWidth = new(2.8, GridUnitType.Star);
     private GridLength _timelineDockHeight = new(240);
     private GridLength _activityDockHeight = new(160);
+    private Window? _assetsFloatingWindow;
+    private Window? _aiInterviewFloatingWindow;
+    private bool _suppressAssetsFloatingWindowClose;
+    private bool _suppressAiInterviewFloatingWindowClose;
 
     public MainWindow()
     {
@@ -74,6 +87,7 @@ public partial class MainWindow : Window
         ConfigureViewportSurface();
         DataContext = _viewModel;
         ApplyWorkspaceModePreference(forceReset: true);
+        SyncDetachedPanelPlacements();
         AddHandler(DragDrop.DragOverEvent, OnWindowAssetDragOver);
         AddHandler(DragDrop.DropEvent, OnWindowAssetDrop);
         AddHandler(DragDrop.DragLeaveEvent, OnWindowAssetDragLeave);
@@ -99,6 +113,15 @@ public partial class MainWindow : Window
         _rightDockBorder = this.FindControl<Border>("RightDockBorder");
         _timelineDockBorder = this.FindControl<Border>("TimelineDockBorder");
         _activityDockBorder = this.FindControl<Border>("ActivityDockBorder");
+        _assetsPanelLeftHost = this.FindControl<ContentControl>("AssetsPanelLeftHost");
+        _assetsPanelRightHost = this.FindControl<ContentControl>("AssetsPanelRightHost");
+        _assetsPanelBottomHost = this.FindControl<ContentControl>("AssetsPanelBottomHost");
+        _assetsPanelHost = this.FindControl<Border>("AssetsPanelHost");
+        _aiInterviewBottomHost = this.FindControl<ContentControl>("AiInterviewBottomHost");
+        _aiInterviewRightHost = this.FindControl<ContentControl>("AiInterviewRightHost");
+        _aiInterviewPanelHost = this.FindControl<Grid>("AiInterviewPanelHost");
+        _assetsDockTab = this.FindControl<TabItem>("AssetsDockTab");
+        _aiInterviewDockTab = this.FindControl<TabItem>("AiInterviewDockTab");
         _focusModeExitButton = this.FindControl<Button>("FocusModeExitButton");
         _leftCenterSplitter = this.FindControl<GridSplitter>("LeftCenterSplitter");
         _centerRightSplitter = this.FindControl<GridSplitter>("CenterRightSplitter");
@@ -167,6 +190,19 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainWindowViewModel.IsCreatorModeEnabled))
         {
             ApplyWorkspaceModePreference(forceReset: true);
+            SyncDetachedPanelPlacements();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.AssetsPanelPlacement))
+        {
+            SyncAssetsPanelPlacement();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.AiInterviewPlacement))
+        {
+            SyncAiInterviewPlacement();
             return;
         }
 
@@ -740,6 +776,9 @@ public partial class MainWindow : Window
             _viewportCanvas.RemoveHandler(DragDrop.DragLeaveEvent, OnViewportDragLeave);
             _viewportCanvas.RemoveHandler(DragDrop.DropEvent, OnViewportDrop);
         }
+
+        CloseAssetsFloatingWindow(keepPlacement: true);
+        CloseAiInterviewFloatingWindow(keepPlacement: true);
     }
 
     private void OnViewportEntitiesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -950,13 +989,13 @@ public partial class MainWindow : Window
         _viewportFocusBorder.BorderBrush = new SolidColorBrush(isFocused ? Color.Parse("#4AA3FF") : Color.Parse("#2B3446"));
         _viewportFocusBorder.BoxShadow = isFocused
             ? new BoxShadows(new BoxShadow
-            {
-                Blur = 16,
-                Spread = 0,
-                OffsetX = 0,
-                OffsetY = 0,
-                Color = Color.Parse("#404AA3FF"),
-            })
+                {
+                    Blur = 18,
+                    Spread = 1,
+                    OffsetX = 0,
+                    OffsetY = 0,
+                    Color = Color.Parse("#324AA3FF"),
+                })
             : default;
     }
 
@@ -1422,8 +1461,10 @@ public partial class MainWindow : Window
         {
             var world = ScreenToWorld(e.GetPosition(_viewportCanvas));
             _viewModel.SetAssetDragGhost(assetId, world.X, world.Y);
+            var isValidPlacement = _viewModel.HasActiveScenePath;
+            _viewModel.SetAssetDragGhostPlacementValidity(isValidPlacement);
             RefreshViewportVisuals();
-            e.DragEffects = DragDropEffects.Copy;
+            e.DragEffects = isValidPlacement ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
             return;
         }
@@ -1455,6 +1496,14 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(assetId))
         {
             _viewModel.ClearAssetDragGhost();
+            RefreshViewportVisuals();
+            return;
+        }
+
+        if (!_viewModel.HasActiveScenePath)
+        {
+            _viewModel.ClearAssetDragGhost();
+            _viewModel.SetStatusMessage("Open or create a scene before placing assets.");
             RefreshViewportVisuals();
             return;
         }
@@ -1622,7 +1671,47 @@ public partial class MainWindow : Window
 
     private void OnAssetsPanelSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        _viewModel.IsAssetPreviewStacked = e.NewSize.Width < 720;
+        _viewModel.IsAssetPreviewStacked = e.NewSize.Width < 700;
+    }
+
+    private void OnDockAssetsLeftClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementLeft;
+    }
+
+    private void OnDockAssetsRightClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementRight;
+    }
+
+    private void OnDockAssetsBottomClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementBottom;
+    }
+
+    private void OnFloatAssetsClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementFloat;
+    }
+
+    private void OnHideAssetsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsAssetsTabActive)
+        {
+            _viewModel.SetLeftPanelTabCommand.Execute("Hierarchy");
+        }
+
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementHidden;
+    }
+
+    private void OnAssetGridViewClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetLibraryViewMode = "Grid";
+    }
+
+    private void OnAssetListViewClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AssetLibraryViewMode = "List";
     }
 
     private void OnShowAiInterviewSuggestionsClick(object? sender, RoutedEventArgs e)
@@ -1641,6 +1730,26 @@ public partial class MainWindow : Window
     private void OnSendAiInterviewAnswerClick(object? sender, RoutedEventArgs e)
     {
         _viewModel.SubmitAiInterviewAnswer();
+    }
+
+    private void OnDockAiInterviewRightClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementRight;
+    }
+
+    private void OnDockAiInterviewBottomClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementBottom;
+    }
+
+    private void OnFloatAiInterviewClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementFloat;
+    }
+
+    private void OnHideAiInterviewClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementHidden;
     }
 
     private void OnWindowAssetDragOver(object? sender, DragEventArgs e)
@@ -1674,15 +1783,18 @@ public partial class MainWindow : Window
     {
         var hasPreview = !string.IsNullOrWhiteSpace(_viewModel.AssetDragGhostPreviewPath)
             && File.Exists(_viewModel.AssetDragGhostPreviewPath);
+        var isValidPlacement = _viewModel.IsAssetDragGhostPlacementValid;
+        var fillColor = isValidPlacement ? Color.FromArgb(118, 68, 193, 120) : Color.FromArgb(118, 215, 84, 84);
+        var borderColor = isValidPlacement ? Color.Parse("#7FE6A2") : Color.Parse("#FF9393");
         var marker = new Border
         {
             Width = MarkerSize * 1.15,
             Height = MarkerSize * 1.15,
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.FromArgb(150, 74, 163, 255)),
-            BorderBrush = new SolidColorBrush(Color.Parse("#BFE1FF")),
+            Background = new SolidColorBrush(fillColor),
+            BorderBrush = new SolidColorBrush(borderColor),
             BorderThickness = new Thickness(1.8),
-            Opacity = 0.82,
+            Opacity = 0.72,
             Child = hasPreview
                 ? new Image
                 {
@@ -1698,8 +1810,279 @@ public partial class MainWindow : Window
                 },
         };
 
-        ToolTip.SetTip(marker, $"Drop: {_viewModel.AssetDragGhostTitle}");
+        ToolTip.SetTip(marker, isValidPlacement
+            ? $"Place: {_viewModel.AssetDragGhostTitle}"
+            : "Open or create a scene before placing this asset.");
         return marker;
+    }
+
+    private void SyncDetachedPanelPlacements()
+    {
+        SyncAssetsPanelPlacement();
+        SyncAiInterviewPlacement();
+    }
+
+    private void SyncAssetsPanelPlacement()
+    {
+        if (_assetsPanelHost is null)
+        {
+            return;
+        }
+
+        if (_assetsDockTab is not null)
+        {
+            _assetsDockTab.IsVisible = _viewModel.IsAssetsPanelInBottom;
+        }
+
+        switch (_viewModel.AssetsPanelPlacement)
+        {
+            case MainWindowViewModel.PanelPlacementLeft:
+                CloseAssetsFloatingWindow(keepPlacement: true);
+                AttachContentToHost(_assetsPanelHost, _assetsPanelLeftHost);
+                _viewModel.SetLeftPanelTabCommand.Execute("Assets");
+                _isLeftDockVisible = true;
+                _isFocusModeEnabled = false;
+                break;
+            case MainWindowViewModel.PanelPlacementRight:
+                CloseAssetsFloatingWindow(keepPlacement: true);
+                AttachContentToHost(_assetsPanelHost, _assetsPanelRightHost);
+                _isRightDockVisible = true;
+                _isFocusModeEnabled = false;
+                break;
+            case MainWindowViewModel.PanelPlacementBottom:
+                CloseAssetsFloatingWindow(keepPlacement: true);
+                AttachContentToHost(_assetsPanelHost, _assetsPanelBottomHost);
+                if (_assetsDockTab is not null)
+                {
+                    _assetsDockTab.IsVisible = true;
+                    _assetsDockTab.IsSelected = true;
+                }
+
+                _isActivityDockVisible = true;
+                _isFocusModeEnabled = false;
+                break;
+            case MainWindowViewModel.PanelPlacementFloat:
+                ShowAssetsFloatingWindow();
+                break;
+            default:
+                CloseAssetsFloatingWindow(keepPlacement: true);
+                DetachFromParent(_assetsPanelHost);
+                break;
+        }
+
+        ApplyWorkspaceLayout();
+    }
+
+    private void SyncAiInterviewPlacement()
+    {
+        if (_aiInterviewPanelHost is null)
+        {
+            return;
+        }
+
+        if (_aiInterviewDockTab is not null)
+        {
+            _aiInterviewDockTab.IsVisible = _viewModel.IsAiInterviewInBottom;
+        }
+
+        switch (_viewModel.AiInterviewPlacement)
+        {
+            case MainWindowViewModel.PanelPlacementRight:
+                CloseAiInterviewFloatingWindow(keepPlacement: true);
+                AttachContentToHost(_aiInterviewPanelHost, _aiInterviewRightHost);
+                _isRightDockVisible = true;
+                _isFocusModeEnabled = false;
+                break;
+            case MainWindowViewModel.PanelPlacementBottom:
+                CloseAiInterviewFloatingWindow(keepPlacement: true);
+                AttachContentToHost(_aiInterviewPanelHost, _aiInterviewBottomHost);
+                if (_aiInterviewDockTab is not null)
+                {
+                    _aiInterviewDockTab.IsVisible = true;
+                    _aiInterviewDockTab.IsSelected = true;
+                }
+
+                _isActivityDockVisible = true;
+                _isFocusModeEnabled = false;
+                break;
+            case MainWindowViewModel.PanelPlacementFloat:
+                ShowAiInterviewFloatingWindow();
+                break;
+            default:
+                CloseAiInterviewFloatingWindow(keepPlacement: true);
+                DetachFromParent(_aiInterviewPanelHost);
+                break;
+        }
+
+        ApplyWorkspaceLayout();
+    }
+
+    private void ShowAssetsFloatingWindow()
+    {
+        if (_assetsPanelHost is null)
+        {
+            return;
+        }
+
+        DetachFromParent(_assetsPanelHost);
+        if (_assetsFloatingWindow is null)
+        {
+            _assetsFloatingWindow = BuildToolWindow("Assets", 860, 700);
+            _assetsFloatingWindow.Closed += OnAssetsFloatingWindowClosed;
+        }
+
+        _assetsFloatingWindow.DataContext = _viewModel;
+        _assetsFloatingWindow.Content = _assetsPanelHost;
+        if (!_assetsFloatingWindow.IsVisible)
+        {
+            _assetsFloatingWindow.Show(this);
+        }
+
+        _assetsFloatingWindow.Activate();
+    }
+
+    private void ShowAiInterviewFloatingWindow()
+    {
+        if (_aiInterviewPanelHost is null)
+        {
+            return;
+        }
+
+        DetachFromParent(_aiInterviewPanelHost);
+        if (_aiInterviewFloatingWindow is null)
+        {
+            _aiInterviewFloatingWindow = BuildToolWindow("AI Interview", 760, 620);
+            _aiInterviewFloatingWindow.Closed += OnAiInterviewFloatingWindowClosed;
+        }
+
+        _aiInterviewFloatingWindow.DataContext = _viewModel;
+        _aiInterviewFloatingWindow.Content = _aiInterviewPanelHost;
+        if (!_aiInterviewFloatingWindow.IsVisible)
+        {
+            _aiInterviewFloatingWindow.Show(this);
+        }
+
+        _aiInterviewFloatingWindow.Activate();
+    }
+
+    private Window BuildToolWindow(string title, double width, double height)
+    {
+        return new Window
+        {
+            Title = $"ForgeEngine Editor - {title}",
+            Width = width,
+            Height = height,
+            MinWidth = Math.Min(width, 520),
+            MinHeight = Math.Min(height, 420),
+            CanResize = true,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = Background,
+        };
+    }
+
+    private void OnAssetsFloatingWindowClosed(object? sender, EventArgs e)
+    {
+        if (_assetsFloatingWindow is not null && ReferenceEquals(_assetsFloatingWindow.Content, _assetsPanelHost))
+        {
+            _assetsFloatingWindow.Content = null;
+        }
+
+        _assetsFloatingWindow = null;
+        if (_suppressAssetsFloatingWindowClose)
+        {
+            return;
+        }
+
+        if (_viewModel.IsAssetsTabActive)
+        {
+            _viewModel.SetLeftPanelTabCommand.Execute("Hierarchy");
+        }
+
+        _viewModel.AssetsPanelPlacement = MainWindowViewModel.PanelPlacementHidden;
+    }
+
+    private void OnAiInterviewFloatingWindowClosed(object? sender, EventArgs e)
+    {
+        if (_aiInterviewFloatingWindow is not null && ReferenceEquals(_aiInterviewFloatingWindow.Content, _aiInterviewPanelHost))
+        {
+            _aiInterviewFloatingWindow.Content = null;
+        }
+
+        _aiInterviewFloatingWindow = null;
+        if (_suppressAiInterviewFloatingWindowClose)
+        {
+            return;
+        }
+
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementHidden;
+    }
+
+    private void CloseAssetsFloatingWindow(bool keepPlacement)
+    {
+        if (_assetsFloatingWindow is null)
+        {
+            return;
+        }
+
+        _suppressAssetsFloatingWindowClose = keepPlacement;
+        if (ReferenceEquals(_assetsFloatingWindow.Content, _assetsPanelHost))
+        {
+            _assetsFloatingWindow.Content = null;
+        }
+
+        _assetsFloatingWindow.Close();
+        _assetsFloatingWindow = null;
+        _suppressAssetsFloatingWindowClose = false;
+    }
+
+    private void CloseAiInterviewFloatingWindow(bool keepPlacement)
+    {
+        if (_aiInterviewFloatingWindow is null)
+        {
+            return;
+        }
+
+        _suppressAiInterviewFloatingWindowClose = keepPlacement;
+        if (ReferenceEquals(_aiInterviewFloatingWindow.Content, _aiInterviewPanelHost))
+        {
+            _aiInterviewFloatingWindow.Content = null;
+        }
+
+        _aiInterviewFloatingWindow.Close();
+        _aiInterviewFloatingWindow = null;
+        _suppressAiInterviewFloatingWindowClose = false;
+    }
+
+    private static void AttachContentToHost(Control content, ContentControl? host)
+    {
+        if (host is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(host.Content, content))
+        {
+            return;
+        }
+
+        DetachFromParent(content);
+        host.Content = content;
+    }
+
+    private static void DetachFromParent(Control content)
+    {
+        switch (content.Parent)
+        {
+            case ContentControl contentControl when ReferenceEquals(contentControl.Content, content):
+                contentControl.Content = null;
+                break;
+            case Border border when ReferenceEquals(border.Child, content):
+                border.Child = null;
+                break;
+            case Panel panel:
+                panel.Children.Remove(content);
+                break;
+        }
     }
 
     private void UpdateAssetGhostPosition(Control marker)

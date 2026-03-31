@@ -43,6 +43,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private string _statusToastActionLabel = string.Empty;
     private bool _isStatusToastError;
     private bool _isStatusToastVisible;
+    private string _statusToastVariant = "Success";
     private Func<Task>? _statusToastAction;
     private string _pipelineProgress = "Idle";
     private int? _runtimePid;
@@ -97,6 +98,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private string _assetDragGhostGlyph = "🧱";
     private float _assetDragGhostWorldX;
     private float _assetDragGhostWorldY;
+    private bool _isAssetDragGhostPlacementValid = true;
     private bool _isAssetDragGhostVisible;
     private bool _isAssetBrowserDragPreviewVisible;
     private double _assetBrowserDragPreviewScreenX = 18;
@@ -407,6 +409,59 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         get => _isStatusToastError;
         private set => SetField(ref _isStatusToastError, value);
     }
+
+    public string StatusToastVariant
+    {
+        get => _statusToastVariant;
+        private set
+        {
+            if (!SetField(ref _statusToastVariant, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(StatusToastBackground));
+            OnPropertyChanged(nameof(StatusToastBorderBrush));
+            OnPropertyChanged(nameof(StatusToastAccentBrush));
+            OnPropertyChanged(nameof(StatusToastActionBackground));
+            OnPropertyChanged(nameof(StatusToastActionBorderBrush));
+        }
+    }
+
+    public string StatusToastBackground => StatusToastVariant switch
+    {
+        "Error" => "#3A171B",
+        "Warning" => "#3C2A14",
+        _ => "#14301E",
+    };
+
+    public string StatusToastBorderBrush => StatusToastVariant switch
+    {
+        "Error" => "#B95A63",
+        "Warning" => "#C79649",
+        _ => "#4C9A73",
+    };
+
+    public string StatusToastAccentBrush => StatusToastVariant switch
+    {
+        "Error" => "#FF9CA6",
+        "Warning" => "#FFD27D",
+        _ => "#A8E0B8",
+    };
+
+    public string StatusToastActionBackground => StatusToastVariant switch
+    {
+        "Error" => "#6E2832",
+        "Warning" => "#6B4D20",
+        _ => "#1E5A38",
+    };
+
+    public string StatusToastActionBorderBrush => StatusToastVariant switch
+    {
+        "Error" => "#C77780",
+        "Warning" => "#D1A966",
+        _ => "#67B387",
+    };
 
     public bool IsStatusToastActionVisible => !string.IsNullOrWhiteSpace(StatusToastActionLabel);
 
@@ -1300,6 +1355,12 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     {
         get => _assetDragGhostWorldY;
         private set => SetField(ref _assetDragGhostWorldY, value);
+    }
+
+    public bool IsAssetDragGhostPlacementValid
+    {
+        get => _isAssetDragGhostPlacementValid;
+        private set => SetField(ref _isAssetDragGhostPlacementValid, value);
     }
 
     public string SelectedEntityAssetName
@@ -2670,6 +2731,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
         AssetDragGhostWorldX = worldX;
         AssetDragGhostWorldY = worldY;
+        IsAssetDragGhostPlacementValid = HasActiveScenePath;
         IsAssetDragGhostVisible = true;
         return true;
     }
@@ -2709,6 +2771,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public void ClearAssetDragGhost()
     {
         IsAssetDragGhostVisible = false;
+        IsAssetDragGhostPlacementValid = true;
         UpdateAssetBrowserDragPreviewPosition(18, 18);
         AssetDragGhostTitle = string.Empty;
         AssetDragGhostPreviewPath = string.Empty;
@@ -2717,6 +2780,11 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AssetDragGhostHasPreviewImage));
         OnPropertyChanged(nameof(AssetDragGhostHasNoPreviewImage));
         IsAssetBrowserDragPreviewVisible = false;
+    }
+
+    public void SetAssetDragGhostPlacementValidity(bool isValid)
+    {
+        IsAssetDragGhostPlacementValid = isValid;
     }
 
     public void EndAssetBrowserDragPreview()
@@ -5939,6 +6007,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         StatusToastMessage = message;
         StatusToastGuidance = guidance;
         IsStatusToastError = isError;
+        StatusToastVariant = ResolveToastVariant(title, message, guidance, isError);
         StatusToastActionLabel = actionLabel?.Trim() ?? string.Empty;
         _statusToastAction = action;
         OnPropertyChanged(nameof(IsStatusToastActionVisible));
@@ -5970,6 +6039,24 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     private void ShowToast(string message)
     {
         ShowToast(message, "Notice", string.Empty, isError: false, actionLabel: null, action: null);
+    }
+
+    private static string ResolveToastVariant(string title, string message, string guidance, bool isError)
+    {
+        if (isError)
+        {
+            return "Error";
+        }
+
+        var combined = $"{title} {message} {guidance}";
+        if (combined.Contains("warning", StringComparison.OrdinalIgnoreCase)
+            || combined.Contains("caution", StringComparison.OrdinalIgnoreCase)
+            || combined.Contains("unavailable", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Warning";
+        }
+
+        return "Success";
     }
 
     private static bool LooksLikeProblemMessage(string message)

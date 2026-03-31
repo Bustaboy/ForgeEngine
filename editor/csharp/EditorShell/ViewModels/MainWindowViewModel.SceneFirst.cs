@@ -125,6 +125,7 @@ public sealed partial class MainWindowViewModel
 
     public string FpsStatusLabel => $"{_preferences.Runtime.FpsLimit} FPS";
     public string NpcCountStatusLabel => $"{ViewportEntities.Count(entity => string.Equals(entity.Type, "npc", StringComparison.OrdinalIgnoreCase))} NPCs";
+    public string SceneStatusLine => $"{SceneNameLabel}  •  {SceneDirtyLabel}  •  {SceneValidationStatus}  •  {FpsStatusLabel}  •  {NpcCountStatusLabel}";
 
     public string AssetGenerationPrompt
     {
@@ -179,6 +180,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsRejectedAssetTabActive));
             OnPropertyChanged(nameof(VisibleAssetLibraryItems));
             OnPropertyChanged(nameof(VisibleAssetLibrarySummary));
+            OnPropertyChanged(nameof(IsAssetsPanelVisibleInLeftDock));
+            OnPropertyChanged(nameof(IsAssetsPanelNoticeVisibleInLeftDock));
         }
     }
 
@@ -285,6 +288,8 @@ public sealed partial class MainWindowViewModel
             OnPropertyChanged(nameof(IsAssetsPanelInBottom));
             OnPropertyChanged(nameof(IsAssetsPanelFloating));
             OnPropertyChanged(nameof(IsAssetsPanelHidden));
+            OnPropertyChanged(nameof(IsAssetsPanelVisibleInLeftDock));
+            OnPropertyChanged(nameof(IsAssetsPanelNoticeVisibleInLeftDock));
         }
     }
 
@@ -311,6 +316,8 @@ public sealed partial class MainWindowViewModel
     public bool IsAssetsPanelInBottom => string.Equals(AssetsPanelPlacement, PanelPlacementBottom, StringComparison.Ordinal);
     public bool IsAssetsPanelFloating => string.Equals(AssetsPanelPlacement, PanelPlacementFloat, StringComparison.Ordinal);
     public bool IsAssetsPanelHidden => string.Equals(AssetsPanelPlacement, PanelPlacementHidden, StringComparison.Ordinal);
+    public bool IsAssetsPanelVisibleInLeftDock => IsAssetsPanelInLeft && IsAssetsTabActive;
+    public bool IsAssetsPanelNoticeVisibleInLeftDock => !IsAssetsPanelInLeft && IsAssetsTabActive;
     public bool IsAiInterviewInBottom => string.Equals(AiInterviewPlacement, PanelPlacementBottom, StringComparison.Ordinal);
     public bool IsAiInterviewInRight => string.Equals(AiInterviewPlacement, PanelPlacementRight, StringComparison.Ordinal);
     public bool IsAiInterviewFloating => string.Equals(AiInterviewPlacement, PanelPlacementFloat, StringComparison.Ordinal);
@@ -692,7 +699,7 @@ public sealed partial class MainWindowViewModel
     private void RefreshAiInterviewHeader()
     {
         var projectLabel = HasProjectRootPath ? ProjectRootNameLabel : "Current Project";
-        AiInterviewHeader = $"Deep AI Interview - {projectLabel}";
+        AiInterviewHeader = $"Deep AI Interview – {projectLabel}";
     }
 
     private string ResolveProjectRootForSceneOperations()
@@ -815,6 +822,9 @@ public sealed partial class MainWindowViewModel
         SceneValidationStatus = HasActiveScenePath && File.Exists(ActiveScenePath) ? "Validation: Ready" : "Validation: No active scene";
         OnPropertyChanged(nameof(FpsStatusLabel));
         OnPropertyChanged(nameof(NpcCountStatusLabel));
+        OnPropertyChanged(nameof(SceneStatusLine));
+        OnPropertyChanged(nameof(IsAssetsPanelVisibleInLeftDock));
+        OnPropertyChanged(nameof(IsAssetsPanelNoticeVisibleInLeftDock));
     }
 
     private void EnsureSelectedAssetLibraryItem()
@@ -890,7 +900,7 @@ public sealed partial class MainWindowViewModel
         double QualityScore,
         string SourceFolder)
     {
-        public string PromptSnippet => string.IsNullOrWhiteSpace(Prompt) ? "(no prompt)" : (Prompt.Length <= 56 ? Prompt : $"{Prompt[..56]}...");
+        public string PromptSnippet => string.IsNullOrWhiteSpace(Prompt) ? "(no prompt)" : (Prompt.Length <= 72 ? Prompt : $"{Prompt[..72]}...");
         public string QualityScoreLabel => $"{Math.Clamp(QualityScore, 0d, 100d):0.0}/100";
         public string StatusBadge => string.Equals(ReviewStatus, "approved", StringComparison.OrdinalIgnoreCase)
             ? "Approved"
@@ -925,5 +935,6 @@ public sealed partial class MainWindowViewModel
     public sealed record InterviewHistoryItem(int StepNumber, string Question, string Answer, string FollowUp)
     {
         public string StepTitle => $"Step {StepNumber}";
+        public string StepBadge => $"Step {StepNumber}";
     }
 }
