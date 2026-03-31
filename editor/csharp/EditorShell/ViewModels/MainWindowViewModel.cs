@@ -15,6 +15,7 @@ using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Threading;
 using GameForge.Editor.EditorDiagnostics;
 
 namespace GameForge.Editor.EditorShell.ViewModels;
@@ -175,6 +176,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         _runtimeSupervisor = runtimeSupervisor;
         _settingsFilePath = settingsFilePath ?? ResolveDefaultSettingsPath();
         _preferences = EditorPreferences.LoadOrDefault(_settingsFilePath);
+        InitializeSceneFirstState();
         _readonlySelectedViewportEntities = new ReadOnlyObservableCollection<ViewportEntity>(_selectedViewportEntities);
         _readonlyHistoryTimeline = new ReadOnlyObservableCollection<HistoryTimelineEntry>(_historyTimeline);
         _readonlyHierarchyRoots = new ReadOnlyObservableCollection<HierarchyNode>(_hierarchyRoots);
@@ -485,7 +487,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     public string HierarchyEntityCountBadge => $"🧱 {HierarchyEntityCount}";
 
-    public int HierarchyEntityCount => ViewportEntities.Count;
+    public int HierarchyEntityCount => ViewportEntities.Count(entity => entity.Type != "player");
 
     public string HierarchyTreeSummary
     {
@@ -547,7 +549,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     public bool IsBotPlaytestingInReviewEnabled => _preferences.AiOrchestration.EnableBotPlaytestingInReview;
     public string LastSceneReviewSummaryStatus => $"Scene Review: {_preferences.AiOrchestration.LastSceneReviewSummary}";
 
-    public string ShortcutHintBar => "Shortcuts: Ctrl+N New • Ctrl+S Save • Ctrl+Z/Y Undo/Redo • Ctrl+Shift+P Play • Ctrl+I Import • Ctrl+Shift+S Settings";
+    public string ShortcutHintBar => "Ctrl+N New Scene • Ctrl+O Open Scene • Ctrl+S Save Scene • Ctrl+Shift+S Save As • Ctrl+Z/Y Undo/Redo • Ctrl+Shift+P Play";
 
     public string ActiveProjectFilePath
     {
@@ -1548,6 +1550,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
             ActiveProjectFilePath = projectFilePath;
             PrototypeRoot = snapshot.PrototypeRoot;
+            SetSceneContext(scenePath);
             ChatPrompt = snapshot.ChatPrompt ?? string.Empty;
             IsCodeMode = snapshot.IsCodeMode;
             RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
@@ -1601,7 +1604,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
         _deleteShortcutConfirmationExpiresAtUtc = null;
         _deleteShortcutSelectionSignature = string.Empty;
-        await DeleteSelectedEntityAsync(cancellationToken);
+        await DeleteSelectedEntityCoreAsync(cancellationToken);
     }
 
     public void OpenExportChecklist()
@@ -2781,8 +2784,9 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         string? statusMessageOverride = null)
     {
         ApplyPreferencesCore(updatedPreferences, triggerToast: true, statusMessageOverride: statusMessageOverride);
-        await _preferences.SaveAsync(_settingsFilePath, cancellationToken);
-        StatusMessage = statusMessageOverride ?? $"Settings saved to {_settingsFilePath}";
+        var effectiveSettingsPath = GetEffectiveSettingsPath();
+        await _preferences.SaveAsync(effectiveSettingsPath, cancellationToken);
+        StatusMessage = statusMessageOverride ?? $"Settings saved to {effectiveSettingsPath}";
     }
 
     private void ApplyPreferencesCore(EditorPreferences updatedPreferences, bool triggerToast, string? statusMessageOverride)
@@ -2914,14 +2918,21 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             ? $"Live in Vulkan (PID: {pid})"
             : $"Runtime status: {RuntimeLaunchStatus}";
 
+        var scenePath = Path.Combine(PrototypeRoot, "scene", "scene_scaffold.json");
+        if (File.Exists(scenePath))
+        {
+            SetSceneContext(scenePath);
+        }
+
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
         LoadViewportEntitiesFromScene(PrototypeRoot);
+        EnsureGeneratedViewportRunnerStarted(response);
         RebuildTimelineMarkers();
         _undoStack.Clear();
         _redoStack.Clear();
-        var scenePath = GetScenePath();
-        _currentSceneHistoryEntry = scenePath is not null && File.Exists(scenePath)
-            ? new SceneHistoryEntry(File.ReadAllText(scenePath), "Generated scene loaded", _nextHistoryRevision++)
+        var activeScenePath = GetScenePath();
+        _currentSceneHistoryEntry = activeScenePath is not null && File.Exists(activeScenePath)
+            ? new SceneHistoryEntry(File.ReadAllText(activeScenePath), "Generated scene loaded", _nextHistoryRevision++)
             : null;
         _activeDragSession = null;
         NotifyHistoryChanged();
@@ -2931,6 +2942,26 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         {
             MonacoEditorContent = loadedCode;
         }
+    }
+
+    private void EnsureGeneratedViewportRunnerStarted(PipelineRunResponse response)
+    {
+        if (response.ExitCode != 0
+            || !string.Equals(response.Result?.RuntimeLaunchStatus, "Running", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(PrototypeRoot)
+            || PrototypeRoot == "(none)"
+            || !ViewportEntities.Any(entity => entity.Type != "player"))
+        {
+            return;
+        }
+
+        var generatedBuildRoot = Path.Combine(PrototypeRoot, "generated", "build");
+        if (!Directory.Exists(generatedBuildRoot))
+        {
+            return;
+        }
+
+        _ = _runtimeSupervisor.LaunchGeneratedRunner(generatedBuildRoot);
     }
 
     private static string TryLoadGeneratedRuntimeCpp(string prototypeRoot)
@@ -3032,14 +3063,14 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         RebuildTimelineMarkers();
     }
 
-    private static string BuildGeneratedEntityList(string prototypeRoot)
+    private string BuildGeneratedEntityList(string prototypeRoot)
     {
         if (string.IsNullOrWhiteSpace(prototypeRoot) || prototypeRoot == "(none)")
         {
             return "No generated entities yet.";
         }
 
-        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        var scenePath = GetScenePath() ?? Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
         if (!File.Exists(scenePath))
         {
             return "scene/scene_scaffold.json not found.";
@@ -3116,7 +3147,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var scenePath = Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
+        var scenePath = GetScenePath() ?? Path.Combine(prototypeRoot, "scene", "scene_scaffold.json");
         if (!File.Exists(scenePath))
         {
             return;
@@ -3203,7 +3234,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task AddEntityAndRelaunchAsync(string entityKind, CancellationToken cancellationToken = default)
+    private Task AddEntityAndRelaunchAsync(string entityKind)
+        => AddEntityAndRelaunchCoreAsync(entityKind, CancellationToken.None);
+
+    private async Task AddEntityAndRelaunchCoreAsync(string entityKind, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
         {
@@ -4105,7 +4139,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         var player = ViewportEntities.FirstOrDefault(entity => string.Equals(entity.Type, "player", StringComparison.Ordinal));
         if (player is not null)
         {
-            var playerNode = HierarchyNode.FromEntity(player);
+            var playerNode = new HierarchyNode(player.Id, "Player", "👤", player.Id, true, $"{player.Type.ToUpperInvariant()} • {player.ParentBadge}");
             playerNode.IsExpanded = ResolveHierarchyExpansionState(playerNode.Id, defaultExpanded: false);
             sceneRoot.Children.Add(playerNode);
         }
@@ -4199,7 +4233,6 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
         if (hierarchyNode is not null && !ReferenceEquals(_selectedHierarchyNode, hierarchyNode))
         {
-            ExpandHierarchyPathForEntity(selected.Id);
             _selectedHierarchyNode = hierarchyNode;
             OnPropertyChanged(nameof(SelectedHierarchyNode));
         }
@@ -4422,7 +4455,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
         var first = list[0];
         return list.All(value => Math.Abs(value - first) < 0.0001f)
-            ? first.ToString("0.##", CultureInfo.InvariantCulture)
+            ? first.ToString("0.000", CultureInfo.InvariantCulture)
             : "(mixed)";
     }
 
@@ -4495,7 +4528,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         RebuildTimelineMarkers();
     }
 
-    private async Task DeleteSelectedEntityAsync(CancellationToken cancellationToken = default)
+    private Task DeleteSelectedEntityAsync()
+        => DeleteSelectedEntityCoreAsync(CancellationToken.None);
+
+    private async Task DeleteSelectedEntityCoreAsync(CancellationToken cancellationToken = default)
     {
         if (_selectedViewportEntities.Count == 0)
         {
@@ -4550,7 +4586,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ApplySelectionPropertiesAsync(CancellationToken cancellationToken = default)
+    private Task ApplySelectionPropertiesAsync()
+        => ApplySelectionPropertiesCoreAsync(CancellationToken.None);
+
+    private async Task ApplySelectionPropertiesCoreAsync(CancellationToken cancellationToken = default)
     {
         if (_selectedViewportEntities.Count == 0)
         {
@@ -4594,7 +4633,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task UndoAsync(CancellationToken cancellationToken = default)
+    private Task UndoAsync()
+        => UndoCoreAsync(CancellationToken.None);
+
+    private async Task UndoCoreAsync(CancellationToken cancellationToken = default)
     {
         if (_undoStack.Count == 0 || _currentSceneHistoryEntry is null)
         {
@@ -4616,7 +4658,10 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         await ApplySceneContentAndRelaunchAsync(scenePath, history.Content, $"Undo → {history.Description}", cancellationToken);
     }
 
-    private async Task RedoAsync(CancellationToken cancellationToken = default)
+    private Task RedoAsync()
+        => RedoCoreAsync(CancellationToken.None);
+
+    private async Task RedoCoreAsync(CancellationToken cancellationToken = default)
     {
         if (_redoStack.Count == 0 || _currentSceneHistoryEntry is null)
         {
@@ -4640,6 +4685,11 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 
     private string? GetScenePath()
     {
+        if (!string.IsNullOrWhiteSpace(ActiveScenePath) && File.Exists(ActiveScenePath))
+        {
+            return ActiveScenePath;
+        }
+
         if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
         {
             return null;
@@ -4673,8 +4723,16 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         await File.WriteAllTextAsync(scenePath, content, cancellationToken);
         await WriteAutosaveSnapshotAsync(content, cancellationToken);
         await AutoSaveActiveProjectStateAsync(cancellationToken);
+        IsSceneDirty = false;
+        RefreshSceneStatus();
         StatusMessage = $"{operationDescription}. Recompiling and relaunching runtime...";
         ShowToast(operationDescription);
+        if (string.IsNullOrWhiteSpace(PrototypeRoot) || PrototypeRoot == "(none)")
+        {
+            LoadViewportEntitiesFromScene(Path.GetDirectoryName(scenePath) ?? Environment.CurrentDirectory, previousSelectionIds);
+            return;
+        }
+
         await StopPreviousRuntimeIfRunningAsync(cancellationToken);
         await RecompileAndRelaunchRuntimeAsync(cancellationToken);
         RuntimeEntityList = BuildGeneratedEntityList(PrototypeRoot);
@@ -4745,7 +4803,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        var settingsRoot = Path.GetDirectoryName(_settingsFilePath) ?? ".soulloom";
+        var settingsRoot = Path.GetDirectoryName(GetEffectiveSettingsPath()) ?? ".soulloom";
         var autosavePath = Path.Combine(settingsRoot, "autosave", "scene_autosave.json");
         var autosaveDirectory = Path.GetDirectoryName(autosavePath);
         if (!string.IsNullOrWhiteSpace(autosaveDirectory))
@@ -5469,6 +5527,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ViewportRenderableEntityCount));
         OnPropertyChanged(nameof(ViewportPlaybackSummary));
         OnPropertyChanged(nameof(ViewportRenderFrameLabel));
+        OnPropertyChanged(nameof(NpcCountStatusLabel));
     }
 
     private void OnViewportEntityPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -5681,6 +5740,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasNoAssetResults));
         OnPropertyChanged(nameof(AssetResultsSummary));
         OnPropertyChanged(nameof(AssetFilterSummaryLabel));
+        OnPropertyChanged(nameof(VisibleAssetLibraryItems));
+        OnPropertyChanged(nameof(VisibleAssetLibrarySummary));
     }
 
     private void MarkAssetCatalogRefreshed()
@@ -5882,6 +5943,28 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         _statusToastAction = action;
         OnPropertyChanged(nameof(IsStatusToastActionVisible));
         IsStatusToastVisible = !string.IsNullOrWhiteSpace(message);
+        if (!IsStatusToastVisible)
+        {
+            return;
+        }
+
+        var sequence = ++_toastSequence;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(4));
+                if (sequence != _toastSequence)
+                {
+                    return;
+                }
+
+                Dispatcher.UIThread.Post(DismissToast);
+            }
+            catch
+            {
+            }
+        });
     }
 
     private void ShowToast(string message)

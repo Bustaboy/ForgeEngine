@@ -19,7 +19,6 @@ namespace GameForge.Editor.EditorShell.UI;
 
 public partial class MainWindow : Window
 {
-    private const double ViewportScale = 38.0;
     private const double MarkerSize = 34.0;
     private const string AssetDragFormat = "application/x-gameforge-asset-id";
     private const string HierarchyDragFormat = "application/x-gameforge-hierarchy-entity";
@@ -27,10 +26,16 @@ public partial class MainWindow : Window
     private bool _firstRunModalChecked;
     private bool _isSyncingEditorText;
     private Canvas? _viewportCanvas;
+    private Border? _viewportFocusBorder;
     private MainWindowViewModel.ViewportEntity? _draggingEntity;
     private Point _dragPointerStart;
     private float _dragEntityStartX;
     private float _dragEntityStartY;
+    private bool _isPanningViewport;
+    private Point _panPointerStart;
+    private double _viewportOriginWorldX;
+    private double _viewportOriginWorldY;
+    private double _viewportZoom = 38.0;
     private bool _isMarqueeSelecting;
     private Point _marqueeStart;
     private Border? _marqueeVisual;
@@ -90,6 +95,7 @@ public partial class MainWindow : Window
         _workspaceGrid = this.FindControl<Grid>("WorkspaceGrid");
         _toolRailBorder = this.FindControl<Border>("ToolRailBorder");
         _leftDockBorder = this.FindControl<Border>("LeftDockBorder");
+        _viewportFocusBorder = this.FindControl<Border>("ViewportFocusBorder");
         _rightDockBorder = this.FindControl<Border>("RightDockBorder");
         _timelineDockBorder = this.FindControl<Border>("TimelineDockBorder");
         _activityDockBorder = this.FindControl<Border>("ActivityDockBorder");
@@ -128,6 +134,9 @@ public partial class MainWindow : Window
         _viewportCanvas.PointerMoved += OnViewportPointerMoved;
         _viewportCanvas.PointerPressed += OnViewportPointerPressed;
         _viewportCanvas.PointerReleased += OnViewportPointerReleased;
+        _viewportCanvas.PointerWheelChanged += OnViewportPointerWheelChanged;
+        _viewportCanvas.GotFocus += (_, _) => UpdateViewportFocusVisual(true);
+        _viewportCanvas.LostFocus += (_, _) => UpdateViewportFocusVisual(false);
         _viewportCanvas.SizeChanged += (_, _) => RefreshViewportVisuals();
         DragDrop.SetAllowDrop(_viewportCanvas, true);
         _viewportCanvas.AddHandler(DragDrop.DragOverEvent, OnViewportDragOver);
@@ -798,7 +807,7 @@ public partial class MainWindow : Window
         }
 
         const double gridWorldStep = 1.0;
-        var gridPixelStep = ViewportScale * gridWorldStep;
+        var gridPixelStep = _viewportZoom * gridWorldStep;
         if (gridPixelStep < 8)
         {
             return;
@@ -806,8 +815,8 @@ public partial class MainWindow : Window
 
         var centerX = width / 2.0;
         var centerY = height / 2.0;
-        var verticalOffset = centerX % gridPixelStep;
-        var horizontalOffset = centerY % gridPixelStep;
+        var verticalOffset = (centerX + (_viewportOriginWorldX * _viewportZoom)) % gridPixelStep;
+        var horizontalOffset = (centerY - (_viewportOriginWorldY * _viewportZoom)) % gridPixelStep;
         var gridBrush = new SolidColorBrush(Color.Parse("#1B2740"));
 
         for (var x = verticalOffset; x <= width; x += gridPixelStep)
@@ -931,6 +940,26 @@ public partial class MainWindow : Window
         };
     }
 
+    private void UpdateViewportFocusVisual(bool isFocused)
+    {
+        if (_viewportFocusBorder is null)
+        {
+            return;
+        }
+
+        _viewportFocusBorder.BorderBrush = new SolidColorBrush(isFocused ? Color.Parse("#4AA3FF") : Color.Parse("#2B3446"));
+        _viewportFocusBorder.BoxShadow = isFocused
+            ? new BoxShadows(new BoxShadow
+            {
+                Blur = 16,
+                Spread = 0,
+                OffsetX = 0,
+                OffsetY = 0,
+                Color = Color.Parse("#404AA3FF"),
+            })
+            : default;
+    }
+
     private void UpdateEntityMarkerPosition(Control marker, MainWindowViewModel.ViewportEntity entity)
     {
         if (_viewportCanvas is null)
@@ -942,8 +971,8 @@ public partial class MainWindow : Window
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
         var markerWidth = entity.RenderWidth;
         var markerHeight = entity.RenderHeight;
-        var left = centerX + (entity.X * ViewportScale) - (markerWidth / 2.0);
-        var top = centerY - (entity.Y * ViewportScale) - (markerHeight / 2.0);
+        var left = centerX + ((entity.X - _viewportOriginWorldX) * _viewportZoom) - (markerWidth / 2.0);
+        var top = centerY - ((entity.Y - _viewportOriginWorldY) * _viewportZoom) - (markerHeight / 2.0);
         Canvas.SetLeft(marker, left);
         Canvas.SetTop(marker, top);
     }
@@ -955,21 +984,30 @@ public partial class MainWindow : Window
             return;
         }
 
+        _viewportCanvas.Focus();
         if (e.Source is Control source && source.Tag is string)
         {
             return;
         }
 
-        var modifiers = e.KeyModifiers;
-        if (!modifiers.HasFlag(KeyModifiers.Control))
+        if (e.GetCurrentPoint(_viewportCanvas).Properties.IsRightButtonPressed)
         {
-            _viewModel.ClearSelection();
-            RefreshViewportVisuals();
+            return;
         }
 
-        _isMarqueeSelecting = true;
-        _marqueeStart = e.GetPosition(_viewportCanvas);
-        EnsureMarqueeVisual();
+        var modifiers = e.KeyModifiers;
+        if (modifiers.HasFlag(KeyModifiers.Control))
+        {
+            _isMarqueeSelecting = true;
+            _marqueeStart = e.GetPosition(_viewportCanvas);
+            EnsureMarqueeVisual();
+            e.Pointer.Capture(_viewportCanvas);
+            e.Handled = true;
+            return;
+        }
+
+        _isPanningViewport = true;
+        _panPointerStart = e.GetPosition(_viewportCanvas);
         e.Pointer.Capture(_viewportCanvas);
         e.Handled = true;
     }
@@ -1180,6 +1218,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_isPanningViewport && e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
+        {
+            var current = e.GetPosition(_viewportCanvas);
+            _viewportOriginWorldX -= (current.X - _panPointerStart.X) / _viewportZoom;
+            _viewportOriginWorldY += (current.Y - _panPointerStart.Y) / _viewportZoom;
+            _panPointerStart = current;
+            RefreshViewportVisuals();
+            e.Handled = true;
+            return;
+        }
+
         if (_isMarqueeSelecting && _marqueeVisual is not null && e.GetCurrentPoint(_viewportCanvas).Properties.IsLeftButtonPressed)
         {
             var marqueeCurrent = e.GetPosition(_viewportCanvas);
@@ -1193,9 +1242,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var current = e.GetPosition(_viewportCanvas);
-        var deltaX = (float)((current.X - _dragPointerStart.X) / ViewportScale);
-        var deltaY = (float)((_dragPointerStart.Y - current.Y) / ViewportScale);
+        var dragCurrent = e.GetPosition(_viewportCanvas);
+        var deltaX = (float)((dragCurrent.X - _dragPointerStart.X) / _viewportZoom);
+        var deltaY = (float)((_dragPointerStart.Y - dragCurrent.Y) / _viewportZoom);
         var nextX = _dragEntityStartX + deltaX;
         var nextY = _dragEntityStartY + deltaY;
         if (_viewModel.PreviewDragPosition(_draggingEntity.Id, nextX, nextY))
@@ -1208,6 +1257,14 @@ public partial class MainWindow : Window
     {
         if (_viewportCanvas is null)
         {
+            return;
+        }
+
+        if (_isPanningViewport)
+        {
+            _isPanningViewport = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
             return;
         }
 
@@ -1231,6 +1288,23 @@ public partial class MainWindow : Window
         e.Pointer.Capture(null);
         await _viewModel.CommitDragAsync();
         RefreshViewportVisuals();
+    }
+
+    private void OnViewportPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (_viewportCanvas is null)
+        {
+            return;
+        }
+
+        var before = ScreenToWorld(e.GetPosition(_viewportCanvas));
+        var zoomFactor = e.Delta.Y > 0 ? 1.1 : 1 / 1.1;
+        _viewportZoom = Math.Clamp(_viewportZoom * zoomFactor, 12d, 120d);
+        var after = ScreenToWorld(e.GetPosition(_viewportCanvas));
+        _viewportOriginWorldX += before.X - after.X;
+        _viewportOriginWorldY += before.Y - after.Y;
+        RefreshViewportVisuals();
+        e.Handled = true;
     }
 
     private static Color ParseColor(string? candidate, string fallback)
@@ -1309,10 +1383,10 @@ public partial class MainWindow : Window
 
         var centerX = _viewportCanvas.Bounds.Width / 2.0;
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
-        var minWorldX = (float)((minScreenX - centerX) / ViewportScale);
-        var maxWorldX = (float)((maxScreenX - centerX) / ViewportScale);
-        var minWorldY = (float)((centerY - maxScreenY) / ViewportScale);
-        var maxWorldY = (float)((centerY - minScreenY) / ViewportScale);
+        var minWorldX = (float)(_viewportOriginWorldX + ((minScreenX - centerX) / _viewportZoom));
+        var maxWorldX = (float)(_viewportOriginWorldX + ((maxScreenX - centerX) / _viewportZoom));
+        var minWorldY = (float)(_viewportOriginWorldY + ((centerY - maxScreenY) / _viewportZoom));
+        var maxWorldY = (float)(_viewportOriginWorldY + ((centerY - minScreenY) / _viewportZoom));
 
         _viewModel.SelectEntitiesByViewportRect(minWorldX, minWorldY, maxWorldX, maxWorldY, append);
         RefreshViewportVisuals();
@@ -1400,8 +1474,8 @@ public partial class MainWindow : Window
 
         var centerX = _viewportCanvas.Bounds.Width / 2.0;
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
-        var worldX = (float)((point.X - centerX) / ViewportScale);
-        var worldY = (float)((centerY - point.Y) / ViewportScale);
+        var worldX = (float)(_viewportOriginWorldX + ((point.X - centerX) / _viewportZoom));
+        var worldY = (float)(_viewportOriginWorldY + ((centerY - point.Y) / _viewportZoom));
         return (worldX, worldY);
     }
 
@@ -1460,6 +1534,7 @@ public partial class MainWindow : Window
     private async void OnRefreshAssetsClick(object? sender, RoutedEventArgs e)
     {
         await _viewModel.RefreshImportedAssetsAsync();
+        await _viewModel.RefreshAssetLibraryAsync();
     }
 
     private async void OnRefreshGeneratedReviewQueueClick(object? sender, RoutedEventArgs e)
@@ -1495,6 +1570,77 @@ public partial class MainWindow : Window
         }
 
         await _viewModel.ReviewGeneratedAssetAsync(assetPath, "regenerate");
+    }
+
+    private async void OnGenerateAssetClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.GenerateAssetAsync();
+    }
+
+    private void OnApprovedAssetsTabClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.ActiveAssetLibraryTab = "Approved";
+    }
+
+    private void OnPendingAssetsTabClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.ActiveAssetLibraryTab = "Pending";
+    }
+
+    private void OnRejectedAssetsTabClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.ActiveAssetLibraryTab = "Rejected";
+    }
+
+    private void OnAssetLibrarySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox { SelectedItem: MainWindowViewModel.AssetLibraryItem item })
+        {
+            _viewModel.SelectedAssetLibraryItem = item;
+        }
+    }
+
+    private async void OnApproveSelectedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.ApproveSelectedAssetAsync();
+    }
+
+    private async void OnRejectSelectedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RejectSelectedAssetAsync();
+    }
+
+    private async void OnRegenerateSelectedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.RegenerateSelectedAssetAsync();
+    }
+
+    private async void OnDeleteSelectedAssetClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.DeleteSelectedAssetAsync();
+    }
+
+    private void OnAssetsPanelSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        _viewModel.IsAssetPreviewStacked = e.NewSize.Width < 720;
+    }
+
+    private void OnShowAiInterviewSuggestionsClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.ShowAiInterviewSuggestions();
+    }
+
+    private void OnAiInterviewSuggestionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string suggestion })
+        {
+            _viewModel.ApplyAiInterviewSuggestion(suggestion);
+        }
+    }
+
+    private void OnSendAiInterviewAnswerClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.SubmitAiInterviewAnswer();
     }
 
     private void OnWindowAssetDragOver(object? sender, DragEventArgs e)
@@ -1566,8 +1712,8 @@ public partial class MainWindow : Window
         var centerX = _viewportCanvas.Bounds.Width / 2.0;
         var centerY = _viewportCanvas.Bounds.Height / 2.0;
         var markerSize = marker.Width;
-        var left = centerX + (_viewModel.AssetDragGhostWorldX * ViewportScale) - (markerSize / 2.0);
-        var top = centerY - (_viewModel.AssetDragGhostWorldY * ViewportScale) - (markerSize / 2.0);
+        var left = centerX + ((_viewModel.AssetDragGhostWorldX - _viewportOriginWorldX) * _viewportZoom) - (markerSize / 2.0);
+        var top = centerY - ((_viewModel.AssetDragGhostWorldY - _viewportOriginWorldY) * _viewportZoom) - (markerSize / 2.0);
         Canvas.SetLeft(marker, left);
         Canvas.SetTop(marker, top);
     }
@@ -2033,6 +2179,123 @@ public partial class MainWindow : Window
             wizard.Result.ConceptNotes);
     }
 
+    private async void OnNewSceneClick(object? sender, RoutedEventArgs e)
+    {
+        var projectRoot = _viewModel.HasProjectRootPath ? _viewModel.ProjectRootPath : string.Empty;
+        if (string.IsNullOrWhiteSpace(projectRoot))
+        {
+            if (StorageProvider is null)
+            {
+                _viewModel.SetStatusMessage("Storage provider unavailable for scene creation.");
+                return;
+            }
+
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select Project Root",
+                AllowMultiple = false,
+            });
+            projectRoot = folders.FirstOrDefault()?.Path.LocalPath ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(projectRoot))
+            {
+                return;
+            }
+        }
+
+        await _viewModel.CreateNewSceneAsync(projectRoot);
+        RefreshViewportVisuals();
+    }
+
+    private async void OnOpenSceneClick(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null)
+        {
+            _viewModel.SetStatusMessage("Storage provider unavailable for scene open.");
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open Scene",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("ForgeEngine Scene")
+                {
+                    Patterns = ["*.scene.json", "scene_scaffold.json"],
+                },
+            ],
+        });
+
+        var picked = files.FirstOrDefault();
+        if (picked is null)
+        {
+            return;
+        }
+
+        await _viewModel.OpenSceneAsync(picked.Path.LocalPath);
+        RefreshViewportVisuals();
+    }
+
+    private async void OnSaveSceneClick(object? sender, RoutedEventArgs e)
+    {
+        await _viewModel.SaveSceneAsync();
+    }
+
+    private async void OnSaveSceneAsClick(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null)
+        {
+            _viewModel.SetStatusMessage("Storage provider unavailable for scene save.");
+            return;
+        }
+
+        var target = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Scene As",
+            SuggestedFileName = _viewModel.HasActiveScenePath ? System.IO.Path.GetFileName(_viewModel.ActiveScenePath) : "Untitled Scene.scene.json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("ForgeEngine Scene")
+                {
+                    Patterns = ["*.scene.json"],
+                },
+            ],
+            ShowOverwritePrompt = true,
+        });
+
+        if (target is null)
+        {
+            return;
+        }
+
+        await _viewModel.SaveSceneAsAsync(target.Path.LocalPath);
+    }
+
+    private void OnOpenProjectFolderClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.OpenProjectFolder();
+    }
+
+    private async void OnExitClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsSceneDirty)
+        {
+            var decision = await ShowSaveChangesPromptAsync();
+            if (decision == "Cancel")
+            {
+                return;
+            }
+
+            if (decision == "Save")
+            {
+                await _viewModel.SaveSceneAsync();
+            }
+        }
+
+        Close();
+    }
+
     private async void OnOpenProjectClick(object? sender, RoutedEventArgs e)
     {
         if (StorageProvider is null)
@@ -2277,6 +2540,72 @@ public partial class MainWindow : Window
         await _viewModel.RunInstallerBuildAsync();
     }
 
+    private async Task<string> ShowSaveChangesPromptAsync()
+    {
+        var result = "Cancel";
+        var dialog = new Window
+        {
+            Title = "Unsaved Scene Changes",
+            Width = 420,
+            Height = 190,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.Parse("#0B111D")),
+            Content = new Border
+            {
+                Margin = new Thickness(14),
+                Padding = new Thickness(16),
+                Background = new SolidColorBrush(Color.Parse("#101722")),
+                BorderBrush = new SolidColorBrush(Color.Parse("#2B3446")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Child = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Save changes to the active scene before exiting?",
+                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
+                            FontSize = 16,
+                            FontWeight = FontWeight.SemiBold,
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                        new TextBlock
+                        {
+                            Text = _viewModel.SceneNameLabel,
+                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 8,
+                            Children =
+                            {
+                                new Button { Content = "Don't Save", MinWidth = 96 },
+                                new Button { Content = "Cancel", MinWidth = 84 },
+                                new Button { Content = "Save", MinWidth = 84 },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        if (dialog.Content is Border { Child: StackPanel root } && root.Children[2] is StackPanel actions)
+        {
+            ((Button)actions.Children[0]).Click += (_, _) => { result = "DontSave"; dialog.Close(); };
+            ((Button)actions.Children[1]).Click += (_, _) => { result = "Cancel"; dialog.Close(); };
+            ((Button)actions.Children[2]).Click += (_, _) => { result = "Save"; dialog.Close(); };
+        }
+
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
     private void OnOpenInstallerOutputClick(object? sender, RoutedEventArgs e)
     {
         _viewModel.OpenInstallerOutputPath();
@@ -2313,6 +2642,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            _viewModel.SubmitAiInterviewAnswer();
+            e.Handled = true;
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             return;
@@ -2320,21 +2656,42 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.N)
         {
-            OnNewProjectClick(this, new RoutedEventArgs());
+            OnNewSceneClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            OnOpenProjectFolderClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.O)
+        {
+            OnOpenSceneClick(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
 
         if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            OnOpenSettingsClick(this, new RoutedEventArgs());
+            OnSaveSceneAsClick(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
 
         if (e.Key == Key.S)
         {
-            OnSaveProjectClick(this, new RoutedEventArgs());
+            OnSaveSceneClick(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.OemComma)
+        {
+            OnOpenSettingsClick(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
