@@ -38,6 +38,16 @@ class KitBashInstance:
     variation: dict[str, object]
 
 
+def _normalize_asset_id(asset_id: str) -> str:
+    normalized = str(asset_id or "").strip()
+    if normalized.lower().startswith("approved://"):
+        normalized = normalized.split("://", 1)[1]
+    normalized = normalized.replace("\\", "/").rsplit("/", 1)[-1]
+    if "." in normalized:
+        normalized = Path(normalized).stem
+    return normalized.strip().lower()
+
+
 def _load_kits_modules(kits_path: Path) -> list[KitModule]:
     payload = json.loads(kits_path.read_text(encoding="utf-8"))
     modules_payload = payload.get("modules", [])
@@ -58,7 +68,7 @@ def _load_kits_modules(kits_path: Path) -> list[KitModule]:
                 tags=[str(tag).strip().lower() for tag in item.get("tags", []) if str(tag).strip()],
                 compatible_with=[str(tag).strip().lower() for tag in item.get("compatible_with", []) if str(tag).strip()],
                 art_bible_constraints=dict(item.get("art_bible_constraints", {})) if isinstance(item.get("art_bible_constraints"), dict) else {},
-                default_asset_id=str(item.get("default_asset_id", module_id)).strip() or module_id,
+                default_asset_id=_normalize_asset_id(str(item.get("default_asset_id", module_id)).strip() or module_id),
                 default_size={
                     "x": float(item.get("default_size", {}).get("x", 1.0)) if isinstance(item.get("default_size"), dict) else 1.0,
                     "y": float(item.get("default_size", {}).get("y", 1.0)) if isinstance(item.get("default_size"), dict) else 1.0,
@@ -68,9 +78,28 @@ def _load_kits_modules(kits_path: Path) -> list[KitModule]:
     return modules
 
 
+def _requested_module_types(prompt: str) -> set[str]:
+    normalized = prompt.lower()
+    requested: set[str] = set()
+    keyword_map = {
+        "building": ["farmhouse", "farm", "barn", "house", "cabin", "cottage", "building", "wall", "exterior"],
+        "foundation": ["foundation", "base", "stone base"],
+        "roof": ["roof", "thatch", "thatched"],
+        "fence": ["fence", "boundary", "gate"],
+        "tree": ["tree", "trees", "forest", "grove", "orchard"],
+        "ground": ["ground", "path", "foliage", "leaf", "leaves"],
+        "interior": ["interior", "inside", "room", "cozy"],
+        "prop": ["prop", "shelf", "furniture", "storage"],
+    }
+    for module_type, keywords in keyword_map.items():
+        if any(keyword in normalized for keyword in keywords):
+            requested.add(module_type)
+    return requested
+
+
 def _scene_targets_from_prompt(prompt: str) -> set[str]:
     normalized = prompt.lower()
-    targets: set[str] = set()
+    targets: set[str] = set(_requested_module_types(prompt))
     if any(token in normalized for token in ["farmhouse", "farm", "barn", "rural"]):
         targets.update({"building", "roof", "foundation", "fence", "tree", "interior"})
     if any(token in normalized for token in ["interior", "cozy", "room", "inside"]):
@@ -80,6 +109,425 @@ def _scene_targets_from_prompt(prompt: str) -> set[str]:
     if not targets:
         targets.update({"building", "prop", "tree"})
     return targets
+
+
+def _cluster_templates_from_prompt(prompt: str, requested_types: set[str]) -> list[str]:
+    normalized = prompt.lower()
+    templates: list[str] = []
+
+    if any(token in normalized for token in ["farmhouse", "farm", "barn", "rural", "house", "cabin", "cottage"]):
+        templates.append("farmhouse")
+    elif "building" in requested_types or "foundation" in requested_types:
+        templates.append("farmhouse")
+
+    if any(token in normalized for token in ["interior", "cozy", "room", "inside"]) or "interior" in requested_types:
+        templates.append("cozy_interior")
+
+    if any(token in normalized for token in ["forest", "nature", "grove", "autumn", "tree"]) or {"tree", "ground"} & requested_types:
+        templates.append("grove")
+
+    if not templates and not requested_types:
+        templates.append("farmhouse")
+
+    return templates
+
+
+def _find_module(
+    modules: list[KitModule],
+    *,
+    module_type: str | None = None,
+    module_id: str | None = None,
+    required_tags: set[str] | None = None,
+) -> KitModule | None:
+    for module in modules:
+        if module_type is not None and module.type != module_type:
+            continue
+        if module_id is not None and module.module_id != module_id:
+            continue
+        if required_tags is not None and not required_tags.issubset(set(module.tags)):
+            continue
+        return module
+    return None
+
+
+def _module_tokens(module: KitModule) -> set[str]:
+    return {module.module_id, module.type, *module.tags}
+
+
+def _is_compatible(module: KitModule, anchors: list[KitModule]) -> bool:
+    if not anchors:
+        return True
+
+    module_tokens = _module_tokens(module)
+    compatible_tokens = set(module.compatible_with)
+    for anchor in anchors:
+        anchor_tokens = _module_tokens(anchor)
+        if compatible_tokens & anchor_tokens:
+            return True
+        if set(anchor.compatible_with) & module_tokens:
+            return True
+    return False
+
+
+def _instance_tint(module: KitModule, palette_bias: float, autumn_bias: float, rng: random.Random) -> dict[str, float]:
+    base_value = {
+        "foundation": 0.93,
+        "building": 1.0,
+        "roof": 1.04,
+        "fence": 0.97,
+        "tree": 0.95,
+        "ground": 0.88,
+        "interior": 1.02,
+        "prop": 1.0,
+    }.get(module.type, 0.98)
+    tint_value = max(0.65, min(1.15, base_value * palette_bias * autumn_bias + rng.uniform(-0.025, 0.025)))
+    return {
+        "r": round(tint_value, 3),
+        "g": round(tint_value * 0.98, 3),
+        "b": round(tint_value * 0.94, 3),
+        "a": 1.0,
+    }
+
+
+def _make_instance(
+    module: KitModule,
+    *,
+    x: float,
+    y: float,
+    layer: int,
+    rng: random.Random,
+    palette_bias: float,
+    autumn_bias: float,
+    cluster_name: str,
+    slot_name: str,
+    anchor_module_id: str | None = None,
+) -> KitBashInstance:
+    position_jitter = {
+        "tree": (0.12, 0.08),
+        "fence": (0.08, 0.04),
+        "ground": (0.06, 0.03),
+        "prop": (0.05, 0.04),
+    }.get(module.type, (0.035, 0.025))
+    rotation_limit = {
+        "tree": 0.025,
+        "fence": 0.035,
+        "prop": 0.03,
+    }.get(module.type, 0.0)
+    scale_jitter = 1.0 + rng.uniform(-0.04, 0.05)
+    rotation = rng.uniform(-rotation_limit, rotation_limit) if rotation_limit > 0.0 else 0.0
+    size = {
+        "x": round(module.default_size["x"] * scale_jitter, 3),
+        "y": round(module.default_size["y"] * scale_jitter, 3),
+    }
+    position = {
+        "x": round(x + rng.uniform(-position_jitter[0], position_jitter[0]), 3),
+        "y": round(y + rng.uniform(-position_jitter[1], position_jitter[1]), 3),
+    }
+    variation = {
+        "cluster": cluster_name,
+        "slot": slot_name,
+        "scale_jitter": round(scale_jitter, 3),
+        "material_tweak": module.art_bible_constraints,
+        "module_type": module.type,
+        "module_tags": module.tags,
+    }
+    if anchor_module_id:
+        variation["anchor_module_id"] = anchor_module_id
+    return KitBashInstance(
+        module_id=module.module_id,
+        asset_id=module.default_asset_id,
+        position=position,
+        size=size,
+        rotation_radians=round(rotation, 4),
+        tint=_instance_tint(module, palette_bias, autumn_bias, rng),
+        layer=layer,
+        variation=variation,
+    )
+
+
+def _build_variant_request(module: KitModule, prompt: str, art_bible: ArtBible) -> dict[str, object]:
+    return {
+        "module_id": module.module_id,
+        "asset_type": "sprite",
+        "prompt": art_bible.enhance_prompt(
+            f"{prompt}: variant sprite for {module.module_id} with {module.art_bible_constraints.get('material_hint', 'matching style')}"
+        ),
+    }
+
+
+def _build_farmhouse_cluster(
+    modules: list[KitModule],
+    *,
+    origin_x: float,
+    base_y: float,
+    layer_cursor: int,
+    rng: random.Random,
+    palette_bias: float,
+    autumn_bias: float,
+) -> tuple[list[KitBashInstance], int, list[str]]:
+    instances: list[KitBashInstance] = []
+    skipped: list[str] = []
+    foundation = _find_module(modules, module_type="foundation")
+    building = _find_module(modules, module_type="building")
+    roof = _find_module(modules, module_type="roof")
+    fence = _find_module(modules, module_type="fence")
+    tree = _find_module(modules, module_type="tree")
+    ground = _find_module(modules, module_type="ground")
+
+    if ground is not None:
+        layer_cursor += 1
+        instances.append(
+            _make_instance(
+                ground,
+                x=origin_x - 0.1,
+                y=base_y - 1.35,
+                layer=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
+                cluster_name="farmhouse",
+                slot_name="ground_fill",
+            )
+        )
+
+    anchors: list[KitModule] = []
+    if foundation is not None:
+        layer_cursor += 1
+        instances.append(
+            _make_instance(
+                foundation,
+                x=origin_x,
+                y=base_y - 0.78,
+                layer=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
+                cluster_name="farmhouse",
+                slot_name="foundation_anchor",
+            )
+        )
+        anchors.append(foundation)
+
+    wall_anchor: KitModule | None = None
+    if building is not None:
+        if anchors and not _is_compatible(building, anchors):
+            skipped.append(f"{building.module_id}:missing_foundation_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    building,
+                    x=origin_x,
+                    y=base_y + 0.1,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="farmhouse",
+                    slot_name="wall_body",
+                    anchor_module_id=foundation.module_id if foundation else None,
+                )
+            )
+            wall_anchor = building
+
+    if roof is not None:
+        if wall_anchor is None or not _is_compatible(roof, [wall_anchor]):
+            skipped.append(f"{roof.module_id}:missing_wall_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    roof,
+                    x=origin_x,
+                    y=base_y + 1.52,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="farmhouse",
+                    slot_name="roof_cap",
+                    anchor_module_id=wall_anchor.module_id,
+                )
+            )
+
+    fence_anchors = [module for module in [wall_anchor, ground, tree] if module is not None]
+    if fence is not None:
+        if not _is_compatible(fence, fence_anchors):
+            skipped.append(f"{fence.module_id}:missing_building_or_ground_anchor")
+        else:
+            for slot_index, fence_x in enumerate((origin_x + 2.2, origin_x + 3.55), start=1):
+                layer_cursor += 1
+                instances.append(
+                    _make_instance(
+                        fence,
+                        x=fence_x,
+                        y=base_y - 0.86,
+                        layer=layer_cursor,
+                        rng=rng,
+                        palette_bias=palette_bias,
+                        autumn_bias=autumn_bias,
+                        cluster_name="farmhouse",
+                        slot_name=f"fence_{slot_index}",
+                        anchor_module_id=wall_anchor.module_id if wall_anchor else None,
+                    )
+                )
+
+    if tree is not None:
+        tree_anchors = [ground] if ground is not None else []
+        if tree_anchors and not _is_compatible(tree, tree_anchors):
+            skipped.append(f"{tree.module_id}:incompatible_ground_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    tree,
+                    x=origin_x - 3.05,
+                    y=base_y - 0.22,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="farmhouse",
+                    slot_name="tree_accent",
+                    anchor_module_id=ground.module_id if ground else None,
+                )
+            )
+
+    return instances, layer_cursor, skipped
+
+
+def _build_interior_cluster(
+    modules: list[KitModule],
+    *,
+    origin_x: float,
+    base_y: float,
+    layer_cursor: int,
+    rng: random.Random,
+    palette_bias: float,
+    autumn_bias: float,
+) -> tuple[list[KitBashInstance], int, list[str]]:
+    instances: list[KitBashInstance] = []
+    skipped: list[str] = []
+    interior = _find_module(modules, module_type="interior")
+    prop = _find_module(modules, module_type="prop")
+
+    if interior is None:
+        if prop is not None:
+            skipped.append(f"{prop.module_id}:missing_interior_anchor")
+        return instances, layer_cursor, skipped
+
+    layer_cursor += 1
+    instances.append(
+        _make_instance(
+            interior,
+            x=origin_x,
+            y=base_y + 0.05,
+            layer=layer_cursor,
+            rng=rng,
+            palette_bias=palette_bias,
+            autumn_bias=autumn_bias,
+            cluster_name="cozy_interior",
+            slot_name="interior_wall",
+        )
+    )
+
+    if prop is not None:
+        if not _is_compatible(prop, [interior]):
+            skipped.append(f"{prop.module_id}:missing_interior_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    prop,
+                    x=origin_x + 0.68,
+                    y=base_y - 0.58,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="cozy_interior",
+                    slot_name="shelf_prop",
+                    anchor_module_id=interior.module_id,
+                )
+            )
+
+    return instances, layer_cursor, skipped
+
+
+def _build_grove_cluster(
+    modules: list[KitModule],
+    *,
+    origin_x: float,
+    base_y: float,
+    layer_cursor: int,
+    rng: random.Random,
+    palette_bias: float,
+    autumn_bias: float,
+) -> tuple[list[KitBashInstance], int, list[str]]:
+    instances: list[KitBashInstance] = []
+    skipped: list[str] = []
+    tree = _find_module(modules, module_type="tree")
+    ground = _find_module(modules, module_type="ground")
+    fence = _find_module(modules, module_type="fence")
+
+    if ground is not None:
+        layer_cursor += 1
+        instances.append(
+            _make_instance(
+                ground,
+                x=origin_x + 0.05,
+                y=base_y - 1.38,
+                layer=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
+                cluster_name="grove",
+                slot_name="ground_fill",
+            )
+        )
+
+    if tree is not None:
+        if ground is not None and not _is_compatible(tree, [ground]):
+            skipped.append(f"{tree.module_id}:incompatible_ground_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    tree,
+                    x=origin_x - 0.18,
+                    y=base_y - 0.2,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="grove",
+                    slot_name="tree_anchor",
+                    anchor_module_id=ground.module_id if ground else None,
+                )
+            )
+
+    fence_anchors = [module for module in [tree, ground] if module is not None]
+    if fence is not None:
+        if not fence_anchors or not _is_compatible(fence, fence_anchors):
+            skipped.append(f"{fence.module_id}:missing_tree_or_ground_anchor")
+        else:
+            layer_cursor += 1
+            instances.append(
+                _make_instance(
+                    fence,
+                    x=origin_x + 1.78,
+                    y=base_y - 0.9,
+                    layer=layer_cursor,
+                    rng=rng,
+                    palette_bias=palette_bias,
+                    autumn_bias=autumn_bias,
+                    cluster_name="grove",
+                    slot_name="fence_accent",
+                    anchor_module_id=tree.module_id if tree else ground.module_id if ground else None,
+                )
+            )
+
+    return instances, layer_cursor, skipped
 
 
 def _seed_for_prompt(prompt: str, module_count: int) -> int:
@@ -605,59 +1053,73 @@ def bash_scene(prompt: str, art_bible: ArtBible, existing_modules: list[dict[str
     modules = _load_kits_modules(kits_path)
     by_id = {module.module_id: module for module in modules}
     targets = _scene_targets_from_prompt(clean_prompt)
-
-    selected = [
-        module
-        for module in modules
-        if module.type in targets or any(tag in targets for tag in module.tags)
-    ]
-    if not selected:
-        selected = modules[:6]
-
+    requested_types = _requested_module_types(clean_prompt)
+    cluster_templates = _cluster_templates_from_prompt(clean_prompt, requested_types)
     rng = random.Random(_seed_for_prompt(clean_prompt, len(existing_modules)))
     palette_bias = 0.88 if any("muted" in token.lower() for token in art_bible.palette_keywords) else 1.0
     autumn_bias = 0.82 if re.search(r"\b(autumn|fall|melancholic|moody)\b", clean_prompt, flags=re.IGNORECASE) else 1.0
 
     placed_instances: list[KitBashInstance] = []
-    missing_variant_requests: list[dict[str, object]] = []
-    cursor_x = -6.0
-    layer = 0
+    skipped_requests: list[str] = []
+    layer_cursor = len(existing_modules)
+    start_x = -1.4 + min(len(existing_modules), 6) * 0.45
+    cluster_spacing = 4.8
+    base_y = -0.1
 
-    for module in selected[:12]:
-        place_count = 2 if module.type in {"fence", "tree", "prop"} else 1
-        for _ in range(place_count):
-            scale_jitter = 1.0 + rng.uniform(-0.08, 0.12)
-            rotation = 0.0 if module.type in {"building", "foundation", "interior"} else rng.uniform(-0.08, 0.08)
-            tint_value = max(0.65, min(1.15, palette_bias * autumn_bias + rng.uniform(-0.06, 0.05)))
-            layer += 1
-            instance = KitBashInstance(
-                module_id=module.module_id,
-                asset_id=module.default_asset_id,
-                position={"x": round(cursor_x + rng.uniform(-0.35, 0.45), 3), "y": round(-1.0 + rng.uniform(-0.3, 0.2), 3)},
-                size={"x": round(module.default_size["x"] * scale_jitter, 3), "y": round(module.default_size["y"] * scale_jitter, 3)},
-                rotation_radians=round(rotation, 4),
-                tint={"r": round(tint_value, 3), "g": round(tint_value * 0.98, 3), "b": round(tint_value * 0.94, 3), "a": 1.0},
-                layer=layer,
-                variation={
-                    "scale_jitter": round(scale_jitter, 3),
-                    "material_tweak": module.art_bible_constraints,
-                    "module_type": module.type,
-                    "module_tags": module.tags,
-                },
+    if not cluster_templates:
+        if "roof" in requested_types:
+            skipped_requests.append("thatched_roof:missing_wall_anchor")
+        if "prop" in requested_types:
+            skipped_requests.append("interior_shelf:missing_interior_anchor")
+        if "fence" in requested_types:
+            skipped_requests.append("farm_fence:missing_building_or_ground_anchor")
+
+    for cluster_index, cluster_name in enumerate(cluster_templates):
+        origin_x = start_x + cluster_index * cluster_spacing
+        if cluster_name == "farmhouse":
+            cluster_instances, layer_cursor, cluster_skips = _build_farmhouse_cluster(
+                modules,
+                origin_x=origin_x,
+                base_y=base_y,
+                layer_cursor=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
             )
-            cursor_x += module.default_size["x"] * 0.7
-            placed_instances.append(instance)
+        elif cluster_name == "cozy_interior":
+            cluster_instances, layer_cursor, cluster_skips = _build_interior_cluster(
+                modules,
+                origin_x=origin_x,
+                base_y=base_y,
+                layer_cursor=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
+            )
+        elif cluster_name == "grove":
+            cluster_instances, layer_cursor, cluster_skips = _build_grove_cluster(
+                modules,
+                origin_x=origin_x,
+                base_y=base_y,
+                layer_cursor=layer_cursor,
+                rng=rng,
+                palette_bias=palette_bias,
+                autumn_bias=autumn_bias,
+            )
+        else:
+            continue
+        placed_instances.extend(cluster_instances)
+        skipped_requests.extend(cluster_skips)
 
-            if module.type in {"roof", "tree", "interior"}:
-                missing_variant_requests.append(
-                    {
-                        "module_id": module.module_id,
-                        "asset_type": "sprite",
-                        "prompt": art_bible.enhance_prompt(
-                            f"{clean_prompt}: variant sprite for {module.module_id} with {module.art_bible_constraints.get('material_hint', 'matching style')}"
-                        ),
-                    }
-                )
+    missing_variant_requests: list[dict[str, object]] = []
+    seen_variant_modules: set[str] = set()
+    for instance in placed_instances:
+        module = by_id.get(instance.module_id)
+        if module is None or module.module_id in seen_variant_modules:
+            continue
+        if module.type in {"roof", "tree", "interior"}:
+            missing_variant_requests.append(_build_variant_request(module, clean_prompt, art_bible))
+            seen_variant_modules.add(module.module_id)
 
     referenced = [item.get("module_id") for item in existing_modules if isinstance(item, dict)]
     compatible_links = {
@@ -670,8 +1132,10 @@ def bash_scene(prompt: str, art_bible: ArtBible, existing_modules: list[dict[str
         "prompt": clean_prompt,
         "targets": sorted(targets),
         "kits_path": str(kits_path),
+        "cluster_templates": cluster_templates,
         "module_instances": [asdict(item) for item in placed_instances],
         "missing_variant_requests": missing_variant_requests,
+        "skipped_requests": skipped_requests,
         "existing_compatibility": compatible_links,
     }
 
@@ -733,7 +1197,7 @@ def apply_kit_bash_to_scene(
 
     for instance in varied_instances:
         sprite_node = {
-            "asset_id": instance["asset_id"],
+            "asset_id": _normalize_asset_id(str(instance.get("asset_id", ""))),
             "position": instance["position"],
             "size": instance["size"],
             "tint": instance["tint"],

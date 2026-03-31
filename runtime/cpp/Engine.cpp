@@ -110,6 +110,7 @@ void LogConsoleHelp() {
     GF_LOG_INFO("           /combat_hit_test <entity_id> | /combat_combo_test | /combat_weapon <melee|ranged>");
     GF_LOG_INFO("           /combat_squad_test | /combat_cover_test");
     GF_LOG_INFO("  Graphics: /map_entity <entity_type> <asset_id> | /render_mode <2D|3D> | /edit_scene <scene.json> <prompt>");
+    GF_LOG_INFO("            /kit_bash_scene <prompt>");
     GF_LOG_INFO("  Save: /validate_scene [path]");
 }
 
@@ -131,6 +132,30 @@ std::string NormalizeSpriteKey(const std::string& value) {
         return static_cast<char>(std::tolower(c));
     });
     return normalized;
+}
+
+std::string ParseTrailingPrompt(std::istringstream& parser) {
+    std::string prompt;
+    std::getline(parser, prompt);
+    prompt = Trim(prompt);
+    if (!prompt.empty() && prompt.front() == '"' && prompt.back() == '"' && prompt.size() >= 2) {
+        prompt = prompt.substr(1, prompt.size() - 2);
+    }
+    return prompt;
+}
+
+bool RunCommandCaptureStdout(const std::string& command_line, std::string& stdout_text) {
+    std::array<char, 4096> buffer{};
+    stdout_text.clear();
+    FILE* pipe = popen(command_line.c_str(), "r");
+    if (pipe == nullptr) {
+        return false;
+    }
+    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
+        stdout_text += buffer.data();
+    }
+    const int exit_code = pclose(pipe);
+    return exit_code == 0;
 }
 
 std::map<std::string, float> ParseBehaviorParams(std::istringstream& parser, bool& schedule_override, std::uint64_t& target_entity_id) {
@@ -950,12 +975,7 @@ void ProcessConsoleCommands(
     if (command == "/edit_scene") {
         std::string target_scene_path;
         parser >> target_scene_path;
-        std::string prompt;
-        std::getline(parser, prompt);
-        prompt = Trim(prompt);
-        if (!prompt.empty() && prompt.front() == '"' && prompt.back() == '"' && prompt.size() >= 2) {
-            prompt = prompt.substr(1, prompt.size() - 2);
-        }
+        const std::string prompt = ParseTrailingPrompt(parser);
         if (target_scene_path.empty() || prompt.empty()) {
             GF_LOG_INFO("Usage: /edit_scene <scene_json_path> <prompt>");
             SetOverlayStatusMessage(overlay_status_message, "Usage: /edit_scene <scene_json_path> <prompt>");
@@ -977,20 +997,9 @@ void ProcessConsoleCommands(
         const std::string command_line =
             python_executable + " \"" + orchestrator_script.string() + "\" /edit_scene \"" + target_scene_path + "\" \"" + prompt + "\"";
 
-        std::array<char, 4096> buffer{};
         std::string stdout_text;
-        FILE* pipe = popen(command_line.c_str(), "r");
-        if (pipe == nullptr) {
-            GF_LOG_WARN("Failed to start orchestrator process for /edit_scene.");
-            SetOverlayStatusMessage(overlay_status_message, "edit scene failed");
-            return;
-        }
-        while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
-            stdout_text += buffer.data();
-        }
-        const int exit_code = pclose(pipe);
-        if (exit_code != 0) {
-            GF_LOG_WARN("/edit_scene command failed with exit code " + std::to_string(exit_code));
+        if (!RunCommandCaptureStdout(command_line, stdout_text)) {
+            GF_LOG_WARN("/edit_scene command failed.");
             SetOverlayStatusMessage(overlay_status_message, "edit scene failed");
             return;
         }
@@ -1009,6 +1018,56 @@ void ProcessConsoleCommands(
             GF_LOG_WARN("/edit_scene produced invalid JSON output.");
             SetOverlayStatusMessage(overlay_status_message, "edit scene parse failed");
         }
+        return;
+    }
+
+    if (command == "/kit_bash_scene") {
+        const std::string prompt = ParseTrailingPrompt(parser);
+        if (prompt.empty()) {
+            GF_LOG_INFO("Usage: /kit_bash_scene <prompt>");
+            SetOverlayStatusMessage(overlay_status_message, "Usage: /kit_bash_scene <prompt>");
+            return;
+        }
+
+        const std::filesystem::path orchestrator_script = FindOrchestratorScript();
+        if (orchestrator_script.empty()) {
+            GF_LOG_WARN("Unable to locate ai-orchestration/python/orchestrator.py for /kit_bash_scene.");
+            SetOverlayStatusMessage(overlay_status_message, "orchestrator.py not found");
+            return;
+        }
+
+#if defined(_WIN32)
+        const std::string python_executable = "python";
+#else
+        const std::string python_executable = "python3";
+#endif
+        const std::string command_line =
+            python_executable + " \"" + orchestrator_script.string() + "\" kit-bash-scene \"" + scene_path + "\" \"" + prompt + "\"";
+
+        std::string stdout_text;
+        if (!RunCommandCaptureStdout(command_line, stdout_text)) {
+            GF_LOG_WARN("/kit_bash_scene command failed.");
+            SetOverlayStatusMessage(overlay_status_message, "kit bash failed");
+            return;
+        }
+
+        int sprites_added = 0;
+        try {
+            const nlohmann::json response = nlohmann::json::parse(stdout_text);
+            sprites_added = response.value("sprites_added", 0);
+        } catch (...) {
+            GF_LOG_WARN("/kit_bash_scene produced invalid JSON output; continuing with scene reload.");
+        }
+
+        const bool reloaded = scene.Load(scene_path);
+        if (reloaded) {
+            GF_LOG_INFO(
+                "Kit-bashed scene reloaded" +
+                (sprites_added > 0 ? " with " + std::to_string(sprites_added) + " sprites added." : "."));
+        } else {
+            GF_LOG_WARN("Kit-bashed scene written, but reload failed.");
+        }
+        SetOverlayStatusMessage(overlay_status_message, reloaded ? "Kit-bashed scene reloaded" : "kit bash reload failed");
         return;
     }
 
