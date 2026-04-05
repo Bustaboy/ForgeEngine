@@ -1375,7 +1375,10 @@ public sealed partial class MainWindowViewModel
         }
     }
 
-    public async Task<bool> IsOnboardingCompletedAsync()
+    /// <summary>
+    /// First-launch welcome is suppressed only when onboarding is marked complete and all three core models exist on disk.
+    /// </summary>
+    public async Task<bool> IsFirstLaunchWelcomeCompleteAsync()
     {
         try
         {
@@ -1385,7 +1388,16 @@ public sealed partial class MainWindowViewModel
                 return false;
             }
 
-            return payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
+            var onboardingCompleted = payload["onboarding"]?["completed"]?.GetValue<bool?>() == true;
+            if (!onboardingCompleted)
+            {
+                return false;
+            }
+
+            var configuredModels = payload["models"] as JsonObject;
+            return IsModelInstalled(configuredModels, "forgeguard")
+                && IsModelInstalled(configuredModels, "freewill")
+                && IsModelInstalled(configuredModels, "coding");
         }
         catch
         {
@@ -1530,14 +1542,25 @@ public sealed partial class MainWindowViewModel
         return !string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path));
     }
 
+    private static string FormatCoreModelStatusSummary(JsonObject? configuredModels)
+    {
+        string Label(string friendly, string displayName) =>
+            $"{displayName}: {(IsModelInstalled(configuredModels, friendly) ? "Installed" : "Not found")}";
+        return string.Join(
+            Environment.NewLine,
+            Label("forgeguard", "ForgeGuard"),
+            Label("freewill", "Free-Will"),
+            Label("coding", "Coding"));
+    }
+
     private async Task RunQuickSetupFromGuidanceAsync()
     {
         if (await RunQuickStartSetupAsync())
         {
             ShowToast(
-                "Quick Setup complete. ForgeGuard, Free-Will, and Coding are ready.",
-                "Models Ready",
-                "Next step: click New Project and then Generate & Play for your first prototype.",
+                "ForgeGuard, Free-Will, and Coding are on disk and ready.",
+                "Models ready",
+                "Next: File → New Project, then Generate & Play for your first prototype.",
                 isError: false,
                 actionLabel: null,
                 action: null);
@@ -1582,18 +1605,18 @@ public sealed partial class MainWindowViewModel
         if (!onboardingCompleted || !forgeGuardInstalled || !freeWillInstalled)
         {
             ShowFailureToast(
-                "Quick Setup Required",
-                "Complete Quick Setup before generating your first prototype.",
-                "Quick Setup installs ForgeGuard, Free-Will, and Coding in the recommended first-boot order.",
+                "Quick Setup needed",
+                "Generate & Play needs ForgeGuard, Free-Will, and Coding installed first.",
+                "Run Quick Setup from the welcome flow, Models & LLM in Settings, or the System tab — same download progress overlay as first launch.",
                 "Run Quick Setup",
                 RunQuickSetupFromGuidanceAsync);
             return false;
         }
 
         ShowFailureToast(
-            "Coding Model Required",
-            "Install the Coding model before generating your first prototype.",
-            "ForgeGuard and Free-Will are ready. The final step is downloading the Coding model used for local prototype/code generation.",
+            "Coding model missing",
+            "Install the Coding model to generate your first prototype.",
+            "ForgeGuard and Free-Will are ready. Download Coding from Models & LLM (progress shows in the main window).",
             "Download Coding",
             DownloadCodingFromGuidanceAsync);
         return false;
@@ -1606,7 +1629,7 @@ public sealed partial class MainWindowViewModel
             var payload = await LoadModelsPayloadAsync();
             if (payload is null)
             {
-                return "Quick Setup installs ForgeGuard, Free-Will, and Coding. Next step: create a new project and click Generate & Play.";
+                return $"models.json is not available yet.{Environment.NewLine}{FormatCoreModelStatusSummary(null)}{Environment.NewLine}Next: open Models & LLM, add your Hugging Face token, then run Quick Setup. After that: New Project → Generate & Play.";
             }
 
             var recommendations = payload?["onboarding"]?["recommendations"] as JsonObject;
@@ -1614,31 +1637,18 @@ public sealed partial class MainWindowViewModel
             var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
             var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
             var codingInstalled = IsModelInstalled(configuredModels, "coding");
+            var statusBlock = FormatCoreModelStatusSummary(configuredModels);
             var assetReason = recommendations?["assetgen"]?["reason"]?.GetValue<string>() ?? "Optional local asset generation model.";
             if (forgeGuardInstalled && freeWillInstalled && codingInstalled)
             {
-                return $"Ready for your first prototype.\n- Next step: click Create First Prototype below.\n- Optional later: Asset-Gen remains available from Models & LLM.\n- Asset-Gen: {assetReason}";
+                return $"All set for your first prototype.{Environment.NewLine}{statusBlock}{Environment.NewLine}Next: Create First Prototype below, or New Project → Generate & Play.{Environment.NewLine}Optional later: Asset-Gen in Models & LLM — {assetReason}";
             }
 
-            var missing = new List<string>();
-            if (!forgeGuardInstalled)
-            {
-                missing.Add("ForgeGuard");
-            }
-            if (!freeWillInstalled)
-            {
-                missing.Add("Free-Will");
-            }
-            if (!codingInstalled)
-            {
-                missing.Add("Coding");
-            }
-
-            return $"Quick Setup finished, but these core models still need attention: {string.Join(", ", missing)}.\nUse Open Models & LLM below to retry or inspect model status.\n- Optional later: Asset-Gen: {assetReason}";
+            return $"Quick Setup finished.{Environment.NewLine}{statusBlock}{Environment.NewLine}Anything still \"Not found\" can be retried from Models & LLM (Open Models & LLM below).{Environment.NewLine}Optional later: Asset-Gen — {assetReason}";
         }
         catch
         {
-            return "Quick Setup installs ForgeGuard, Free-Will, and Coding. If anything still needs attention, open Models & LLM below and retry the missing step.";
+            return $"Could not read the latest model state.{Environment.NewLine}Open Models & LLM, click Refresh Models, and retry the step that failed.";
         }
     }
 
@@ -1909,6 +1919,9 @@ public sealed partial class MainWindowViewModel
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Single download/progress story: main-window overlay (<see cref="IsDownloadProgressVisible"/>) plus live <see cref="ModelManagerEntries"/> rows (Downloading / %).
+    /// </summary>
     private async Task<bool> RunManagedModelOperationWithProgressAsync(
         string operationLabel,
         IReadOnlyList<string> trackedModelNames,
@@ -2009,13 +2022,15 @@ public sealed partial class MainWindowViewModel
             if (result.ExitCode != 0)
             {
                 var operationError = _activeModelOperationErrorState ?? ParseModelOperationError(result.Stdout, result.Stderr);
-                var errorMessage = operationError?.UserMessage ?? "Model operation could not complete.";
-                var guidance = operationError?.SuggestedAction ?? "Retry from Models & LLM settings or check local network/disk access.";
+                var errorMessage = operationError?.UserMessage
+                    ?? "The model step did not finish. Details may be in the Activity log or orchestrator output.";
+                var guidance = operationError?.SuggestedAction
+                    ?? "Open Models & LLM: confirm your Hugging Face token, free disk space, and network, then use Retry or Quick Setup.";
                 ModelManagerStatus = errorMessage;
                 DownloadErrorTitle = "Model setup needs attention";
                 DownloadErrorMessage = errorMessage;
                 DownloadErrorGuidance = guidance;
-                IsModelErrorRetryEnabled = operationError?.Retryable ?? false;
+                IsModelErrorRetryEnabled = operationError?.Retryable ?? true;
                 IsDownloadErrorVisible = true;
                 foreach (var modelName in trackedModelNames)
                 {
@@ -2576,8 +2591,10 @@ public sealed partial class MainWindowViewModel
             ?? SafeGetString(payload, "message")
             ?? "Model setup failed.";
         var suggestedAction = SafeGetString(payload, "suggested_action")
-            ?? "Retry from Models & LLM settings.";
-        var retryable = payload["retryable"]?.GetValue<bool?>() == true;
+            ?? "Open Models & LLM to verify your token, disk space, and network, then retry or run Quick Setup again.";
+        // Default retryable when the field is omitted so transient failures are not dead-ends; Python may set retryable:false to opt out.
+        var retryExp = payload["retryable"]?.GetValue<bool?>();
+        var retryable = retryExp is not false;
         return new ModelOperationErrorState(userMessage, suggestedAction, retryable);
     }
 

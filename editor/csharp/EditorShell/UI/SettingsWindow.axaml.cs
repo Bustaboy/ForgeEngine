@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -22,6 +23,26 @@ public partial class SettingsWindow : Window
         AttachPreviewHandlers();
         ApplyPreferences(preferences.Sanitize());
         SelectInitialTab();
+        Opened += OnSettingsWindowOpened;
+    }
+
+    private void OnSettingsWindowOpened(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_initialTab))
+        {
+            return;
+        }
+
+        if (!string.Equals(_initialTab, "Models", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(_initialTab, "ModelsAndLlm", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (this.FindControl<ScrollViewer>("ModelsTabScrollViewer") is { } scroll)
+        {
+            scroll.Offset = new Vector(0, 0);
+        }
     }
 
     public EditorPreferences? Result { get; private set; }
