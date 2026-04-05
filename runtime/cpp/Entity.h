@@ -219,6 +219,7 @@ struct Entity {
     Transform transform{};
     Renderable renderable{};
     std::string sprite_asset_id{};
+    std::string entity_type{};
     BuildableComponent buildable{};
     InventoryComponent inventory{};
     FactionComponent faction{};
