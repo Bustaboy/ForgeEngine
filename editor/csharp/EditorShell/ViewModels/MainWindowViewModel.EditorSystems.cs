@@ -1526,7 +1526,8 @@ public sealed partial class MainWindowViewModel
     {
         var configured = GetConfiguredModelEntry(configuredModels, friendlyName);
         var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
-        return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+        // Models can be either a single file (GGUF) or a directory (layout models like asset-gen)
+        return !string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path));
     }
 
     private async Task RunQuickSetupFromGuidanceAsync()
@@ -1791,9 +1792,7 @@ public sealed partial class MainWindowViewModel
         foreach (var model in defaults)
         {
             var recommendation = recommendations?[model.Friendly] as JsonObject;
-            var configured = GetConfiguredModelEntry(configuredModels, model.Friendly);
-            var path = configured?["path"]?.GetValue<string>() ?? string.Empty;
-            var installed = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+            var installed = IsModelInstalled(configuredModels, model.Friendly);
             var isDownloading = _modelDownloadsInProgress.Contains(model.Friendly);
             var progressStatus = _modelDownloadProgressByName.TryGetValue(model.Friendly, out var progress) ? progress : "Downloading";
             var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
