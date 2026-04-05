@@ -4,9 +4,9 @@
         Title="New Project Wizard"
         Width="760"
         Height="560"
-        MinWidth="720"
-        MinHeight="520"
-        CanResize="False"
+        MinWidth="540"
+        MinHeight="430"
+        CanResize="True"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource EditorDialogWindowBgBrush}">
   <Border Padding="18" Classes="shell-dialog-frame">
@@ -20,7 +20,8 @@
         <TextBlock Name="StepLabel" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="13" />
       </Border>
 
-      <Grid Grid.Row="2">
+      <ScrollViewer Grid.Row="2" Classes="shell-dialog-tab-scroll">
+      <Grid>
         <StackPanel Name="TemplateStepPanel" Spacing="10">
           <TextBlock Text="Pick a starter template" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="17" FontWeight="SemiBold" />
           <TextBlock Text="Templates preload scene scaffold + brief defaults so beginners can prototype immediately." Foreground="{DynamicResource EditorDialogMutedBrush}" TextWrapping="Wrap" />
@@ -54,9 +55,14 @@
           <TextBlock Text="Skip this if you want the template defaults only." Foreground="{DynamicResource EditorDialogMutedBrush}" FontSize="12" />
         </StackPanel>
       </Grid>
+      </ScrollViewer>
 
       <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
-        <TextBlock Name="ValidationMessageText" Foreground="#FF9CB4" VerticalAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Name="ValidationMessageText"
+                   Foreground="#FF9CB4"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="0,0,8,0" />
         <Button Name="BackButton" Grid.Column="1" Content="Back" Classes="shell-dialog-secondary" Click="OnBackClick" />
         <Button Name="NextButton" Grid.Column="2" Content="Next" Classes="shell-dialog-secondary" Click="OnNextClick" />
         <Button Name="CreateButton" Grid.Column="3" Content="Create Project" Classes="shell-dialog-primary" Click="OnCreateClick" IsVisible="False" />

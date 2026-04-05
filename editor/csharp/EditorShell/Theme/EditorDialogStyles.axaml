@@ -71,4 +71,9 @@
     <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
+
+  <Style Selector="ScrollViewer.shell-dialog-tab-scroll">
+    <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+  </Style>
 </Styles>
