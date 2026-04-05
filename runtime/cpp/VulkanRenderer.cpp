@@ -2488,13 +2488,13 @@ void VulkanRenderer::Render2DLayer(std::uint32_t image_index, const Scene& scene
 
     Scene draw_scene = scene;
     for (const Entity& entity : scene.entities) {
-        if (entity.sprite_asset_id.empty()) {
+        if (entity.sprite_asset_id.empty() && entity.entity_type.empty()) {
             continue;
         }
 
         SceneSprite2D sprite{};
         sprite.asset_id = entity.sprite_asset_id;
-        sprite.entity_type = entity.sprite_asset_id;
+        sprite.entity_type = entity.entity_type.empty() ? entity.sprite_asset_id : entity.entity_type;
         sprite.position = glm::vec2(entity.transform.pos.x, entity.transform.pos.z);
         sprite.size = glm::vec2(
             std::max(0.001F, entity.transform.scale.x),

@@ -700,6 +700,9 @@ json EntityToJson(const Entity& entity) {
     if (!entity.sprite_asset_id.empty()) {
         node["sprite_asset_id"] = entity.sprite_asset_id;
     }
+    if (!entity.entity_type.empty()) {
+        node["entity_type"] = entity.entity_type;
+    }
 
     if (entity.buildable.IsValid()) {
         node["buildable"] = json{
@@ -764,6 +767,7 @@ Entity EntityFromJson(const json& node) {
     Entity entity{};
     entity.id = node.value("id", entity.id);
     entity.sprite_asset_id = node.value("sprite_asset_id", entity.sprite_asset_id);
+    entity.entity_type = node.value("entity_type", entity.entity_type);
 
     if (node.contains("transform") && node["transform"].is_object()) {
         const json& transform = node["transform"];
