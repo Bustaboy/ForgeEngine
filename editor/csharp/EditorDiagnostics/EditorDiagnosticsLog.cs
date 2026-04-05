@@ -8,6 +8,7 @@ internal static class EditorDiagnosticsLog
     private static string? _currentLogPath;
     private static string? _logDirectoryOverride;
     private static bool _sessionInitialized;
+    private static string? _sessionId;
 
     internal static string CurrentLogPath
     {
@@ -20,6 +21,18 @@ internal static class EditorDiagnosticsLog
         }
     }
 
+    /// <summary>Session id written at startup; null before first successful <see cref="InitializeSession"/>.</summary>
+    internal static string? SessionId
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return _sessionId;
+            }
+        }
+    }
+
     internal static void SetLogDirectoryOverride(string? directoryPath)
     {
         lock (SyncRoot)
@@ -27,6 +40,7 @@ internal static class EditorDiagnosticsLog
             _logDirectoryOverride = directoryPath;
             _currentLogPath = null;
             _sessionInitialized = false;
+            _sessionId = null;
         }
     }
 
@@ -37,6 +51,7 @@ internal static class EditorDiagnosticsLog
             _currentLogPath = null;
             _logDirectoryOverride = null;
             _sessionInitialized = false;
+            _sessionId = null;
         }
     }
 
@@ -51,9 +66,10 @@ internal static class EditorDiagnosticsLog
             }
 
             _sessionInitialized = true;
+            _sessionId = Guid.NewGuid().ToString("D");
             WriteEntryUnsafe(
                 "INFO",
-                $"Editor session started | pid={Environment.ProcessId} | args={(args.Count == 0 ? "(none)" : string.Join(" ", args))}",
+                $"Editor session started | session={_sessionId} | pid={Environment.ProcessId} | args={(args.Count == 0 ? "(none)" : string.Join(" ", args))}",
                 null);
             WriteEntryUnsafe("INFO", $"Diagnostics log path: {logPath}", null);
         }
@@ -86,6 +102,8 @@ internal static class EditorDiagnosticsLog
             .Append(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz"))
             .Append("] [")
             .Append(level)
+            .Append("] [tid=")
+            .Append(Environment.CurrentManagedThreadId)
             .Append("] ")
             .AppendLine(message);
 

@@ -26,9 +26,7 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         Dispatcher.UIThread.UnhandledException += (_, eventArgs) =>
-        {
-            EditorDiagnosticsLog.LogException("Avalonia UI thread unhandled exception.", eventArgs.Exception, isFatal: true);
-        };
+            EditorCrashHandler.OnAvaloniaUiUnhandledException(eventArgs);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
