@@ -4,9 +4,9 @@
         Title="ForgeEngine Settings"
         Width="720"
         Height="540"
-        MinWidth="680"
-        MinHeight="500"
-        CanResize="False"
+        MinWidth="540"
+        MinHeight="430"
+        CanResize="True"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource EditorDialogWindowBgBrush}">
   <Border Padding="18" Classes="shell-dialog-frame">
@@ -18,6 +18,7 @@
 
       <TabControl Grid.Row="1" Name="SettingsTabs" Classes="shell-dialog-tabs">
         <TabItem Header="General">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Theme" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="ThemeComboBox">
@@ -31,9 +32,11 @@
               <ToggleSwitch Grid.Column="1" Name="AutosaveToggle" OnContent="On" OffContent="Off" />
             </Grid>
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
 
         <TabItem Header="Graphics">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Vulkan preview resolution" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="ResolutionComboBox">
@@ -46,10 +49,12 @@
             <TextBlock Text="FPS limit" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="FpsLimitNumeric" Minimum="30" Maximum="240" Increment="5" Value="60" />
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
 
 
         <TabItem Header="Audio">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Exploration music track" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBox Name="MusicTrackTextBox" Watermark="music_exploration" />
@@ -95,9 +100,11 @@
             <TextBlock Text="Procedural intensity" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="ProceduralIntensityNumeric" Minimum="0" Maximum="100" Increment="5" Value="55" />
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
 
         <TabItem Header="Performance">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="Unified orchestration command status" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBlock
@@ -112,10 +119,11 @@
             <TextBlock Text="Last Scene Review Summary" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBox Name="LastSceneReviewSummaryTextBox" AcceptsReturn="True" IsReadOnly="True" Height="92" TextWrapping="Wrap" />
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
 
         <TabItem Header="AI Models" Name="ModelsAndLlmTab">
-          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
             <StackPanel Margin="16" Spacing="12">
               <TextBlock Text="Local model setup and onboarding" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
               <TextBlock Name="ModelRecommendationSummaryText"
@@ -181,6 +189,7 @@
         </TabItem>
 
         <TabItem Header="Shortcuts">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <Border Classes="shell-dialog-inset" Padding="12">
               <StackPanel Spacing="8">
@@ -210,9 +219,11 @@
             <TextBlock Text="Default new-project template" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="DefaultTemplateComboBox" />
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
 
         <TabItem Header="About">
+          <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
             <TextBlock Text="ForgeEngine Editor V1" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBlock Text="Scene-first editing on top of project storage. Settings are project-wide; scenes remain the primary editing unit."
@@ -222,11 +233,16 @@
                        Foreground="{DynamicResource EditorDialogMutedBrush}"
                        TextWrapping="Wrap" />
           </StackPanel>
+          </ScrollViewer>
         </TabItem>
       </TabControl>
 
       <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-        <TextBlock Name="ValidationMessageText" Foreground="#FF9CB4" VerticalAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Name="ValidationMessageText"
+                   Foreground="#FF9CB4"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap"
+                   Margin="0,0,8,0" />
         <Button Grid.Column="1" Content="Cancel" Classes="shell-dialog-secondary" Click="OnCancelClick" />
         <Button Grid.Column="2" Content="Save" Classes="shell-dialog-primary" Click="OnSaveClick" />
       </Grid>

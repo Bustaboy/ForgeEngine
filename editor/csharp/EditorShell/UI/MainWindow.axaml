@@ -1617,19 +1617,23 @@
                 </Grid>
                 <TextBox Text="{Binding LivingNpcsModelPathEditor}" Watermark="llama.cpp model path (e.g., models/llm-q4-k.gguf)" />
                 <Button Classes="system-action" Content="Save Living NPC Settings" Click="OnSaveLivingNpcsSettingsClick" />
-                <TextBlock Text="{Binding LivingNpcsPerformanceSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding LivingNpcsRagCacheSize, StringFormat=RAG Cache Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsRagHitRate, StringFormat=RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsNarrativeFlavorHitRate, StringFormat=Narrative Flavor Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsGenerationalMemorySize, StringFormat=Generational Memory Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsLegacyRecallHitRate, StringFormat=Legacy Recall Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsLastMsqAdaptationSource, StringFormat=Last MSQ Adaptation Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpoint, StringFormat=Last Narrative Checkpoint: {0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpointStatus, StringFormat=Narrative Checkpoint Status: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding LivingNpcsSparkSourcePreference, StringFormat=Spark Source Priority: {0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsSelectedSparkSource, StringFormat=Selected NPC Last Spark Source: {0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsSelectedRagHitRate, StringFormat=Selected NPC RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" />
-                <TextBlock Text="{Binding LivingNpcsSelectedNpcDaySummary, StringFormat=Selected NPC Day Summary: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding LivingNpcsPerformanceSummary}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsRagCacheSize, StringFormat=RAG Cache Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsRagHitRate, StringFormat=RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsNarrativeFlavorHitRate, StringFormat=Narrative Flavor Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsGenerationalMemorySize, StringFormat=Generational Memory Size: {0} entries}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsLegacyRecallHitRate, StringFormat=Legacy Recall Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsLastMsqAdaptationSource, StringFormat=Last MSQ Adaptation Source: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpoint, StringFormat=Last Narrative Checkpoint: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsLastNarrativeCheckpointStatus, StringFormat=Narrative Checkpoint Status: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsSparkSourcePreference, StringFormat=Spark Source Priority: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsSelectedSparkSource, StringFormat=Selected NPC Last Spark Source: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsSelectedRagHitRate, StringFormat=Selected NPC RAG Hit Rate: {0:P0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LivingNpcsSelectedNpcDaySummary, StringFormat=Selected NPC Day Summary: {0}}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                  </StackPanel>
+                </ScrollViewer>
                 <TextBlock Text="Scripted Behaviors (SB2)" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                   <TextBlock Text="State" Foreground="#AFC2DF" VerticalAlignment="Center" />
@@ -1697,11 +1701,11 @@
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsCombatTabActive}">
                 <TextBlock Text="Combat Mode" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <Button Classes="system-action" Content="Toggle Combat Mode" Click="OnToggleCombatModeClick" />
-                <TextBlock Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding CombatModeEnabledEditor, StringFormat=Combat Active: {0}}" Foreground="#8EA5C7" VerticalAlignment="Center" TextWrapping="Wrap" />
                 <Button Classes="system-action" Content="Toggle Realtime Combat on Selection" Click="OnToggleRealtimeCombatSelectionClick" />
-                <TextBlock Text="{Binding RealtimeCombatSelectionSummary}" Foreground="#8EA5C7" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding RealtimeCombatAnimationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding RealtimeCombatWorldIntegrationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding RealtimeCombatSelectionSummary}" Foreground="#8EA5C7" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding RealtimeCombatAnimationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding RealtimeCombatWorldIntegrationPreview}" Foreground="#8EA5C7" VerticalAlignment="Center" TextWrapping="Wrap" />
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsBuildingsTabActive}">
@@ -1767,30 +1771,34 @@
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsAiTabActive}">
                 <TextBlock Text="Python AI Orchestration" Foreground="#D6E9FF" FontWeight="SemiBold" />
                 <TextBox Text="{Binding AiPromptEditor}" Watermark="Modify Scene with Prompt" />
-                <Grid ColumnDefinitions="*,*,*,*,*,*,*,*" ColumnSpacing="6">
-                  <Button Content="Generate NPC" Click="OnGenerateNpcClick" />
-                  <Button Grid.Column="1" Content="Add 3 Houses" Click="OnAdd3HousesClick" />
-                  <Button Grid.Column="2" Content="Modify Scene" Click="OnModifyScenePromptClick" />
-                  <Button Grid.Column="3" Content="Generate with Kit-Bashing" Click="OnGenerateKitBashClick" />
-                  <Button Grid.Column="4" Content="Generate Loot" Click="OnGenerateLootClick" />
-                  <Button Grid.Column="5" Content="Live Edit Scene" Click="OnLiveEditSceneClick" />
-                  <Button Grid.Column="6" Content="Render 2D" Click="OnRender2DClick" />
-                  <Button Grid.Column="7" Content="Render 3D" Click="OnRender3DClick" />
-                </Grid>
+                <WrapPanel Orientation="Horizontal">
+                  <Button Content="Generate NPC" Click="OnGenerateNpcClick" MinWidth="108" Margin="0,0,6,6" />
+                  <Button Content="Add 3 Houses" Click="OnAdd3HousesClick" MinWidth="108" Margin="0,0,6,6" />
+                  <Button Content="Modify Scene" Click="OnModifyScenePromptClick" MinWidth="108" Margin="0,0,6,6" />
+                  <Button Content="Generate with Kit-Bashing" Click="OnGenerateKitBashClick" MinWidth="132" Margin="0,0,6,6" />
+                  <Button Content="Generate Loot" Click="OnGenerateLootClick" MinWidth="108" Margin="0,0,6,6" />
+                  <Button Content="Live Edit Scene" Click="OnLiveEditSceneClick" MinWidth="120" Margin="0,0,6,6" />
+                  <Button Content="Render 2D" Click="OnRender2DClick" MinWidth="88" Margin="0,0,6,6" />
+                  <Button Content="Render 3D" Click="OnRender3DClick" MinWidth="88" Margin="0,0,6,6" />
+                </WrapPanel>
                 <ScrollViewer MaxHeight="84">
                   <TextBlock Text="{Binding AiCommandLog}" Foreground="#8EA5C7" FontFamily="Consolas, Menlo, Monospace" FontSize="10" TextWrapping="Wrap" />
                 </ScrollViewer>
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
-                      <TextBlock Text="Project Health" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                      <TextBlock Grid.Column="1" Text="{Binding ProjectHealthScore, StringFormat={}{0}/100}" Foreground="{Binding ProjectHealthBrush}" FontWeight="Bold" />
-                      <TextBlock Grid.Column="2" Text="{Binding ProjectHealthBand}" Foreground="{Binding ProjectHealthBrush}" />
-                      <TextBlock Grid.Column="3" Text="{Binding LightweightMode, StringFormat=Mode: {0}}" Foreground="#9FC2E5" />
-                      <Button Grid.Column="4" Content="Run Optimization Check" Click="OnRunOptimizationCheckClick" />
-                      <Button Grid.Column="5" Content="Optimize Project" Click="OnOptimizeProjectOneClick" />
-                      <Button Grid.Column="6" Content="Switch to Lightweight Mode" Click="OnSwitchLightweightModeClick" />
-                    </Grid>
+                    <StackPanel Spacing="8">
+                      <WrapPanel Orientation="Horizontal">
+                        <TextBlock Text="Project Health" Foreground="#D6E9FF" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,4" />
+                        <TextBlock Text="{Binding ProjectHealthScore, StringFormat={}{0}/100}" Foreground="{Binding ProjectHealthBrush}" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,4" />
+                        <TextBlock Text="{Binding ProjectHealthBand}" Foreground="{Binding ProjectHealthBrush}" VerticalAlignment="Center" Margin="0,0,10,4" />
+                        <TextBlock Text="{Binding LightweightMode, StringFormat=Mode: {0}}" Foreground="#9FC2E5" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,4" />
+                      </WrapPanel>
+                      <WrapPanel Orientation="Horizontal">
+                        <Button Content="Run Optimization Check" Click="OnRunOptimizationCheckClick" MinWidth="140" Margin="0,0,6,6" />
+                        <Button Content="Optimize Project" Click="OnOptimizeProjectOneClick" MinWidth="120" Margin="0,0,6,6" />
+                        <Button Content="Switch to Lightweight Mode" Click="OnSwitchLightweightModeClick" MinWidth="168" Margin="0,0,6,6" />
+                      </WrapPanel>
+                    </StackPanel>
                     <TextBlock Text="{Binding PerformanceHealthSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding LightweightModeSuggestion}" Foreground="#AFC2DF" FontSize="10" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding GuardrailStatus}" Foreground="#F0B68B" FontSize="10" TextWrapping="Wrap" />
@@ -1817,15 +1825,16 @@
                             <StackPanel Spacing="4">
                               <TextBlock Text="{Binding Title}" Foreground="#EAF3FF" FontWeight="SemiBold" />
                               <TextBlock Text="{Binding Summary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                              <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="6">
-                                <Button Content="Preview" Tag="{Binding Id}" Click="OnPreviewOptimizationSuggestionClick" />
-                                <Button Grid.Column="1" Content="Apply" Tag="{Binding Id}" Click="OnApplyOptimizationSuggestionClick" />
-                                <Button Grid.Column="2" Content="Ignore" Tag="{Binding Id}" Click="OnIgnoreOptimizationSuggestionClick" />
-                                <TextBlock Grid.Column="3"
-                                           Text="{Binding IsSafeToAutoApply, StringFormat=Safe: {0}}"
+                              <WrapPanel Orientation="Horizontal">
+                                <Button Content="Preview" Tag="{Binding Id}" Click="OnPreviewOptimizationSuggestionClick" Margin="0,0,6,6" />
+                                <Button Content="Apply" Tag="{Binding Id}" Click="OnApplyOptimizationSuggestionClick" Margin="0,0,6,6" />
+                                <Button Content="Ignore" Tag="{Binding Id}" Click="OnIgnoreOptimizationSuggestionClick" Margin="0,0,6,6" />
+                                <TextBlock Text="{Binding IsSafeToAutoApply, StringFormat=Safe: {0}}"
                                            Foreground="#8EA5C7"
-                                           VerticalAlignment="Center" />
-                              </Grid>
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6" />
+                              </WrapPanel>
                             </StackPanel>
                           </Border>
                         </DataTemplate>
@@ -1864,51 +1873,55 @@
                       <Button Grid.Column="1" Content="Open AI Quick Access" Click="OnSystemTabClick" Tag="AI" IsEnabled="{Binding CanRunModelManagerActions}" />
                     </Grid>
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
+                    <WrapPanel Orientation="Horizontal" ItemWidth="200">
                       <Button Content="Quick Start (ForgeGuard + Free-Will)"
                               Click="OnQuickStartModelsClick"
-                              IsEnabled="{Binding CanRunModelManagerActions}" />
+                              IsEnabled="{Binding CanRunModelManagerActions}"
+                              Margin="0,0,6,6" />
                       <Button Content="Run Onboarding"
-                              Grid.Column="1"
                               Click="OnRunModelOnboardingClick"
-                              IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="2"
-                              Content="Setup Recommended Models"
+                              IsEnabled="{Binding CanRunModelManagerActions}"
+                              Margin="0,0,6,6" />
+                      <Button Content="Setup Recommended Models"
                               Click="OnSetupRecommendedModelsClick"
-                              IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="3" Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" />
-                      <Button Grid.Column="4" Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" />
-                    </Grid>
+                              IsEnabled="{Binding CanRunModelManagerActions}"
+                              Margin="0,0,6,6" />
+                      <Button Content="Download &amp; Enable Free-Will Model" Click="OnSetupFreeWillModelClick" IsEnabled="{Binding CanRunModelManagerActions}" Margin="0,0,6,6" />
+                      <Button Content="Refresh Models" Click="OnRefreshModelsClick" IsEnabled="{Binding CanRunModelManagerActions}" Margin="0,0,6,6" />
+                    </WrapPanel>
                     <ItemsControl ItemsSource="{Binding ModelManagerEntries}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate>
                           <Border Background="#101B2C" BorderBrush="#264566" BorderThickness="1" CornerRadius="5" Padding="6" Margin="0,0,0,4">
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                              <StackPanel Spacing="2">
-                                <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" />
-                                <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" />
+                            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*">
+                              <StackPanel Grid.Row="0" Spacing="2">
+                                <TextBlock Text="{Binding DisplayName}" Foreground="#EAF3FF" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Status}" Foreground="#7EC0FF" FontSize="11" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding EstimatedSize}" Foreground="#9FB7D8" FontSize="10" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding Recommendation}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding LastError}" Foreground="#FFB39F" FontSize="10" TextWrapping="Wrap" IsVisible="{Binding CanRetry}" />
                               </StackPanel>
-                              <Button Grid.Column="1"
-                                      Content="Download"
-                                      Tag="{Binding FriendlyName}"
-                                      Click="OnDownloadManagedModelClick"
-                                      IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
-                                      VerticalAlignment="Top" />
-                              <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Top">
+                              <WrapPanel Grid.Row="1"
+                                         Orientation="Horizontal"
+                                         Margin="0,8,0,0">
+                                <Button Content="Download"
+                                        Tag="{Binding FriendlyName}"
+                                        Click="OnDownloadManagedModelClick"
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
+                                        Margin="0,0,6,6" />
                                 <Button Content="Retry"
                                         Tag="{Binding FriendlyName}"
                                         Click="OnRetryManagedModelClick"
                                         IsVisible="{Binding CanRetry}"
-                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
+                                        Margin="0,0,6,6" />
                                 <Button Content="Remove"
                                         Tag="{Binding FriendlyName}"
                                         Click="OnRemoveManagedModelClick"
                                         IsVisible="{Binding IsRemovable}"
-                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}" />
-                              </StackPanel>
+                                        IsEnabled="{Binding #RootWindow.DataContext.CanRunModelManagerActions}"
+                                        Margin="0,0,6,6" />
+                              </WrapPanel>
                             </Grid>
                           </Border>
                         </DataTemplate>
@@ -2545,9 +2558,9 @@
             BorderThickness="1.2"
             CornerRadius="10"
             Padding="18"
-            Margin="34,24"
+            Margin="40,28"
             ZIndex="20">
-        <StackPanel Spacing="10" MaxWidth="720">
+        <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Stretch" Margin="4,0">
         <TextBlock Text="Welcome to Soul Loom" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
         <TextBlock Text="Setting up first-run onboarding, hardware profile, and lightweight local model availability."
                    Foreground="#CFE5FF"
@@ -2585,17 +2598,18 @@
           IsVisible="{Binding IsDownloadProgressVisible}"
           Background="#09111CF4"
           ZIndex="24">
-      <Border HorizontalAlignment="Center"
+      <Border HorizontalAlignment="Stretch"
               VerticalAlignment="Center"
-              Width="720"
+              MinWidth="320"
               MaxWidth="760"
+              Margin="28,24"
               Background="#0C1626"
               BorderBrush="#5AAFFF"
               BorderThickness="1.2"
               CornerRadius="12"
               Padding="18">
         <StackPanel Spacing="10">
-          <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="{Binding DownloadProgressTitle}" Foreground="#E8F3FF" FontSize="21" FontWeight="Bold" TextWrapping="Wrap" />
           <TextBlock Text="This may take a few minutes depending on your internet speed."
                      Foreground="#9FC2E5"
                      FontSize="12"
@@ -2608,11 +2622,13 @@
                        Value="{Binding DownloadProgressPercent}"
                        Background="#0B1524"
                        Foreground="#4AA3FF" />
-          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+          <StackPanel Spacing="4">
             <TextBlock Text="{Binding DownloadProgressCurrentFile}" Foreground="#AFC2DF" TextWrapping="Wrap" />
-            <TextBlock Grid.Column="1" Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
-            <TextBlock Grid.Column="2" Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
-          </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <TextBlock Text="{Binding DownloadProgressSpeed}" Foreground="#8EC9FF" />
+              <TextBlock Text="{Binding DownloadProgressEta}" Foreground="#8EC9FF" />
+            </StackPanel>
+          </StackPanel>
           <Button Content="Cancel Download"
                   HorizontalAlignment="Left"
                   Click="OnCancelModelDownloadClick" />
@@ -2624,26 +2640,28 @@
           IsVisible="{Binding IsDownloadErrorVisible}"
           Background="#09111CF6"
           ZIndex="25">
-      <Border HorizontalAlignment="Center"
+      <Border HorizontalAlignment="Stretch"
               VerticalAlignment="Center"
-              Width="680"
+              MinWidth="320"
               MaxWidth="760"
+              Margin="28,24"
               Background="#1B1113"
               BorderBrush="#FF8A73"
               BorderThickness="1.2"
               CornerRadius="12"
               Padding="18">
         <StackPanel Spacing="10">
-          <TextBlock Text="{Binding DownloadErrorTitle}" Foreground="#FFD9D1" FontSize="21" FontWeight="Bold" />
+          <TextBlock Text="{Binding DownloadErrorTitle}" Foreground="#FFD9D1" FontSize="21" FontWeight="Bold" TextWrapping="Wrap" />
           <TextBlock Text="{Binding DownloadErrorMessage}" Foreground="#FFE5DD" FontSize="13" TextWrapping="Wrap" />
           <TextBlock Text="{Binding DownloadErrorGuidance}" Foreground="#FBCABF" FontSize="12" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Content="Cancel" Click="OnDismissModelErrorClick" />
-            <Button Content="Open Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
+          <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Click="OnDismissModelErrorClick" Margin="0,0,8,8" />
+            <Button Content="Open Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" Margin="0,0,8,8" />
             <Button Content="Retry"
                     Click="OnRetryModelOperationClick"
-                    IsEnabled="{Binding IsModelErrorRetryEnabled}" />
-          </StackPanel>
+                    IsEnabled="{Binding IsModelErrorRetryEnabled}"
+                    Margin="0,0,8,8" />
+          </WrapPanel>
         </StackPanel>
       </Border>
     </Grid>
