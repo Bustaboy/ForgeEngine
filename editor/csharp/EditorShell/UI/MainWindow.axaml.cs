@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
@@ -271,8 +272,8 @@ public partial class MainWindow : Window
         try
         {
             await _viewModel.RefreshModelManagerAsync();
-            var onboardingCompleted = await _viewModel.IsOnboardingCompletedAsync();
-            if (!onboardingCompleted)
+            var welcomeComplete = await _viewModel.IsFirstLaunchWelcomeCompleteAsync();
+            if (!welcomeComplete)
             {
                 await ShowFirstLaunchQuickSetupDialogAsync();
             }
@@ -280,9 +281,31 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             EditorDiagnosticsLog.LogException("Quick setup startup check failed.", ex);
-            _viewModel.SetStatusMessage($"Quick setup startup check warning: {ex.Message}");
+            _viewModel.SetStatusMessage(
+                "First-launch model check hit a snag. You can still open Models & LLM from the menu to add a token and run Quick Setup.");
             await _viewModel.RefreshModelManagerAsync();
         }
+    }
+
+    private IBrush DialogThemeBrush(string resourceKey, string fallbackHex)
+    {
+        if (TryGetResource(resourceKey, ActualThemeVariant, out var value) && value is IBrush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Color.Parse(fallbackHex));
+    }
+
+    private void ClampOwnedDialogSize(Window dialog, double preferredWidth, double preferredHeight)
+    {
+        const double margin = 28;
+        var maxW = Math.Max(360, Bounds.Width - margin);
+        var maxH = Math.Max(320, Bounds.Height - margin);
+        dialog.MaxWidth = maxW;
+        dialog.MaxHeight = maxH;
+        dialog.Width = Math.Min(preferredWidth, maxW);
+        dialog.Height = Math.Min(preferredHeight, maxH);
     }
 
     private void SetStartupOnboardingVisibility(bool isVisible, string statusText)
@@ -307,105 +330,105 @@ public partial class MainWindow : Window
     {
         var shouldRunQuickSetup = false;
         var shouldOpenModels = false;
-        var modal = new Window
+
+        var titleBrush = DialogThemeBrush("EditorDialogTitleBrush", "#EEF4FF");
+        var mutedBrush = DialogThemeBrush("EditorDialogMutedBrush", "#CFE5FF");
+        var subtleBrush = DialogThemeBrush("EditorDialogAccentMutedBrush", "#9FC2E5");
+
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(new TextBlock
         {
-            Title = "Welcome / Quick Setup",
-            Width = 680,
-            Height = 390,
-            CanResize = false,
-            Background = new SolidColorBrush(Color.Parse("#08111B")),
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new Border
-            {
-                Margin = new Thickness(14),
-                Padding = new Thickness(18),
-                Background = new SolidColorBrush(Color.Parse("#0D1320")),
-                BorderBrush = new SolidColorBrush(Color.Parse("#355A87")),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Child = new StackPanel
-                {
-                    Spacing = 10,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = "Welcome to Soul Loom",
-                            FontSize = 24,
-                            FontWeight = FontWeight.Bold,
-                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "Quick Setup installs the first-boot path for V1: ForgeGuard, Free-Will, and Coding.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "Before the first download, add your Hugging Face token in Models & LLM. Soul Loom can open the sign-up, login, and access-token pages for you.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "Keep ForgeGuard installed: it powers local guardrails, critique passes, and lightweight decisions across workflows.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "If you prefer to review each model manually first, open Models & LLM instead of running the guided setup.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
-                        },
-                        new StackPanel
-                        {
-                            Orientation = Avalonia.Layout.Orientation.Horizontal,
-                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                            Spacing = 8,
-                            Margin = new Thickness(0, 14, 0, 0),
-                            Children =
-                            {
-                                new Button { Content = "Later", MinWidth = 90 },
-                                new Button { Content = "Open Models & LLM", MinWidth = 150 },
-                                new Button
-                                {
-                                    Content = "Run Quick Setup",
-                                    MinWidth = 170,
-                                    Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
-                                    Foreground = Brushes.White,
-                                },
-                            },
-                        },
-                    }
-                },
-            },
+            Text = "Welcome to Soul Loom",
+            FontSize = 24,
+            FontWeight = FontWeight.Bold,
+            Foreground = titleBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "Quick Setup downloads ForgeGuard, Free-Will, and Coding — the recommended first-boot path for ForgeEngine V1.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = mutedBrush,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "Before the first download: add your Hugging Face token in Settings → Models & LLM. The same screen has shortcuts to create an account, sign in, and open access tokens.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = subtleBrush,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "ForgeGuard stays useful after setup: guardrails, critique passes, and lightweight local decisions.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = subtleBrush,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "Prefer to review each model yourself first? Open Models & LLM instead of running Quick Setup here.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = subtleBrush,
+        });
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = body,
         };
 
-        if (modal.Content is Border { Child: StackPanel root } && root.Children[^1] is StackPanel actions)
+        var laterButton = new Button { Content = "Later", MinWidth = 88 };
+        laterButton.Classes.Add("shell-dialog-secondary");
+        var settingsButton = new Button { Content = "Open Models & LLM", MinWidth = 150 };
+        settingsButton.Classes.Add("shell-dialog-secondary");
+        var quickButton = new Button { Content = "Run Quick Setup", MinWidth = 170 };
+        quickButton.Classes.Add("shell-dialog-primary");
+
+        var actions = new StackPanel
         {
-            if (actions.Children[0] is Button laterButton)
-            {
-                laterButton.Click += (_, _) => modal.Close();
-            }
-            if (actions.Children[1] is Button settingsButton)
-            {
-                settingsButton.Click += (_, _) =>
-                {
-                    shouldOpenModels = true;
-                    modal.Close();
-                };
-            }
-            if (actions.Children[2] is Button quickButton)
-            {
-                quickButton.Click += (_, _) =>
-                {
-                    shouldRunQuickSetup = true;
-                    modal.Close();
-                };
-            }
-        }
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 8,
+            Margin = new Thickness(0, 12, 0, 0),
+            Children = { laterButton, settingsButton, quickButton },
+        };
+
+        var root = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,Auto"),
+        };
+        Grid.SetRow(scroll, 0);
+        Grid.SetRow(actions, 1);
+        root.Children.Add(scroll);
+        root.Children.Add(actions);
+
+        var frame = new Border
+        {
+            Padding = new Thickness(18),
+            Child = root,
+        };
+        frame.Classes.Add("shell-dialog-frame");
+
+        var modal = new Window
+        {
+            Title = "Welcome — Quick Setup",
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = DialogThemeBrush("EditorDialogWindowBgBrush", "#08111B"),
+            Content = new Border { Margin = new Thickness(14), Child = frame },
+        };
+        ClampOwnedDialogSize(modal, 680, 420);
+
+        laterButton.Click += (_, _) => modal.Close();
+        settingsButton.Click += (_, _) =>
+        {
+            shouldOpenModels = true;
+            modal.Close();
+        };
+        quickButton.Click += (_, _) =>
+        {
+            shouldRunQuickSetup = true;
+            modal.Close();
+        };
 
         await modal.ShowDialog(this);
         if (!shouldRunQuickSetup)
@@ -414,6 +437,7 @@ public partial class MainWindow : Window
             {
                 await ShowSettingsWindowAsync("Models");
             }
+
             return;
         }
 
@@ -426,102 +450,104 @@ public partial class MainWindow : Window
 
     private async Task ShowQuickSetupSummaryDialogAsync()
     {
+        await _viewModel.RefreshModelManagerAsync();
         var summary = await _viewModel.BuildQuickSetupSummaryAsync();
         var shouldOpenModels = false;
         var shouldCreateFirstPrototype = false;
-        var modal = new Window
+
+        var titleBrush = DialogThemeBrush("EditorDialogTitleBrush", "#EEF4FF");
+        var mutedBrush = DialogThemeBrush("EditorDialogMutedBrush", "#CFE5FF");
+        var subtleBrush = DialogThemeBrush("EditorDialogAccentMutedBrush", "#9FC2E5");
+        var bodyBrush = DialogThemeBrush("EditorDialogAccentMutedBrush", "#AFC2DF");
+
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(new TextBlock
         {
-            Title = "Quick Setup Complete",
-            Width = 620,
-            Height = 380,
-            CanResize = false,
-            Background = new SolidColorBrush(Color.Parse("#08111B")),
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new Border
-            {
-                Margin = new Thickness(14),
-                Padding = new Thickness(16),
-                Background = new SolidColorBrush(Color.Parse("#0D1320")),
-                BorderBrush = new SolidColorBrush(Color.Parse("#355A87")),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-                Child = new StackPanel
-                {
-                    Spacing = 10,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = "Quick Setup complete ✅",
-                            FontSize = 21,
-                            FontWeight = FontWeight.Bold,
-                            Foreground = new SolidColorBrush(Color.Parse("#EEF4FF")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "Installed now: ForgeGuard + Free-Will + Coding.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#CFE5FF")),
-                        },
-                        new TextBlock
-                        {
-                            Text = "ForgeGuard should stay installed for local guardrails, critique, and lightweight decisions.",
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#9FC2E5")),
-                        },
-                        new TextBlock
-                        {
-                            Text = summary,
-                            TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#AFC2DF")),
-                        },
-                        new StackPanel
-                        {
-                            Orientation = Avalonia.Layout.Orientation.Horizontal,
-                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                            Spacing = 8,
-                            Margin = new Thickness(0, 8, 0, 0),
-                            Children =
-                            {
-                                new Button { Content = "Close", MinWidth = 90 },
-                                new Button { Content = "Open Models & LLM", MinWidth = 150 },
-                                new Button
-                                {
-                                    Content = "Create First Prototype",
-                                    MinWidth = 180,
-                                    Background = new SolidColorBrush(Color.Parse("#1D6EE8")),
-                                    Foreground = Brushes.White,
-                                },
-                            },
-                        },
-                    }
-                },
-            },
+            Text = "Quick Setup complete",
+            FontSize = 21,
+            FontWeight = FontWeight.Bold,
+            Foreground = titleBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "Core model status below uses the same Installed / Not found labels as Models & LLM. While downloads run, progress appears in the main window overlay and in each model row.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = mutedBrush,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "ForgeGuard is meant to stay installed for guardrails, critique, and quick local decisions.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = subtleBrush,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = summary,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = bodyBrush,
+        });
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = body,
         };
 
-        if (modal.Content is Border { Child: StackPanel panel } && panel.Children[^1] is StackPanel actions)
+        var closeButton = new Button { Content = "Close", MinWidth = 90 };
+        closeButton.Classes.Add("shell-dialog-secondary");
+        var openModelsButton = new Button { Content = "Open Models & LLM", MinWidth = 150 };
+        openModelsButton.Classes.Add("shell-dialog-secondary");
+        var createFirstPrototypeButton = new Button { Content = "Create First Prototype", MinWidth = 180 };
+        createFirstPrototypeButton.Classes.Add("shell-dialog-primary");
+
+        var actions = new StackPanel
         {
-            if (actions.Children[0] is Button closeButton)
-            {
-                closeButton.Click += (_, _) => modal.Close();
-            }
-            if (actions.Children[1] is Button openModelsButton)
-            {
-                openModelsButton.Click += (_, _) =>
-                {
-                    shouldOpenModels = true;
-                    modal.Close();
-                };
-            }
-            if (actions.Children[2] is Button createFirstPrototypeButton)
-            {
-                createFirstPrototypeButton.Click += (_, _) =>
-                {
-                    shouldCreateFirstPrototype = true;
-                    modal.Close();
-                };
-            }
-        }
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 8,
+            Margin = new Thickness(0, 10, 0, 0),
+            Children = { closeButton, openModelsButton, createFirstPrototypeButton },
+        };
+
+        var root = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,Auto"),
+        };
+        Grid.SetRow(scroll, 0);
+        Grid.SetRow(actions, 1);
+        root.Children.Add(scroll);
+        root.Children.Add(actions);
+
+        var frame = new Border
+        {
+            Padding = new Thickness(18),
+            Child = root,
+        };
+        frame.Classes.Add("shell-dialog-frame");
+
+        var modal = new Window
+        {
+            Title = "Quick Setup complete",
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = DialogThemeBrush("EditorDialogWindowBgBrush", "#08111B"),
+            Content = new Border { Margin = new Thickness(14), Child = frame },
+        };
+        ClampOwnedDialogSize(modal, 640, 420);
+
+        closeButton.Click += (_, _) => modal.Close();
+        openModelsButton.Click += (_, _) =>
+        {
+            shouldOpenModels = true;
+            modal.Close();
+        };
+        createFirstPrototypeButton.Click += (_, _) =>
+        {
+            shouldCreateFirstPrototype = true;
+            modal.Close();
+        };
 
         await modal.ShowDialog(this);
         if (shouldOpenModels)

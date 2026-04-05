@@ -1848,21 +1848,21 @@
                 <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,6,0,0">
                   <StackPanel Spacing="6">
                     <TextBlock Text="Models &amp; LLM Settings" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                    <TextBlock Text="Download models, run onboarding, and manage LLM setup from Settings."
+                    <TextBlock Text="Add your Hugging Face token, run Quick Setup, and watch model rows for Installed / Not found / download progress — same flow as first launch."
                                Foreground="#9FC2E5"
                                FontSize="11"
                                TextWrapping="Wrap" />
                     <Button Content="Open Models &amp; LLM Settings"
                             Click="OnOpenModelsAndLlmSettingsClick"
                             HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </StackPanel>
 
               <StackPanel Grid.Row="2" Spacing="6" IsVisible="{Binding IsModelsTabActive}">
                 <TextBlock Text="Models &amp; LLM" Foreground="#D6E9FF" FontWeight="SemiBold" />
-                <TextBlock Text="Download models, retry failed setup, and manage local LLM onboarding from one place."
+                <TextBlock Text="Token first, then Quick Setup or individual downloads. Status matches Settings; progress uses the main-window overlay while downloading."
                            Foreground="#9FC2E5"
                            FontSize="11"
                            TextWrapping="Wrap" />
@@ -1928,7 +1928,7 @@
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBlock Text="{Binding ForgeGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </StackPanel>
@@ -1945,11 +1945,11 @@
                       <TextBlock Text="Model Setup" Foreground="#D6E9FF" FontWeight="SemiBold" />
                       <Button Grid.Column="1" Content="Open Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
                     </Grid>
-                    <TextBlock Text="Model downloads and onboarding now live in Preferences &amp; Settings under Models &amp; LLM."
+                    <TextBlock Text="Full model setup lives in Preferences → Models &amp; LLM (token, Quick Setup, and per-model actions)."
                                Foreground="#9FC2E5"
                                FontSize="11"
                                TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="10" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
               </StackPanel>
@@ -2562,11 +2562,11 @@
             ZIndex="20">
         <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Stretch" Margin="4,0">
         <TextBlock Text="Welcome to Soul Loom" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
-        <TextBlock Text="Setting up first-run onboarding, hardware profile, and lightweight local model availability."
+        <TextBlock Text="Checking local model state before the welcome step. Quick Setup and Models &amp; LLM use the same status labels (Installed / Not found) and download progress overlay."
                    Foreground="#CFE5FF"
                    TextWrapping="Wrap" />
         <TextBlock x:Name="StartupOnboardingStatusText"
-                   Text="Preparing startup checks..."
+                   Text="Preparing first-launch check…"
                    Foreground="#9FCCFF"
                    FontSize="13"
                    TextWrapping="Wrap" />

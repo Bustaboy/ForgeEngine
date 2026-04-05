@@ -5,7 +5,7 @@
         Width="720"
         Height="540"
         MinWidth="540"
-        MinHeight="430"
+        MinHeight="420"
         CanResize="True"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource EditorDialogWindowBgBrush}">
@@ -123,7 +123,10 @@
         </TabItem>
 
         <TabItem Header="AI Models" Name="ModelsAndLlmTab">
-          <ScrollViewer Classes="shell-dialog-tab-scroll">
+          <ScrollViewer Name="ModelsTabScrollViewer"
+                        Classes="shell-dialog-tab-scroll"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="16" Spacing="12">
               <TextBlock Text="Local model setup and onboarding" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
               <TextBlock Name="ModelRecommendationSummaryText"
