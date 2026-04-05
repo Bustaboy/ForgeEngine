@@ -2874,6 +2874,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(WorkspaceModeLabel));
         OnPropertyChanged(nameof(WorkspaceModeToggleLabel));
         OnPropertyChanged(nameof(WorkspaceModeDescription));
+        OnPropertyChanged(nameof(IsChatCopilotPanelVisible));
         OnPropertyChanged(nameof(InspectorDepthLabel));
         ThemePreferenceChanged?.Invoke(_preferences.General.Theme);
 

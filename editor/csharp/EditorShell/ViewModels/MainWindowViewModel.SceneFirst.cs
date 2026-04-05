@@ -37,7 +37,7 @@ public sealed partial class MainWindowViewModel
     private AssetLibraryItem? _selectedAssetLibraryItem;
     private bool _isAssetPreviewStacked;
     private string _assetsPanelPlacement = PanelPlacementLeft;
-    private string _aiInterviewPlacement = PanelPlacementBottom;
+    private string _aiInterviewPlacement = PanelPlacementHidden;
     private int _toastSequence;
     private string _aiInterviewHeader = "Deep AI Interview - Current Project";
     private string _aiInterviewQuestion = "What should this project focus on next?";
@@ -70,6 +70,7 @@ public sealed partial class MainWindowViewModel
             }
 
             OnPropertyChanged(nameof(HasActiveScenePath));
+            OnPropertyChanged(nameof(IsChatCopilotPanelVisible));
             OnPropertyChanged(nameof(SceneNameLabel));
             OnPropertyChanged(nameof(WindowTitle));
             OnPropertyChanged(nameof(CanSaveScene));
@@ -100,6 +101,8 @@ public sealed partial class MainWindowViewModel
     public string SceneNameLabel => HasActiveScenePath ? Path.GetFileName(ActiveScenePath) : "No scene";
     public string ProjectRootNameLabel => HasProjectRootPath ? Path.GetFileName(ProjectRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) : "No project";
     public string WindowTitle => HasActiveScenePath ? $"{SceneNameLabel} - ForgeEngine Editor" : "ForgeEngine Editor";
+
+    public bool IsChatCopilotPanelVisible => HasActiveScenePath && IsCreatorModeEnabled;
 
     public bool IsSceneDirty
     {
@@ -410,44 +413,82 @@ public sealed partial class MainWindowViewModel
         ShowToast("Scene opened.");
     }
 
-    public async Task SaveSceneAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> SaveSceneAsync(CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
         if (string.IsNullOrWhiteSpace(scenePath))
         {
-            throw new InvalidOperationException("No active scene to save.");
+            StatusMessage = "Save failed: no active scene.";
+            ShowFailureToast("Save failed", "There is no active scene to save.", "Create or open a scene first, then retry.");
+            return false;
         }
 
-        var content = await File.ReadAllTextAsync(scenePath, cancellationToken);
-        await File.WriteAllTextAsync(scenePath, content, cancellationToken);
-        await WriteAutosaveSnapshotAsync(content, cancellationToken);
-        IsSceneDirty = false;
-        RefreshSceneStatus();
-        StatusMessage = $"Scene saved: {scenePath}";
-        ShowToast("Scene saved.");
+        if (!File.Exists(scenePath))
+        {
+            StatusMessage = $"Save failed: scene file missing ({scenePath}).";
+            ShowFailureToast("Save failed", "The active scene file could not be found.", "Use Save Scene As to create a new file or reopen the scene and retry.");
+            return false;
+        }
+
+        try
+        {
+            var content = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            await File.WriteAllTextAsync(scenePath, content, cancellationToken);
+            await WriteAutosaveSnapshotAsync(content, cancellationToken);
+            IsSceneDirty = false;
+            RefreshSceneStatus();
+            StatusMessage = $"Scene saved: {scenePath}";
+            ShowToast("Scene saved.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Save failed: {ex.Message}";
+            ShowFailureToast("Save failed", "The active scene could not be written.", "Check file permissions and scene path validity, then retry.");
+            return false;
+        }
     }
 
-    public async Task SaveSceneAsAsync(string targetPath, CancellationToken cancellationToken = default)
+    public async Task<bool> SaveSceneAsAsync(string targetPath, CancellationToken cancellationToken = default)
     {
         var scenePath = GetScenePath();
         if (string.IsNullOrWhiteSpace(scenePath))
         {
-            throw new InvalidOperationException("No active scene to save.");
+            StatusMessage = "Save failed: no active scene.";
+            ShowFailureToast("Save failed", "There is no active scene to save.", "Create or open a scene first, then retry.");
+            return false;
         }
 
-        var content = await File.ReadAllTextAsync(scenePath, cancellationToken);
-        var directory = Path.GetDirectoryName(targetPath);
-        if (!string.IsNullOrWhiteSpace(directory))
+        if (!File.Exists(scenePath))
         {
-            Directory.CreateDirectory(directory);
+            StatusMessage = $"Save failed: scene file missing ({scenePath}).";
+            ShowFailureToast("Save failed", "The active scene file could not be found.", "Use Save Scene As to create a new file or reopen the scene and retry.");
+            return false;
         }
 
-        await File.WriteAllTextAsync(targetPath, content, cancellationToken);
-        SetSceneContext(targetPath);
-        IsSceneDirty = false;
-        RefreshSceneStatus();
-        StatusMessage = $"Scene saved as: {targetPath}";
-        ShowToast("Scene saved as.");
+        try
+        {
+            var content = await File.ReadAllTextAsync(scenePath, cancellationToken);
+            var directory = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(targetPath, content, cancellationToken);
+            SetSceneContext(targetPath);
+            IsSceneDirty = false;
+            RefreshSceneStatus();
+            StatusMessage = $"Scene saved as: {targetPath}";
+            ShowToast("Scene saved as.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Save failed: {ex.Message}";
+            ShowFailureToast("Save failed", "The scene could not be saved to the selected location.", "Check the target path and write permissions, then retry.");
+            return false;
+        }
     }
 
     public void OpenProjectFolder()
