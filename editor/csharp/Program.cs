@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor;
@@ -14,7 +15,9 @@ internal static class Program
     public static async Task<int> Main(string[] args)
     {
         EditorDiagnosticsLog.InitializeSession(args);
-        RegisterGlobalExceptionHandlers();
+        Trace.Listeners.Add(new EditorDiagnosticsTraceListener());
+        Trace.AutoFlush = true;
+        EditorCrashHandler.RegisterGlobalHandlers();
 
         Console.WriteLine("Soul Loom editor launcher (C# app entrypoint)");
         Console.WriteLine("Mode: local-first, single-player, no-code-first");
@@ -138,18 +141,7 @@ internal static class Program
 
         if (args.Length > 0 && args[0] == "--editor-ui")
         {
-            try
-            {
-                EditorDiagnosticsLog.LogInfo("Launching Avalonia editor UI.");
-                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                EditorDiagnosticsLog.LogException("Editor UI bootstrap failed.", ex, isFatal: true);
-                Console.Error.WriteLine($"Editor UI bootstrap failed. See {EditorDiagnosticsLog.CurrentLogPath}");
-                return 1;
-            }
+            return RunEditorUiLifetime(args, launchMessage: "Launching Avalonia editor UI.");
         }
 
         if (args.Length > 0 && args[0].StartsWith("--", StringComparison.Ordinal))
@@ -158,8 +150,27 @@ internal static class Program
             return 8;
         }
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-        return 0;
+        return RunEditorUiLifetime(args, launchMessage: null);
+    }
+
+    private static int RunEditorUiLifetime(string[] args, string? launchMessage)
+    {
+        try
+        {
+            if (launchMessage is not null)
+            {
+                EditorDiagnosticsLog.LogInfo(launchMessage);
+            }
+
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            EditorDiagnosticsLog.LogException("Editor UI bootstrap failed.", ex, isFatal: true);
+            Console.Error.WriteLine($"Editor UI bootstrap failed. See {EditorDiagnosticsLog.CurrentLogPath}");
+            return 1;
+        }
     }
 
     private static int RunLauncherSmoke(string runtimePath)
@@ -173,30 +184,6 @@ internal static class Program
 
         Console.WriteLine("Editor launcher started successfully.");
         return 0;
-    }
-
-    private static void RegisterGlobalExceptionHandlers()
-    {
-        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
-        {
-            if (eventArgs.ExceptionObject is Exception exception)
-            {
-                EditorDiagnosticsLog.LogException(
-                    $"AppDomain unhandled exception (terminating={eventArgs.IsTerminating})",
-                    exception,
-                    isFatal: true);
-                return;
-            }
-
-            EditorDiagnosticsLog.LogError(
-                $"AppDomain unhandled exception (terminating={eventArgs.IsTerminating}) with non-Exception payload.");
-        };
-
-        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
-        {
-            EditorDiagnosticsLog.LogException("Unobserved task exception.", eventArgs.Exception);
-            eventArgs.SetObserved();
-        };
     }
 
     public static AppBuilder BuildAvaloniaApp()

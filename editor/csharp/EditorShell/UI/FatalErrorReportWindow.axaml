@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GameForge.Editor.EditorShell.UI.FatalErrorReportWindow"
+        Title="Unexpected error"
+        Width="560"
+        Height="420"
+        MinWidth="400"
+        MinHeight="280"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        CanResize="True"
+        Background="{DynamicResource EditorDialogWindowBgBrush}"
+        ExtendClientAreaToDecorationsHint="False">
+  <Border Padding="14" Classes="shell-dialog-frame">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+      <TextBlock Text="The editor hit an unexpected error"
+                 Foreground="{DynamicResource EditorDialogTitleBrush}"
+                 FontSize="16"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap" />
+      <TextBlock x:Name="SummaryTextBlock"
+                 Grid.Row="1"
+                 Foreground="{DynamicResource EditorDialogMutedBrush}"
+                 FontSize="12"
+                 TextWrapping="Wrap" />
+      <Border Grid.Row="2" Classes="shell-dialog-inset" Padding="8">
+        <ScrollViewer Classes="shell-dialog-tab-scroll">
+          <TextBox x:Name="DetailTextBox"
+                   IsReadOnly="True"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   BorderThickness="0"
+                   Background="Transparent"
+                   Foreground="{DynamicResource EditorDialogTitleBrush}"
+                   FontFamily="Consolas, Courier New, monospace"
+                   FontSize="11" />
+        </ScrollViewer>
+      </Border>
+      <TextBlock x:Name="LogPathTextBlock"
+                 Grid.Row="3"
+                 Foreground="{DynamicResource EditorDialogMutedBrush}"
+                 FontSize="11"
+                 TextWrapping="Wrap" />
+      <StackPanel Grid.Row="4"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  Spacing="8">
+        <Button x:Name="ExitButton"
+                Content="Exit"
+                Classes="shell-dialog-primary"
+                MinWidth="100" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

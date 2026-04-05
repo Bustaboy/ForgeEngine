@@ -21,7 +21,26 @@ public sealed class EditorDiagnosticsLogTests : IDisposable
 
         var content = File.ReadAllText(logPath);
         Assert.Contains("Editor session started", content);
+        Assert.Contains("session=", content);
         Assert.Contains("Smoke warning entry", content);
+        Assert.Contains("[tid=", content);
+    }
+
+    [Fact]
+    public void EditorDiagnosticsTraceListener_ForwardsTraceLinesToLog()
+    {
+        Directory.CreateDirectory(_logDirectory);
+        EditorDiagnosticsLog.SetLogDirectoryOverride(_logDirectory);
+        EditorDiagnosticsLog.InitializeSession([]);
+
+        using (var listener = new EditorDiagnosticsTraceListener())
+        {
+            listener.WriteLine("trace-test-line");
+        }
+
+        var logPath = EditorDiagnosticsLog.CurrentLogPath;
+        var content = File.ReadAllText(logPath);
+        Assert.Contains("[avalonia-trace] trace-test-line", content);
     }
 
     public void Dispose()
