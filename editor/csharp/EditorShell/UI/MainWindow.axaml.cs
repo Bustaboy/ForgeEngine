@@ -12,6 +12,7 @@ using AvaloniaEdit.Highlighting;
 using GameForge.Editor.EditorDiagnostics;
 using GameForge.Editor.EditorShell.EditorSystems;
 using GameForge.Editor.EditorShell.ViewModels;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Collections.Specialized;
 
@@ -50,6 +51,8 @@ public partial class MainWindow : Window
     private Border? _rightDockBorder;
     private Border? _timelineDockBorder;
     private Border? _activityDockBorder;
+    private Button? _leftDockRevealer;
+    private Button? _rightDockRevealer;
     private ContentControl? _assetsPanelLeftHost;
     private ContentControl? _assetsPanelRightHost;
     private ContentControl? _assetsPanelBottomHost;
@@ -57,28 +60,36 @@ public partial class MainWindow : Window
     private ContentControl? _aiInterviewBottomHost;
     private ContentControl? _aiInterviewRightHost;
     private Grid? _aiInterviewPanelHost;
+    private ContentControl? _activityLogBottomHost;
+    private Grid? _activityLogPanelHost;
     private TabItem? _assetsDockTab;
     private TabItem? _aiInterviewDockTab;
+    private TabItem? _activityLogDockTab;
     private Button? _focusModeExitButton;
     private GridSplitter? _leftCenterSplitter;
     private GridSplitter? _centerRightSplitter;
     private GridSplitter? _workspaceTimelineSplitter;
     private GridSplitter? _timelineActivitySplitter;
+    private Grid? _viewportWorkspaceGrid;
+    private Border? _viewportSelectionInspectorBorder;
     private bool _isToolRailVisible = true;
     private bool _isLeftDockVisible = true;
     private bool _isRightDockVisible = true;
-    private bool _isTimelineDockVisible = true;
-    private bool _isActivityDockVisible = true;
+    private bool _isTimelineDockVisible;
+    private bool _isActivityDockVisible;
     private bool _isTopRibbonVisible = true;
     private bool _isFocusModeEnabled;
     private GridLength _leftDockWidth = new(2.3, GridUnitType.Star);
     private GridLength _rightDockWidth = new(2.8, GridUnitType.Star);
-    private GridLength _timelineDockHeight = new(240);
-    private GridLength _activityDockHeight = new(160);
+    private GridLength _timelineDockHeight = new(200);
+    private GridLength _activityDockHeight = new(140);
     private Window? _assetsFloatingWindow;
     private Window? _aiInterviewFloatingWindow;
+    private Window? _activityLogFloatingWindow;
     private bool _suppressAssetsFloatingWindowClose;
     private bool _suppressAiInterviewFloatingWindowClose;
+    private bool _suppressActivityLogFloatingWindowClose;
+    private bool _isActivityLogDockedBottom;
 
     public MainWindow()
     {
@@ -88,6 +99,7 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         ApplyWorkspaceModePreference(forceReset: true);
         SyncDetachedPanelPlacements();
+        UpdateViewportWorkspaceLayout();
         AddHandler(DragDrop.DragOverEvent, OnWindowAssetDragOver);
         AddHandler(DragDrop.DropEvent, OnWindowAssetDrop);
         AddHandler(DragDrop.DragLeaveEvent, OnWindowAssetDragLeave);
@@ -113,6 +125,8 @@ public partial class MainWindow : Window
         _rightDockBorder = this.FindControl<Border>("RightDockBorder");
         _timelineDockBorder = this.FindControl<Border>("TimelineDockBorder");
         _activityDockBorder = this.FindControl<Border>("ActivityDockBorder");
+        _leftDockRevealer = this.FindControl<Button>("LeftDockRevealer");
+        _rightDockRevealer = this.FindControl<Button>("RightDockRevealer");
         _assetsPanelLeftHost = this.FindControl<ContentControl>("AssetsPanelLeftHost");
         _assetsPanelRightHost = this.FindControl<ContentControl>("AssetsPanelRightHost");
         _assetsPanelBottomHost = this.FindControl<ContentControl>("AssetsPanelBottomHost");
@@ -120,13 +134,18 @@ public partial class MainWindow : Window
         _aiInterviewBottomHost = this.FindControl<ContentControl>("AiInterviewBottomHost");
         _aiInterviewRightHost = this.FindControl<ContentControl>("AiInterviewRightHost");
         _aiInterviewPanelHost = this.FindControl<Grid>("AiInterviewPanelHost");
+        _activityLogBottomHost = this.FindControl<ContentControl>("ActivityLogBottomHost");
+        _activityLogPanelHost = this.FindControl<Grid>("ActivityLogPanelHost");
         _assetsDockTab = this.FindControl<TabItem>("AssetsDockTab");
         _aiInterviewDockTab = this.FindControl<TabItem>("AiInterviewDockTab");
+        _activityLogDockTab = this.FindControl<TabItem>("ActivityLogDockTab");
         _focusModeExitButton = this.FindControl<Button>("FocusModeExitButton");
         _leftCenterSplitter = this.FindControl<GridSplitter>("LeftCenterSplitter");
         _centerRightSplitter = this.FindControl<GridSplitter>("CenterRightSplitter");
         _workspaceTimelineSplitter = this.FindControl<GridSplitter>("WorkspaceTimelineSplitter");
         _timelineActivitySplitter = this.FindControl<GridSplitter>("TimelineActivitySplitter");
+        _viewportWorkspaceGrid = this.FindControl<Grid>("ViewportWorkspaceGrid");
+        _viewportSelectionInspectorBorder = this.FindControl<Border>("ViewportSelectionInspectorBorder");
         ApplyWorkspaceLayout();
     }
 
@@ -203,6 +222,12 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainWindowViewModel.AiInterviewPlacement))
         {
             SyncAiInterviewPlacement();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.ActiveScenePath))
+        {
+            UpdateViewportWorkspaceLayout();
             return;
         }
 
@@ -519,6 +544,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        UpdateBottomUtilityVisibility();
+
         if (_topRibbonBorder is not null)
         {
             _topRibbonBorder.IsVisible = _isTopRibbonVisible;
@@ -564,6 +591,16 @@ public partial class MainWindow : Window
             _centerRightSplitter.IsVisible = _isRightDockVisible;
         }
 
+        if (_leftDockRevealer is not null)
+        {
+            _leftDockRevealer.IsVisible = !_isLeftDockVisible && !_isFocusModeEnabled;
+        }
+
+        if (_rightDockRevealer is not null)
+        {
+            _rightDockRevealer.IsVisible = !_isRightDockVisible && !_isFocusModeEnabled;
+        }
+
         var hasBottomDock = _isTimelineDockVisible || _isActivityDockVisible;
         if (_workspaceTimelineSplitter is not null)
         {
@@ -575,20 +612,58 @@ public partial class MainWindow : Window
             _timelineActivitySplitter.IsVisible = _isTimelineDockVisible && _isActivityDockVisible;
         }
 
-        _workspaceGrid.ColumnDefinitions[0].Width = _isToolRailVisible ? new GridLength(72) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[0].Width = _isToolRailVisible ? new GridLength(52) : new GridLength(0);
         _workspaceGrid.ColumnDefinitions[1].Width = _isLeftDockVisible ? _leftDockWidth : new GridLength(0);
-        _workspaceGrid.ColumnDefinitions[2].Width = _isLeftDockVisible ? new GridLength(6) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[2].Width = _isLeftDockVisible ? new GridLength(4) : new GridLength(0);
         _workspaceGrid.ColumnDefinitions[3].Width = new GridLength(1, GridUnitType.Star);
-        _workspaceGrid.ColumnDefinitions[4].Width = _isRightDockVisible ? new GridLength(6) : new GridLength(0);
+        _workspaceGrid.ColumnDefinitions[4].Width = _isRightDockVisible ? new GridLength(4) : new GridLength(0);
         _workspaceGrid.ColumnDefinitions[5].Width = _isRightDockVisible ? _rightDockWidth : new GridLength(0);
 
         _rootLayoutGrid.RowDefinitions[0].Height = _isTopRibbonVisible ? GridLength.Auto : new GridLength(0);
         _rootLayoutGrid.RowDefinitions[1].Height = new GridLength(1, GridUnitType.Star);
-        _rootLayoutGrid.RowDefinitions[2].Height = hasBottomDock ? new GridLength(6) : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[2].Height = hasBottomDock ? new GridLength(4) : new GridLength(0);
         _rootLayoutGrid.RowDefinitions[3].Height = _isTimelineDockVisible ? _timelineDockHeight : new GridLength(0);
-        _rootLayoutGrid.RowDefinitions[4].Height = _isTimelineDockVisible && _isActivityDockVisible ? new GridLength(6) : new GridLength(0);
+        _rootLayoutGrid.RowDefinitions[4].Height = _isTimelineDockVisible && _isActivityDockVisible ? new GridLength(4) : new GridLength(0);
         _rootLayoutGrid.RowDefinitions[5].Height = _isActivityDockVisible ? _activityDockHeight : new GridLength(0);
         _rootLayoutGrid.RowDefinitions[6].Height = GridLength.Auto;
+    }
+
+    private void UpdateBottomUtilityVisibility()
+    {
+        _isActivityDockVisible = _viewModel.IsAiInterviewInBottom || _viewModel.IsAssetsPanelInBottom || _isActivityLogDockedBottom;
+
+        if (_aiInterviewDockTab is not null)
+        {
+            _aiInterviewDockTab.IsVisible = _viewModel.IsAiInterviewInBottom;
+        }
+
+        if (_assetsDockTab is not null)
+        {
+            _assetsDockTab.IsVisible = _viewModel.IsAssetsPanelInBottom;
+        }
+
+        if (_activityLogDockTab is not null)
+        {
+            _activityLogDockTab.IsVisible = _isActivityLogDockedBottom;
+        }
+    }
+
+    private void UpdateViewportWorkspaceLayout()
+    {
+        if (_viewportWorkspaceGrid is null)
+        {
+            return;
+        }
+
+        var hasScene = _viewModel.HasActiveScenePath;
+        _viewportWorkspaceGrid.ColumnDefinitions = hasScene
+            ? new ColumnDefinitions("*,280")
+            : new ColumnDefinitions("*");
+
+        if (_viewportSelectionInspectorBorder is not null)
+        {
+            _viewportSelectionInspectorBorder.IsVisible = hasScene;
+        }
     }
 
     private void RememberCurrentDockSizes()
@@ -631,6 +706,10 @@ public partial class MainWindow : Window
             _isLeftDockVisible = false;
             _isTimelineDockVisible = false;
             _isActivityDockVisible = false;
+            if (forceReset)
+            {
+                _isActivityLogDockedBottom = false;
+            }
             _viewModel.IsAdvancedInspectorEnabled = false;
             if (forceReset)
             {
@@ -641,15 +720,19 @@ public partial class MainWindow : Window
         {
             _isToolRailVisible = true;
             _isLeftDockVisible = true;
-            _isTimelineDockVisible = true;
-            _isActivityDockVisible = true;
+            _isTimelineDockVisible = false;
+            _isActivityDockVisible = false;
+            if (forceReset)
+            {
+                _isActivityLogDockedBottom = false;
+            }
             _viewModel.IsAdvancedInspectorEnabled = true;
             if (forceReset)
             {
                 _leftDockWidth = new GridLength(2.3, GridUnitType.Star);
                 _rightDockWidth = new GridLength(2.8, GridUnitType.Star);
-                _timelineDockHeight = new GridLength(240);
-                _activityDockHeight = new GridLength(160);
+                _timelineDockHeight = new GridLength(208);
+                _activityDockHeight = new GridLength(132);
             }
         }
 
@@ -669,6 +752,20 @@ public partial class MainWindow : Window
         RememberCurrentDockSizes();
         _isFocusModeEnabled = false;
         _isRightDockVisible = !_isRightDockVisible;
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnShowLeftDockClick(object? sender, RoutedEventArgs e)
+    {
+        _isLeftDockVisible = true;
+        _isFocusModeEnabled = false;
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnShowRightDockClick(object? sender, RoutedEventArgs e)
+    {
+        _isRightDockVisible = true;
+        _isFocusModeEnabled = false;
         ApplyWorkspaceLayout();
     }
 
@@ -702,8 +799,83 @@ public partial class MainWindow : Window
     {
         RememberCurrentDockSizes();
         _isFocusModeEnabled = false;
-        _isActivityDockVisible = !_isActivityDockVisible;
+        _isActivityLogDockedBottom = !_isActivityLogDockedBottom;
+        if (_activityLogDockTab is not null && _isActivityLogDockedBottom)
+        {
+            _activityLogDockTab.IsSelected = true;
+        }
         ApplyWorkspaceLayout();
+    }
+
+    private void OnOpenAiInterviewFloatingClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementFloat;
+    }
+
+    private void OnOpenAiInterviewBottomClick(object? sender, RoutedEventArgs e)
+    {
+        _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementBottom;
+    }
+
+    private void OnOpenActivityLogFloatingClick(object? sender, RoutedEventArgs e)
+    {
+        _isActivityLogDockedBottom = false;
+        ShowActivityLogFloatingWindow();
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnOpenActivityLogBottomClick(object? sender, RoutedEventArgs e)
+    {
+        CloseActivityLogFloatingWindow(keepDockedState: true);
+        if (_activityLogPanelHost is not null)
+        {
+            AttachContentToHost(_activityLogPanelHost, _activityLogBottomHost);
+        }
+
+        _isActivityLogDockedBottom = true;
+        _isFocusModeEnabled = false;
+        if (_activityLogDockTab is not null)
+        {
+            _activityLogDockTab.IsSelected = true;
+        }
+
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnHideActivityLogClick(object? sender, RoutedEventArgs e)
+    {
+        _isActivityLogDockedBottom = false;
+        ApplyWorkspaceLayout();
+    }
+
+    private void OnQuickCommandsClick(object? sender, RoutedEventArgs e)
+    {
+        static RoutedEventArgs Ev() => new();
+
+        var cmds = new List<QuickCommandItem>
+        {
+            new("New Scene", "Ctrl+N", () => OnNewSceneClick(this, Ev())),
+            new("Open Scene", "Ctrl+O", () => OnOpenSceneClick(this, Ev())),
+            new("Save Scene", "Ctrl+S", () => OnSaveSceneClick(this, Ev())),
+            new("Save Scene As", "Ctrl+Shift+S", () => OnSaveSceneAsClick(this, Ev())),
+            new("Open Project Folder", "Ctrl+Alt+O", () => OnOpenProjectFolderClick(this, Ev())),
+            new("Project Settings", "Ctrl+Comma", () => OnOpenSettingsClick(this, Ev())),
+            new("Export", "Ctrl+E", () => OnOpenExportChecklistClick(this, Ev())),
+            new("Play Runtime", "Ctrl+Shift+P", () => _ = _viewModel.PlayRuntimeAsync()),
+            new("Generate from brief", "Main toolbar", () => OnGenerateFromBriefClick(this, Ev())),
+            new("Generate and Play", "Main toolbar", () => OnGenerateAndPlayClick(this, Ev())),
+            new("Import Asset", "Ctrl+I", () => OnImportAssetClick(this, Ev())),
+            new("Focus Mode", "Hides chrome for a larger viewport", () => OnToggleFocusModeClick(this, Ev())),
+            new("Toggle Left Dock", "Scene / FileSystem", () => OnToggleLeftPaneClick(this, Ev())),
+            new("Toggle Right Dock", "Inspector", () => OnToggleRightPaneClick(this, Ev())),
+            new("Toggle Bottom Dock", "AI Interview / Assets / Log", () => OnToggleBottomDockClick(this, Ev())),
+            new("Toggle Timeline", "Bottom timeline strip", () => OnToggleTimelineDockClick(this, Ev())),
+            new("Toggle Activity Dock", "Bottom tabs", () => OnToggleActivityDockClick(this, Ev())),
+            new("Help Overlay", "Alpha tips", () => _viewModel.ToggleHelpOverlayCommand.Execute(null)),
+            new("Models & LLM", "Opens Settings on AI Models", () => OnOpenModelsAndLlmSettingsClick(this, Ev())),
+        };
+
+        new QuickCommandsWindow(cmds).Show(this);
     }
 
     private void OnToggleFocusModeClick(object? sender, RoutedEventArgs e)
@@ -779,6 +951,7 @@ public partial class MainWindow : Window
 
         CloseAssetsFloatingWindow(keepPlacement: true);
         CloseAiInterviewFloatingWindow(keepPlacement: true);
+        CloseActivityLogFloatingWindow(keepDockedState: true);
     }
 
     private void OnViewportEntitiesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1829,11 +2002,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_assetsDockTab is not null)
-        {
-            _assetsDockTab.IsVisible = _viewModel.IsAssetsPanelInBottom;
-        }
-
         switch (_viewModel.AssetsPanelPlacement)
         {
             case MainWindowViewModel.PanelPlacementLeft:
@@ -1854,11 +2022,9 @@ public partial class MainWindow : Window
                 AttachContentToHost(_assetsPanelHost, _assetsPanelBottomHost);
                 if (_assetsDockTab is not null)
                 {
-                    _assetsDockTab.IsVisible = true;
                     _assetsDockTab.IsSelected = true;
                 }
 
-                _isActivityDockVisible = true;
                 _isFocusModeEnabled = false;
                 break;
             case MainWindowViewModel.PanelPlacementFloat:
@@ -1880,11 +2046,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_aiInterviewDockTab is not null)
-        {
-            _aiInterviewDockTab.IsVisible = _viewModel.IsAiInterviewInBottom;
-        }
-
         switch (_viewModel.AiInterviewPlacement)
         {
             case MainWindowViewModel.PanelPlacementRight:
@@ -1898,11 +2059,9 @@ public partial class MainWindow : Window
                 AttachContentToHost(_aiInterviewPanelHost, _aiInterviewBottomHost);
                 if (_aiInterviewDockTab is not null)
                 {
-                    _aiInterviewDockTab.IsVisible = true;
                     _aiInterviewDockTab.IsSelected = true;
                 }
 
-                _isActivityDockVisible = true;
                 _isFocusModeEnabled = false;
                 break;
             case MainWindowViewModel.PanelPlacementFloat:
@@ -1965,6 +2124,30 @@ public partial class MainWindow : Window
         _aiInterviewFloatingWindow.Activate();
     }
 
+    private void ShowActivityLogFloatingWindow()
+    {
+        if (_activityLogPanelHost is null)
+        {
+            return;
+        }
+
+        DetachFromParent(_activityLogPanelHost);
+        if (_activityLogFloatingWindow is null)
+        {
+            _activityLogFloatingWindow = BuildToolWindow("Activity Log", 720, 520);
+            _activityLogFloatingWindow.Closed += OnActivityLogFloatingWindowClosed;
+        }
+
+        _activityLogFloatingWindow.DataContext = _viewModel;
+        _activityLogFloatingWindow.Content = _activityLogPanelHost;
+        if (!_activityLogFloatingWindow.IsVisible)
+        {
+            _activityLogFloatingWindow.Show(this);
+        }
+
+        _activityLogFloatingWindow.Activate();
+    }
+
     private Window BuildToolWindow(string title, double width, double height)
     {
         return new Window
@@ -1982,13 +2165,15 @@ public partial class MainWindow : Window
 
     private void OnAssetsFloatingWindowClosed(object? sender, EventArgs e)
     {
-        if (_assetsFloatingWindow is not null && ReferenceEquals(_assetsFloatingWindow.Content, _assetsPanelHost))
+        if (sender is Window window && ReferenceEquals(window.Content, _assetsPanelHost))
         {
-            _assetsFloatingWindow.Content = null;
+            window.Content = null;
         }
 
         _assetsFloatingWindow = null;
-        if (_suppressAssetsFloatingWindowClose)
+        var suppressProgrammaticClose = _suppressAssetsFloatingWindowClose;
+        _suppressAssetsFloatingWindowClose = false;
+        if (suppressProgrammaticClose)
         {
             return;
         }
@@ -2003,18 +2188,39 @@ public partial class MainWindow : Window
 
     private void OnAiInterviewFloatingWindowClosed(object? sender, EventArgs e)
     {
-        if (_aiInterviewFloatingWindow is not null && ReferenceEquals(_aiInterviewFloatingWindow.Content, _aiInterviewPanelHost))
+        if (sender is Window window && ReferenceEquals(window.Content, _aiInterviewPanelHost))
         {
-            _aiInterviewFloatingWindow.Content = null;
+            window.Content = null;
         }
 
         _aiInterviewFloatingWindow = null;
-        if (_suppressAiInterviewFloatingWindowClose)
+        var suppressProgrammaticClose = _suppressAiInterviewFloatingWindowClose;
+        _suppressAiInterviewFloatingWindowClose = false;
+        if (suppressProgrammaticClose)
         {
             return;
         }
 
         _viewModel.AiInterviewPlacement = MainWindowViewModel.PanelPlacementHidden;
+    }
+
+    private void OnActivityLogFloatingWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is Window window && ReferenceEquals(window.Content, _activityLogPanelHost))
+        {
+            window.Content = null;
+        }
+
+        _activityLogFloatingWindow = null;
+        var suppressProgrammaticClose = _suppressActivityLogFloatingWindowClose;
+        _suppressActivityLogFloatingWindowClose = false;
+        if (suppressProgrammaticClose)
+        {
+            return;
+        }
+
+        _isActivityLogDockedBottom = false;
+        ApplyWorkspaceLayout();
     }
 
     private void CloseAssetsFloatingWindow(bool keepPlacement)
@@ -2031,8 +2237,6 @@ public partial class MainWindow : Window
         }
 
         _assetsFloatingWindow.Close();
-        _assetsFloatingWindow = null;
-        _suppressAssetsFloatingWindowClose = false;
     }
 
     private void CloseAiInterviewFloatingWindow(bool keepPlacement)
@@ -2049,8 +2253,22 @@ public partial class MainWindow : Window
         }
 
         _aiInterviewFloatingWindow.Close();
-        _aiInterviewFloatingWindow = null;
-        _suppressAiInterviewFloatingWindowClose = false;
+    }
+
+    private void CloseActivityLogFloatingWindow(bool keepDockedState)
+    {
+        if (_activityLogFloatingWindow is null)
+        {
+            return;
+        }
+
+        _suppressActivityLogFloatingWindowClose = keepDockedState;
+        if (ReferenceEquals(_activityLogFloatingWindow.Content, _activityLogPanelHost))
+        {
+            _activityLogFloatingWindow.Content = null;
+        }
+
+        _activityLogFloatingWindow.Close();
     }
 
     private static void AttachContentToHost(Control content, ContentControl? host)
@@ -2672,7 +2890,10 @@ public partial class MainWindow : Window
 
             if (decision == "Save")
             {
-                await _viewModel.SaveSceneAsync();
+                if (!await _viewModel.SaveSceneAsync())
+                {
+                    return;
+                }
             }
         }
 
@@ -3034,6 +3255,13 @@ public partial class MainWindow : Window
 
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
+            return;
+        }
+
+        if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            OnQuickCommandsClick(this, new RoutedEventArgs());
+            e.Handled = true;
             return;
         }
 

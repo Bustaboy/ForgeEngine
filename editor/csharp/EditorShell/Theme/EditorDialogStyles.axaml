@@ -1,0 +1,74 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector="TabControl.shell-dialog-tabs">
+    <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="TabControl.shell-dialog-tabs TabStrip">
+    <Setter Property="Background" Value="{DynamicResource ChromeMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style Selector="TabControl.shell-dialog-tabs TabItem">
+    <Setter Property="Background" Value="{DynamicResource BadgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1,1,1,0" />
+    <Setter Property="Foreground" Value="{DynamicResource EditorDialogMutedBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="Margin" Value="0,0,2,0" />
+  </Style>
+  <Style Selector="TabControl.shell-dialog-tabs TabItem:selected">
+    <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource EditorDialogTitleBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.shell-dialog-primary">
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="#5AA0D4" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="MinWidth" Value="88" />
+  </Style>
+  <Style Selector="Button.shell-dialog-primary:pointerover">
+    <Setter Property="Background" Value="#5599CC" />
+  </Style>
+
+  <Style Selector="Button.shell-dialog-secondary">
+    <Setter Property="Background" Value="{DynamicResource BadgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource EditorDialogTitleBrush}" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="MinWidth" Value="88" />
+  </Style>
+  <Style Selector="Button.shell-dialog-secondary:pointerover">
+    <Setter Property="Background" Value="{DynamicResource PanelHoverBrush}" />
+  </Style>
+
+  <Style Selector="Border.shell-dialog-frame">
+    <Setter Property="Background" Value="{DynamicResource EditorDialogWindowBgBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+
+  <Style Selector="Border.shell-dialog-inset">
+    <Setter Property="Background" Value="{DynamicResource PanelSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelSurfaceBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+  </Style>
+
+  <Style Selector="ListBox.shell-dialog-list">
+    <Setter Property="Background" Value="{DynamicResource PanelShellBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource PanelShellBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+</Styles>

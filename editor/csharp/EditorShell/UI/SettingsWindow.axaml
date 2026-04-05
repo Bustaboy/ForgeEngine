@@ -8,18 +8,18 @@
         MinHeight="500"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        Background="#0B111D">
-  <Border Padding="18" BorderBrush="#2B3A52" BorderThickness="1" CornerRadius="12" Background="#0B111D">
+        Background="{DynamicResource EditorDialogWindowBgBrush}">
+  <Border Padding="18" Classes="shell-dialog-frame">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
       <StackPanel>
-        <TextBlock Text="ForgeEngine Settings" Foreground="#EDF5FF" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Project-wide settings saved to .soulloom/settings.json" Foreground="#97AECC" Margin="0,4,0,0" />
+        <TextBlock Text="ForgeEngine Settings" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Project-wide settings saved to .soulloom/settings.json" Foreground="{DynamicResource EditorDialogMutedBrush}" Margin="0,4,0,0" />
       </StackPanel>
 
-      <TabControl Grid.Row="1" Name="SettingsTabs" Background="#101B2B" BorderBrush="#2D405D" BorderThickness="1">
+      <TabControl Grid.Row="1" Name="SettingsTabs" Classes="shell-dialog-tabs">
         <TabItem Header="General">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="Theme" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Theme" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="ThemeComboBox">
               <ComboBoxItem Content="Dark" />
               <ComboBoxItem Content="Light" />
@@ -27,7 +27,7 @@
             </ComboBox>
 
             <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
-              <TextBlock Text="Autosave scene changes" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <TextBlock Text="Autosave scene changes" Foreground="{DynamicResource EditorDialogTitleBrush}" VerticalAlignment="Center" />
               <ToggleSwitch Grid.Column="1" Name="AutosaveToggle" OnContent="On" OffContent="Off" />
             </Grid>
           </StackPanel>
@@ -35,7 +35,7 @@
 
         <TabItem Header="Graphics">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="Vulkan preview resolution" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Vulkan preview resolution" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="ResolutionComboBox">
               <ComboBoxItem Content="1280x720" />
               <ComboBoxItem Content="1600x900" />
@@ -43,7 +43,7 @@
               <ComboBoxItem Content="2560x1440" />
             </ComboBox>
 
-            <TextBlock Text="FPS limit" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="FPS limit" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="FpsLimitNumeric" Minimum="30" Maximum="240" Increment="5" Value="60" />
           </StackPanel>
         </TabItem>
@@ -51,40 +51,40 @@
 
         <TabItem Header="Audio">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="Exploration music track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Exploration music track" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBox Name="MusicTrackTextBox" Watermark="music_exploration" />
 
-            <TextBlock Text="Ambient loop track" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Ambient loop track" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBox Name="AmbientTrackTextBox" Watermark="ambient_exploration_loop" />
 
             <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-              <TextBlock Text="Combat music override" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <TextBlock Text="Combat music override" Foreground="{DynamicResource EditorDialogTitleBrush}" VerticalAlignment="Center" />
               <ToggleSwitch Grid.Column="1" Name="CombatMusicOverrideToggle" OnContent="On" OffContent="Off" />
             </Grid>
 
-            <TextBlock Text="Master volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Master volume" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="MasterVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="85" />
 
-            <TextBlock Text="Music / Ambient / UI volume" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Music / Ambient / UI volume" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
               <NumericUpDown Name="MusicVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="75" />
               <NumericUpDown Grid.Column="1" Name="AmbientVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="60" />
               <NumericUpDown Grid.Column="2" Name="UiVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
             </Grid>
 
-            <TextBlock Text="SFX volume / Spatial voice limit" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="SFX volume / Spatial voice limit" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
               <NumericUpDown Name="SfxVolumeNumeric" Minimum="0" Maximum="100" Increment="5" Value="80" />
               <NumericUpDown Grid.Column="1" Name="SpatialVoiceLimitNumeric" Minimum="4" Maximum="64" Increment="2" Value="24" />
             </Grid>
 
-            <TextBlock Text="Ducking strength (combat / UI)" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Ducking strength (combat / UI)" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
               <NumericUpDown Name="CombatDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="35" />
               <NumericUpDown Grid.Column="1" Name="UiDuckingNumeric" Minimum="0" Maximum="100" Increment="5" Value="15" />
             </Grid>
 
-            <TextBlock Text="Reverb zone preset" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Reverb zone preset" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="ReverbZoneComboBox">
               <ComboBoxItem Content="outdoor" />
               <ComboBoxItem Content="indoor" />
@@ -92,24 +92,24 @@
               <ComboBoxItem Content="workshop" />
             </ComboBox>
 
-            <TextBlock Text="Procedural intensity" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Procedural intensity" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="ProceduralIntensityNumeric" Minimum="0" Maximum="100" Increment="5" Value="55" />
           </StackPanel>
         </TabItem>
 
         <TabItem Header="Performance">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="Unified orchestration command status" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Unified orchestration command status" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBlock
               Name="AiOrchestrationStatusLineText"
               Text="Ready: /orchestrate narrative_checkpoint|npc_day|scene_review &lt;scene_json_path&gt; [target]. scene_review target supports playtest|with_playtest|no_playtest."
-              Foreground="#97AECC"
+              Foreground="{DynamicResource EditorDialogMutedBrush}"
               TextWrapping="Wrap" />
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="Enable Bot Playtesting in Review" Foreground="#DDEBFF" VerticalAlignment="Center" />
+              <TextBlock Text="Enable Bot Playtesting in Review" Foreground="{DynamicResource EditorDialogTitleBrush}" VerticalAlignment="Center" />
               <ToggleSwitch Grid.Column="1" Name="EnableBotPlaytestingInReviewToggle" OnContent="On" OffContent="Off" />
             </Grid>
-            <TextBlock Text="Last Scene Review Summary" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Last Scene Review Summary" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBox Name="LastSceneReviewSummaryTextBox" AcceptsReturn="True" IsReadOnly="True" Height="92" TextWrapping="Wrap" />
           </StackPanel>
         </TabItem>
@@ -117,19 +117,19 @@
         <TabItem Header="AI Models" Name="ModelsAndLlmTab">
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="16" Spacing="12">
-              <TextBlock Text="Local model setup and onboarding" Foreground="#DDEBFF" FontWeight="SemiBold" />
+              <TextBlock Text="Local model setup and onboarding" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
               <TextBlock Name="ModelRecommendationSummaryText"
                          Text="Add your Hugging Face token first, then Quick Setup can install ForgeGuard, Free-Will, and Coding."
-                         Foreground="#97AECC"
+                         Foreground="{DynamicResource EditorDialogMutedBrush}"
                          TextWrapping="Wrap" />
 
-              <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="10">
+              <Border Classes="shell-dialog-inset" Padding="10">
                 <StackPanel Spacing="8">
-                  <TextBlock Text="Hugging Face access" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBlock Text="Hugging Face access" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
                   <TextBlock Text="Soul Loom now requires your Hugging Face token before first model download so setup does not stall on anonymous rate limits."
-                             Foreground="#97AECC"
+                             Foreground="{DynamicResource EditorDialogMutedBrush}"
                              TextWrapping="Wrap" />
-                  <TextBlock Text="Paste token" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBlock Text="Paste token" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
                   <TextBox Name="HuggingFaceTokenTextBox" Watermark="hf_..." />
                   <WrapPanel ItemWidth="170" Orientation="Horizontal">
                     <Button Name="SaveHuggingFaceTokenButton" Content="Save Token" MinWidth="150" Margin="0,0,8,8" Click="OnSaveHuggingFaceTokenClick" />
@@ -140,7 +140,7 @@
                   </WrapPanel>
                   <TextBlock Name="HuggingFaceTokenStatusText"
                              Text="No Hugging Face token configured yet."
-                             Foreground="#AFC2DF"
+                             Foreground="{DynamicResource EditorDialogAccentMutedBrush}"
                              TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
@@ -156,23 +156,23 @@
                 <Button Name="RefreshModelsButton" Content="Refresh Models" MinWidth="170" Margin="0,0,8,8" Click="OnRefreshModelsClick" />
               </WrapPanel>
 
-              <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="6" Padding="10">
+              <Border Classes="shell-dialog-inset" Padding="10">
                 <StackPanel Spacing="8">
-                  <TextBlock Text="Managed model status" Foreground="#DDEBFF" FontWeight="SemiBold" />
+                  <TextBlock Text="Managed model status" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
                   <TextBox Name="ModelEntriesSummaryTextBox"
                            IsReadOnly="True"
                            AcceptsReturn="True"
                            TextWrapping="Wrap"
                            Height="190"
-                           Background="#09111D"
-                           Foreground="#DDEBFF" />
+                           Background="{DynamicResource PanelShellBrush}"
+                           Foreground="{DynamicResource EditorDialogTitleBrush}" />
                   <TextBlock Name="ForgeGuardKeepInstalledMessageText"
                              Text="ForgeGuard stays installed as a permanent helper for guardrails and critique passes."
-                             Foreground="#AFC2DF"
+                             Foreground="{DynamicResource EditorDialogAccentMutedBrush}"
                              TextWrapping="Wrap" />
                   <TextBlock Name="ModelManagerStatusText"
                              Text="Model manager idle."
-                             Foreground="#97AECC"
+                             Foreground="{DynamicResource EditorDialogMutedBrush}"
                              TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
@@ -182,44 +182,44 @@
 
         <TabItem Header="Shortcuts">
           <StackPanel Margin="16" Spacing="12">
-            <Border Background="#0B1524" BorderBrush="#264566" BorderThickness="1" CornerRadius="8" Padding="12">
+            <Border Classes="shell-dialog-inset" Padding="12">
               <StackPanel Spacing="8">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                   <StackPanel Spacing="2">
-                    <TextBlock Text="Shortcut Summary" Foreground="#DDEBFF" FontWeight="SemiBold" />
-                    <TextBlock Text="Ctrl+N New Scene, Ctrl+O Open Scene, Ctrl+S Save Scene, Ctrl+Shift+S Save Scene As, Ctrl+E Export."
-                               Foreground="#97AECC"
+                    <TextBlock Text="Shortcut Summary" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
+                    <TextBlock Text="Ctrl+Shift+O Command palette. Ctrl+N New Scene, Ctrl+O Open Scene, Ctrl+S Save Scene, Ctrl+Shift+S Save Scene As, Ctrl+E Export, Ctrl+Shift+P Play runtime."
+                               Foreground="{DynamicResource EditorDialogMutedBrush}"
                                FontSize="11"
                                TextWrapping="Wrap" />
                   </StackPanel>
                   <ToggleSwitch Grid.Column="1" Name="CreatorModeToggle" OnContent="On" OffContent="Off" />
                 </Grid>
                 <TextBlock Text="Additional editor defaults remain available below so existing behavior stays backward compatible."
-                           Foreground="#7FA6CF"
+                           Foreground="{DynamicResource EditorDialogMutedBrush}"
                            FontSize="11"
                            TextWrapping="Wrap" />
               </StackPanel>
             </Border>
 
-            <TextBlock Text="Ribbon icon size" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Ribbon icon size" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="IconSizeNumeric" Minimum="40" Maximum="84" Increment="2" Value="58" />
 
-            <TextBlock Text="Undo/redo history length" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Undo/redo history length" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <NumericUpDown Name="HistoryLengthNumeric" Minimum="10" Maximum="300" Increment="10" Value="120" />
 
-            <TextBlock Text="Default new-project template" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="Default new-project template" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <ComboBox Name="DefaultTemplateComboBox" />
           </StackPanel>
         </TabItem>
 
         <TabItem Header="About">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="ForgeEngine Editor V1" Foreground="#DDEBFF" FontWeight="SemiBold" />
+            <TextBlock Text="ForgeEngine Editor V1" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBlock Text="Scene-first editing on top of project storage. Settings are project-wide; scenes remain the primary editing unit."
-                       Foreground="#97AECC"
+                       Foreground="{DynamicResource EditorDialogMutedBrush}"
                        TextWrapping="Wrap" />
             <TextBlock Text="This pass focuses on polish: menus, viewport behavior, assets, AI interview, status feedback, and shell consistency."
-                       Foreground="#97AECC"
+                       Foreground="{DynamicResource EditorDialogMutedBrush}"
                        TextWrapping="Wrap" />
           </StackPanel>
         </TabItem>
@@ -227,8 +227,8 @@
 
       <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
         <TextBlock Name="ValidationMessageText" Foreground="#FF9CB4" VerticalAlignment="Center" TextWrapping="Wrap" />
-        <Button Grid.Column="1" Content="Cancel" MinWidth="90" Click="OnCancelClick" />
-        <Button Grid.Column="2" Content="Save" MinWidth="90" Click="OnSaveClick" />
+        <Button Grid.Column="1" Content="Cancel" Classes="shell-dialog-secondary" Click="OnCancelClick" />
+        <Button Grid.Column="2" Content="Save" Classes="shell-dialog-primary" Click="OnSaveClick" />
       </Grid>
     </Grid>
   </Border>
