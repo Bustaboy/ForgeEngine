@@ -2,10 +2,10 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using GameForge.Editor.EditorDiagnostics;
-using GameForge.Editor.EditorShell.UI;
+using Soul.Editor.EditorDiagnostics;
+using Soul.Editor.EditorShell.UI;
 
-namespace GameForge.Editor;
+namespace Soul.Editor;
 
 public partial class App : Application
 {

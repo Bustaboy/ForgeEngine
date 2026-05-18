@@ -1,4 +1,4 @@
-namespace GameForge.Editor.Interview;
+namespace Soul.Editor.Interview;
 
 public static class InterviewQuestionPlanner
 {

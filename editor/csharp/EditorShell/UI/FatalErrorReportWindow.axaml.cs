@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
-namespace GameForge.Editor.EditorShell.UI;
+namespace Soul.Editor.EditorShell.UI;
 
 public partial class FatalErrorReportWindow : Window
 {

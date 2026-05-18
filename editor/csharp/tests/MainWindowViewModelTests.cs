@@ -2,12 +2,12 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using GameForge.Editor.EditorShell.EditorSystems;
-using GameForge.Editor.EditorShell.Services;
-using GameForge.Editor.EditorShell.ViewModels;
+using Soul.Editor.EditorShell.EditorSystems;
+using Soul.Editor.EditorShell.Services;
+using Soul.Editor.EditorShell.ViewModels;
 using Moq;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class MainWindowViewModelTests : IDisposable
 {
@@ -764,8 +764,8 @@ public sealed class MainWindowViewModelTests : IDisposable
             """{"event":"onboarding_stage","stage":"benchmark_complete"}""");
 
         Assert.True(handled);
-        Assert.Equal("Preparing ForgeGuard", viewModel.DownloadProgressTitle);
-        Assert.Equal("Hardware benchmark complete. Preparing ForgeGuard download...", viewModel.DownloadProgressSummary);
+        Assert.Equal("Preparing LoomGuard", viewModel.DownloadProgressTitle);
+        Assert.Equal("Hardware benchmark complete. Preparing LoomGuard download...", viewModel.DownloadProgressSummary);
         Assert.Equal("Benchmark finished. Contacting the model host...", viewModel.DownloadProgressCurrentFile);
         Assert.True(viewModel.IsDownloadProgressIndeterminate);
     }

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace GameForge.Editor.EditorDiagnostics;
+namespace Soul.Editor.EditorDiagnostics;
 
 /// <summary>Forwards <see cref="Trace"/> output (including Avalonia <c>LogToTrace()</c>) into <see cref="EditorDiagnosticsLog"/>.</summary>
 internal sealed class EditorDiagnosticsTraceListener : TraceListener

@@ -2,11 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using GameForge.Editor.EditorDiagnostics;
-using GameForge.Editor.EditorShell.ViewModels;
+using Soul.Editor.EditorDiagnostics;
+using Soul.Editor.EditorShell.ViewModels;
 using System.Diagnostics;
 
-namespace GameForge.Editor.EditorShell.UI;
+namespace Soul.Editor.EditorShell.UI;
 
 public partial class SettingsWindow : Window
 {
@@ -48,7 +48,7 @@ public partial class SettingsWindow : Window
     public EditorPreferences? Result { get; private set; }
     public event Action<EditorPreferences>? PreferencesPreviewChanged;
     public event Func<Task>? QuickStartModelsRequested;
-    public event Func<Task>? DownloadForgeGuardRequested;
+    public event Func<Task>? DownloadLoomGuardRequested;
     public event Func<Task>? DownloadCodingModelRequested;
     public event Func<Task>? RunModelOnboardingRequested;
     public event Func<Task>? SetupRecommendedModelsRequested;
@@ -157,17 +157,17 @@ public partial class SettingsWindow : Window
     public void UpdateModelManagerState(
         IReadOnlyList<MainWindowViewModel.ModelManagerEntry> entries,
         string recommendationSummary,
-        string forgeGuardKeepInstalledMessage,
+        string LoomGuardKeepInstalledMessage,
         string managerStatus,
         bool canRunActions)
     {
         SetTextValue("ModelRecommendationSummaryText", recommendationSummary);
-        SetTextValue("ForgeGuardKeepInstalledMessageText", forgeGuardKeepInstalledMessage);
+        SetTextValue("LoomGuardKeepInstalledMessageText", LoomGuardKeepInstalledMessage);
         SetTextValue("ModelManagerStatusText", managerStatus);
         SetTextValue("ModelEntriesSummaryTextBox", BuildModelEntriesSummary(entries));
 
         SetButtonEnabled("QuickStartModelsButton", canRunActions);
-        SetButtonEnabled("DownloadForgeGuardButton", canRunActions);
+        SetButtonEnabled("DownloadLoomGuardButton", canRunActions);
         SetButtonEnabled("DownloadCodingModelButton", canRunActions);
         SetButtonEnabled("RunOnboardingButton", canRunActions);
         SetButtonEnabled("SetupRecommendedModelsButton", canRunActions);
@@ -278,19 +278,19 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void OnDownloadForgeGuardClick(object? sender, RoutedEventArgs e)
+    private async void OnDownloadLoomGuardClick(object? sender, RoutedEventArgs e)
     {
         try
         {
-            if (DownloadForgeGuardRequested is not null)
+            if (DownloadLoomGuardRequested is not null)
             {
-                await DownloadForgeGuardRequested.Invoke();
+                await DownloadLoomGuardRequested.Invoke();
             }
         }
         catch (Exception ex)
         {
-            EditorDiagnosticsLog.LogException("Settings Models & LLM ForgeGuard download failed.", ex);
-            ShowValidationMessage($"ForgeGuard download failed: {ex.Message}");
+            EditorDiagnosticsLog.LogException("Settings Models & LLM LoomGuard download failed.", ex);
+            ShowValidationMessage($"LoomGuard download failed: {ex.Message}");
         }
     }
 

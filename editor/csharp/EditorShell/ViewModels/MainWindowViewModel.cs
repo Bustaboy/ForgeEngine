@@ -9,16 +9,16 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
-using GameForge.Editor.EditorShell;
-using GameForge.Editor.EditorShell.Services;
+using Soul.Editor.EditorShell;
+using Soul.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
-using GameForge.Editor.EditorDiagnostics;
+using Soul.Editor.EditorDiagnostics;
 
-namespace GameForge.Editor.EditorShell.ViewModels;
+namespace Soul.Editor.EditorShell.ViewModels;
 
 public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 {

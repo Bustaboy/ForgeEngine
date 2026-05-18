@@ -1,7 +1,7 @@
 using System.Text.Json;
-using GameForge.Editor.Interview;
+using Soul.Editor.Interview;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class InterviewUncertaintyTests
 {

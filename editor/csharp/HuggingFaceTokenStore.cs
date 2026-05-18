@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace GameForge.Editor;
+namespace Soul.Editor;
 
 public static class HuggingFaceTokenStore
 {
@@ -36,7 +36,7 @@ public static class HuggingFaceTokenStore
         return new HuggingFaceTokenInfo(
             null,
             "none",
-            "No Hugging Face token configured yet. Add one before downloading ForgeGuard, Free-Will, or Coding.",
+            "No Hugging Face token configured yet. Add one before downloading LoomGuard, Free-Will, or Coding.",
             false);
     }
 

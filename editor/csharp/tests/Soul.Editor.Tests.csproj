@@ -21,6 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GameForge.Editor.csproj" />
+    <ProjectReference Include="..\Soul.Editor.csproj" />
   </ItemGroup>
 </Project>

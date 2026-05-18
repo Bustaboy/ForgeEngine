@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
-using GameForge.Editor.EditorShell.UI;
+using Soul.Editor.EditorShell.UI;
 
-namespace GameForge.Editor.EditorDiagnostics;
+namespace Soul.Editor.EditorDiagnostics;
 
 internal static class EditorCrashHandler
 {

@@ -1,6 +1,6 @@
-using GameForge.Editor.EditorDiagnostics;
+using Soul.Editor.EditorDiagnostics;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class EditorDiagnosticsLogTests : IDisposable
 {

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public sealed record DockedPanel(string PanelId, string DisplayName, string DockZone, int Order);
 

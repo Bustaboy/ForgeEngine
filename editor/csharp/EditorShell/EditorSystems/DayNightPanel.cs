@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace GameForge.Editor.EditorShell.EditorSystems;
+namespace Soul.Editor.EditorShell.EditorSystems;
 
 public sealed class DayNightPanelState
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using GameForge.Editor.EditorShell;
+using Soul.Editor.EditorShell;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class SteamReadinessPolicyTests
 {

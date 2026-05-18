@@ -1,7 +1,7 @@
 using System.Text.Json;
-using GameForge.Editor.Interview;
+using Soul.Editor.Interview;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class InterviewLongSessionContinuityTests
 {
@@ -96,6 +96,6 @@ public sealed class InterviewLongSessionContinuityTests
             current = current.Parent;
         }
 
-        throw new DirectoryNotFoundException($"Could not resolve GameForge repository root from '{AppContext.BaseDirectory}'.");
+        throw new DirectoryNotFoundException($"Could not resolve Soul Loom repository root from '{AppContext.BaseDirectory}'.");
     }
 }

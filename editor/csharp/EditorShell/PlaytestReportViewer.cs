@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public sealed record PlaytestReportSectionView
 {

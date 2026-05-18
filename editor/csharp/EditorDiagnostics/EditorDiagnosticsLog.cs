@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace GameForge.Editor.EditorDiagnostics;
+namespace Soul.Editor.EditorDiagnostics;
 
 internal static class EditorDiagnosticsLog
 {
@@ -155,6 +155,8 @@ internal static class EditorDiagnosticsLog
         if (!string.IsNullOrWhiteSpace(localAppData))
         {
             yield return Path.Combine(localAppData, "Soul Loom LLC", "Soul Loom", "logs");
+            yield return Path.Combine(localAppData, "Soul", "logs");
+            yield return Path.Combine(localAppData, "SoulLoom", "logs");
             yield return Path.Combine(localAppData, "GameForge", "logs");
         }
 
@@ -164,6 +166,7 @@ internal static class EditorDiagnosticsLog
         var tempPath = Path.GetTempPath();
         if (!string.IsNullOrWhiteSpace(tempPath))
         {
+            yield return Path.Combine(tempPath, "Soul", "logs");
             yield return Path.Combine(tempPath, "SoulLoom", "logs");
             yield return Path.Combine(tempPath, "GameForge", "logs");
         }

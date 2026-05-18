@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public enum ReadinessSeverity
 {

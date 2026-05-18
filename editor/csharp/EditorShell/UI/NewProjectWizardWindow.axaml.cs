@@ -1,9 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using GameForge.Editor.EditorShell.ViewModels;
+using Soul.Editor.EditorShell.ViewModels;
 
-namespace GameForge.Editor.EditorShell.UI;
+namespace Soul.Editor.EditorShell.UI;
 
 public partial class NewProjectWizardWindow : Window
 {

@@ -3,9 +3,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-        xmlns:vm="clr-namespace:GameForge.Editor.EditorShell.ViewModels"
+        xmlns:vm="clr-namespace:Soul.Editor.EditorShell.ViewModels"
+        xmlns:shell="clr-namespace:Soul.Editor.EditorShell.UI"
         x:Name="RootWindow"
-        x:Class="GameForge.Editor.EditorShell.UI.MainWindow"
+        x:Class="Soul.Editor.EditorShell.UI.MainWindow"
         Title="{Binding WindowTitle}"
         Width="1460"
         Height="920"
@@ -16,494 +17,7 @@
         mc:Ignorable="d">
 
   <Window.Styles>
-    <!-- Tool rail (Godot-style vertical tool strip) -->
-    <Style Selector="Button.ribbon-icon">
-      <Setter Property="Background" Value="#353535" />
-      <Setter Property="BorderBrush" Value="#484848" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-      <Setter Property="Padding" Value="4" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Width" Value="40" />
-      <Setter Property="Height" Value="40" />
-      <Setter Property="FontSize" Value="14" />
-    </Style>
-    <Style Selector="Button.ribbon-icon:pointerover">
-      <Setter Property="Background" Value="#404040" />
-      <Setter Property="BorderBrush" Value="#5A5A5A" />
-    </Style>
-    <Style Selector="Button.ribbon-icon:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.ribbon-compact">
-      <Setter Property="Background" Value="#353535" />
-      <Setter Property="BorderBrush" Value="#484848" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-      <Setter Property="Padding" Value="6,4" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="MinWidth" Value="56" />
-      <Setter Property="FontSize" Value="11" />
-    </Style>
-    <Style Selector="Button.ribbon-compact:pointerover">
-      <Setter Property="Background" Value="#404040" />
-      <Setter Property="BorderBrush" Value="#5A5A5A" />
-    </Style>
-    <Style Selector="Button.ribbon-compact:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <!-- Top Menu Buttons -->
-    <Style Selector="Button.menu-link">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-      <Setter Property="Padding" Value="8,3" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <Style Selector="Button.menu-link:pointerover">
-      <Setter Property="Background" Value="#404040" />
-    </Style>
-
-    <!-- Main toolbar -->
-    <Style Selector="Button.toolbar-action">
-      <Setter Property="Background" Value="#3A3A3A" />
-      <Setter Property="BorderBrush" Value="#4A4A4A" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E8E8E8" />
-      <Setter Property="Padding" Value="10,6" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinWidth" Value="72" />
-    </Style>
-    <Style Selector="Button.toolbar-action:pointerover">
-      <Setter Property="Background" Value="#454545" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.toolbar-action:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.toolbar-action.primary">
-      <Setter Property="Background" Value="#478CBF" />
-      <Setter Property="BorderBrush" Value="#5AA0D4" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-    <Style Selector="Button.toolbar-action.primary:pointerover">
-      <Setter Property="Background" Value="#5599CC" />
-      <Setter Property="BorderBrush" Value="#6BADCF" />
-    </Style>
-
-    <Style Selector="Button.toolbar-action.quiet">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="Foreground" Value="#BDBDBD" />
-      <Setter Property="MinWidth" Value="52" />
-      <Setter Property="Padding" Value="8,6" />
-    </Style>
-    <Style Selector="Button.toolbar-action.quiet:pointerover">
-      <Setter Property="Background" Value="#3A3A3A" />
-      <Setter Property="BorderBrush" Value="#555555" />
-    </Style>
-
-    <!-- Ribbon And Status Surfaces -->
-    <Style Selector="Border.ribbon-group">
-      <Setter Property="Background" Value="#2A2A2A" />
-      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="8,6" />
-    </Style>
-
-    <Style Selector="TextBlock.ribbon-caption">
-      <Setter Property="Foreground" Value="#A0A0A0" />
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <Style Selector="Border.status-chip">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="BorderBrush" Value="#454545" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="8,4" />
-    </Style>
-
-    <!-- Panel Shells (flat dock panels) -->
-    <Style Selector="Border.panel-shell">
-      <Setter Property="Background" Value="{StaticResource PanelShellBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="0" />
-      <Setter Property="Padding" Value="{StaticResource SpacingLarge}" />
-    </Style>
-
-    <Style Selector="Border.subpanel-shell">
-      <Setter Property="Background" Value="{StaticResource PanelSurfaceBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource PanelSurfaceBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="Padding" Value="{StaticResource SpacingMedium}" />
-    </Style>
-
-    <Style Selector="Grid.panel-header">
-      <Setter Property="ColumnSpacing" Value="10" />
-    </Style>
-
-    <Style Selector="TextBlock.panel-title">
-      <Setter Property="Foreground" Value="#E8E8E8" />
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <Style Selector="TextBlock.panel-subtitle">
-      <Setter Property="Foreground" Value="#A8A8A8" />
-      <Setter Property="FontSize" Value="11" />
-    </Style>
-
-    <Style Selector="Button.panel-header-action">
-      <Setter Property="Background" Value="#353535" />
-      <Setter Property="BorderBrush" Value="#4A4A4A" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="Padding" Value="8,4" />
-      <Setter Property="MinWidth" Value="34" />
-    </Style>
-
-    <Style Selector="Button.panel-header-action:pointerover">
-      <Setter Property="Background" Value="#404040" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.panel-header-action:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.edge-revealer">
-      <Setter Property="Width" Value="28" />
-      <Setter Property="MinHeight" Value="120" />
-      <Setter Property="Padding" Value="4,8" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="Background" Value="#2A2A2ACC" />
-      <Setter Property="BorderBrush" Value="#505050" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#D0D0D0" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Opacity" Value="0.92" />
-    </Style>
-    <Style Selector="Button.edge-revealer:pointerover">
-      <Setter Property="Background" Value="#353535E6" />
-      <Setter Property="BorderBrush" Value="#707070" />
-      <Setter Property="Opacity" Value="1" />
-    </Style>
-    <Style Selector="Button.edge-revealer:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-    <Style Selector="TextBlock.edge-revealer-label">
-      <Setter Property="FontSize" Value="10" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="TextAlignment" Value="Center" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="LineHeight" Value="11" />
-      <Setter Property="MaxWidth" Value="16" />
-    </Style>
-
-    <!-- Panel Buttons -->
-    <Style Selector="Button.panel-action-button">
-      <Setter Property="Background" Value="#3A3A3A" />
-      <Setter Property="BorderBrush" Value="#4A4A4A" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E8E8E8" />
-      <Setter Property="Padding" Value="10,6" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="MinWidth" Value="80" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button:pointerover">
-      <Setter Property="Background" Value="#454545" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.panel-action-button:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button.primary">
-      <Setter Property="Background" Value="#478CBF" />
-      <Setter Property="BorderBrush" Value="#5AA0D4" />
-      <Setter Property="Foreground" Value="#FFFFFF" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button.primary:pointerover">
-      <Setter Property="Background" Value="#5599CC" />
-      <Setter Property="BorderBrush" Value="#6BADCF" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button.empty-state-cta">
-      <Setter Property="MinWidth" Value="184" />
-      <Setter Property="Padding" Value="16,11" />
-      <Setter Property="FontSize" Value="13" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button.danger">
-      <Setter Property="Background" Value="#3B1A1F" />
-      <Setter Property="BorderBrush" Value="#8D4853" />
-      <Setter Property="Foreground" Value="#FFE6E8" />
-    </Style>
-
-    <Style Selector="Button.panel-action-button.danger:pointerover">
-      <Setter Property="Background" Value="#4A2028" />
-      <Setter Property="BorderBrush" Value="#B05E6B" />
-    </Style>
-
-    <!-- Badges And Chips -->
-    <Style Selector="Border.badge">
-      <Setter Property="Background" Value="{StaticResource BadgeBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BadgeBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="999" />
-      <Setter Property="Padding" Value="8,3" />
-    </Style>
-
-    <Style Selector="Border.viewport-chip">
-      <Setter Property="Background" Value="{StaticResource BadgeBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BadgeBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="8,3" />
-    </Style>
-
-    <!-- Toasts -->
-    <Style Selector="Border.toast-shell">
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="12,10" />
-      <Setter Property="BorderThickness" Value="1.2" />
-    </Style>
-    <Style Selector="Border.toast-shell.toast-success">
-      <Setter Property="Background" Value="{StaticResource ToastSuccessBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource ToastSuccessBorderBrush}" />
-    </Style>
-    <Style Selector="Border.toast-shell.toast-warning">
-      <Setter Property="Background" Value="{StaticResource ToastWarningBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource ToastWarningBorderBrush}" />
-    </Style>
-    <Style Selector="Border.toast-shell.toast-error">
-      <Setter Property="Background" Value="{StaticResource ToastErrorBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource ToastErrorBorderBrush}" />
-    </Style>
-
-    <!-- Assets And Suggestion Cards -->
-    <Style Selector="Button.suggestion-card">
-      <Setter Property="Background" Value="#333333" />
-      <Setter Property="BorderBrush" Value="#505050" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#EEEEEE" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="10,8" />
-      <Setter Property="HorizontalContentAlignment" Value="Left" />
-      <Setter Property="MinHeight" Value="72" />
-    </Style>
-
-    <Style Selector="Button.suggestion-card:pointerover">
-      <Setter Property="Background" Value="#3D3D3D" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.suggestion-card:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Border.workspace-chip">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="BorderBrush" Value="#505050" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="8,6" />
-    </Style>
-
-    <Style Selector="Button.generate-cta">
-      <Setter Property="Background" Value="#478CBF" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="FontSize" Value="16" />
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="Padding" Value="14,9" />
-      <Setter Property="CornerRadius" Value="3" />
-    </Style>
-    <Style Selector="Button.generate-cta:pointerover">
-      <Setter Property="Background" Value="#5599CC" />
-      <Setter Property="BorderBrush" Value="#6BADCF" />
-    </Style>
-    <Style Selector="Button.generate-cta:focus">
-      <Setter Property="BorderBrush" Value="#8BC4E0" />
-    </Style>
-
-    <Style Selector="ToggleSwitch.deep-toggle">
-      <Setter Property="OnContent" Value="On" />
-      <Setter Property="OffContent" Value="Off" />
-    </Style>
-
-    <!-- Timeline And History -->
-    <Style Selector="Button.history-chip">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="BorderBrush" Value="#454545" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#D8D8D8" />
-      <Setter Property="Padding" Value="8,6" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    </Style>
-    <Style Selector="Button.history-chip:pointerover">
-      <Setter Property="Background" Value="#383838" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.history-chip:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.timeline-icon">
-      <Setter Property="Background" Value="#353535" />
-      <Setter Property="BorderBrush" Value="#484848" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#E8E8E8" />
-      <Setter Property="Padding" Value="8,6" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="MinWidth" Value="40" />
-      <Setter Property="FontSize" Value="14" />
-    </Style>
-    <Style Selector="Button.timeline-icon:pointerover">
-      <Setter Property="Background" Value="#404040" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.timeline-icon:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.timeline-mode">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="BorderBrush" Value="#454545" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="Foreground" Value="#B8B8B8" />
-      <Setter Property="Padding" Value="8,5" />
-      <Setter Property="MinWidth" Value="52" />
-    </Style>
-    <Style Selector="Button.timeline-mode:pointerover">
-      <Setter Property="Background" Value="#383838" />
-      <Setter Property="BorderBrush" Value="#606060" />
-    </Style>
-    <Style Selector="Button.timeline-mode:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <!-- Dock-style panel tabs (readable labels, Godot-like) -->
-    <Style Selector="Button.panel-tab">
-      <Setter Property="Background" Value="#2E2E2E" />
-      <Setter Property="BorderBrush" Value="#454545" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#B0B0B0" />
-      <Setter Property="Padding" Value="10,5" />
-      <Setter Property="CornerRadius" Value="2" />
-      <Setter Property="MinWidth" Value="72" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Button.panel-tab:pointerover">
-      <Setter Property="Background" Value="#383838" />
-      <Setter Property="BorderBrush" Value="#606060" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-    </Style>
-    <Style Selector="Button.panel-tab:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Button.panel-tab.active">
-      <Setter Property="Background" Value="#3A3A3A" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-      <Setter Property="Foreground" Value="#F0F0F0" />
-    </Style>
-
-    <Style Selector="Button.system-action">
-      <Setter Property="Background" Value="#3A4A52" />
-      <Setter Property="BorderBrush" Value="#556B75" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="#EAF3FF" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="10,6" />
-    </Style>
-    <Style Selector="Button.system-action:pointerover">
-      <Setter Property="Background" Value="#455A65" />
-      <Setter Property="BorderBrush" Value="#6A828E" />
-    </Style>
-    <Style Selector="Button.system-action:focus">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-    </Style>
-
-    <Style Selector="Border.asset-card">
-      <Setter Property="Background" Value="#2A2A2A" />
-      <Setter Property="BorderBrush" Value="#454545" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-
-    <Style Selector="Border.asset-card:pointerover">
-      <Setter Property="Background" Value="#333333" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-
-    <!-- Bottom dock TabControl (Godot-style strip) -->
-    <Style Selector="TabControl.editor-dock-tabs">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="TabControl.editor-dock-tabs TabStrip">
-      <Setter Property="Background" Value="#2D2D2D" />
-      <Setter Property="BorderBrush" Value="#3D3D3D" />
-      <Setter Property="BorderThickness" Value="0,0,0,1" />
-      <Setter Property="Margin" Value="0,0,0,0" />
-    </Style>
-    <Style Selector="TabControl.editor-dock-tabs TabItem">
-      <Setter Property="Background" Value="#353535" />
-      <Setter Property="BorderBrush" Value="#484848" />
-      <Setter Property="BorderThickness" Value="1,1,1,0" />
-      <Setter Property="Foreground" Value="#C8C8C8" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Padding" Value="14,6" />
-      <Setter Property="Margin" Value="0,0,2,0" />
-    </Style>
-    <Style Selector="TabControl.editor-dock-tabs TabItem:pointerover">
-      <Setter Property="Background" Value="#404040" />
-    </Style>
-    <Style Selector="TabControl.editor-dock-tabs TabItem:selected">
-      <Setter Property="Background" Value="#252525" />
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-      <Setter Property="Foreground" Value="#F0F0F0" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <!-- Top menu strip -->
-    <Style Selector="Menu">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="#E0E0E0" />
-    </Style>
-
-    <!-- Hierarchy -->
-    <Style Selector="TreeView#HierarchyTree TreeViewItem">
-      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-    </Style>
-    <Style Selector="TreeView.panel-tree">
-      <Setter Property="Background" Value="#1E1E1E" />
-      <Setter Property="BorderBrush" Value="{StaticResource PanelShellBorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="6" />
-    </Style>
+    <StyleInclude Source="avares://Soul.Editor/EditorShell/Theme/MainWindowStyles.axaml" />
   </Window.Styles>
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
@@ -511,6 +25,7 @@
     <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding PlayRuntimeCommand}" />
   </Window.KeyBindings>
 
+  <!-- Main shell layout: top ribbon, central workspace, timeline strip, bottom activity dock, status bar, onboarding overlay -->
   <Grid x:Name="RootLayoutGrid" RowDefinitions="Auto,*,4,200,4,140,Auto" Margin="0" RowSpacing="0">
     <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="{StaticResource ChromeToolbarBrush}" BorderBrush="{StaticResource PanelShellBorderBrush}" BorderThickness="0,0,0,1" CornerRadius="0" Padding="0">
       <Grid RowDefinitions="Auto,48" RowSpacing="0">
@@ -621,6 +136,7 @@
       </Grid>
     </Border>
 
+    <!-- Workspace: vertical tool rail, left dock, center (viewport + inspector), right dock -->
     <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="52,2.3*,4,4.8*,4,2.8*" RowDefinitions="*" ColumnSpacing="0" Margin="0">
       <Border x:Name="ToolRailBorder" Grid.Column="0" Background="#252525" BorderBrush="{StaticResource PanelShellBorderBrush}" BorderThickness="0,0,1,0" CornerRadius="0" Padding="6,8,6,8">
         <StackPanel Spacing="6" HorizontalAlignment="Center">
@@ -1874,7 +1390,7 @@
                     </Grid>
                     <TextBlock Text="{Binding ModelRecommendationSummary}" Foreground="#9FC2E5" FontSize="11" TextWrapping="Wrap" />
                     <WrapPanel Orientation="Horizontal" ItemWidth="200">
-                      <Button Content="Quick Start (ForgeGuard + Free-Will)"
+                      <Button Content="Quick Start (LoomGuard + Free-Will)"
                               Click="OnQuickStartModelsClick"
                               IsEnabled="{Binding CanRunModelManagerActions}"
                               Margin="0,0,6,6" />
@@ -1927,7 +1443,7 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="{Binding ForgeGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LoomGuardKeepInstalledMessage}" Foreground="#AFC2DF" FontSize="11" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding ModelManagerStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
@@ -2244,6 +1760,7 @@
                   ResizeBehavior="PreviousAndNext"
                   ShowsPreview="True" />
 
+    <!-- Timeline / animation strip -->
     <Border x:Name="TimelineDockBorder" Grid.Row="3" Classes="panel-shell" Margin="0">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
@@ -2353,6 +1870,7 @@
                   ResizeBehavior="PreviousAndNext"
                   ShowsPreview="True" />
 
+    <!-- Bottom dock: AI Interview, Assets, Activity Log (tabbed or floating) -->
     <Border x:Name="ActivityDockBorder" Grid.Row="5" Classes="panel-shell" Margin="0" Padding="0">
       <TabControl Classes="editor-dock-tabs" TabStripPlacement="Top">
         <TabItem x:Name="AiInterviewDockTab" Header="AI Interview">
@@ -2550,33 +2068,9 @@
       </StackPanel>
     </Border>
 
-    <Border x:Name="StartupOnboardingOverlay"
-            Grid.RowSpan="7"
-            IsVisible="False"
-            Background="#070F1BEF"
-            BorderBrush="#4AA3FF"
-            BorderThickness="1.2"
-            CornerRadius="10"
-            Padding="18"
-            Margin="40,28"
-            ZIndex="20">
-        <StackPanel Spacing="10" MaxWidth="720" HorizontalAlignment="Stretch" Margin="4,0">
-        <TextBlock Text="Welcome to Soul Loom" Foreground="#E8F3FF" FontSize="24" FontWeight="Bold" />
-        <TextBlock Text="Checking local model state before the welcome step. Quick Setup and Models &amp; LLM use the same status labels (Installed / Not found) and download progress overlay."
-                   Foreground="#CFE5FF"
-                   TextWrapping="Wrap" />
-        <TextBlock x:Name="StartupOnboardingStatusText"
-                   Text="Preparing first-launch check…"
-                   Foreground="#9FCCFF"
-                   FontSize="13"
-                   TextWrapping="Wrap" />
-        <ProgressBar x:Name="StartupOnboardingProgressBar"
-                     IsIndeterminate="True"
-                     Height="8"
-                     Background="#0B1524"
-                     Foreground="#4AA3FF" />
-      </StackPanel>
-    </Border>
+    <shell:StartupOnboardingOverlay x:Name="StartupOnboardingOverlay"
+                                    Grid.RowSpan="7"
+                                    ZIndex="20" />
 
     <Button x:Name="FocusModeExitButton"
             Grid.RowSpan="7"

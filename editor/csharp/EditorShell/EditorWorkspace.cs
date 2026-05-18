@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public sealed class EditorWorkspace
 {
