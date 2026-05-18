@@ -13,6 +13,19 @@ JSON_PATH = REPO_ROOT / "docs" / "release" / "acceptance_traceability_v1.json"
 MD_PATH = REPO_ROOT / "docs" / "release" / "acceptance_traceability_v1.md"
 
 AT_BY_OS = {"windows": "AT-010", "ubuntu": "AT-011"}
+_TRACEABILITY_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def _last_verified_from_evidence(evidence: dict[str, object]) -> str:
+    """Return generated_at_utc when it matches traceability format (no mutation)."""
+
+    raw = str(evidence.get("generated_at_utc", "")).strip()
+    if _TRACEABILITY_UTC_RE.fullmatch(raw):
+        return raw
+    raise ValueError(
+        "generated_at_utc must match YYYY-MM-DDTHH:MM:SSZ for traceability "
+        f"(got {raw!r})"
+    )
 
 
 def _archive_dir(target_os: str, run_id: str) -> Path:
@@ -59,9 +72,7 @@ def promote(target_os: str, run_id: str) -> None:
     if evidence.get("verdict") != "PASS":
         raise RuntimeError(f"{evidence_path}: verdict is not PASS")
 
-    verified = str(evidence.get("generated_at_utc", "")).replace("Z", ":00Z")
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", verified):
-        verified = "2026-05-18T00:00:00Z"
+    verified = _last_verified_from_evidence(evidence)
 
     payload = json.loads(JSON_PATH.read_text(encoding="utf-8"))
     item = next(row for row in payload["items"] if row.get("id") == at_id)
