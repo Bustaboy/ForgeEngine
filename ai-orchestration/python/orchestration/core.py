@@ -2890,7 +2890,8 @@ One-click local launch commands:
 
 
 def _launch_generated_prototype(prototype_root: Path) -> int:
-    compile_cmd = ["g++", "-std=c++17", "runtime/main.cpp", "-o", "runtime/prototype_runtime"]
+    runtime_output = "runtime/prototype_runtime.exe" if os.name == "nt" else "runtime/prototype_runtime"
+    compile_cmd = ["g++", "-std=c++17", "runtime/main.cpp", "-o", runtime_output]
     try:
         compile_proc = subprocess.run(compile_cmd, cwd=prototype_root, text=True, capture_output=True)
     except FileNotFoundError:
@@ -2902,7 +2903,9 @@ def _launch_generated_prototype(prototype_root: Path) -> int:
         print(compile_proc.stderr)
         return compile_proc.returncode
 
-    run_proc = subprocess.run(["./runtime/prototype_runtime"], cwd=prototype_root, text=True, capture_output=True)
+    runner_path = prototype_root / runtime_output
+    run_cmd = [str(runner_path)] if os.name == "nt" else [f"./{runtime_output}"]
+    run_proc = subprocess.run(run_cmd, cwd=prototype_root, text=True, capture_output=True)
     print(run_proc.stdout, end="")
     if run_proc.returncode != 0:
         print(run_proc.stderr, end="")
