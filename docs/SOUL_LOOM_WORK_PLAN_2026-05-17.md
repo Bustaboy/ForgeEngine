@@ -157,7 +157,7 @@ Merged to `main` via PR #222:
 | 1.1b | Archive Windows smoke + promote traceability | AT-010 | Dev / agent | **Done** — [`archived/windows/20260518T041200Z/`](release/evidence/archived/windows/20260518T041200Z/); JSON/md **covered** |
 | 1.2 | Ubuntu smoke run + archive | AT-011 | **Done** | Archived `ubuntu/20260518T044344Z/`; per-PR CI workflow removed |
 | 1.3 | Fresh install validation | AT-001 | **HUMAN REQUIRED** | **Not started** — see [§ RC evidence: who does what?](#rc-evidence-who-does-what) |
-| 1.4 | Promote traceability for AT-011 / AT-001 | AT-011, AT-001 | CI + human | AT-011: `scripts/promote_smoke_acceptance.py` on archive job; AT-001: **human** updates JSON after VMs |
+| 1.4 | Promote traceability for AT-011 / AT-001 | AT-011, AT-001 | Done / human | AT-011: **done** via `scripts/promote_smoke_acceptance.py`; AT-001: **human** updates JSON after VMs |
 | 1.5 | Target-hardware perf capture (stretch) | AT-020–024 | Dev | Optional — replace synthetic fixtures |
 
 **Exit criteria (RC gate per acceptance matrix):**
@@ -285,13 +285,13 @@ Phase 5  →  UX/copy AT-029/031
 _Example: Close P0 smoke evidence and land weather depth MVP._
 
 ### To Do
-- [x] Phase 1.2: Ubuntu smoke CI archived `ubuntu/20260518T042622Z/` on `main`
+- [x] Phase 1.2: Ubuntu smoke archived `ubuntu/20260518T044344Z/` (canonical)
 - [ ] Phase 1.3: **HUMAN** — AT-001 fresh install on clean Windows 11 + Ubuntu 22.04 VMs (see plan callout)
 - [ ] Phase 2.4–2.5: AT-027/028/030 tests
 - [ ] Phase 3: epic tasks (A/B/C — pick one)
 
 ### In Progress
-- [ ] Phase 1 — awaiting Ubuntu CI archive + human AT-001
+- [ ] Phase 1.3 — human AT-001 fresh-install on bare VMs
 
 ### Blocked
 - [ ] AT-001 — **requires human operator with bare VMs** (cannot be delegated to CI/agents)

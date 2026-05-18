@@ -37,7 +37,7 @@ def _automation_refs(target_os: str, run_id: str) -> list[str]:
     runbook = (
         "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011"
         if target_os == "ubuntu"
-        else "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#2-windows-smoke-procedure-at-010"
+        else "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#4-windows-smoke-procedure-at-010"
     )
     refs = [
         f"{prefix}/smoke_evidence.json",
