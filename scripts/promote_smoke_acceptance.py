@@ -65,6 +65,14 @@ def _canonical_automation_refs(target_os: str, run_id: str) -> list[str]:
     return sorted(refs)
 
 
+def _next_action(target_os: str, archive: Path) -> str:
+    archive_rel = archive.relative_to(REPO_ROOT).as_posix().rstrip("/")
+    return (
+        f"Re-run {target_os} smoke when bootstrap or launcher paths change; "
+        f"refresh {archive_rel}/"
+    )
+
+
 def _replace_md_row(at_id: str, item: dict[str, object]) -> None:
     automation = "; ".join(f"`{ref}`" for ref in item.get("automation", []))
     manual = item.get("manual_procedure")
@@ -104,10 +112,7 @@ def promote(target_os: str, run_id: str) -> None:
     item["evidence_strength"] = "strong-automated"
     item["manual_procedure"] = None
     item["last_verified_at_utc"] = verified
-    item["next_action"] = (
-        f"Re-run {target_os} smoke when bootstrap or launcher paths change; refresh "
-        f"{archive.relative_to(REPO_ROOT).as_posix()}/."
-    )
+    item["next_action"] = _next_action(target_os, archive)
 
     JSON_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     _replace_md_row(at_id, item)

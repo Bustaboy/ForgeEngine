@@ -31,6 +31,17 @@ def test_last_verified_rejects_empty() -> None:
         promote_mod._last_verified_from_evidence({})
 
 
+def test_next_action_uses_directory_path_without_trailing_dot() -> None:
+    archive = (
+        REPO_ROOT
+        / "docs/release/evidence/archived/ubuntu/20260518T044344Z"
+    )
+    text = promote_mod._next_action("ubuntu", archive)
+    assert text.endswith("docs/release/evidence/archived/ubuntu/20260518T044344Z/")
+    assert "/." not in text
+    assert "//" not in text.split("refresh ", 1)[1]
+
+
 def test_canonical_automation_refs_single_archive_bundle() -> None:
     refs = promote_mod._canonical_automation_refs("ubuntu", "20260518T044344Z")
     archive_hits = [r for r in refs if r.startswith("docs/release/evidence/archived/ubuntu/")]

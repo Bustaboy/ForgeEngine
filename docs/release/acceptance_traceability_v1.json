@@ -158,7 +158,7 @@
         "scripts/run_smoke_and_capture_evidence.py"
       ],
       "manual_procedure": null,
-      "next_action": "Re-run windows smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/windows/20260518T041200Z/.",
+      "next_action": "Re-run windows smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/windows/20260518T041200Z/",
       "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
@@ -179,7 +179,7 @@
         "scripts/run_smoke_and_capture_evidence.py"
       ],
       "manual_procedure": null,
-      "next_action": "Re-run ubuntu smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/ubuntu/20260518T044344Z/.",
+      "next_action": "Re-run ubuntu smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/ubuntu/20260518T044344Z/",
       "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
