@@ -4,9 +4,9 @@
 > Supersedes informal status notes from prior chats; does not replace [`BACKLOG_APRIL_2026.md`](BACKLOG_APRIL_2026.md) (sprint priorities) or [`acceptance_traceability_v1.json`](../docs/release/acceptance_traceability_v1.json) (release gates).
 
 **Prepared:** 2026-05-17  
-**Last updated:** 2026-05-18  
+**Last updated:** 2026-05-18 (Phase 1.1b + 2.3 + Ubuntu CI)  
 **Product:** Soul Loom V1 (local-first, AI-native game engine)  
-**Repo baseline:** `main` @ PR [#222](https://github.com/Bustaboy/ForgeEngine/pull/222) — Soul Loom rebrand, orchestration package, editor onboarding, legacy brand removal merged.
+**Repo baseline:** `main` — AT-010 archived; PR gate runs full test suites; AT-011 automated via [`.github/workflows/ubuntu-smoke-evidence.yml`](../.github/workflows/ubuntu-smoke-evidence.yml).
 
 ---
 
@@ -14,9 +14,20 @@
 
 Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md): foundation, interview, prototype generation, editor shell, genre scaffolds, asset pipeline, bot playtest, and Steam readiness **policy/UI**. **Workspace stabilization landed on `main` (2026-05-18):** `Soul.Editor`, `soul_runtime`, `orchestration/` package, onboarding UX, and **full removal** of GameForge/ForgeEngine naming (`SOUL_LOOM_*` specs, `soulloom.*` schemas, `soul_hooks.py`).
 
-The product is **not RC-shippable** today because **P0 acceptance evidence is still incomplete** (fresh install VMs + promoted traceability rows), several **P1 UX tests are open**, and **active-development epics** (kit-bashing depth, adaptive music, scene templates, cloud abstraction) are unfinished.
+The product is **not RC-shippable** today because **AT-001 still requires a human** on clean VMs, **AT-011** awaits the first green Ubuntu smoke workflow archive on `main`, several **P1 UX tests are open**, and **active-development epics** remain unfinished.
 
-**Strategic goal for the next phase:** promote archived smoke/install evidence into traceability JSON (Phase 1), expand CI to full test suites (Phase 2), then land one high-value gameplay epic from the April backlog without scope creep.
+**Strategic goal for the next phase:** wait for CI to close AT-011, complete **manual** AT-001 on bare VMs, then land one high-value gameplay epic from the April backlog without scope creep.
+
+---
+
+### RC evidence: who does what?
+
+| Step | AT | Owner | Automation |
+|---|---|---|---|
+| Windows smoke archive + traceability | AT-010 | **Done in repo** | Archived `docs/release/evidence/archived/windows/20260518T041200Z/`; traceability **covered** |
+| Ubuntu smoke + archive | AT-011 | **GitHub Actions** | [`.github/workflows/ubuntu-smoke-evidence.yml`](../.github/workflows/ubuntu-smoke-evidence.yml) on `main` push / PR / `workflow_dispatch`; promotes via `scripts/promote_smoke_acceptance.py` |
+| Fresh install on clean machines | AT-001 | **HUMAN REQUIRED** | **Not CI-automatable** without dedicated bare Windows 11 + Ubuntu 22.04 VMs. A human must clone, bootstrap, launch, capture logs, and promote traceability. |
+| Full test suites on every PR | — | **GitHub Actions** | [`.github/workflows/pr-validation.yml`](../.github/workflows/pr-validation.yml) — full `pytest tests/` + full `Soul.Editor.Tests` |
 
 ---
 
@@ -55,7 +66,7 @@ The product is **not RC-shippable** today because **P0 acceptance evidence is st
 
 | Priority | Total | Covered | Partial | Missing |
 |---|---:|---:|---:|---:|
-| P0 | 14 | 11 | **3** | 0 |
+| P0 | 14 | **12** | **2** | 0 |
 | P1 | 14 | 9 | 3 | **2** |
 | P2 | 3 | 0 | 0 | **2** |
 
@@ -63,9 +74,14 @@ The product is **not RC-shippable** today because **P0 acceptance evidence is st
 
 | ID | Gap | Next action |
 |---|---|---|
-| AT-001 | No clean-machine install evidence | Run fresh install on Windows 11 + Ubuntu 22.04 VMs; archive logs under `docs/release/evidence/runs/` |
-| AT-010 | Windows smoke **run passed locally**; not yet promoted in traceability JSON | Local PASS: `docs/release/evidence/runs/20260518T041200Z/` (gitignored). Archive copy + set `status: covered` in traceability PR |
-| AT-011 | Ubuntu smoke not archived | `py -3.11 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root docs/release/evidence/runs` on Ubuntu 22.04 host |
+| AT-001 | **HUMAN REQUIRED** — no clean-machine install evidence | **Manual only:** on fresh Windows 11 + Ubuntu 22.04 VMs, clone → `Setup-Alpha.ps1` / `setup.sh` → editor + launcher smoke → archive logs under `docs/release/evidence/archived/` (suggested: `fresh-install/<os>/<date>/`) → promote traceability to `covered`. **Do not expect CI or agents to complete this.** |
+| AT-011 | Ubuntu smoke automated; archive pending first green `main` run | Trigger [ubuntu-smoke-evidence.yml](../.github/workflows/ubuntu-smoke-evidence.yml) on `main` (or wait for next push); verify `docs/release/evidence/archived/ubuntu/<run_id>/` commit |
+
+**P0 covered (smoke):**
+
+| ID | Evidence |
+|---|---|
+| AT-010 | `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability promoted 2026-05-18) |
 
 **P1 partial:**
 
@@ -104,7 +120,9 @@ Merged to `main` via PR #222:
 | Editor onboarding, theme, MainWindow splits, diagnostics | **Merged** |
 | Legacy brand purge (`GAMEFORGE_*` → `SOUL_LOOM_*`, no `FORGEENGINE_*` fallbacks) | **Merged** |
 | Local test verification (pre-merge) | **88** pytest passed, **4** skipped; **61** `Soul.Editor.Tests` passed |
-| Windows smoke capture (pre-merge) | **PASS** AT-010 run `20260518T041200Z` (evidence local only) |
+| Windows smoke AT-010 | **Archived** `docs/release/evidence/archived/windows/20260518T041200Z/` |
+| PR validation full suites | **Wired** `.github/workflows/pr-validation.yml` |
+| Ubuntu smoke CI | **Wired** `.github/workflows/ubuntu-smoke-evidence.yml` |
 
 **Hygiene note:** delete stale `.forgeengine/` / `forgeengine.log` locally if present; they are no longer part of the product layout.
 
@@ -129,17 +147,18 @@ Merged to `main` via PR #222:
 
 ---
 
-### Phase 1 — RC evidence closure (3–5 days)
+### Phase 1 — RC evidence closure (in progress)
 
 **Goal:** All **P0** acceptance rows **covered** with archived evidence (not fixture-only where manual is required).
 
-| # | Task | AT | Steps | Evidence artifact |
+| # | Task | AT | Owner | Status / artifact |
 |---|---|---|---|---|
-| 1.1 | Windows smoke run | AT-010 | Follow [`CROSS_PLATFORM_SMOKE_RUNBOOK.md`](release/CROSS_PLATFORM_SMOKE_RUNBOOK.md); run capture script | **Local PASS** `20260518T041200Z` — **archive** to tracked evidence + promote JSON |
-| 1.2 | Ubuntu smoke run | AT-011 | Same on Ubuntu 22.04 host or CI runner with GPU where needed | `.../runs/<timestamp>-ubuntu/` |
-| 1.3 | Fresh install validation | AT-001 | Clean VM: clone → `Setup-Alpha.ps1` / `setup.sh` → launch editor → launcher smoke | Install log + first-launch screenshot or log |
-| 1.4 | Promote traceability JSON | AT-010, AT-011, AT-001 | Set `status: covered`, update `last_verified_utc`, `evidence_strength` | PR updating `acceptance_traceability_v1.json` + `.md` mirror |
-| 1.5 | Target-hardware perf capture (stretch) | AT-020–024 | Run `scripts/collect_readiness_metrics.py` on RTX 2070 / i5 / 16 GB box | Replace synthetic fixtures where possible |
+| 1.1 | Windows smoke run | AT-010 | Dev / agent | **Done** — local PASS `20260518T041200Z` |
+| 1.1b | Archive Windows smoke + promote traceability | AT-010 | Dev / agent | **Done** — [`archived/windows/20260518T041200Z/`](release/evidence/archived/windows/20260518T041200Z/); JSON/md **covered** |
+| 1.2 | Ubuntu smoke run + archive | AT-011 | **GitHub Actions** | **Automated** — [`.github/workflows/ubuntu-smoke-evidence.yml`](../.github/workflows/ubuntu-smoke-evidence.yml); archives to `archived/ubuntu/<run_id>/` on green `main` push |
+| 1.3 | Fresh install validation | AT-001 | **HUMAN REQUIRED** | **Not started** — see [§ RC evidence: who does what?](#rc-evidence-who-does-what) |
+| 1.4 | Promote traceability for AT-011 / AT-001 | AT-011, AT-001 | CI + human | AT-011: `scripts/promote_smoke_acceptance.py` on archive job; AT-001: **human** updates JSON after VMs |
+| 1.5 | Target-hardware perf capture (stretch) | AT-020–024 | Dev | Optional — replace synthetic fixtures |
 
 **Exit criteria (RC gate per acceptance matrix):**
 
@@ -157,7 +176,7 @@ Merged to `main` via PR #222:
 |---|---|---|---|
 | 2.1 | Run full `pytest tests/` locally; fix or quarantine reds | Only subset runs in PR today | **Done locally** — 88 passed, 4 skipped (2026-05-18); wire into PR gate |
 | 2.2 | Run full `dotnet test Soul.Editor.Tests.csproj` | Same | **Done locally** — 61 passed Release (2026-05-18); wire into PR gate |
-| 2.3 | Update `.github/workflows/pr-validation.yml` | Policy expansion target | PR runs full stable Python + C# suites |
+| 2.3 | Update `.github/workflows/pr-validation.yml` | Policy expansion target | **Done** — `python-tests` + `csharp-tests` jobs run full suites |
 | 2.4 | Add AT-027/028 Git default tests | P2 but low effort | New editor tests committed |
 | 2.5 | Add AT-030 inspector tab visibility test | P1 partial closure | Test in `EditorShellTests.cs` |
 
@@ -238,7 +257,7 @@ Tracked separately because they affect non-coder RC narrative but do not block P
 | ComfyUI consistency placeholders | `ai-orchestration/python/consistency.py` | Style drift on generated assets | Wire or gate behind feature flag |
 | Performance metrics fixtures | `collect_readiness_metrics.py` + sample JSON | False confidence on RC | Phase 1.5 target-hardware capture |
 | Orchestrator placeholder print | `orchestration/core.py` | Confusing CLI output | Remove or route to structured logging |
-| PR gate subset only | `pr-validation.yml` | Regressions slip through | Phase 2 |
+| PR gate coverage | `pr-validation.yml` | Monitor CI duration/flakes on full suites | Ongoing |
 | Scene templates | none | README promise gap | Phase 4 or descope in README until started |
 
 ---
@@ -246,9 +265,9 @@ Tracked separately because they affect non-coder RC narrative but do not block P
 ## 7) Recommended execution order (summary)
 
 ```
-Phase 0  →  DONE (PR #222 on main)
-Phase 1  →  AT-001, AT-010 archive + AT-011 Ubuntu smoke + traceability promotion
-Phase 2  →  CI expansion (2.1/2.2 green locally) + AT-027/028/030 tests
+Phase 0  →  DONE
+Phase 1  →  AT-010 DONE | AT-011 CI (await green main) | AT-001 HUMAN REQUIRED
+Phase 2  →  2.3 DONE | 2.4/2.5 AT-027/028/030 tests remain
 Phase 3  →  ONE epic: Weather (A) | Pipeline polish (B) | Music (C)
 Phase 4  →  templates, cloud, a11y, schema versioning (parallel backlog)
 Phase 5  →  UX/copy AT-029/031
@@ -266,28 +285,27 @@ Phase 5  →  UX/copy AT-029/031
 _Example: Close P0 smoke evidence and land weather depth MVP._
 
 ### To Do
-- [ ] Phase 1.1b: archive Windows smoke `20260518T041200Z` + promote AT-010 in traceability JSON
-- [ ] Phase 1.2: Ubuntu smoke run + evidence
-- [ ] Phase 1.3: fresh install validation (AT-001) on clean VMs
-- [ ] Phase 1.4: traceability JSON promotion PR
-- [ ] Phase 2.3: expand `pr-validation.yml` to full pytest + full `Soul.Editor.Tests`
+- [ ] Phase 1.2: confirm first green `ubuntu-smoke-evidence.yml` on `main` and archived `ubuntu/<run_id>/`
+- [ ] Phase 1.3: **HUMAN** — AT-001 fresh install on clean Windows 11 + Ubuntu 22.04 VMs (see plan callout)
+- [ ] Phase 2.4–2.5: AT-027/028/030 tests
 - [ ] Phase 3: epic tasks (A/B/C — pick one)
 
 ### In Progress
-- [ ] Phase 1 — RC evidence closure
+- [ ] Phase 1 — awaiting Ubuntu CI archive + human AT-001
 
 ### Blocked
-- [ ] _blocker → owner_
+- [ ] AT-001 — **requires human operator with bare VMs** (cannot be delegated to CI/agents)
 
 ### Done
 - [x] Phase 0 — workspace stabilization + legacy brand removal (2026-05-18, PR #222)
-- [x] Full local pytest + Soul.Editor.Tests before merge (2026-05-18)
-- [x] Windows smoke capture script PASS locally (20260518T041200Z; pending archive)
+- [x] Phase 1.1b — Windows smoke archived; AT-010 traceability **covered**
+- [x] Phase 2.3 — full pytest + full `Soul.Editor.Tests` in `pr-validation.yml`
+- [x] Ubuntu smoke workflow added (`ubuntu-smoke-evidence.yml`)
 
 ### Risks this sprint
 | Risk | Mitigation |
 |---|---|
-| No Ubuntu hardware | Use GitHub-hosted runner + contract-only smoke where GPU absent |
+| Ubuntu CI smoke flakes | Re-run workflow; logs in Actions artifact + archived commit on `main` |
 | WIP merge conflicts | Phase 0 first, small commits |
 | Scope creep on weather | Cap at 4 systemic links + editor visibility; defer combat edge cases |
 
@@ -320,5 +338,6 @@ When this plan is superseded:
 
 | Date | Change |
 |---|---|
-| 2026-05-18 | Phase 0 marked complete (PR #222 on `main`); documented local test/smoke results; AT-010 Windows run PASS pending traceability promotion; Phase 2.1/2.2 local green; legacy brand purge noted complete. |
+| 2026-05-18 | Phase 1.1b: archived Windows smoke + AT-010 covered; Phase 2.3: full test PR gate; added `ubuntu-smoke-evidence.yml` for AT-011; **AT-001 marked HUMAN REQUIRED** in plan + traceability. |
+| 2026-05-18 | Phase 0 marked complete (PR #222 on `main`); documented local test/smoke results; Phase 2.1/2.2 local green; legacy brand purge noted complete. |
 | 2026-05-17 | Initial work plan created from codebase + doc audit (post-hiatus status review). |

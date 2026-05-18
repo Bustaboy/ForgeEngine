@@ -1,0 +1,23 @@
+Soul Loom bootstrap (Windows)
+Mode: local-first, single-player, no-code-first
+== Repository Structure ==
+OK - app
+OK - editor\csharp
+OK - runtime\cpp
+OK - ai-orchestration\python
+OK - docs
+OK - scripts
+== Runtime JSON Header ==
+OK - runtime/cpp/external/nlohmann/json.hpp
+== Building Runtime Entrypoint (C++) ==
+[ 12%] Built target compile_shaders
+[100%] Built target soul_runtime
+== Starting C# App Entrypoint ==
+Soul Loom editor launcher (C# app entrypoint)
+Mode: local-first, single-player, no-code-first
+Target OS: Windows + Ubuntu
+Editor diagnostics log: C:\Users\timot\AppData\Local\Soul Loom LLC\Soul Loom\logs\editor-20260518.log
+Runtime binary path: C:\ForgeEngine\build\bin\soul_runtime.exe
+Runtime build detected.
+Editor launcher started successfully.
+Bootstrap completed successfully.

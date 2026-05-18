@@ -40,10 +40,10 @@ jobs:
       - name: Run traceability validator tests
         run: python -m pytest -q tests/test_traceability_validator.py -p no:cacheprovider
 
-  python-contracts:
+  python-tests:
     runs-on: ubuntu-latest
     env:
-      TMPDIR: ${{ github.workspace }}/.tmp/python-contracts
+      TMPDIR: ${{ github.workspace }}/.tmp/python-tests
 
     steps:
       - name: Checkout
@@ -70,13 +70,13 @@ jobs:
       - name: Install pytest
         run: python -m pip install --upgrade pip pytest
 
-      - name: Run Python contract subset
-        run: python -m pytest -q tests/test_m1_skeleton.py tests/test_traceability_validator.py -p no:cacheprovider
+      - name: Run full Python test suite
+        run: python -m pytest -q tests/ -p no:cacheprovider
 
-  csharp-contracts:
+  csharp-tests:
     runs-on: ubuntu-latest
     env:
-      TMPDIR: ${{ github.workspace }}/.tmp/csharp-contracts
+      TMPDIR: ${{ github.workspace }}/.tmp/csharp-tests
       AVALONIA_TELEMETRY_OPTOUT: "1"
 
     steps:
@@ -94,11 +94,10 @@ jobs:
       - name: Restore C# test project
         run: dotnet restore editor/csharp/tests/Soul.Editor.Tests.csproj --nologo
 
-      - name: Run C# editor contract subset
+      - name: Run full C# editor test suite
         run: >
           dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj
-          --filter
-          "FullyQualifiedName~Soul.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~Soul.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~Soul.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~Soul.Editor.Tests.SteamReadinessPolicyTests"
           --no-restore
+          -c Release
           -v minimal
           --nologo

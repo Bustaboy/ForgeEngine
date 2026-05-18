@@ -38,16 +38,13 @@ Every pull request must pass:
 - Stable Python contract tests under `tests/`
 - Stable C# editor contract tests under `editor/csharp/tests/`
 
-Current enforced gate in this repository:
+Current enforced gate in this repository (`.github/workflows/pr-validation.yml`):
 
 - `python scripts/validate_traceability.py`
-- `python -m pytest -q tests/test_traceability_validator.py tests/test_m1_skeleton.py -p no:cacheprovider`
-- `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj --filter "FullyQualifiedName~Soul.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~Soul.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~Soul.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~Soul.Editor.Tests.SteamReadinessPolicyTests" --no-restore -v minimal`
+- `python -m pytest -q tests/ -p no:cacheprovider` (full Python suite)
+- `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -c Release --no-restore -v minimal` (full C# suite)
 
-Expansion target after the known-red suites are repaired:
-
-- full Python test suite under `tests/`
-- full C# editor test suite under `editor/csharp/tests/`
+Ubuntu cross-platform smoke (AT-011) runs in `.github/workflows/ubuntu-smoke-evidence.yml` on `main` pushes, pull requests, and `workflow_dispatch`; passing `main` runs archive evidence and promote AT-011 automatically.
 
 These gate checks should stay deterministic and reasonably fast.
 

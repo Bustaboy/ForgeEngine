@@ -1,0 +1,22 @@
+Soul Loom bootstrap (Windows)
+Mode: local-first, single-player, no-code-first
+== Repository Structure ==
+OK - app
+OK - editor\csharp
+OK - runtime\cpp
+OK - ai-orchestration\python
+OK - docs
+OK - scripts
+== Runtime JSON Header ==
+OK - runtime/cpp/external/nlohmann/json.hpp
+== Building Runtime Entrypoint (C++) ==
+[ 12%] Built target compile_shaders
+[100%] Built target soul_runtime
+== Starting Runtime Only (Headless Smoke) ==
+[1;32m2026-05-18 00:12:05 [INFO] Soul Loom Vulkan runtime initialized[0m
+[1;32m2026-05-18 00:12:05 [INFO] Audio transition music:music_exploration[0m
+[1;33m2026-05-18 00:12:05 [WARN] ProjectHealthGuardrail: score=50 is below soft_warning_threshold=50[0m
+[1;32m2026-05-18 00:12:05 [INFO] Loaded scene: scene_scaffold.json[0m
+[1;32m2026-05-18 00:12:05 [INFO] Render loop started[0m
+[1;32m2026-05-18 00:12:05 [INFO] Headless runtime smoke completed.[0m
+Bootstrap completed successfully (runtime-only).

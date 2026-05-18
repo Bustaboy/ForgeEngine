@@ -1,0 +1,99 @@
+{
+  "schema_version": "v1",
+  "run_id": "20260518T041200Z",
+  "generated_at_utc": "2026-05-18T04:12:22Z",
+  "target_os": "windows",
+  "test_id": "AT-010",
+  "operator": "local-dev-archive",
+  "branch": "main",
+  "commit": "fb8fd9315932bbcaef303f1aadffeb145f9c7428",
+  "environment": {
+    "host_platform": "Windows-10-10.0.26200-SP0",
+    "target_os": "windows",
+    "python": "Python 3.11.9",
+    "pytest": "pytest 9.0.3",
+    "git": "git version 2.45.1.windows.1",
+    "gpp": "g++ (Rev13, Built by MSYS2 project) 15.2.0",
+    "dotnet_present": true,
+    "dotnet_version": "9.0.301",
+    "bash": "GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)",
+    "pwsh": "PowerShell 7.6.0"
+  },
+  "commands": [
+    {
+      "name": "bootstrap_runtime_only",
+      "command": [
+        "pwsh",
+        "-f",
+        "scripts/bootstrap.ps1",
+        "-RuntimeOnly"
+      ],
+      "started_at_utc": "2026-05-18T04:12:04Z",
+      "completed_at_utc": "2026-05-18T04:12:05Z",
+      "exit_code": 0,
+      "optional": false,
+      "output_log": "docs/release/evidence/archived/windows/20260518T041200Z/bootstrap_runtime_only.log",
+      "expected_signatures": [
+        "Soul Loom bootstrap (Windows)",
+        "== Building Runtime Entrypoint (C++) =="
+      ],
+      "matched_signatures": [
+        "Soul Loom bootstrap (Windows)",
+        "== Building Runtime Entrypoint (C++) =="
+      ],
+      "status": "passed",
+      "skip_reason": null
+    },
+    {
+      "name": "bootstrap_full",
+      "command": [
+        "pwsh",
+        "-f",
+        "scripts/bootstrap.ps1",
+        "-LauncherSmoke"
+      ],
+      "started_at_utc": "2026-05-18T04:12:05Z",
+      "completed_at_utc": "2026-05-18T04:12:06Z",
+      "exit_code": 0,
+      "optional": true,
+      "output_log": "docs/release/evidence/archived/windows/20260518T041200Z/bootstrap_full.log",
+      "expected_signatures": [
+        "== Starting C# App Entrypoint ==",
+        "Editor launcher started successfully."
+      ],
+      "matched_signatures": [
+        "== Starting C# App Entrypoint ==",
+        "Editor launcher started successfully."
+      ],
+      "status": "passed",
+      "skip_reason": null
+    },
+    {
+      "name": "pytest_q",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/"
+      ],
+      "started_at_utc": "2026-05-18T04:12:06Z",
+      "completed_at_utc": "2026-05-18T04:12:22Z",
+      "exit_code": 0,
+      "optional": false,
+      "output_log": "docs/release/evidence/archived/windows/20260518T041200Z/pytest_q.log",
+      "expected_signatures": [
+        "passed"
+      ],
+      "matched_signatures": [
+        "passed"
+      ],
+      "status": "passed",
+      "skip_reason": null
+    }
+  ],
+  "verdict": "PASS",
+  "notes": "Archived from local run 20260518T041200Z after merge to main (PR #222). Original capture commit: 137772264f30872316ff483e60f69278d0cda512."
+}

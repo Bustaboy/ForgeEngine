@@ -11,8 +11,8 @@
         "tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_runtime_cpp_compiles_and_runs",
         "tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_bootstrap_sh_default_mode_contract"
       ],
-      "manual_procedure": "Run clean-machine install/start flow on target OS and verify no crash on first launch.",
-      "next_action": "Expand to true fresh-install smoke in CI images for Windows+Ubuntu.",
+      "manual_procedure": "HUMAN REQUIRED: on a clean Windows 11 and Ubuntu 22.04 VM (no prior clone), clone repo, run Setup-Alpha.ps1 or setup.sh, launch editor, run launcher smoke; archive install logs and first-launch proof. Cannot be automated in CI without dedicated fresh VMs.",
+      "next_action": "Human operator completes AT-001 on both OSes; archive evidence and promote traceability row to covered.",
       "evidence_strength": "partial-automated",
       "release_blocking": true,
       "owner": "Platform QA",
@@ -146,20 +146,23 @@
     {
       "id": "AT-010",
       "priority": "P0",
-      "status": "partial",
+      "status": "covered",
       "automation": [
         "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#4-windows-smoke-procedure-at-010",
         "docs/release/evidence/windows_smoke_template.md",
         "scripts/run_smoke_and_capture_evidence.py",
-        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md"
+        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
+        "docs/release/evidence/archived/windows/20260518T041200Z/smoke_evidence.json",
+        "docs/release/evidence/archived/windows/20260518T041200Z/windows_smoke_evidence.md",
+        ".github/workflows/pr-validation.yml"
       ],
-      "manual_procedure": "Run python3 scripts/run_smoke_and_capture_evidence.py --os windows --output-root docs/release/evidence/runs on Windows host (or --contract-only off-host), then archive generated smoke_evidence.json + logs.",
-      "next_action": "Attach real per-OS generated run artifacts under docs/release/evidence/runs/, then promote status/evidence_strength to covered/strong-automated.",
-      "evidence_strength": "partial-automated",
+      "manual_procedure": null,
+      "next_action": "Re-run Windows smoke when bootstrap or launcher paths change; refresh archived bundle under docs/release/evidence/archived/windows/.",
+      "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T04:12:22Z"
     },
     {
       "id": "AT-011",
@@ -169,10 +172,12 @@
         "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011",
         "docs/release/evidence/ubuntu_smoke_template.md",
         "scripts/run_smoke_and_capture_evidence.py",
-        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md"
+        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
+        ".github/workflows/ubuntu-smoke-evidence.yml",
+        "scripts/promote_smoke_acceptance.py"
       ],
-      "manual_procedure": "Run python3 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root docs/release/evidence/runs and archive generated smoke_evidence.json + logs.",
-      "next_action": "Attach real per-OS generated run artifacts under docs/release/evidence/runs/, then promote status/evidence_strength to covered/strong-automated.",
+      "manual_procedure": null,
+      "next_action": "First passing run from .github/workflows/ubuntu-smoke-evidence.yml archives to docs/release/evidence/archived/ubuntu/<run_id>/ and promotes this row via scripts/promote_smoke_acceptance.py.",
       "evidence_strength": "partial-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
