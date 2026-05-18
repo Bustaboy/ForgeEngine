@@ -167,22 +167,24 @@
     {
       "id": "AT-011",
       "priority": "P0",
-      "status": "partial",
+      "status": "covered",
       "automation": [
-        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011",
-        "docs/release/evidence/ubuntu_smoke_template.md",
-        "scripts/run_smoke_and_capture_evidence.py",
-        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
         ".github/workflows/ubuntu-smoke-evidence.yml",
-        "scripts/promote_smoke_acceptance.py"
+        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011",
+        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
+        "docs/release/evidence/archived/ubuntu/20260518T042622Z/smoke_evidence.json",
+        "docs/release/evidence/archived/ubuntu/20260518T042622Z/ubuntu_smoke_evidence.md",
+        "docs/release/evidence/ubuntu_smoke_template.md",
+        "scripts/promote_smoke_acceptance.py",
+        "scripts/run_smoke_and_capture_evidence.py"
       ],
       "manual_procedure": null,
-      "next_action": "First passing run from .github/workflows/ubuntu-smoke-evidence.yml archives to docs/release/evidence/archived/ubuntu/<run_id>/ and promotes this row via scripts/promote_smoke_acceptance.py.",
-      "evidence_strength": "partial-automated",
+      "next_action": "Re-run ubuntu smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/ubuntu/20260518T042622Z/.",
+      "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T00:00:00Z"
     },
     {
       "id": "AT-012",
