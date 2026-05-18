@@ -174,17 +174,19 @@
         "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
         "docs/release/evidence/archived/ubuntu/20260518T042622Z/smoke_evidence.json",
         "docs/release/evidence/archived/ubuntu/20260518T042622Z/ubuntu_smoke_evidence.md",
+        "docs/release/evidence/archived/ubuntu/20260518T043249Z/smoke_evidence.json",
+        "docs/release/evidence/archived/ubuntu/20260518T043249Z/ubuntu_smoke_evidence.md",
         "docs/release/evidence/ubuntu_smoke_template.md",
         "scripts/promote_smoke_acceptance.py",
         "scripts/run_smoke_and_capture_evidence.py"
       ],
       "manual_procedure": null,
-      "next_action": "Re-run ubuntu smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/ubuntu/20260518T042622Z/.",
+      "next_action": "Re-run ubuntu smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/ubuntu/20260518T043249Z/.",
       "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-05-18T04:28:58Z"
+      "last_verified_at_utc": "2026-05-18T04:35:19Z"
     },
     {
       "id": "AT-012",
