@@ -1,4 +1,6 @@
-# Soul Loom Model Management (Local-First)
+# Soul Loom model management (local-first)
+
+Paths under `~/.cache/soul-loom/` and environment variables **`SOUL_LOOM_*`** (with legacy **`FORGEENGINE_*`** fallbacks) are defined in `model_manager.py` and `models/manager.py`.
 
 This module is designed for `ai-orchestration/python/orchestrator.py` and C# shell subprocess calls.
 
@@ -10,7 +12,7 @@ python ai-orchestration/python/orchestrator.py --prepare-models
 
 This command:
 1. Loads `ai-orchestration/python/.env` if present.
-2. Detects NVIDIA VRAM (`nvidia-smi`) or uses `FORGEENGINE_GPU_VRAM_GB` override.
+2. Detects NVIDIA VRAM (`nvidia-smi`) or uses `SOUL_LOOM_GPU_VRAM_GB` (legacy: `FORGEENGINE_GPU_VRAM_GB`) override.
 3. Selects models that fit detected VRAM with CPU fallback support.
 4. Downloads missing files into `ai-orchestration/python/models/artifacts/`.
 5. Returns JSON payload containing runtime split fields (`gpu_layers`, `cpu_threads`).

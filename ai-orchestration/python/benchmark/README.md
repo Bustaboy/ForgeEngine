@@ -1,4 +1,4 @@
-# Soul Loom Hardware Benchmark Wizard (First Run)
+# Soul Loom hardware benchmark wizard (first run)
 
 This package provides first-launch hardware detection + model recommendations for the C# editor shell.
 
@@ -20,7 +20,7 @@ This package provides first-launch hardware detection + model recommendations fo
 Run:
 
 ```bash
-dotnet run --project editor/csharp/GameForge.Editor.csproj -- --first-run-benchmark-example
+dotnet run --project editor/csharp/Soul.Editor.csproj -- --first-run-benchmark-example
 ```
 
 The example calls `orchestrator.py --benchmark`, parses JSON, then renders a simple first-run modal summary in console output.

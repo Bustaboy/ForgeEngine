@@ -41,3 +41,28 @@ def read_env_int(key: str, default: int) -> int:
         return int(value.strip())
     except ValueError:
         return default
+
+
+def getenv_primary_or_legacy(primary: str, legacy: str) -> str:
+    """Read env var with Soul Loom (primary) name, then legacy FORGEENGINE_* alias."""
+
+    value = os.getenv(primary, "").strip()
+    if value:
+        return value
+    return os.getenv(legacy, "").strip()
+
+
+def read_env_bool_dual(primary: str, legacy: str, default: bool) -> bool:
+    if os.getenv(primary) is not None:
+        return read_env_bool(primary, default)
+    if os.getenv(legacy) is not None:
+        return read_env_bool(legacy, default)
+    return default
+
+
+def read_env_int_dual(primary: str, legacy: str, default: int) -> int:
+    if os.getenv(primary) is not None:
+        return read_env_int(primary, default)
+    if os.getenv(legacy) is not None:
+        return read_env_int(legacy, default)
+    return default
