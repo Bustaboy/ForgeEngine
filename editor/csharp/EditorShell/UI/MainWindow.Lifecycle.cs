@@ -17,6 +17,8 @@ public partial class MainWindow
 {
     private async void OnOpened(object? sender, EventArgs e)
     {
+        InitializeWorkflowNavigation();
+
         if (_firstRunModalChecked)
         {
             return;

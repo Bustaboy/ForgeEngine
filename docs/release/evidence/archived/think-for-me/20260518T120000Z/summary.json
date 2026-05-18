@@ -1,0 +1,11 @@
+{
+  "artifact": "soulloom.think_for_me_manual.v1",
+  "generated_at_utc": "2026-05-18T12:00:00Z",
+  "prompts": [
+    {"topic": "concept", "status": "pass"},
+    {"topic": "style", "status": "pass"},
+    {"topic": "mechanics", "status": "pass"},
+    {"topic": "genre", "status": "pass"},
+    {"topic": "tone", "status": "pass"}
+  ]
+}

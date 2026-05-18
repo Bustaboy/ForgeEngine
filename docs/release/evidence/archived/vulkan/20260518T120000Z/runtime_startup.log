@@ -1,0 +1,6 @@
+[1;32m2026-05-18 01:23:57 [INFO] Soul Loom Vulkan runtime initialized[0m
+[1;32m2026-05-18 01:23:57 [INFO] Audio transition music:music_exploration[0m
+[1;33m2026-05-18 01:23:57 [WARN] ProjectHealthGuardrail: score=50 is below soft_warning_threshold=50[0m
+[1;32m2026-05-18 01:23:57 [INFO] Loaded scene: scene_scaffold.json[0m
+[1;32m2026-05-18 01:23:57 [INFO] Render loop started[0m
+[1;32m2026-05-18 01:23:57 [INFO] Headless runtime smoke completed.[0m

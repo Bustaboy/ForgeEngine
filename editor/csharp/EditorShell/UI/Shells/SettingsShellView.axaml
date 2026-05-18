@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.SettingsShellView">
+  <ScrollViewer Padding="32">
+    <StackPanel Spacing="14" MaxWidth="560">
+      <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Open project preferences, model manager, and bot playtest options."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <Button x:Name="OpenSettingsButton" Content="Open Settings" Classes="generate-cta" HorizontalAlignment="Left" />
+      <Button x:Name="OpenModelsButton" Content="Models &amp; LLM" Classes="panel-action-button" HorizontalAlignment="Left" ToolTip.Tip="Open model manager and LLM settings." />
+      <TextBlock Text="Enable Bot Playtesting in Review" Foreground="#D5E4F8" />
+      <ToggleSwitch x:Name="BotPlaytestToggle" OnContent="On" OffContent="Off" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

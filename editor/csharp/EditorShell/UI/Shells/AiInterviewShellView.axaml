@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.AiInterviewShellView">
+  <Grid RowDefinitions="Auto,*" Margin="16">
+    <StackPanel Grid.Row="0" Spacing="8">
+      <TextBlock Text="AI Interview" FontSize="24" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Start Planning Chat to shape your design brief with guided questions and think-for-me directions."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <Button x:Name="StartPlanningChatButton" Content="Start Planning Chat" Classes="generate-cta" HorizontalAlignment="Left" />
+    </StackPanel>
+    <ContentControl x:Name="InterviewPanelHost" Grid.Row="1" Margin="0,12,0,0" />
+  </Grid>
+</UserControl>

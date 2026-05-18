@@ -4,9 +4,9 @@
 > Supersedes informal status notes from prior chats; does not replace [`BACKLOG_APRIL_2026.md`](BACKLOG_APRIL_2026.md) (sprint priorities) or [`acceptance_traceability_v1.json`](../docs/release/acceptance_traceability_v1.json) (release gates).
 
 **Prepared:** 2026-05-17  
-**Last updated:** 2026-05-18 (Phase 1.2 closed; Ubuntu smoke CI retired)  
+**Last updated:** 2026-05-18 (PR #223 merged to `main`; Phase 1 smoke evidence complete except AT-001)  
 **Product:** Soul Loom V1 (local-first, AI-native game engine)  
-**Repo baseline:** `main` — AT-010/AT-011 archived; PR gate runs full test suites; Ubuntu smoke re-run via runbook only.
+**Repo baseline:** `main` @ `fe31b09` — PR #222 + [#223](https://github.com/Bustaboy/ForgeEngine/pull/223) merged; AT-010/AT-011 **covered**; full suites in [`pr-validation.yml`](../.github/workflows/pr-validation.yml); Ubuntu/Windows smoke re-run via runbook only.
 
 ---
 
@@ -56,18 +56,18 @@ The product is **not RC-shippable** today because **AT-001 still requires a huma
 | M1 Foundation | Repo, ADRs, bootstrap, project lifecycle | **Done** | `tests/test_m1_skeleton.py`, `tests/test_project_lifecycle.py` |
 | M2 Interview | Long Q&A, 3 options, think-for-me, brief export | **Done** | C# + Python contract tests |
 | M3 Prototype | One-click scaffold, partial regen, lock protection | **Done** | `app/samples/generated-prototype/cozy-colony-tales/` |
-| M4 Editor + co-pilot | Panels, lock/undo, previews, selection context | **Mostly done** | AT-029/030/031 UX gaps |
+| M4 Editor + co-pilot | Panels, lock/undo, previews, selection context | **Done (P1 UX)** | Multi-shell nav + AT-029/030/031 **covered** |
 | M5 Genre kits | RTS/sim + RPG playable samples | **Scaffold done** | JSON modules exist; tuning/playability depth ongoing |
 | M6 Assets | Import, tagging, license, Art Bible | **Done** | `tests/test_asset_import_pipeline.py` |
 | M7 Bot playtest | Reports, dead-end detection | **Done** | AT-026 covered in traceability |
-| M8 Steam + RC | Readiness score, gates, packaging, audit | **Policy done; evidence incomplete** | Upload is **stub** only; perf metrics use **fixtures** |
+| M8 Steam + RC | Readiness score, gates, packaging, audit | **Policy done; P0 smoke on `main`** | AT-010/AT-011 archived; **AT-001** (fresh install) still **partial**; upload **stub**; perf metrics use **fixtures** |
 
 ### 3.2 Acceptance test rollup (live JSON)
 
 | Priority | Total | Covered | Partial | Missing |
 |---|---:|---:|---:|---:|
 | P0 | 14 | **13** | **1** | 0 |
-| P1 | 14 | 9 | 3 | **2** |
+| P1 | 14 | **14** | 0 | 0 |
 | P2 | 3 | 0 | 0 | **2** |
 
 **P0 partial (RC blockers):**
@@ -81,24 +81,24 @@ The product is **not RC-shippable** today because **AT-001 still requires a huma
 | ID | Evidence |
 |---|---|
 | AT-010 | `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability **covered**, 2026-05-18) |
-| AT-011 | `docs/release/evidence/archived/ubuntu/20260518T044344Z/` (PR #223 CI run; traceability **covered**) |
+| AT-011 | `docs/release/evidence/archived/ubuntu/20260518T044344Z/` (traceability **covered**; promoted on `main` via PR #223) |
 
-**P1 partial:**
+**P1 covered (2026-05-18):**
 
-| ID | Gap | Next action |
-|---|---|---|
-| AT-005 | Think-for-me coherence | Manual 5-prompt review + tighten test fixtures |
-| AT-012 | Vulkan init E2E | Target-hardware startup verification note in evidence |
-| AT-030 | Simple vs advanced inspector default | Add UI harness test for tab visibility state |
+| ID | Evidence |
+|---|---|
+| AT-005 | `tests/test_uncertainty_options.py`; `ThinkForMeIntegrationTests.cs`; `docs/release/evidence/archived/think-for-me/20260518T120000Z/` |
+| AT-012 | `tests/test_vulkan_startup_evidence.py`; `archived/vulkan/20260518T120000Z/`; smoke `vulkan_startup` step |
+| AT-029 | Multi-shell nav + `WorkflowNavigationTests.cs`; `archived/navigation-walkthrough/20260518T120000Z/` |
+| AT-030 | `EditorShellTests` + `MainWindowViewModelTests` + `Soul.Editor.UiTests` inspector tests |
+| AT-031 | `ux_copy_manifest_v1.json`; `UxCopyManifestTests.cs`; `archived/ux-copy-review/20260518T120000Z/` |
 
-**P1/P2 missing (non-RC but planned):**
+**P2 missing (non-RC but planned):**
 
 | ID | Gap | Next action |
 |---|---|---|
 | AT-027 | Git OFF by default | Editor integration test on new project |
 | AT-028 | Git opt-in | Test enable-Git flow + failure messaging |
-| AT-029 | Top-level navigation discoverability | Fixture-backed nav test + one manual walkthrough |
-| AT-031 | Plain-language copy | Copy fixture assertions + UX review pass |
 
 ### 3.3 README “in active development”
 
@@ -111,18 +111,20 @@ The product is **not RC-shippable** today because **AT-001 still requires a huma
 
 ### 3.4 Workspace hygiene — **complete (2026-05-18)**
 
-Merged to `main` via PR #222:
+Merged to `main`:
 
-| Area | Status |
-|---|---|
-| Rebrand (`Soul.Editor`, `soul_runtime`, `SOUL_LOOM_*` env) | **Merged** |
-| Orchestration package split + `soul_hooks.py` | **Merged** |
-| Editor onboarding, theme, MainWindow splits, diagnostics | **Merged** |
-| Legacy brand purge (`GAMEFORGE_*` → `SOUL_LOOM_*`, no `FORGEENGINE_*` fallbacks) | **Merged** |
-| Local test verification (pre-merge) | **88** pytest passed, **4** skipped; **61** `Soul.Editor.Tests` passed |
-| Windows smoke AT-010 | **Archived** `docs/release/evidence/archived/windows/20260518T041200Z/` |
-| PR validation full suites | **Wired** `.github/workflows/pr-validation.yml` |
-| Ubuntu smoke CI | **Retired** — evidence archived; re-run via runbook only |
+| PR | Area | Status |
+|---|---|---|
+| [#222](https://github.com/Bustaboy/ForgeEngine/pull/222) | Rebrand (`Soul.Editor`, `soul_runtime`, `SOUL_LOOM_*` env) | **Merged** |
+| #222 | Orchestration package split + `soul_hooks.py` | **Merged** |
+| #222 | Editor onboarding, theme, MainWindow splits, diagnostics | **Merged** |
+| #222 | Legacy brand purge (`GAMEFORGE_*` → `SOUL_LOOM_*`, no `FORGEENGINE_*` fallbacks) | **Merged** |
+| [#223](https://github.com/Bustaboy/ForgeEngine/pull/223) | Ubuntu smoke AT-011 canonical archive `ubuntu/20260518T044344Z/` | **Merged** |
+| #223 | Retired `.github/workflows/ubuntu-smoke-evidence.yml` (no per-PR/main smoke CI) | **Merged** |
+| #223 | `promote_smoke_acceptance.py` — stable refs + accumulating archive paths | **Merged** |
+| #222 / #223 | PR validation full suites | **On `main`** — `.github/workflows/pr-validation.yml` |
+| #222 / local | Windows smoke AT-010 | **Archived** `docs/release/evidence/archived/windows/20260518T041200Z/` |
+| — | Local test verification (pre-#222 merge) | **88** pytest passed, **4** skipped; **61** `Soul.Editor.Tests` passed |
 
 **Hygiene note:** delete stale `.forgeengine/` / `forgeengine.log` locally if present; they are no longer part of the product layout.
 
@@ -155,14 +157,14 @@ Merged to `main` via PR #222:
 |---|---|---|---|---|
 | 1.1 | Windows smoke run | AT-010 | Dev / agent | **Done** — local PASS `20260518T041200Z` |
 | 1.1b | Archive Windows smoke + promote traceability | AT-010 | Dev / agent | **Done** — [`archived/windows/20260518T041200Z/`](release/evidence/archived/windows/20260518T041200Z/); JSON/md **covered** |
-| 1.2 | Ubuntu smoke run + archive | AT-011 | **Done** | Archived `ubuntu/20260518T044344Z/`; per-PR CI workflow removed |
+| 1.2 | Ubuntu smoke run + archive | AT-011 | **Done** | Archived `ubuntu/20260518T044344Z/`; merged **#223**; per-PR CI workflow removed |
 | 1.3 | Fresh install validation | AT-001 | **HUMAN REQUIRED** | **Not started** — see [§ RC evidence: who does what?](#rc-evidence-who-does-what) |
 | 1.4 | Promote traceability for AT-011 / AT-001 | AT-011, AT-001 | Done / human | AT-011: **done** via `scripts/promote_smoke_acceptance.py`; AT-001: **human** updates JSON after VMs |
 | 1.5 | Target-hardware perf capture (stretch) | AT-020–024 | Dev | Optional — replace synthetic fixtures |
 
 **Exit criteria (RC gate per acceptance matrix):**
 
-- All **P0** = `covered` in traceability JSON  
+- All **P0** = `covered` in traceability JSON (**13/14 today** — only **AT-001** partial until human fresh-install)  
 - `python scripts/validate_traceability.py` passes  
 - Evidence index updated: [`docs/release/evidence/INDEX.md`](release/evidence/INDEX.md)
 
@@ -174,9 +176,9 @@ Merged to `main` via PR #222:
 
 | # | Task | Rationale | Done when |
 |---|---|---|---|
-| 2.1 | Run full `pytest tests/` locally; fix or quarantine reds | Only subset runs in PR today | **Done locally** — 88 passed, 4 skipped (2026-05-18); wire into PR gate |
-| 2.2 | Run full `dotnet test Soul.Editor.Tests.csproj` | Same | **Done locally** — 61 passed Release (2026-05-18); wire into PR gate |
-| 2.3 | Update `.github/workflows/pr-validation.yml` | Policy expansion target | **Done** — `python-tests` + `csharp-tests` jobs run full suites |
+| 2.1 | Run full `pytest tests/` locally; fix or quarantine reds | PR gate coverage | **Done** — 88 passed, 4 skipped locally (2026-05-18); wired on `main` via #222/#223 |
+| 2.2 | Run full `dotnet test Soul.Editor.Tests.csproj` | Same | **Done** — 61 passed Release (2026-05-18); wired on `main` via #222/#223 |
+| 2.3 | Update `.github/workflows/pr-validation.yml` | Policy expansion target | **Done** — `python-tests` + `csharp-tests` jobs run full suites on `main` |
 | 2.4 | Add AT-027/028 Git default tests | P2 but low effort | New editor tests committed |
 | 2.5 | Add AT-030 inspector tab visibility test | P1 partial closure | Test in `EditorShellTests.cs` |
 
@@ -282,12 +284,11 @@ Phase 5  →  UX/copy AT-029/031
 ## 8) Sprint board template (copy into weekly notes)
 
 ### Sprint goal (fill in)
-_Example: Close P0 smoke evidence and land weather depth MVP._
+_Example: Human AT-001 fresh-install on bare VMs; pick Phase 3 epic (weather recommended)._
 
 ### To Do
-- [x] Phase 1.2: Ubuntu smoke archived `ubuntu/20260518T044344Z/` (canonical)
 - [ ] Phase 1.3: **HUMAN** — AT-001 fresh install on clean Windows 11 + Ubuntu 22.04 VMs (see plan callout)
-- [ ] Phase 2.4–2.5: AT-027/028/030 tests
+- [ ] Phase 2.4: AT-027/028 Git default tests (P2)
 - [ ] Phase 3: epic tasks (A/B/C — pick one)
 
 ### In Progress
@@ -299,15 +300,15 @@ _Example: Close P0 smoke evidence and land weather depth MVP._
 ### Done
 - [x] Phase 0 — workspace stabilization + legacy brand removal (2026-05-18, PR #222)
 - [x] Phase 1.1b — Windows smoke archived; AT-010 traceability **covered**
-- [x] Phase 1.2 — Ubuntu smoke archived `20260518T044344Z`; CI workflow retired (PR #223)
-- [x] Phase 2.3 — full pytest + full `Soul.Editor.Tests` in `pr-validation.yml`
-- [x] Ubuntu smoke archived; `ubuntu-smoke-evidence.yml` retired (no per-PR/main CI)
+- [x] Phase 1.2 — Ubuntu smoke archived `20260518T044344Z`; `ubuntu-smoke-evidence.yml` retired (**PR #223** on `main`)
+- [x] Phase 2.3 — full pytest + full `Soul.Editor.Tests` in `pr-validation.yml` (**on `main`**)
+- [x] **P1 closure** — AT-005, AT-012, AT-029, AT-030, AT-031 **covered** (multi-shell nav, UI tests, copy manifest, evidence archives)
 
 ### Risks this sprint
 | Risk | Mitigation |
 |---|---|
-| Ubuntu CI smoke flakes | Re-run workflow; logs in Actions artifact + archived commit on `main` |
-| WIP merge conflicts | Phase 0 first, small commits |
+| AT-001 blocked on bare VMs | Schedule human operator; archive under `docs/release/evidence/archived/fresh-install/` |
+| PR gate duration / flakes | Monitor Actions; quarantine with note in `TEST_POLICY.md` if needed |
 | Scope creep on weather | Cap at 4 systemic links + editor visibility; defer combat edge cases |
 
 ---
@@ -339,7 +340,9 @@ When this plan is superseded:
 
 | Date | Change |
 |---|---|
-| 2026-05-18 | PR #223: AT-011 canonical archive `044344Z`, retired `ubuntu-smoke-evidence.yml`, promote script canonical refs; **AT-001 HUMAN REQUIRED**. |
+| 2026-05-18 | **P1 closure:** AT-005/012/029/030/031 promoted to `covered` (14/14 P1); multi-shell navigation, UI test project, `promote_acceptance.py`, evidence archives. |
+| 2026-05-18 | **PR #223 merged to `main`** (`fe31b09`): AT-011 canonical `044344Z`, retired Ubuntu smoke CI, promote-script hardening; plan synced for post-merge baseline. |
+| 2026-05-18 | PR #223 (pre-merge): AT-011 canonical archive `044344Z`, retired `ubuntu-smoke-evidence.yml`, promote script canonical refs; **AT-001 HUMAN REQUIRED**. |
 | 2026-05-18 | Phase 1.1b: AT-010 covered; Phase 2.3: full PR test gate; transient Ubuntu smoke CI (later retired). |
 | 2026-05-18 | Phase 0 marked complete (PR #222 on `main`); documented local test/smoke results; Phase 2.1/2.2 local green; legacy brand purge noted complete. |
 | 2026-05-17 | Initial work plan created from codebase + doc audit (post-hiatus status review). |

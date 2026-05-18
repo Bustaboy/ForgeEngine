@@ -1,0 +1,1 @@
+Screen recording captured locally during AT-029 walkthrough (2026-05-18). Store MP4 beside this file in release archives when publishing RC evidence.

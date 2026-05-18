@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Soul.Editor.EditorShell.UI.NewProjectWizardWindow"
-        Title="New Project Wizard"
+        Title="Create New Game"
         Width="760"
         Height="560"
         MinWidth="540"
@@ -12,7 +12,7 @@
   <Border Padding="18" Classes="shell-dialog-frame">
     <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
       <StackPanel>
-        <TextBlock Text="New Project Wizard" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Create New Game" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="22" FontWeight="SemiBold" />
         <TextBlock Text="Template → Name → Concept → Create" Foreground="{DynamicResource EditorDialogMutedBrush}" Margin="0,4,0,0" />
       </StackPanel>
 

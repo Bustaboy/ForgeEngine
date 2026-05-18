@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.PublishShellView">
+  <ScrollViewer Padding="24">
+    <StackPanel Spacing="12" MaxWidth="800">
+      <TextBlock Text="Publish" FontSize="24" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Check publish readiness, resolve blockers, and run local release packaging."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <Button x:Name="CheckReadinessButton" Content="Check Publish Readiness" Classes="generate-cta" HorizontalAlignment="Left" />
+      <ContentControl x:Name="PublishPanelHost" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

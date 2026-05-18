@@ -1,0 +1,61 @@
+{
+  "artifact": "soulloom.workflow_navigation_manifest.v1",
+  "sections": [
+    {
+      "section": "ProjectHome",
+      "nav_label": "Project Home",
+      "shell_title": "Project Home",
+      "primary_cta": "Create New Game",
+      "required_controls": ["Create New Game", "Open Game Project"]
+    },
+    {
+      "section": "AiInterview",
+      "nav_label": "AI Interview",
+      "shell_title": "AI Interview",
+      "primary_cta": "Start Planning Chat",
+      "required_controls": ["Start Planning Chat"]
+    },
+    {
+      "section": "Prototype",
+      "nav_label": "Prototype",
+      "shell_title": "Prototype",
+      "primary_cta": "Generate Playable Prototype",
+      "required_controls": ["Generate Playable Prototype", "Regenerate This Part"]
+    },
+    {
+      "section": "Editor",
+      "nav_label": "Editor",
+      "shell_title": "Editor",
+      "primary_cta": "Lock Selection",
+      "required_controls": ["Inspector", "Viewport"]
+    },
+    {
+      "section": "Testing",
+      "nav_label": "Testing",
+      "shell_title": "Testing",
+      "primary_cta": "Run AI Playtest",
+      "required_controls": ["Run AI Playtest", "Mark for Human Test"]
+    },
+    {
+      "section": "Publish",
+      "nav_label": "Publish",
+      "shell_title": "Publish",
+      "primary_cta": "Check Publish Readiness",
+      "required_controls": ["Check Publish Readiness", "Build Local Release", "Continue with Warnings"]
+    },
+    {
+      "section": "AssetLibrary",
+      "nav_label": "Asset Library",
+      "shell_title": "Asset Library",
+      "primary_cta": "Generate",
+      "required_controls": ["Asset Library", "Generate"]
+    },
+    {
+      "section": "Settings",
+      "nav_label": "Settings",
+      "shell_title": "Settings",
+      "primary_cta": "Open Settings",
+      "required_controls": ["Open Settings", "Models & LLM"]
+    }
+  ]
+}

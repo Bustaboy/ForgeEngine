@@ -1,0 +1,32 @@
+{
+  "artifact": "soulloom.ux_copy_manifest.v1",
+  "entries": [
+    {"id": "create-new-game", "canonical_label": "Create New Game", "severity": "blocking"},
+    {"id": "open-game-project", "canonical_label": "Open Game Project", "severity": "blocking"},
+    {"id": "start-planning-chat", "canonical_label": "Start Planning Chat", "severity": "blocking"},
+    {"id": "generate-playable-prototype", "canonical_label": "Generate Playable Prototype", "severity": "blocking"},
+    {"id": "regenerate-this-part", "canonical_label": "Regenerate This Part", "severity": "blocking"},
+    {"id": "lock-selection", "canonical_label": "Lock Selection", "severity": "blocking"},
+    {"id": "unlock-selection", "canonical_label": "Unlock Selection", "severity": "blocking"},
+    {"id": "preview-changes", "canonical_label": "Preview Changes", "severity": "blocking"},
+    {"id": "run-ai-playtest", "canonical_label": "Run AI Playtest", "severity": "blocking"},
+    {"id": "mark-for-human-test", "canonical_label": "Mark for Human Test", "severity": "blocking"},
+    {"id": "check-publish-readiness", "canonical_label": "Check Publish Readiness", "severity": "blocking"},
+    {"id": "build-local-release", "canonical_label": "Build Local Release", "severity": "blocking"},
+    {"id": "continue-with-warnings", "canonical_label": "Continue with Warnings", "severity": "blocking"},
+    {"id": "dialog-review-major-changes", "canonical_label": "Review Major Changes", "severity": "blocking"},
+    {"id": "dialog-locked-content-protected", "canonical_label": "Locked Content Protected", "severity": "blocking"},
+    {"id": "dialog-choose-what-to-edit", "canonical_label": "Choose What to Edit", "severity": "blocking"},
+    {"id": "dialog-ai-needs-backup-plan", "canonical_label": "AI Needs Backup Plan", "severity": "blocking"},
+    {"id": "dialog-warnings-found-before-publish", "canonical_label": "Warnings Found Before Publish", "severity": "blocking"},
+    {"id": "dialog-publish-blocked", "canonical_label": "Publish Blocked", "severity": "blocking"},
+    {"id": "tooltip-generate-playable-prototype", "canonical_label": "Builds a first playable version from your plan.", "severity": "advisory"},
+    {"id": "tooltip-lock-selection", "canonical_label": "Prevents AI or manual edits to what you selected until unlocked.", "severity": "advisory"},
+    {"id": "tooltip-preview-changes", "canonical_label": "Shows before/after changes before anything is saved.", "severity": "advisory"},
+    {"id": "tooltip-run-ai-playtest", "canonical_label": "Runs automated play sessions to find balance and progression issues.", "severity": "advisory"},
+    {"id": "tooltip-check-publish-readiness", "canonical_label": "Scores your project and lists what must be fixed before publish.", "severity": "advisory"},
+    {"id": "warning-heads-up-prefix", "canonical_label": "Heads up:", "severity": "blocking"},
+    {"id": "warning-action-required-prefix", "canonical_label": "Action required:", "severity": "blocking"},
+    {"id": "warning-this-will-remove-data-prefix", "canonical_label": "This will remove data:", "severity": "blocking"}
+  ]
+}
