@@ -29,3 +29,12 @@ def test_last_verified_rejects_broken_z_replacement_shape() -> None:
 def test_last_verified_rejects_empty() -> None:
     with pytest.raises(ValueError, match="YYYY-MM-DDTHH:MM:SSZ"):
         promote_mod._last_verified_from_evidence({})
+
+
+def test_canonical_automation_refs_single_archive_bundle() -> None:
+    refs = promote_mod._canonical_automation_refs("ubuntu", "20260518T044344Z")
+    archive_hits = [r for r in refs if r.startswith("docs/release/evidence/archived/ubuntu/")]
+    assert len(archive_hits) == 2
+    assert all("20260518T044344Z" in r for r in archive_hits)
+    assert not any("042622Z" in r or "043249Z" in r for r in refs)
+    assert ".github/workflows/ubuntu-smoke-evidence.yml" not in refs

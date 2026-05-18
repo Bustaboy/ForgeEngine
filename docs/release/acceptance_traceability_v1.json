@@ -148,16 +148,17 @@
       "priority": "P0",
       "status": "covered",
       "automation": [
+        ".github/workflows/pr-validation.yml",
         "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#4-windows-smoke-procedure-at-010",
-        "docs/release/evidence/windows_smoke_template.md",
-        "scripts/run_smoke_and_capture_evidence.py",
         "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
         "docs/release/evidence/archived/windows/20260518T041200Z/smoke_evidence.json",
         "docs/release/evidence/archived/windows/20260518T041200Z/windows_smoke_evidence.md",
-        ".github/workflows/pr-validation.yml"
+        "docs/release/evidence/windows_smoke_template.md",
+        "scripts/promote_smoke_acceptance.py",
+        "scripts/run_smoke_and_capture_evidence.py"
       ],
       "manual_procedure": null,
-      "next_action": "Re-run Windows smoke when bootstrap or launcher paths change; refresh archived bundle under docs/release/evidence/archived/windows/.",
+      "next_action": "Re-run windows smoke when bootstrap or launcher paths change; refresh docs/release/evidence/archived/windows/20260518T041200Z/.",
       "evidence_strength": "strong-automated",
       "release_blocking": true,
       "owner": "Release Engineering",
@@ -171,10 +172,6 @@
       "automation": [
         "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011",
         "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
-        "docs/release/evidence/archived/ubuntu/20260518T042622Z/smoke_evidence.json",
-        "docs/release/evidence/archived/ubuntu/20260518T042622Z/ubuntu_smoke_evidence.md",
-        "docs/release/evidence/archived/ubuntu/20260518T043249Z/smoke_evidence.json",
-        "docs/release/evidence/archived/ubuntu/20260518T043249Z/ubuntu_smoke_evidence.md",
         "docs/release/evidence/archived/ubuntu/20260518T044344Z/smoke_evidence.json",
         "docs/release/evidence/archived/ubuntu/20260518T044344Z/ubuntu_smoke_evidence.md",
         "docs/release/evidence/ubuntu_smoke_template.md",

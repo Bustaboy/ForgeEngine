@@ -5,6 +5,6 @@ Local capture runs write to `docs/release/evidence/runs/` (gitignored). **Promot
 | OS | AT | Path |
 |---|---|---|
 | Windows | AT-010 | [`windows/20260518T041200Z/`](windows/20260518T041200Z/) |
-| Ubuntu | AT-011 | [`ubuntu/20260518T044344Z/`](ubuntu/20260518T044344Z/) (also `042622Z`, `043249Z`) |
+| Ubuntu | AT-011 | [`ubuntu/20260518T044344Z/`](ubuntu/20260518T044344Z/) |
 
 Re-run via [cross-platform smoke runbook](../../CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011) when bootstrap or launcher paths change.

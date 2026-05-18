@@ -147,7 +147,7 @@ Merged to `main` via PR #222:
 
 ---
 
-### Phase 1 — RC evidence closure (in progress)
+### Phase 1 — RC evidence closure (AT-001 human gate only)
 
 **Goal:** All **P0** acceptance rows **covered** with archived evidence (not fixture-only where manual is required).
 
@@ -299,7 +299,7 @@ _Example: Close P0 smoke evidence and land weather depth MVP._
 ### Done
 - [x] Phase 0 — workspace stabilization + legacy brand removal (2026-05-18, PR #222)
 - [x] Phase 1.1b — Windows smoke archived; AT-010 traceability **covered**
-- [x] Phase 1.2 — Ubuntu smoke CI + archive (`fdea691`); AT-011 timestamp fix (`f153a3f`)
+- [x] Phase 1.2 — Ubuntu smoke archived `20260518T044344Z`; CI workflow retired (PR #223)
 - [x] Phase 2.3 — full pytest + full `Soul.Editor.Tests` in `pr-validation.yml`
 - [x] Ubuntu smoke archived; `ubuntu-smoke-evidence.yml` retired (no per-PR/main CI)
 
@@ -339,6 +339,7 @@ When this plan is superseded:
 
 | Date | Change |
 |---|---|
-| 2026-05-18 | Phase 1.1b: archived Windows smoke + AT-010 covered; Phase 2.3: full test PR gate; added `ubuntu-smoke-evidence.yml` for AT-011; **AT-001 marked HUMAN REQUIRED** in plan + traceability. |
+| 2026-05-18 | PR #223: AT-011 canonical archive `044344Z`, retired `ubuntu-smoke-evidence.yml`, promote script canonical refs; **AT-001 HUMAN REQUIRED**. |
+| 2026-05-18 | Phase 1.1b: AT-010 covered; Phase 2.3: full PR test gate; transient Ubuntu smoke CI (later retired). |
 | 2026-05-18 | Phase 0 marked complete (PR #222 on `main`); documented local test/smoke results; Phase 2.1/2.2 local green; legacy brand purge noted complete. |
 | 2026-05-17 | Initial work plan created from codebase + doc audit (post-hiatus status review). |
