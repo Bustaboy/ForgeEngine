@@ -37,6 +37,10 @@ Per-command required fields:
 - Programmatic validator: `run_smoke_and_capture_evidence.validate_evidence_payload(...)`
 - Test coverage: `tests/test_smoke_evidence_generation.py`
 
+## Optional command: `vulkan_startup`
+
+After `bootstrap_runtime_only`, the runner may execute `build/bin/soul_runtime --smoke-headless` (or `soul_runtime.exe` on Windows) and expect the signature `Soul Loom Vulkan runtime initialized` in the command log. This step is optional when the runtime binary is missing in the runner environment.
+
 ## Contract notes
 
 - Ubuntu mode executes smoke commands in this environment.

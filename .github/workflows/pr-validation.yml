@@ -91,13 +91,12 @@ jobs:
       - name: Create temp directory
         run: mkdir -p "$TMPDIR"
 
-      - name: Restore C# test project
-        run: dotnet restore editor/csharp/tests/Soul.Editor.Tests.csproj --nologo
+      - name: Restore C# test projects
+        run: |
+          dotnet restore editor/csharp/tests/Soul.Editor.Tests.csproj --nologo
+          dotnet restore editor/csharp/ui-tests/Soul.Editor.UiTests.csproj --nologo
 
       - name: Run full C# editor test suite
-        run: >
-          dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj
-          --no-restore
-          -c Release
-          -v minimal
-          --nologo
+        run: |
+          dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj --no-restore -c Release -v minimal --nologo
+          dotnet test editor/csharp/ui-tests/Soul.Editor.UiTests.csproj --no-restore -c Release -v minimal --nologo

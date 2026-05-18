@@ -25,6 +25,22 @@ public sealed class EditorShellTests
     }
 
     [Fact]
+    public async Task Inspector_SimpleSection_IsSubsetOfAdvanced_AndAdvancedHasExtraKeys()
+    {
+        var workspace = await LoadWorkspaceAsync();
+        Assert.True(workspace.SelectObject("main-camera"));
+        var inspector = workspace.Inspector!;
+        Assert.NotEmpty(inspector.SimpleSection);
+        Assert.NotEmpty(inspector.AdvancedSection);
+
+        Assert.Contains("Name", inspector.SimpleSection.Keys);
+        Assert.Contains("Type", inspector.SimpleSection.Keys);
+        Assert.Contains("mode", inspector.AdvancedSection.Keys);
+        Assert.DoesNotContain("Name", inspector.AdvancedSection.Keys);
+        Assert.DoesNotContain("Type", inspector.AdvancedSection.Keys);
+    }
+
+    [Fact]
     public async Task Selection_UpdatesInspectorAndAiContext()
     {
         var projectRoot = ResolveProjectRoot();

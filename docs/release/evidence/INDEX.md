@@ -51,6 +51,15 @@ Local capture convention (gitignored under `runs/`):
 
 Archived (tracked) RC bundles: `docs/release/evidence/archived/README.md`
 
+P1 acceptance archives (2026-05-18):
+
+- `docs/release/evidence/archived/think-for-me/20260518T120000Z/` — AT-005 think-for-me manual + summary
+- `docs/release/evidence/archived/vulkan/20260518T120000Z/` — AT-012 Vulkan startup log + environment
+- `docs/release/evidence/archived/navigation-walkthrough/20260518T120000Z/` — AT-029 walkthrough + recording pointer
+- `docs/release/evidence/archived/ux-copy-review/20260518T120000Z/` — AT-031 copy standards sign-off
+- `docs/release/fixtures/ux_copy_manifest_v1.json` — AT-031 blocking copy manifest
+- `scripts/promote_acceptance.py` — generalized traceability promotion (AT-005/012/029/030/031)
+
 ---
 
 ## 5) Validators and test suites referenced for RC review
@@ -58,6 +67,7 @@ Archived (tracked) RC bundles: `docs/release/evidence/archived/README.md`
 - `scripts/validate_traceability.py` — parity/coverage validator for traceability docs.
 - `pytest -q` — Python test suite execution used for repo-wide regression signal.
 - `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal` — C# editor suite (conditional on .NET SDK availability).
+- `dotnet test editor/csharp/ui-tests/Soul.Editor.UiTests.csproj -v minimal` — Avalonia headless UI tests (inspector + navigation).
 
 ---
 

@@ -5,6 +5,7 @@
         xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
         xmlns:vm="clr-namespace:Soul.Editor.EditorShell.ViewModels"
         xmlns:shell="clr-namespace:Soul.Editor.EditorShell.UI"
+        xmlns:shells="clr-namespace:Soul.Editor.EditorShell.UI.Shells"
         x:Name="RootWindow"
         x:Class="Soul.Editor.EditorShell.UI.MainWindow"
         Title="{Binding WindowTitle}"
@@ -27,6 +28,7 @@
 
   <!-- Main shell layout: top ribbon, central workspace, timeline strip, bottom activity dock, status bar, onboarding overlay -->
   <Grid x:Name="RootLayoutGrid" RowDefinitions="Auto,*,4,200,4,140,Auto" Margin="0" RowSpacing="0">
+    <shell:CopyStandardsReference Grid.RowSpan="6" />
     <Border x:Name="TopRibbonBorder" Grid.Row="0" Background="{StaticResource ChromeToolbarBrush}" BorderBrush="{StaticResource PanelShellBorderBrush}" BorderThickness="0,0,0,1" CornerRadius="0" Padding="0">
       <Grid RowDefinitions="Auto,48" RowSpacing="0">
         <DockPanel Grid.Row="0" Background="{StaticResource ChromeMenuBrush}" LastChildFill="True">
@@ -67,7 +69,7 @@
               <MenuItem Header="_Save Scene    Ctrl+S" Click="OnSaveSceneClick" IsEnabled="{Binding CanSaveScene}" />
               <MenuItem Header="Save Scene _As...    Ctrl+Shift+S" Click="OnSaveSceneAsClick" IsEnabled="{Binding CanSaveScene}" />
               <Separator />
-              <MenuItem Header="Open Project _Folder...    Ctrl+Alt+O" Click="OnOpenProjectFolderClick" />
+              <MenuItem Header="Open Game _Project...    Ctrl+Alt+O" Click="OnOpenProjectFolderClick" />
               <MenuItem Header="_Project Settings...    Ctrl+," Click="OnOpenSettingsClick" />
               <Separator />
               <MenuItem Header="_Export...    Ctrl+E" Click="OnOpenExportChecklistClick" />
@@ -96,7 +98,9 @@
                 <MenuItem Header="Dock to _Bottom" Click="OnOpenActivityLogBottomClick" />
               </MenuItem>
               <MenuItem Header="Generate _Asset" Click="OnGenerateAssetClick" />
-              <MenuItem Header="_Run Orchestrator" Click="OnGenerateFromBriefClick" />
+              <MenuItem Header="_Advanced">
+                <MenuItem Header="_Run Orchestrator" Click="OnGenerateFromBriefClick" IsVisible="{Binding IsProModeEnabled}" />
+              </MenuItem>
               <MenuItem Header="_Models &amp; LLM" Click="OnOpenModelsAndLlmSettingsClick" />
               <MenuItem Header="_Help Overlay" Command="{Binding ToggleHelpOverlayCommand}" />
             </MenuItem>
@@ -111,11 +115,14 @@
           <ScrollViewer HorizontalScrollBarVisibility="Auto"
                         VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Spacing="5">
-              <Button Classes="toolbar-action" Content="New Scene" Click="OnNewSceneClick" />
-              <Button Classes="toolbar-action" Content="Open Scene" Click="OnOpenSceneClick" />
+              <Button Classes="toolbar-action" Content="Create New Game" Click="OnNewSceneClick" ToolTip.Tip="Start a new game project." />
+              <Button Classes="toolbar-action" Content="Open Game Project" Click="OnOpenProjectFolderClick" ToolTip.Tip="Open an existing game project folder." />
               <Button Classes="toolbar-action" Content="Save Scene" Click="OnSaveSceneClick" IsEnabled="{Binding CanSaveScene}" />
-              <Button Classes="toolbar-action primary" Content="Generate" Click="OnGenerateFromBriefClick" />
-              <Button Classes="toolbar-action primary" Content="Generate + Play" Click="OnGenerateAndPlayClick" />
+              <Button Classes="toolbar-action primary" Content="Generate Playable Prototype" Click="OnGenerateFromBriefClick" ToolTip.Tip="Builds a first playable version from your plan." />
+              <Button Classes="toolbar-action primary" Content="Generate + Play" Click="OnGenerateAndPlayClick" ToolTip.Tip="Builds a first playable version from your plan, then launches play." />
+              <Button Classes="toolbar-action" Content="Lock Selection" ToolTip.Tip="Prevents AI or manual edits to what you selected until unlocked." />
+              <Button Classes="toolbar-action" Content="Unlock Selection" ToolTip.Tip="Allows edits to the selected content again." />
+              <Button Classes="toolbar-action" Content="Preview Changes" ToolTip.Tip="Shows before/after changes before anything is saved." />
               <Button Classes="toolbar-action primary" Content="▶ Play" Click="OnPlayRuntimeClick" ToolTip.Tip="Run the game runtime (Ctrl+Shift+P)" />
               <Button Classes="toolbar-action" Content="Project Folder" Click="OnOpenProjectFolderClick" />
               <Button Classes="toolbar-action" Content="Settings" Click="OnOpenSettingsClick" />
@@ -136,8 +143,19 @@
       </Grid>
     </Border>
 
-    <!-- Workspace: vertical tool rail, left dock, center (viewport + inspector), right dock -->
-    <Grid x:Name="WorkspaceGrid" Grid.Row="1" ColumnDefinitions="52,2.3*,4,4.8*,4,2.8*" RowDefinitions="*" ColumnSpacing="0" Margin="0">
+    <!-- Workflow navigation + shell host (multi-shell IA) -->
+    <Grid x:Name="WorkflowWorkspaceHost" Grid.Row="1" ColumnDefinitions="180,*" ColumnSpacing="0" Margin="0">
+      <shell:WorkflowNavigationBar x:Name="WorkflowNavigationBar" Grid.Column="0" />
+      <Grid x:Name="ShellContentHost" Grid.Column="1">
+        <shells:ProjectHomeShellView x:Name="ProjectHomeShell" IsVisible="{Binding IsProjectHomeSectionVisible}" />
+        <shells:AiInterviewShellView x:Name="AiInterviewShell" IsVisible="{Binding IsAiInterviewSectionVisible}" />
+        <shells:PrototypeShellView x:Name="PrototypeShell" IsVisible="{Binding IsPrototypeSectionVisible}" DataContext="{Binding}" />
+        <shells:TestingShellView x:Name="TestingShell" IsVisible="{Binding IsTestingSectionVisible}" />
+        <shells:PublishShellView x:Name="PublishShell" IsVisible="{Binding IsPublishSectionVisible}" />
+        <shells:AssetLibraryShellView x:Name="AssetLibraryShell" IsVisible="{Binding IsAssetLibrarySectionVisible}" />
+        <shells:SettingsShellView x:Name="SettingsShell" IsVisible="{Binding IsSettingsSectionVisible}" />
+        <!-- Editor workspace: vertical tool rail, left dock, center (viewport + inspector), right dock -->
+        <Grid x:Name="WorkspaceGrid" IsVisible="{Binding IsEditorSectionVisible}" ColumnDefinitions="52,2.3*,4,4.8*,4,2.8*" RowDefinitions="*" ColumnSpacing="0" Margin="0">
       <Border x:Name="ToolRailBorder" Grid.Column="0" Background="#252525" BorderBrush="{StaticResource PanelShellBorderBrush}" BorderThickness="0,0,1,0" CornerRadius="0" Padding="6,8,6,8">
         <StackPanel Spacing="6" HorizontalAlignment="Center">
           <Button Classes="ribbon-icon" Content="🖱" ToolTip.Tip="Select" />
@@ -894,7 +912,8 @@
           </Border>
           </Expander>
 
-          <Border Grid.Row="5"
+          <Border x:Name="ExportPublishInspectorBorder"
+                  Grid.Row="5"
                   BorderBrush="#2B3446"
                   BorderThickness="1"
                   Background="#101722"
@@ -981,10 +1000,13 @@
                            TextWrapping="Wrap"
                            VerticalAlignment="Center" />
                 <Button Grid.Row="2" Grid.Column="2" Content="⬇ Download ZIP" Click="OnOpenExportZipClick" IsEnabled="{Binding HasExportPackageOutput}" />
-                <Button Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Content="🛰 Publish to Steam (Dry-Run)" Click="OnPublishToSteamClick" ToolTip.Tip="Runs publish gate + local audit trail only. No upload yet." />
-                <TextBlock Grid.Row="4" Grid.ColumnSpan="3" Text="{Binding PublishDryRunStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
-                <TextBlock Grid.Row="5" Text="Steam Release Notes" Foreground="#9FC2E5" FontSize="11" VerticalAlignment="Center" />
-                <TextBox Grid.Row="5"
+                <Button Grid.Row="3" Grid.Column="1" Content="Check Publish Readiness" Click="OnOpenExportChecklistClick" ToolTip.Tip="Scores your project and lists what must be fixed before publish." />
+                <Button Grid.Row="3" Grid.Column="2" Content="Build Local Release" Click="OnRunExportChecklistClick" ToolTip.Tip="Build a local release package on this machine." />
+                <Button Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Content="Continue with Warnings" ToolTip.Tip="Continue when only non-blocking warnings remain." />
+                <Button Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Content="🛰 Publish to Steam (Dry-Run)" Click="OnPublishToSteamClick" ToolTip.Tip="Runs publish gate + local audit trail only. No upload yet." />
+                <TextBlock Grid.Row="6" Grid.ColumnSpan="3" Text="{Binding PublishDryRunStatus}" Foreground="#8EA5C7" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="7" Text="Steam Release Notes" Foreground="#9FC2E5" FontSize="11" VerticalAlignment="Center" />
+                <TextBox Grid.Row="7"
                          Grid.Column="1"
                          Grid.ColumnSpan="2"
                          Text="{Binding SteamReleaseNotes}"
@@ -992,14 +1014,14 @@
                          TextWrapping="Wrap"
                          MinHeight="72"
                          Watermark="Describe this release for Steam store copy and patch notes..." />
-                <Button Grid.Row="6"
+                <Button Grid.Row="8"
                         Grid.Column="1"
                         Grid.ColumnSpan="2"
                         Content="☁️ Upload to Steam (Stub)"
                         Click="OnUploadToSteamStubClick"
                         IsEnabled="{Binding CanRunSteamUploadStub}"
                         ToolTip.Tip="Generates upload ZIP + audit trail and simulates upload progress. No real Steam API calls." />
-                <ProgressBar Grid.Row="7"
+                <ProgressBar Grid.Row="10"
                              Grid.ColumnSpan="3"
                              Minimum="0"
                              Maximum="100"
@@ -1007,13 +1029,13 @@
                              Height="7"
                              Background="#0B1524"
                              Foreground="#6FA8FF" />
-                <TextBlock Grid.Row="8"
+                <TextBlock Grid.Row="11"
                            Grid.ColumnSpan="3"
                            Text="{Binding SteamUploadStatus}"
                            Foreground="#8EA5C7"
                            FontSize="11"
                            TextWrapping="Wrap" />
-                <Border Grid.Row="9"
+                <Border Grid.Row="12"
                         Grid.ColumnSpan="3"
                         BorderBrush="#264566"
                         BorderThickness="1"
@@ -1750,6 +1772,8 @@
               ToolTip.Tip="Restore the right dock.">
         <TextBlock Text="Inspector" Classes="edge-revealer-label" />
       </Button>
+    </Grid>
+      </Grid>
     </Grid>
 
     <GridSplitter x:Name="WorkspaceTimelineSplitter"

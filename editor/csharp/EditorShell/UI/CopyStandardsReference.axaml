@@ -1,0 +1,24 @@
+<!-- Canonical copy anchors for AT-031 manifest tests and dialog reuse. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.CopyStandardsReference"
+             IsVisible="False"
+             Height="0"
+             Width="0">
+  <StackPanel>
+    <TextBlock Text="Lock Selection" />
+    <TextBlock Text="Unlock Selection" />
+    <TextBlock Text="Preview Changes" />
+    <TextBlock Text="Build Local Release" />
+    <TextBlock Text="Continue with Warnings" />
+    <TextBlock Text="Review Major Changes" />
+    <TextBlock Text="Locked Content Protected" />
+    <TextBlock Text="Choose What to Edit" />
+    <TextBlock Text="AI Needs Backup Plan" />
+    <TextBlock Text="Warnings Found Before Publish" />
+    <TextBlock Text="Publish Blocked" />
+    <TextBlock Text="Heads up:" />
+    <TextBlock Text="Action required:" />
+    <TextBlock Text="This will remove data:" />
+  </StackPanel>
+</UserControl>

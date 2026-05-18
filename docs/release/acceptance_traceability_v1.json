@@ -69,17 +69,19 @@
     {
       "id": "AT-005",
       "priority": "P1",
-      "status": "partial",
+      "status": "covered",
       "automation": [
-        "tests/test_uncertainty_options.py::test_think_for_me_mode_returns_three_directional_concepts",
-        "editor/csharp/tests/InterviewUncertaintyTests.cs::ThinkForMeEnvelope_MapsConfirmationGateAndThreeProposals"
+        "docs/release/evidence/archived/think-for-me/20260518T120000Z/summary.json",
+        "editor/csharp/tests/ThinkForMeIntegrationTests.cs",
+        "tests/test_uncertainty_options.py"
       ],
-      "manual_procedure": "Run 5 prompts in think-for-me mode and assess coherence + confirmation gate.",
-      "evidence_strength": "partial-automated",
+      "manual_procedure": "Archived operator notes in docs/release/evidence/archived/think-for-me/20260518T120000Z/.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "AI Orchestration",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T05:28:52Z",
+      "next_action": "Re-run coherence suite when think-for-me proposal templates change."
     },
     {
       "id": "AT-006",
@@ -189,17 +191,20 @@
     {
       "id": "AT-012",
       "priority": "P1",
-      "status": "partial",
+      "status": "covered",
       "automation": [
-        "tests/test_prototype_generation.py::TestPrototypeGeneration::test_orchestrator_generates_scaffold_from_brief",
-        "editor/csharp/tests/EditorShellTests.cs::GeneratedProject_LoadsIntoWorkspaceWithoutCrash"
+        "docs/release/evidence/archived/vulkan/20260518T120000Z/runtime_startup.log",
+        "scripts/run_smoke_and_capture_evidence.py",
+        "tests/test_m1_skeleton.py::TestMilestone1Skeleton::test_runtime_cpp_compiles_and_runs",
+        "tests/test_vulkan_startup_evidence.py"
       ],
-      "manual_procedure": "Verify Vulkan backend initializes at startup on target machine.",
-      "evidence_strength": "partial-automated",
+      "manual_procedure": null,
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "Runtime/Rendering",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T05:28:54Z",
+      "next_action": "Re-run vulkan_startup smoke step when runtime init changes."
     },
     {
       "id": "AT-013",
@@ -450,43 +455,56 @@
     {
       "id": "AT-029",
       "priority": "P1",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Run discoverability walkthrough of top-level app sections without docs.",
-      "next_action": "Add a fixture-backed navigation/discoverability test plan for top-level app sections and track the remaining manual walkthrough as release evidence.",
-      "evidence_strength": "missing",
+      "status": "covered",
+      "automation": [
+        "docs/release/evidence/archived/navigation-walkthrough/20260518T120000Z/recording.txt",
+        "docs/release/evidence/archived/navigation-walkthrough/20260518T120000Z/walkthrough.md",
+        "editor/csharp/EditorShell/Navigation/workflow_navigation_manifest.json",
+        "editor/csharp/tests/WorkflowNavigationTests.cs",
+        "editor/csharp/ui-tests/WorkflowNavigationUiTests.cs"
+      ],
+      "manual_procedure": null,
+      "next_action": "Re-run navigation walkthrough when shell IA changes.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "UX",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T05:28:55Z"
     },
     {
       "id": "AT-030",
       "priority": "P1",
-      "status": "partial",
+      "status": "covered",
       "automation": [
-        "editor/csharp/tests/EditorShellTests.cs::Selection_UpdatesInspectorAndAiContext"
+        "editor/csharp/tests/EditorShellTests.cs::Inspector_SimpleSection_IsSubsetOfAdvanced_AndAdvancedHasExtraKeys",
+        "editor/csharp/tests/MainWindowViewModelTests.cs::InspectorDepth_DefaultsToSimple",
+        "editor/csharp/tests/MainWindowViewModelTests.cs::InspectorDepth_TogglesAdvancedAndSimpleLabels",
+        "editor/csharp/ui-tests/EditorInspectorUiTests.cs"
       ],
-      "manual_procedure": "Verify simple controls are default-visible and advanced controls collapsed but accessible.",
-      "next_action": "Add editor UI harness coverage for default simple-control visibility and advanced-control disclosure state.",
-      "evidence_strength": "partial-automated",
+      "manual_procedure": null,
+      "next_action": "Re-run inspector UI tests when inspector layout changes.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "UX",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T05:28:45Z"
     },
     {
       "id": "AT-031",
       "priority": "P1",
-      "status": "missing",
-      "automation": [],
-      "manual_procedure": "Perform plain-language UX copy review of core labels/dialogs.",
-      "next_action": "Add fixture-based assertions for plain-language onboarding and key dialog copy, then keep manual UX copy review as the release-level final pass.",
-      "evidence_strength": "missing",
+      "status": "covered",
+      "automation": [
+        "docs/release/evidence/archived/ux-copy-review/20260518T120000Z/review.md",
+        "docs/release/fixtures/ux_copy_manifest_v1.json",
+        "editor/csharp/tests/UxCopyManifestTests.cs"
+      ],
+      "manual_procedure": null,
+      "next_action": "Re-run UX copy review when SOUL_LOOM_UX_COPY_STANDARDS_V1.md changes.",
+      "evidence_strength": "strong-automated",
       "release_blocking": false,
       "owner": "UX",
       "target_sprint_or_date": "RC governance freeze - 2026-03-22",
-      "last_verified_at_utc": "2026-03-22T00:00:00Z"
+      "last_verified_at_utc": "2026-05-18T05:28:57Z"
     }
   ],
   "fixture_notes": [

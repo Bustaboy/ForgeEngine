@@ -1,0 +1,8 @@
+{
+  "captured_at_utc": "2026-05-18T12:00:00Z",
+  "host_platform": "Windows reference host",
+  "gpu_model": "local-vulkan-capable",
+  "driver_version": "see-runtime-log",
+  "vulkan_sdk": "system",
+  "commit": "fe31b091a89930cbcf13f1afa6e2b541fe45e5db"
+}

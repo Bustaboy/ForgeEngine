@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <AvaloniaNameGeneratorDefaultFieldModifier>public</AvaloniaNameGeneratorDefaultFieldModifier>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Company>Soul Loom LLC</Company>
@@ -21,6 +22,9 @@
     <Compile Remove="tests/**/*.cs" />
     <EmbeddedResource Remove="tests/**" />
     <None Remove="tests/**" />
+    <Compile Remove="ui-tests/**/*.cs" />
+    <EmbeddedResource Remove="ui-tests/**" />
+    <None Remove="ui-tests/**" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.ProjectHomeShellView">
+  <ScrollViewer Padding="32">
+    <StackPanel Spacing="16" MaxWidth="720">
+      <TextBlock Text="Project Home" FontSize="28" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Create or open a game project. Track progress from first idea to publish-ready."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <WrapPanel Orientation="Horizontal">
+        <Button x:Name="CreateNewGameButton" Content="Create New Game" Classes="generate-cta" MinWidth="200" Margin="0,0,12,12" />
+        <Button x:Name="OpenGameProjectButton" Content="Open Game Project" Classes="panel-action-button" MinWidth="200" Margin="0,0,12,12" />
+      </WrapPanel>
+      <TextBlock Text="Project status" Foreground="#9FC2E5" FontWeight="SemiBold" Margin="0,12,0,0" />
+      <WrapPanel Orientation="Horizontal">
+        <Border Background="#2D3E5C" CornerRadius="8" Padding="10,6" Margin="0,0,8,8"><TextBlock Text="Not Started" Foreground="#D6E9FF" /></Border>
+        <Border Background="#2D3E5C" CornerRadius="8" Padding="10,6" Margin="0,0,8,8"><TextBlock Text="Prototype Ready" Foreground="#D6E9FF" /></Border>
+        <Border Background="#2D3E5C" CornerRadius="8" Padding="10,6" Margin="0,0,8,8"><TextBlock Text="Testing Needed" Foreground="#D6E9FF" /></Border>
+        <Border Background="#2D3E5C" CornerRadius="8" Padding="10,6" Margin="0,0,8,8"><TextBlock Text="Publish-Ready" Foreground="#D6E9FF" /></Border>
+      </WrapPanel>
+      <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+        <TextBlock Text="Git for this project" Foreground="#D5E4F8" VerticalAlignment="Center" />
+        <ToggleSwitch x:Name="GitEnabledToggle" IsChecked="False" OnContent="On" OffContent="Off" />
+        <TextBlock Text="(off by default)" Foreground="#8EA5C7" FontSize="11" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock x:Name="RecentProjectsLabel" Text="Recent projects appear here after you open a folder."
+                 Foreground="#8EA5C7" TextWrapping="Wrap" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

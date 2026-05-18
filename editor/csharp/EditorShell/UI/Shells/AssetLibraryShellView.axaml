@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.AssetLibraryShellView">
+  <Grid RowDefinitions="Auto,*" Margin="8">
+    <StackPanel Grid.Row="0" Spacing="6" Margin="8,8,8,0">
+      <TextBlock Text="Asset Library" FontSize="22" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Generate, review, approve, and place approved art assets."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+    </StackPanel>
+    <ContentControl x:Name="AssetLibraryHost" Grid.Row="1" Margin="4" />
+  </Grid>
+</UserControl>

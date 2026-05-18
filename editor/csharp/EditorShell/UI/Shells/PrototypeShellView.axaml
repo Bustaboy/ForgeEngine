@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.PrototypeShellView">
+  <ScrollViewer Padding="32">
+    <StackPanel Spacing="14" MaxWidth="640">
+      <TextBlock Text="Prototype" FontSize="24" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Build a first playable version from your planning brief."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <Button x:Name="GeneratePrototypeButton" Content="Generate Playable Prototype" Classes="generate-cta" HorizontalAlignment="Left" />
+      <Button x:Name="RegenerateSectionButton" Content="Regenerate This Part" Classes="panel-action-button" HorizontalAlignment="Left" />
+      <TextBlock Text="{Binding PipelineProgress, StringFormat=Progress: {0}}" Foreground="#9FC2E5" />
+      <ProgressBar Minimum="0" Maximum="100" Height="8" IsIndeterminate="True" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

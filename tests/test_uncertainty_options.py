@@ -12,6 +12,8 @@ orchestrator = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = orchestrator
 spec.loader.exec_module(orchestrator)
 
+THINK_FOR_ME_TOPICS = ("concept", "style", "mechanics", "genre", "tone")
+
 
 class TestUncertaintyOptions(unittest.TestCase):
     def test_ambiguous_unknown_input_returns_exactly_three_options(self):
@@ -40,6 +42,34 @@ class TestUncertaintyOptions(unittest.TestCase):
         response = orchestrator.generate_think_for_me_directions("I already know what I want", topic="concept")
         self.assertFalse(response.triggered)
         self.assertEqual(response.proposals, [])
+
+    def test_think_for_me_coherence_across_five_topics(self):
+        for topic in THINK_FOR_ME_TOPICS:
+            with self.subTest(topic=topic):
+                response = orchestrator.generate_think_for_me_directions("think for me", topic=topic)
+                self.assertTrue(response.triggered)
+                self.assertTrue(response.confirmation_required)
+                self.assertEqual(len(response.proposals), 3)
+
+                direction_ids = [proposal.direction_id for proposal in response.proposals]
+                titles = [proposal.title for proposal in response.proposals]
+                self.assertEqual(len(set(direction_ids)), 3)
+                self.assertEqual(len(set(titles)), 3)
+
+                style_presets = []
+                genre_weight_sets = []
+                for proposal in response.proposals:
+                    self.assertTrue(proposal.elevator_pitch.strip())
+                    self.assertTrue(proposal.tradeoff.strip())
+                    self.assertGreaterEqual(len(proposal.gameplay_pillars), 1)
+                    self.assertTrue(all(pillar.strip() for pillar in proposal.gameplay_pillars))
+                    self.assertEqual(proposal.prototype_seed.get("rendering"), "vulkan-first")
+                    style_presets.append(proposal.prototype_seed.get("style_preset"))
+                    genre_weight_sets.append(tuple(sorted(proposal.prototype_seed.get("genre_weights", {}).items())))
+
+                self.assertEqual(len(set(style_presets)), 3)
+                self.assertEqual(len(set(genre_weight_sets)), 3)
+                self.assertIn("confirm", response.human_summary_markdown.lower())
 
 
 if __name__ == "__main__":

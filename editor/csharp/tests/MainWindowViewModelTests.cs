@@ -1006,4 +1006,36 @@ public sealed class MainWindowViewModelTests : IDisposable
             ? typed
             : throw new InvalidOperationException($"Method {methodName} did not return {typeof(T).Name}.");
     }
+
+    [Fact]
+    public void InspectorDepth_DefaultsToSimple()
+    {
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var settingsPath = Path.Combine(_tempRoot, ".soulloom", "settings.json");
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath);
+
+        Assert.False(viewModel.IsAdvancedInspectorEnabled);
+        Assert.True(viewModel.IsSimpleInspectorEnabled);
+        Assert.Equal("Simple", viewModel.InspectorDepthLabel);
+    }
+
+    [Fact]
+    public void InspectorDepth_TogglesAdvancedAndSimpleLabels()
+    {
+        var orchestrator = new Mock<MainWindowViewModel.IOrchestratorGateway>(MockBehavior.Strict);
+        var runtime = CreateRuntimeSupervisorMock();
+        var settingsPath = Path.Combine(_tempRoot, ".soulloom", "settings.json");
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath);
+
+        viewModel.IsAdvancedInspectorEnabled = true;
+        Assert.True(viewModel.IsAdvancedInspectorEnabled);
+        Assert.False(viewModel.IsSimpleInspectorEnabled);
+        Assert.Equal("Advanced", viewModel.InspectorDepthLabel);
+
+        viewModel.IsAdvancedInspectorEnabled = false;
+        Assert.False(viewModel.IsAdvancedInspectorEnabled);
+        Assert.True(viewModel.IsSimpleInspectorEnabled);
+        Assert.Equal("Simple", viewModel.InspectorDepthLabel);
+    }
 }

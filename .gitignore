@@ -23,6 +23,10 @@ ai-orchestration/python/.env
 soul_loom.log
 models.json
 
+# Legacy editor local state (pre-rebrand; do not commit)
+.forgeengine/
+forgeengine.log
+
 # Build and generated output
 build/
 build-g7/

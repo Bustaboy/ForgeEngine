@@ -112,8 +112,15 @@ def _execute_command(spec: CommandSpec, run_dir: Path, dry_run: bool, skip_reaso
     }
 
 
+def _runtime_smoke_command() -> list[str]:
+    binary = REPO_ROOT / "build" / "bin" / ("soul_runtime.exe" if os.name == "nt" else "soul_runtime")
+    return [str(binary), "--smoke-headless"]
+
+
 def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | None]]:
     full_skip = None if dotnet_present else "dotnet not found; full bootstrap skipped by contract"
+    runtime_binary = REPO_ROOT / "build" / "bin" / "soul_runtime"
+    vulkan_skip = None if runtime_binary.exists() else "runtime binary missing; run bootstrap_runtime_only first"
     return [
         (
             CommandSpec(
@@ -125,6 +132,15 @@ def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | N
                 ],
             ),
             None,
+        ),
+        (
+            CommandSpec(
+                name="vulkan_startup",
+                command=_runtime_smoke_command(),
+                expected_signatures=["Soul Loom Vulkan runtime initialized"],
+                optional=True,
+            ),
+            vulkan_skip,
         ),
         (
             CommandSpec(
@@ -151,6 +167,8 @@ def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | N
 
 def _build_windows_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | None]]:
     full_skip = None if dotnet_present else "dotnet not found; full bootstrap skipped by contract"
+    runtime_binary = REPO_ROOT / "build" / "bin" / "soul_runtime.exe"
+    vulkan_skip = None if runtime_binary.exists() else "runtime binary missing; run bootstrap_runtime_only first"
     return [
         (
             CommandSpec(
@@ -162,6 +180,15 @@ def _build_windows_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | 
                 ],
             ),
             None,
+        ),
+        (
+            CommandSpec(
+                name="vulkan_startup",
+                command=_runtime_smoke_command(),
+                expected_signatures=["Soul Loom Vulkan runtime initialized"],
+                optional=True,
+            ),
+            vulkan_skip,
         ),
         (
             CommandSpec(

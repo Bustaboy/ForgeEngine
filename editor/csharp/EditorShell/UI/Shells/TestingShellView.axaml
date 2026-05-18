@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Soul.Editor.EditorShell.UI.Shells.TestingShellView">
+  <ScrollViewer Padding="32">
+    <StackPanel Spacing="14" MaxWidth="720">
+      <TextBlock Text="Testing" FontSize="24" FontWeight="Bold" Foreground="#E8F3FF" />
+      <TextBlock Text="Run automated AI playtests first, then mark areas that need human playtesting."
+                 Foreground="#AFC2DF" TextWrapping="Wrap" />
+      <Button x:Name="RunPlaytestButton" Content="Run AI Playtest" Classes="generate-cta" HorizontalAlignment="Left" />
+      <Button x:Name="MarkHumanTestButton" Content="Mark for Human Test" Classes="panel-action-button" HorizontalAlignment="Left" />
+      <UniformGrid Columns="2" Rows="2" Margin="0,12,0,0">
+        <Border Margin="6" Padding="12" Background="#101722" BorderBrush="#264566" BorderThickness="1" CornerRadius="8">
+          <StackPanel><TextBlock Text="Gameplay" FontWeight="SemiBold" Foreground="#EEF4FF" /><TextBlock Text="Pending" Foreground="#8EA5C7" /></StackPanel>
+        </Border>
+        <Border Margin="6" Padding="12" Background="#101722" BorderBrush="#264566" BorderThickness="1" CornerRadius="8">
+          <StackPanel><TextBlock Text="Progression" FontWeight="SemiBold" Foreground="#EEF4FF" /><TextBlock Text="Pending" Foreground="#8EA5C7" /></StackPanel>
+        </Border>
+        <Border Margin="6" Padding="12" Background="#101722" BorderBrush="#264566" BorderThickness="1" CornerRadius="8">
+          <StackPanel><TextBlock Text="Economy" FontWeight="SemiBold" Foreground="#EEF4FF" /><TextBlock Text="Pending" Foreground="#8EA5C7" /></StackPanel>
+        </Border>
+        <Border Margin="6" Padding="12" Background="#101722" BorderBrush="#264566" BorderThickness="1" CornerRadius="8">
+          <StackPanel><TextBlock Text="Performance" FontWeight="SemiBold" Foreground="#EEF4FF" /><TextBlock Text="Pending" Foreground="#8EA5C7" /></StackPanel>
+        </Border>
+      </UniformGrid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
