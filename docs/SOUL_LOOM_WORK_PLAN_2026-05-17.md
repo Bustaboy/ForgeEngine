@@ -4,16 +4,19 @@
 > Supersedes informal status notes from prior chats; does not replace [`BACKLOG_APRIL_2026.md`](BACKLOG_APRIL_2026.md) (sprint priorities) or [`acceptance_traceability_v1.json`](../docs/release/acceptance_traceability_v1.json) (release gates).
 
 **Prepared:** 2026-05-17  
+**Last updated:** 2026-05-18  
 **Product:** Soul Loom V1 (local-first, AI-native game engine)  
-**Repo baseline:** working tree has ~113 uncommitted changes (rebrand, orchestration refactor, editor UX); validate against your branch before executing.
+**Repo baseline:** `main` @ PR [#222](https://github.com/Bustaboy/ForgeEngine/pull/222) — Soul Loom rebrand, orchestration package, editor onboarding, legacy brand removal merged.
 
 ---
 
 ## 1) Executive summary
 
-Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md): foundation, interview, prototype generation, editor shell, genre scaffolds, asset pipeline, bot playtest, and Steam readiness **policy/UI**. The product is **not RC-shippable** today because **3 P0 acceptance tests remain partial** (fresh install + Windows/Ubuntu smoke evidence), several **P1 UX tests are open**, and **active-development epics** (kit-bashing depth, adaptive music, scene templates, cloud abstraction) are unfinished.
+Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md): foundation, interview, prototype generation, editor shell, genre scaffolds, asset pipeline, bot playtest, and Steam readiness **policy/UI**. **Workspace stabilization landed on `main` (2026-05-18):** `Soul.Editor`, `soul_runtime`, `orchestration/` package, onboarding UX, and **full removal** of GameForge/ForgeEngine naming (`SOUL_LOOM_*` specs, `soulloom.*` schemas, `soul_hooks.py`).
 
-**Strategic goal for the next phase:** close RC blockers first, then land one high-value gameplay epic from the April backlog without scope creep.
+The product is **not RC-shippable** today because **P0 acceptance evidence is still incomplete** (fresh install VMs + promoted traceability rows), several **P1 UX tests are open**, and **active-development epics** (kit-bashing depth, adaptive music, scene templates, cloud abstraction) are unfinished.
+
+**Strategic goal for the next phase:** promote archived smoke/install evidence into traceability JSON (Phase 1), expand CI to full test suites (Phase 2), then land one high-value gameplay epic from the April backlog without scope creep.
 
 ---
 
@@ -33,7 +36,7 @@ Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_
 
 ---
 
-## 3) Current state snapshot (2026-05-17)
+## 3) Current state snapshot (2026-05-18)
 
 ### 3.1 Milestones vs execution plan
 
@@ -61,8 +64,8 @@ Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_
 | ID | Gap | Next action |
 |---|---|---|
 | AT-001 | No clean-machine install evidence | Run fresh install on Windows 11 + Ubuntu 22.04 VMs; archive logs under `docs/release/evidence/runs/` |
-| AT-010 | Windows smoke not archived | `python scripts/run_smoke_and_capture_evidence.py --os windows --output-root docs/release/evidence/runs` |
-| AT-011 | Ubuntu smoke not archived | Same with `--os ubuntu` |
+| AT-010 | Windows smoke **run passed locally**; not yet promoted in traceability JSON | Local PASS: `docs/release/evidence/runs/20260518T041200Z/` (gitignored). Archive copy + set `status: covered` in traceability PR |
+| AT-011 | Ubuntu smoke not archived | `py -3.11 scripts/run_smoke_and_capture_evidence.py --os ubuntu --output-root docs/release/evidence/runs` on Ubuntu 22.04 host |
 
 **P1 partial:**
 
@@ -90,31 +93,39 @@ Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_
 | Scene templates | Not implemented | Phase 4 (post-RC or parallel if resourced) |
 | Cloud compute abstraction | Not implemented | Phase 4 (foundation only) |
 
-### 3.4 Local workspace hygiene
+### 3.4 Workspace hygiene — **complete (2026-05-18)**
 
-Before feature work:
+Merged to `main` via PR #222:
 
-1. Review ~113 uncommitted files (Soul.Editor rename, `orchestration/` package split, onboarding overlay).
-2. Split into logical commits: **rebrand**, **orchestration refactor**, **editor UX**, **docs**.
-3. Ensure `build-g7/` stays out of git (verify `.gitignore`).
+| Area | Status |
+|---|---|
+| Rebrand (`Soul.Editor`, `soul_runtime`, `SOUL_LOOM_*` env) | **Merged** |
+| Orchestration package split + `soul_hooks.py` | **Merged** |
+| Editor onboarding, theme, MainWindow splits, diagnostics | **Merged** |
+| Legacy brand purge (`GAMEFORGE_*` → `SOUL_LOOM_*`, no `FORGEENGINE_*` fallbacks) | **Merged** |
+| Local test verification (pre-merge) | **88** pytest passed, **4** skipped; **61** `Soul.Editor.Tests` passed |
+| Windows smoke capture (pre-merge) | **PASS** AT-010 run `20260518T041200Z` (evidence local only) |
+
+**Hygiene note:** delete stale `.forgeengine/` / `forgeengine.log` locally if present; they are no longer part of the product layout.
 
 ---
 
 ## 4) Phased work plan
 
-### Phase 0 — Stabilize workspace (0.5–1 day)
+### Phase 0 — Stabilize workspace — **DONE (2026-05-18)**
 
 **Goal:** Clean branch so CI and docs match reality.
 
-| # | Task | Owner | Done when |
-|---|---|---|---|
-| 0.1 | Review uncommitted diff; discard or commit `build-g7/` cache | Dev | No accidental build artifacts staged |
-| 0.2 | Commit rebrand (`Soul.Editor`, `soul_runtime`, env aliases) | Dev | `dotnet build` + filtered CI tests pass |
-| 0.3 | Commit orchestration package split | Dev | `pytest` orchestration tests pass |
-| 0.4 | Commit editor onboarding / theme / diagnostics | Dev | `Soul.Editor.Tests` pass locally |
-| 0.5 | Update README “Project Documents” table with link to **this file** | Dev | README points here as latest plan |
+| # | Task | Status |
+|---|---|---|
+| 0.1 | Review uncommitted diff; keep `build-g7/` out of git | **Done** — `.gitignore` updated |
+| 0.2 | Rebrand (`Soul.Editor`, `soul_runtime`, `SOUL_LOOM_*` env) | **Done** — merged #222 |
+| 0.3 | Orchestration package split (`orchestration/`, `soul_hooks.py`) | **Done** — merged #222 |
+| 0.4 | Editor onboarding / theme / diagnostics / test fixes | **Done** — merged #222 |
+| 0.5 | README “Project Documents” + `SOUL_LOOM_*` spec filenames | **Done** — merged #222 |
+| 0.6 | Remove legacy GameForge/ForgeEngine branding entirely | **Done** — `9b7e0f8` in #222 |
 
-**Exit criteria:** `main` (or feature branch) builds; PR validation green on pushed commits.
+**Exit criteria:** **Met** — `main` includes PR #222; local full suites green before merge.
 
 ---
 
@@ -124,7 +135,7 @@ Before feature work:
 
 | # | Task | AT | Steps | Evidence artifact |
 |---|---|---|---|---|
-| 1.1 | Windows smoke run | AT-010 | Follow [`CROSS_PLATFORM_SMOKE_RUNBOOK.md`](release/CROSS_PLATFORM_SMOKE_RUNBOOK.md); run capture script | `docs/release/evidence/runs/<timestamp>-windows/smoke_evidence.json` |
+| 1.1 | Windows smoke run | AT-010 | Follow [`CROSS_PLATFORM_SMOKE_RUNBOOK.md`](release/CROSS_PLATFORM_SMOKE_RUNBOOK.md); run capture script | **Local PASS** `20260518T041200Z` — **archive** to tracked evidence + promote JSON |
 | 1.2 | Ubuntu smoke run | AT-011 | Same on Ubuntu 22.04 host or CI runner with GPU where needed | `.../runs/<timestamp>-ubuntu/` |
 | 1.3 | Fresh install validation | AT-001 | Clean VM: clone → `Setup-Alpha.ps1` / `setup.sh` → launch editor → launcher smoke | Install log + first-launch screenshot or log |
 | 1.4 | Promote traceability JSON | AT-010, AT-011, AT-001 | Set `status: covered`, update `last_verified_utc`, `evidence_strength` | PR updating `acceptance_traceability_v1.json` + `.md` mirror |
@@ -144,8 +155,8 @@ Before feature work:
 
 | # | Task | Rationale | Done when |
 |---|---|---|---|
-| 2.1 | Run full `pytest tests/` locally; fix or quarantine reds | Only subset runs in PR today | Full suite green or documented skip list |
-| 2.2 | Run full `dotnet test Soul.Editor.Tests.csproj` | Same | Full C# suite green |
+| 2.1 | Run full `pytest tests/` locally; fix or quarantine reds | Only subset runs in PR today | **Done locally** — 88 passed, 4 skipped (2026-05-18); wire into PR gate |
+| 2.2 | Run full `dotnet test Soul.Editor.Tests.csproj` | Same | **Done locally** — 61 passed Release (2026-05-18); wire into PR gate |
 | 2.3 | Update `.github/workflows/pr-validation.yml` | Policy expansion target | PR runs full stable Python + C# suites |
 | 2.4 | Add AT-027/028 Git default tests | P2 but low effort | New editor tests committed |
 | 2.5 | Add AT-030 inspector tab visibility test | P1 partial closure | Test in `EditorShellTests.cs` |
@@ -171,7 +182,7 @@ Choose **one** primary epic; treat others as stretch. Aligns with [`BACKLOG_APRI
 
 | # | Task | Acceptance |
 |---|---|---|
-| B.1 | Finish orchestration refactor (`orchestration/` package) with stable public CLI | `orchestrator.py` thin wrapper; tests pass |
+| B.1 | Finish orchestration refactor (`orchestration/` package) with stable public CLI | **Mostly done** — merged #222; verify CLI docs + remove placeholder prints |
 | B.2 | Sequential model load/unload for 8/12/16 GB VRAM tiers | Benchmark doc updated |
 | B.3 | Harden error surfaces in editor AI Orchestration panel | User-visible retry + manual failover preserved |
 | B.4 | Bot playtest hook always runs on `--run-generation-pipeline` in smoke | AT-006 smoke path unchanged |
@@ -235,10 +246,10 @@ Tracked separately because they affect non-coder RC narrative but do not block P
 ## 7) Recommended execution order (summary)
 
 ```
-Phase 0  →  commit WIP, clean branch
-Phase 1  →  AT-001, AT-010, AT-011 evidence (RC unblock)
-Phase 2  →  CI expansion + AT-027/028/030 tests
-Phase 3  →  ONE epic: Weather (A) | Pipeline (B) | Music (C)
+Phase 0  →  DONE (PR #222 on main)
+Phase 1  →  AT-001, AT-010 archive + AT-011 Ubuntu smoke + traceability promotion
+Phase 2  →  CI expansion (2.1/2.2 green locally) + AT-027/028/030 tests
+Phase 3  →  ONE epic: Weather (A) | Pipeline polish (B) | Music (C)
 Phase 4  →  templates, cloud, a11y, schema versioning (parallel backlog)
 Phase 5  →  UX/copy AT-029/031
 ```
@@ -255,19 +266,23 @@ Phase 5  →  UX/copy AT-029/031
 _Example: Close P0 smoke evidence and land weather depth MVP._
 
 ### To Do
-- [ ] Phase 0: commit WIP chunks
-- [ ] Phase 1.1–1.3: smoke + fresh install evidence
-- [ ] Phase 1.4: traceability JSON promotion
+- [ ] Phase 1.1b: archive Windows smoke `20260518T041200Z` + promote AT-010 in traceability JSON
+- [ ] Phase 1.2: Ubuntu smoke run + evidence
+- [ ] Phase 1.3: fresh install validation (AT-001) on clean VMs
+- [ ] Phase 1.4: traceability JSON promotion PR
+- [ ] Phase 2.3: expand `pr-validation.yml` to full pytest + full `Soul.Editor.Tests`
 - [ ] Phase 3: epic tasks (A/B/C — pick one)
 
 ### In Progress
-- [ ] _task_
+- [ ] Phase 1 — RC evidence closure
 
 ### Blocked
 - [ ] _blocker → owner_
 
 ### Done
-- [ ] _task + date_
+- [x] Phase 0 — workspace stabilization + legacy brand removal (2026-05-18, PR #222)
+- [x] Full local pytest + Soul.Editor.Tests before merge (2026-05-18)
+- [x] Windows smoke capture script PASS locally (20260518T041200Z; pending archive)
 
 ### Risks this sprint
 | Risk | Mitigation |
@@ -305,4 +320,5 @@ When this plan is superseded:
 
 | Date | Change |
 |---|---|
+| 2026-05-18 | Phase 0 marked complete (PR #222 on `main`); documented local test/smoke results; AT-010 Windows run PASS pending traceability promotion; Phase 2.1/2.2 local green; legacy brand purge noted complete. |
 | 2026-05-17 | Initial work plan created from codebase + doc audit (post-hiatus status review). |
