@@ -27,6 +27,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         WriteIndented = true,
     };
 
+    internal bool BypassPrototypeGenerationReadinessCheck { get; set; }
+
     private readonly IOrchestratorGateway _orchestratorGateway;
     private readonly IRuntimeSupervisor _runtimeSupervisor;
 
@@ -3011,6 +3013,23 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         {
             MonacoEditorContent = loadedCode;
         }
+    }
+
+    internal void LoadPrototypeRootForTests(string prototypeRoot, int runtimePid = 6001, string runtimeStatus = "Running")
+    {
+        ApplyRuntimePreview(new PipelineRunResponse
+        {
+            ExitCode = 0,
+            Stdout = "test",
+            Stderr = string.Empty,
+            Result = new PipelineExecutionEnvelope
+            {
+                Status = "Completed",
+                RuntimeLaunchStatus = runtimeStatus,
+                RuntimeLaunchPid = runtimePid,
+                PrototypeRoot = prototypeRoot,
+            },
+        });
     }
 
     private void EnsureGeneratedViewportRunnerStarted(PipelineRunResponse response)

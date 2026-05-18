@@ -1568,6 +1568,11 @@ public sealed partial class MainWindowViewModel
 
     private async Task<bool> EnsureFirstPrototypeGenerationReadyAsync()
     {
+        if (BypassPrototypeGenerationReadinessCheck)
+        {
+            return true;
+        }
+
         JsonObject? payload;
         try
         {
