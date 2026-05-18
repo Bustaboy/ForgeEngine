@@ -181,7 +181,7 @@ class OnboardingFlowTests(unittest.TestCase):
             self.assertIn("token", context.exception.user_message.lower())
 
     def test_onboarding_command_dispatches(self):
-        with mock.patch.object(orchestrator, "run_onboarding", return_value={"status": "ok"}) as mocked:
+        with mock.patch.object(orchestrator._core, "run_onboarding", return_value={"status": "ok"}) as mocked:
             rc = orchestrator._try_run_forge_hooks_cli(["/onboarding_run"])
         self.assertEqual(rc, 0)
         mocked.assert_called_once()

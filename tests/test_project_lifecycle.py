@@ -61,7 +61,7 @@ def test_at002_create_save_reopen_preserves_project_data(tmp_path: Path) -> None
         if baseline_hashes.get(relative_path) != digest
     }
 
-    assert changed_files == {"save/savegame_hook.json"}
+    assert {path.replace("\\", "/") for path in changed_files} == {"save/savegame_hook.json"}
 
 
 def test_at025_save_load_regression_loop_detects_corruption(tmp_path: Path) -> None:
