@@ -42,10 +42,20 @@ def test_next_action_uses_directory_path_without_trailing_dot() -> None:
     assert "//" not in text.split("refresh ", 1)[1]
 
 
-def test_canonical_automation_refs_single_archive_bundle() -> None:
-    refs = promote_mod._canonical_automation_refs("ubuntu", "20260518T044344Z")
-    archive_hits = [r for r in refs if r.startswith("docs/release/evidence/archived/ubuntu/")]
-    assert len(archive_hits) == 2
-    assert all("20260518T044344Z" in r for r in archive_hits)
-    assert not any("042622Z" in r or "043249Z" in r for r in refs)
-    assert ".github/workflows/ubuntu-smoke-evidence.yml" not in refs
+def test_merge_automation_refs_accumulates_archive_bundles() -> None:
+    existing = [
+        "docs/release/evidence/archived/ubuntu/20260518T042622Z/smoke_evidence.json",
+        "docs/release/evidence/archived/ubuntu/20260518T042622Z/ubuntu_smoke_evidence.md",
+        ".github/workflows/ubuntu-smoke-evidence.yml",
+    ]
+    merged = promote_mod._merge_automation_refs(existing, "ubuntu", "20260518T044344Z")
+    assert any("20260518T042622Z" in ref for ref in merged)
+    assert any("20260518T044344Z" in ref for ref in merged)
+    assert ".github/workflows/ubuntu-smoke-evidence.yml" not in merged
+    assert "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011" in merged
+
+
+def test_archive_bundle_refs_for_single_run() -> None:
+    refs = promote_mod._archive_bundle_refs("ubuntu", "20260518T044344Z")
+    assert len(refs) == 2
+    assert all("20260518T044344Z" in ref for ref in refs)
