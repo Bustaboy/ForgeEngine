@@ -66,7 +66,7 @@ The product is **not RC-shippable** today because **AT-001 still requires a huma
 
 | Priority | Total | Covered | Partial | Missing |
 |---|---:|---:|---:|---:|
-| P0 | 14 | **12** | **2** | 0 |
+| P0 | 14 | **13** | **1** | 0 |
 | P1 | 14 | 9 | 3 | **2** |
 | P2 | 3 | 0 | 0 | **2** |
 
@@ -75,13 +75,13 @@ The product is **not RC-shippable** today because **AT-001 still requires a huma
 | ID | Gap | Next action |
 |---|---|---|
 | AT-001 | **HUMAN REQUIRED** — no clean-machine install evidence | **Manual only:** on fresh Windows 11 + Ubuntu 22.04 VMs, clone → `Setup-Alpha.ps1` / `setup.sh` → editor + launcher smoke → archive logs under `docs/release/evidence/archived/` (suggested: `fresh-install/<os>/<date>/`) → promote traceability to `covered`. **Do not expect CI or agents to complete this.** |
-| AT-011 | Ubuntu smoke automated; archive pending first green `main` run | Trigger [ubuntu-smoke-evidence.yml](../.github/workflows/ubuntu-smoke-evidence.yml) on `main` (or wait for next push); verify `docs/release/evidence/archived/ubuntu/<run_id>/` commit |
 
-**P0 covered (smoke):**
+**P0 covered (smoke + CI):**
 
 | ID | Evidence |
 |---|---|
-| AT-010 | `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability promoted 2026-05-18) |
+| AT-010 | `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability **covered**, 2026-05-18) |
+| AT-011 | `docs/release/evidence/archived/ubuntu/20260518T042622Z/` (CI archived on `main`, traceability **covered**) |
 
 **P1 partial:**
 
@@ -285,7 +285,7 @@ Phase 5  →  UX/copy AT-029/031
 _Example: Close P0 smoke evidence and land weather depth MVP._
 
 ### To Do
-- [ ] Phase 1.2: confirm first green `ubuntu-smoke-evidence.yml` on `main` and archived `ubuntu/<run_id>/`
+- [x] Phase 1.2: Ubuntu smoke CI archived `ubuntu/20260518T042622Z/` on `main`
 - [ ] Phase 1.3: **HUMAN** — AT-001 fresh install on clean Windows 11 + Ubuntu 22.04 VMs (see plan callout)
 - [ ] Phase 2.4–2.5: AT-027/028/030 tests
 - [ ] Phase 3: epic tasks (A/B/C — pick one)
@@ -299,6 +299,7 @@ _Example: Close P0 smoke evidence and land weather depth MVP._
 ### Done
 - [x] Phase 0 — workspace stabilization + legacy brand removal (2026-05-18, PR #222)
 - [x] Phase 1.1b — Windows smoke archived; AT-010 traceability **covered**
+- [x] Phase 1.2 — Ubuntu smoke CI + archive (`fdea691`); AT-011 timestamp fix (`f153a3f`)
 - [x] Phase 2.3 — full pytest + full `Soul.Editor.Tests` in `pr-validation.yml`
 - [x] Ubuntu smoke workflow added (`ubuntu-smoke-evidence.yml`)
 
