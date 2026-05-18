@@ -194,8 +194,11 @@ Invoke-CheckedNative -FilePath $cmakePath -Arguments @('--build', $buildDir, '--
 
 if ($RuntimeOnly) {
     if (Test-Path $runtimeBin) {
-        Write-Host "== Starting Runtime Only =="
-        & $runtimeBin $repoRoot
+        Write-Host "== Starting Runtime Only (Headless Smoke) =="
+        & $runtimeBin --smoke-headless $repoRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "Runtime headless smoke failed (exit code $LASTEXITCODE)"
+        }
     }
     else {
         Write-Host "ERROR: Runtime binary unavailable after successful build."
@@ -213,12 +216,25 @@ if (-not $dotnet) {
 }
 
 Write-Host "== Starting C# App Entrypoint =="
-Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @("build", $editorProject, "-c", "Release", "--no-restore") -FailureMessage 'Editor build failed'
-
-if (-not (Test-Path $editorBin)) {
-    throw "Editor binary missing after successful build: $editorBin"
+if ($LauncherSmoke) {
+    Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @(
+        "run",
+        "--project", $editorProject,
+        "-c", "Release",
+        "--no-restore",
+        "--",
+        "--launcher-smoke",
+        $runtimeBin
+    ) -FailureMessage 'Editor launcher smoke failed'
 }
+else {
+    Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @("build", $editorProject, "-c", "Release", "--no-restore") -FailureMessage 'Editor build failed'
 
-& $editorBin "--editor-ui" $runtimeBin
+    if (-not (Test-Path $editorBin)) {
+        throw "Editor binary missing after successful build: $editorBin"
+    }
+
+    & $editorBin "--editor-ui" $runtimeBin
+}
 
 Write-Host "Bootstrap completed successfully."

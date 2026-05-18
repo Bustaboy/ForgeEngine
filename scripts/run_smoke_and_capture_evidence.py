@@ -141,7 +141,7 @@ def _build_ubuntu_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | N
         (
             CommandSpec(
                 name="pytest_q",
-                command=[sys.executable, "-m", "pytest", "-q"],
+                command=[sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/"],
                 expected_signatures=["passed"],
             ),
             None,
@@ -178,7 +178,7 @@ def _build_windows_specs(dotnet_present: bool) -> list[tuple[CommandSpec, str | 
         (
             CommandSpec(
                 name="pytest_q",
-                command=[sys.executable, "-m", "pytest", "-q"],
+                command=[sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/"],
                 expected_signatures=["passed"],
             ),
             None,

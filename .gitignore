@@ -33,6 +33,10 @@ app/release/
 app/samples/generated-prototype/**/performance_history.json
 app/samples/generated-prototype/**/testing/reports/
 
+# Local smoke evidence captures (archive manually for AT-010/011 when promoting RC)
+docs/release/evidence/runs/
+docs/release/evidence/logs/
+
 # .NET build output
 **/bin/
 **/obj/
