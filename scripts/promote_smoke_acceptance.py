@@ -34,12 +34,19 @@ def _archive_dir(target_os: str, run_id: str) -> Path:
 
 def _automation_refs(target_os: str, run_id: str) -> list[str]:
     prefix = f"docs/release/evidence/archived/{target_os}/{run_id}"
+    runbook = (
+        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011"
+        if target_os == "ubuntu"
+        else "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#2-windows-smoke-procedure-at-010"
+    )
     refs = [
         f"{prefix}/smoke_evidence.json",
         f"{prefix}/{'ubuntu' if target_os == 'ubuntu' else 'windows'}_smoke_evidence.md",
         "scripts/run_smoke_and_capture_evidence.py",
-        ".github/workflows/ubuntu-smoke-evidence.yml" if target_os == "ubuntu" else ".github/workflows/pr-validation.yml",
+        runbook,
     ]
+    if target_os == "windows":
+        refs.append(".github/workflows/pr-validation.yml")
     return refs
 
 
@@ -78,6 +85,7 @@ def promote(target_os: str, run_id: str) -> None:
     item = next(row for row in payload["items"] if row.get("id") == at_id)
 
     existing = set(item.get("automation", []))
+    existing.discard(".github/workflows/ubuntu-smoke-evidence.yml")
     item["automation"] = sorted(existing | set(_automation_refs(target_os, run_id)))
     item["status"] = "covered"
     item["evidence_strength"] = "strong-automated"

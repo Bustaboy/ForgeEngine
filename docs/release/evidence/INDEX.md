@@ -41,7 +41,6 @@ This index centralizes evidence artifacts used for V1 RC readiness review.
 - `docs/release/evidence/ubuntu_smoke_template.md` — Ubuntu execution evidence template.
 - `docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md` — required schema/field contract for generated smoke artifacts.
 - `scripts/run_smoke_and_capture_evidence.py` — deterministic smoke runner + evidence generator for Ubuntu/Windows contract mode.
-- `.github/workflows/ubuntu-smoke-evidence.yml` — Ubuntu smoke on CI (AT-011); archives passing `main` runs automatically.
 - `scripts/promote_smoke_acceptance.py` — promotes AT-010/AT-011 traceability after PASS archived bundles.
 
 Local capture convention (gitignored under `runs/`):
@@ -65,8 +64,8 @@ Archived (tracked) RC bundles: `docs/release/evidence/archived/README.md`
 ## 6) Open evidence gaps (current)
 
 1. **AT-001 (P0): HUMAN REQUIRED** — fresh-install proof on clean Windows 11 + Ubuntu 22.04 VMs (not automatable without dedicated bare VMs).
-2. **AT-011** — awaiting first green `ubuntu-smoke-evidence.yml` run on `main` to archive under `docs/release/evidence/archived/ubuntu/`.
-3. Windows AT-010 archived: `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability promoted 2026-05-18).
+2. **AT-011** — archived: `docs/release/evidence/archived/ubuntu/20260518T044344Z/` (traceability **covered**, 2026-05-18).
+3. **AT-010** — archived: `docs/release/evidence/archived/windows/20260518T041200Z/` (traceability **covered**, 2026-05-18).
 
 ---
 

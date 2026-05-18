@@ -5,6 +5,6 @@ Local capture runs write to `docs/release/evidence/runs/` (gitignored). **Promot
 | OS | AT | Path |
 |---|---|---|
 | Windows | AT-010 | [`windows/20260518T041200Z/`](windows/20260518T041200Z/) |
-| Ubuntu | AT-011 | _Pending first CI archive from [`.github/workflows/ubuntu-smoke-evidence.yml`](../../../.github/workflows/ubuntu-smoke-evidence.yml)_ |
+| Ubuntu | AT-011 | [`ubuntu/20260518T044344Z/`](ubuntu/20260518T044344Z/) (also [`ubuntu/20260518T042622Z/`](ubuntu/20260518T042622Z/)) |
 
-Ubuntu archives land under `ubuntu/<run_id>/` when the workflow commits a passing run on `main`.
+Re-run via [cross-platform smoke runbook](../../CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011) when bootstrap or launcher paths change.

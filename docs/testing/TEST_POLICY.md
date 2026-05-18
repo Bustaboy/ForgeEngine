@@ -44,7 +44,7 @@ Current enforced gate in this repository (`.github/workflows/pr-validation.yml`)
 - `python -m pytest -q tests/ -p no:cacheprovider` (full Python suite)
 - `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -c Release --no-restore -v minimal` (full C# suite)
 
-Ubuntu cross-platform smoke (AT-011) runs in `.github/workflows/ubuntu-smoke-evidence.yml` on `main` pushes, pull requests, and `workflow_dispatch`; passing `main` runs archive evidence and promote AT-011 automatically.
+Ubuntu cross-platform smoke (AT-011) is **not** a per-PR GitHub Actions gate. Evidence is archived under `docs/release/evidence/archived/ubuntu/` and refreshed manually per `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md` when bootstrap or launcher paths change.
 
 These gate checks should stay deterministic and reasonably fast.
 
