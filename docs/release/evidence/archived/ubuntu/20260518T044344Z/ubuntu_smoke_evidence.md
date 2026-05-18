@@ -1,10 +1,10 @@
 # Ubuntu Smoke Evidence (AT-011)
 
 - Test ID: AT-011
-- Run ID: 20260518T043249Z
-- Date (UTC): 2026-05-18T04:35:19Z
+- Run ID: 20260518T044344Z
+- Date (UTC): 2026-05-18T04:46:16Z
 - Operator: github-actions
-- Branch/commit: main / f153a3fa69f50b9d68ceb78df7cdf75011ada2d5
+- Branch/commit: HEAD / 80b33735b71536d8810d289477626e41edc51ee7
 
 ## Environment snapshot
 
@@ -27,9 +27,9 @@
 
 ## Logs
 
-- bootstrap_runtime_only: `docs/release/evidence/runs/20260518T043249Z/bootstrap_runtime_only.log`
-- bootstrap_full: `docs/release/evidence/runs/20260518T043249Z/bootstrap_full.log`
-- pytest_q: `docs/release/evidence/runs/20260518T043249Z/pytest_q.log`
+- bootstrap_runtime_only: `docs/release/evidence/runs/20260518T044344Z/bootstrap_runtime_only.log`
+- bootstrap_full: `docs/release/evidence/runs/20260518T044344Z/bootstrap_full.log`
+- pytest_q: `docs/release/evidence/runs/20260518T044344Z/pytest_q.log`
 
 ## Output signature checks
 

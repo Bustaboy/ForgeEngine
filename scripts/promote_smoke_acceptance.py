@@ -13,6 +13,7 @@ JSON_PATH = REPO_ROOT / "docs" / "release" / "acceptance_traceability_v1.json"
 MD_PATH = REPO_ROOT / "docs" / "release" / "acceptance_traceability_v1.md"
 
 AT_BY_OS = {"windows": "AT-010", "ubuntu": "AT-011"}
+_STALE_WORKFLOW = ".github/workflows/ubuntu-smoke-evidence.yml"
 _TRACEABILITY_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
@@ -32,15 +33,67 @@ def _archive_dir(target_os: str, run_id: str) -> Path:
     return REPO_ROOT / "docs" / "release" / "evidence" / "archived" / target_os / run_id
 
 
-def _automation_refs(target_os: str, run_id: str) -> list[str]:
-    prefix = f"docs/release/evidence/archived/{target_os}/{run_id}"
+def _archive_ref_prefix(target_os: str) -> str:
+    return f"docs/release/evidence/archived/{target_os}/"
+
+
+def _is_archive_ref(ref: str, target_os: str) -> bool:
+    return ref.startswith(_archive_ref_prefix(target_os))
+
+
+def _archive_bundle_refs(target_os: str, run_id: str) -> list[str]:
+    prefix = f"{_archive_ref_prefix(target_os)}{run_id}"
+    evidence_md = (
+        f"{prefix}/ubuntu_smoke_evidence.md"
+        if target_os == "ubuntu"
+        else f"{prefix}/windows_smoke_evidence.md"
+    )
+    return sorted([f"{prefix}/smoke_evidence.json", evidence_md])
+
+
+def _stable_automation_refs(target_os: str) -> list[str]:
+    """Non-archive refs refreshed on each promote (full replacement for this set)."""
+
+    runbook = (
+        "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#3-ubuntu-smoke-procedure-at-011"
+        if target_os == "ubuntu"
+        else "docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md#4-windows-smoke-procedure-at-010"
+    )
+    template = (
+        "docs/release/evidence/ubuntu_smoke_template.md"
+        if target_os == "ubuntu"
+        else "docs/release/evidence/windows_smoke_template.md"
+    )
     refs = [
-        f"{prefix}/smoke_evidence.json",
-        f"{prefix}/{'ubuntu' if target_os == 'ubuntu' else 'windows'}_smoke_evidence.md",
+        runbook,
+        "docs/release/evidence/SMOKE_EVIDENCE_SCHEMA.md",
+        template,
+        "scripts/promote_smoke_acceptance.py",
         "scripts/run_smoke_and_capture_evidence.py",
-        ".github/workflows/ubuntu-smoke-evidence.yml" if target_os == "ubuntu" else ".github/workflows/pr-validation.yml",
     ]
-    return refs
+    if target_os == "windows":
+        refs.append(".github/workflows/pr-validation.yml")
+    return sorted(refs)
+
+
+def _merge_automation_refs(existing: list[str], target_os: str, run_id: str) -> list[str]:
+    """Replace stable refs; accumulate archive bundle refs across promotes."""
+
+    prior_archives = {ref for ref in existing if _is_archive_ref(ref, target_os)}
+    merged = (
+        set(_stable_automation_refs(target_os))
+        | prior_archives
+        | set(_archive_bundle_refs(target_os, run_id))
+    )
+    return sorted(merged)
+
+
+def _next_action(target_os: str, archive: Path) -> str:
+    archive_rel = archive.relative_to(REPO_ROOT).as_posix().rstrip("/")
+    return (
+        f"Re-run {target_os} smoke when bootstrap or launcher paths change; "
+        f"refresh {archive_rel}/"
+    )
 
 
 def _replace_md_row(at_id: str, item: dict[str, object]) -> None:
@@ -77,15 +130,13 @@ def promote(target_os: str, run_id: str) -> None:
     payload = json.loads(JSON_PATH.read_text(encoding="utf-8"))
     item = next(row for row in payload["items"] if row.get("id") == at_id)
 
-    existing = set(item.get("automation", []))
-    item["automation"] = sorted(existing | set(_automation_refs(target_os, run_id)))
+    existing = list(item.get("automation", []))
+    item["automation"] = _merge_automation_refs(existing, target_os, run_id)
     item["status"] = "covered"
     item["evidence_strength"] = "strong-automated"
     item["manual_procedure"] = None
     item["last_verified_at_utc"] = verified
-    item["next_action"] = (
-        f"Re-run {target_os} smoke when bootstrap or launcher paths change; refresh {archive.relative_to(REPO_ROOT).as_posix()}/."
-    )
+    item["next_action"] = _next_action(target_os, archive)
 
     JSON_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     _replace_md_row(at_id, item)

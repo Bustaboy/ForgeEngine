@@ -3,6 +3,19 @@
 > **Historical snapshot only** (frozen **2026-03-22**, baseline commit `33382034a14bee0d03f83a0769a484089a91b26c`). **Do not use the P0/P1 narrative or counts below as current release status** without re-validating against the live traceability JSON.  
 > **Current sources of truth:** [`acceptance_traceability_v1.json`](acceptance_traceability_v1.json), human-readable mirror [`acceptance_traceability_v1.md`](acceptance_traceability_v1.md), product status [`README.md`](../../README.md), and planning [`BACKLOG_APRIL_2026.md`](../BACKLOG_APRIL_2026.md). Product name is **Soul Loom**.
 
+### Post-snapshot updates (2026-05-18)
+
+Smoke evidence closed in live traceability (see JSON — do not rely on §1–§6 counts below):
+
+| AT | Status | Canonical archive |
+|---|---|---|
+| AT-010 | **covered** | `docs/release/evidence/archived/windows/20260518T041200Z/` |
+| AT-011 | **covered** | `docs/release/evidence/archived/ubuntu/20260518T044344Z/` |
+
+Remaining P0 RC blocker in traceability: **AT-001** (human fresh-install on clean VMs). Ubuntu per-merge CI (`ubuntu-smoke-evidence.yml`) was retired in PR #223; re-run smoke via [`CROSS_PLATFORM_SMOKE_RUNBOOK.md`](CROSS_PLATFORM_SMOKE_RUNBOOK.md) when bootstrap/launcher paths change.
+
+---
+
 - **Date (UTC):** 2026-03-22
 - **Prepared by:** Release Handoff Agent (GPT-5.2-Codex)
 - **Owner (Engineering):** _TBD_
