@@ -1,20 +1,20 @@
 using System.Text.Json;
-using GameForge.Editor.EditorShell;
+using Soul.Editor.EditorShell;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class PlaytestReportViewerTests
 {
     [Fact]
     public void Load_ValidReport_IncludesRequiredSectionsAndRenders()
     {
-        var reportPath = Path.Combine(Path.GetTempPath(), $"gameforge-report-{Guid.NewGuid():N}.json");
+        var reportPath = Path.Combine(Path.GetTempPath(), $"soulloom-report-{Guid.NewGuid():N}.json");
         File.WriteAllText(reportPath, JsonSerializer.Serialize(BuildReportPayload(), new JsonSerializerOptions { WriteIndented = true }));
 
         var report = PlaytestReportViewer.Load(reportPath);
         var rendered = PlaytestReportViewer.RenderConsole(report);
 
-        Assert.Equal("gameforge.playtest_report.v1", report.Schema);
+        Assert.Equal("soulloom.playtest_report.v1", report.Schema);
         Assert.Contains("Overall Status", rendered);
         Assert.Contains("[Progression]", rendered);
         Assert.Contains("[Performance]", rendered);
@@ -23,11 +23,11 @@ public sealed class PlaytestReportViewerTests
     [Fact]
     public void Export_WritesMarkdownAndJson()
     {
-        var reportPath = Path.Combine(Path.GetTempPath(), $"gameforge-report-{Guid.NewGuid():N}.json");
+        var reportPath = Path.Combine(Path.GetTempPath(), $"soulloom-report-{Guid.NewGuid():N}.json");
         File.WriteAllText(reportPath, JsonSerializer.Serialize(BuildReportPayload(), new JsonSerializerOptions { WriteIndented = true }));
 
         var report = PlaytestReportViewer.Load(reportPath);
-        var outputDir = Path.Combine(Path.GetTempPath(), $"gameforge-report-export-{Guid.NewGuid():N}");
+        var outputDir = Path.Combine(Path.GetTempPath(), $"soulloom-report-export-{Guid.NewGuid():N}");
         var markdownPath = Path.Combine(outputDir, "playtest.md");
         var jsonPath = Path.Combine(outputDir, "playtest.json");
 
@@ -39,14 +39,14 @@ public sealed class PlaytestReportViewerTests
         Assert.Contains("## Progression", File.ReadAllText(markdownPath));
 
         var exported = JsonDocument.Parse(File.ReadAllText(jsonPath));
-        Assert.Equal("gameforge.playtest_report.v1", exported.RootElement.GetProperty("schema").GetString());
+        Assert.Equal("soulloom.playtest_report.v1", exported.RootElement.GetProperty("schema").GetString());
     }
 
     private static object BuildReportPayload()
     {
         return new
         {
-            schema = "gameforge.playtest_report.v1",
+            schema = "soulloom.playtest_report.v1",
             report_id = "cozy-colony-baseline-20260322T000000Z",
             scenario_id = "cozy-colony-baseline",
             prototype_root = "app/samples/generated-prototype/cozy-colony-tales",

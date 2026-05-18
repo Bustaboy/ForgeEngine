@@ -1,6 +1,6 @@
-# Soul Loom Architecture Overview
+# Soul Loom architecture overview
 
-This page summarizes V1 architecture boundaries and links to the baseline ADR set.
+This page summarizes V1 architecture boundaries and links to the baseline ADR set for the **Soul Loom** product and repository.
 
 ## Baseline Decisions
 - [ADR Index](./adr/README.md)

@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace GameForge.Editor.EditorShell.EditorSystems;
+namespace Soul.Editor.EditorShell.EditorSystems;
 
 public sealed record StoryBeatRow(string Id, string Title, string Summary, bool Completed, bool CutsceneTrigger)
 {

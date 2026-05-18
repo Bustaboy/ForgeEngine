@@ -1,4 +1,4 @@
-# GameForge V1 UX Copy Standards
+# Soul Loom V1 UX Copy Standards
 
 ## Purpose
 Standardize plain-language copy for high-frequency actions so non-coders can confidently create, test, and publish games in a local-first workflow.

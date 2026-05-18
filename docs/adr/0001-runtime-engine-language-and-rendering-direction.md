@@ -62,5 +62,5 @@ Use **C++** as the runtime/engine implementation language and adopt a **Vulkan-f
 
 ## References
 - Related ADRs: ADR-0002, ADR-0003, ADR-0004
-- External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+- External references: SOUL_LOOM_V1_BLUEPRINT.md, SOUL_LOOM_EXECUTION_PLAN.md
 

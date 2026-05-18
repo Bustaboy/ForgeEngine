@@ -9,16 +9,16 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
-using GameForge.Editor.EditorShell;
-using GameForge.Editor.EditorShell.Services;
+using Soul.Editor.EditorShell;
+using Soul.Editor.EditorShell.Services;
 using System.Collections.Specialized;
 using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
-using GameForge.Editor.EditorDiagnostics;
+using Soul.Editor.EditorDiagnostics;
 
-namespace GameForge.Editor.EditorShell.ViewModels;
+namespace Soul.Editor.EditorShell.ViewModels;
 
 public sealed partial class MainWindowViewModel : INotifyPropertyChanged
 {
@@ -26,6 +26,8 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     {
         WriteIndented = true,
     };
+
+    internal bool BypassPrototypeGenerationReadinessCheck { get; set; }
 
     private readonly IOrchestratorGateway _orchestratorGateway;
     private readonly IRuntimeSupervisor _runtimeSupervisor;
@@ -161,16 +163,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private static string ResolveDefaultSettingsPath()
-    {
-        var soulLoomPath = Path.Combine(Environment.CurrentDirectory, ".soulloom", "settings.json");
-        var legacyPath = Path.Combine(Environment.CurrentDirectory, ".forgeengine", "settings.json");
-        if (!File.Exists(soulLoomPath) && File.Exists(legacyPath))
-        {
-            return legacyPath;
-        }
-
-        return soulLoomPath;
-    }
+        => Path.Combine(Environment.CurrentDirectory, ".soulloom", "settings.json");
 
     internal MainWindowViewModel(IOrchestratorGateway orchestratorGateway, IRuntimeSupervisor runtimeSupervisor, string? settingsFilePath = null)
     {
@@ -1535,7 +1528,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(projectFilePath))
         {
-            ShowFailureToast("Save failed", "Project file path is missing.", "Pick a valid .gfproj.json file path and retry.");
+            ShowFailureToast("Save failed", "Project file path is missing.", "Pick a valid .soulproj.json file path and retry.");
             return false;
         }
 
@@ -1590,7 +1583,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(projectFilePath) || !File.Exists(projectFilePath))
         {
-            ShowFailureToast("Open failed", "Project file was not found.", "Pick an existing .gfproj.json file and retry.");
+            ShowFailureToast("Open failed", "Project file was not found.", "Pick an existing .soulproj.json file and retry.");
             return false;
         }
 
@@ -2248,7 +2241,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md")))
+            if (File.Exists(Path.Combine(current.FullName, "SOUL_LOOM_V1_BLUEPRINT.md")))
             {
                 return current.FullName;
             }
@@ -2421,7 +2414,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            var markerPath = Path.Combine(current.FullName, "SOUL_LOOM_V1_BLUEPRINT.md");
             if (File.Exists(markerPath))
             {
                 var metricsPath = Path.Combine(current.FullName, "docs", "release", "evidence", "readiness_metrics_sample.json");
@@ -2444,7 +2437,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            var markerPath = Path.Combine(current.FullName, "SOUL_LOOM_V1_BLUEPRINT.md");
             if (File.Exists(markerPath))
             {
                 return Path.Combine(current.FullName, "docs", "release", "evidence", $"steam-readiness-audit-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");
@@ -2461,7 +2454,7 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var markerPath = Path.Combine(current.FullName, "GAMEFORGE_V1_BLUEPRINT.md");
+            var markerPath = Path.Combine(current.FullName, "SOUL_LOOM_V1_BLUEPRINT.md");
             if (File.Exists(markerPath))
             {
                 return Path.Combine(current.FullName, "docs", "release", "evidence", $"steam-upload-stub-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");
@@ -3011,6 +3004,23 @@ public sealed partial class MainWindowViewModel : INotifyPropertyChanged
         {
             MonacoEditorContent = loadedCode;
         }
+    }
+
+    internal void LoadPrototypeRootForTests(string prototypeRoot, int runtimePid = 6001, string runtimeStatus = "Running")
+    {
+        ApplyRuntimePreview(new PipelineRunResponse
+        {
+            ExitCode = 0,
+            Stdout = "test",
+            Stderr = string.Empty,
+            Result = new PipelineExecutionEnvelope
+            {
+                Status = "Completed",
+                RuntimeLaunchStatus = runtimeStatus,
+                RuntimeLaunchPid = runtimePid,
+                PrototypeRoot = prototypeRoot,
+            },
+        });
     }
 
     private void EnsureGeneratedViewportRunnerStarted(PipelineRunResponse response)

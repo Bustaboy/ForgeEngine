@@ -25,7 +25,7 @@ class ArtBible:
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> "ArtBible":
         return cls(
-            schema=str(payload.get("schema", "gameforge.art-bible.v1")),
+            schema=str(payload.get("schema", "soulloom.art-bible.v1")),
             project_name=str(payload.get("project_name", "Soul Loom Project")),
             art_direction=str(payload.get("art_direction", "stylized indie 3D")),
             rendering_keywords=[str(item) for item in payload.get("rendering_keywords", [])],
@@ -53,7 +53,7 @@ class ArtBible:
 
 def default_art_bible(project_name: str = "Soul Loom Project") -> ArtBible:
     return ArtBible(
-        schema="gameforge.art-bible.v1",
+        schema="soulloom.art-bible.v1",
         project_name=project_name,
         art_direction="stylized indie 3D with readable silhouettes",
         rendering_keywords=[

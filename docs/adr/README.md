@@ -1,6 +1,6 @@
-# Soul Loom Architecture Decisions (ADR Index)
+# Soul Loom architecture decisions (ADR index)
 
-This folder captures baseline architecture decisions for Soul Loom so core stack choices are not re-decided repeatedly.
+This folder captures baseline architecture decisions for **Soul Loom** so core stack choices are not re-decided repeatedly.
 
 ## V1 Decision Baseline
 - [ADR 0001: Runtime Engine Language and Rendering Direction](./0001-runtime-engine-language-and-rendering-direction.md)

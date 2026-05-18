@@ -1,4 +1,4 @@
-namespace GameForge.Editor;
+namespace Soul.Editor;
 
 public static class PythonEnvironment
 {

@@ -28,7 +28,7 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _assert_save_payload_integrity(payload: dict) -> None:
-    assert payload["schema"] == "gameforge.save.v1"
+    assert payload["schema"] == "soulloom.save.v1"
     assert isinstance(payload["active_slot"], str) and payload["active_slot"]
     assert isinstance(payload["last_checkpoint"], str) and payload["last_checkpoint"]
     assert isinstance(payload["player_state"], dict)
@@ -61,7 +61,7 @@ def test_at002_create_save_reopen_preserves_project_data(tmp_path: Path) -> None
         if baseline_hashes.get(relative_path) != digest
     }
 
-    assert changed_files == {"save/savegame_hook.json"}
+    assert {path.replace("\\", "/") for path in changed_files} == {"save/savegame_hook.json"}
 
 
 def test_at025_save_load_regression_loop_detects_corruption(tmp_path: Path) -> None:

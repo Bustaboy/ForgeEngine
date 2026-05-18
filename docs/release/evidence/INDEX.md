@@ -1,4 +1,4 @@
-# Soul Loom Evidence Index
+# Soul Loom release evidence index
 
 - **Date (UTC):** 2026-03-22
 - **Prepared by:** Release Handoff Agent (GPT-5.2-Codex)
@@ -19,9 +19,9 @@ This index centralizes evidence artifacts used for V1 RC readiness review.
 
 ## 2) Policy and acceptance baselines
 
-- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` — canonical AT definitions and RC rule.
-- `GAMEFORGE_EXECUTION_PLAN.md` — Milestone 8 target deliverables and exit criteria.
-- `GAMEFORGE_DECISIONS_LOCK.md` — locked V1 policy decisions and quality gates.
+- `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md` — canonical AT definitions and RC rule.
+- `SOUL_LOOM_EXECUTION_PLAN.md` — Milestone 8 target deliverables and exit criteria.
+- `SOUL_LOOM_DECISIONS_LOCK.md` — locked V1 policy decisions and quality gates.
 - `docs/release/policy_change_note.md` — policy consistency correction audit note.
 
 ---
@@ -54,7 +54,7 @@ Generated run artifacts convention:
 
 - `scripts/validate_traceability.py` — parity/coverage validator for traceability docs.
 - `pytest -q` — Python test suite execution used for repo-wide regression signal.
-- `dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj -v minimal` — C# editor suite (conditional on .NET SDK availability).
+- `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal` — C# editor suite (conditional on .NET SDK availability).
 
 ---
 

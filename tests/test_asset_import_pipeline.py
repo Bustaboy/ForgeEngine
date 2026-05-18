@@ -25,8 +25,8 @@ class TestAssetImportPipeline(unittest.TestCase):
             os_environ_backup = dict(os.environ)
             try:
                 os.chdir(project_root)
-                os.environ["GAMEFORGE_GRAPHICS_BACKEND"] = "debug-local"
-                os.environ["GAMEFORGE_GRAPHICS_SEED"] = "12345"
+                os.environ["SOUL_LOOM_GRAPHICS_BACKEND"] = "debug-local"
+                os.environ["SOUL_LOOM_GRAPHICS_SEED"] = "12345"
                 generated = orchestrator.generate_asset("stylized forge anvil", type="sprite")
                 generated_asset = Path(generated.output_path)
                 generated_metadata = Path(generated.metadata_path)
@@ -84,8 +84,8 @@ class TestAssetImportPipeline(unittest.TestCase):
             os_environ_backup = dict(os.environ)
             try:
                 os.chdir(project_root)
-                os.environ["GAMEFORGE_GRAPHICS_BACKEND"] = "debug-local"
-                os.environ["GAMEFORGE_GRAPHICS_SEED"] = "777"
+                os.environ["SOUL_LOOM_GRAPHICS_BACKEND"] = "debug-local"
+                os.environ["SOUL_LOOM_GRAPHICS_SEED"] = "777"
                 generated = orchestrator.generate_asset("stylized blacksmith hammer", type="sprite", count=3)
                 metadata_payload = json.loads(Path(generated.metadata_path).read_text(encoding="utf-8"))
                 self.assertEqual(3, metadata_payload["variant_count"])
@@ -206,7 +206,7 @@ class TestAssetImportPipeline(unittest.TestCase):
             catalog_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.asset_catalog.v1",
+                        "schema": "soulloom.asset_catalog.v1",
                         "generated_at_utc": "2026-03-22T00:00:00Z",
                         "assets": [
                             {"asset_id": "asset-0001", "relative_path": "assets/library/asset-0001.png"},
@@ -280,7 +280,7 @@ class TestAssetImportPipeline(unittest.TestCase):
             self.assertTrue(Path(exported.markdown_path).exists())
 
             bundle = json.loads(Path(exported.json_path).read_text(encoding="utf-8"))
-            self.assertEqual("gameforge.attribution_bundle.v1", bundle["schema"])
+            self.assertEqual("soulloom.attribution_bundle.v1", bundle["schema"])
             self.assertEqual(1, bundle["asset_count"])
             self.assertEqual(1, len(bundle["entries"]))
             self.assertEqual("cc-by-4.0", bundle["entries"][0]["license_id"])
@@ -296,7 +296,7 @@ class TestAssetImportPipeline(unittest.TestCase):
             catalog_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.asset_catalog.v1",
+                        "schema": "soulloom.asset_catalog.v1",
                         "generated_at_utc": "2026-03-22T00:00:00Z",
                         "assets": [
                             {
@@ -329,7 +329,7 @@ class TestAssetImportPipeline(unittest.TestCase):
             catalog_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.asset_catalog.v1",
+                        "schema": "soulloom.asset_catalog.v1",
                         "generated_at_utc": "2026-03-22T00:00:00Z",
                         "assets": [
                             {

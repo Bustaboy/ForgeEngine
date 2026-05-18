@@ -62,5 +62,5 @@ Adopt a **JSON-based project manifest and content document format** for V1 metad
 
 ## References
 - Related ADRs: ADR-0001, ADR-0002, ADR-0004
-- External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+- External references: SOUL_LOOM_V1_BLUEPRINT.md, SOUL_LOOM_EXECUTION_PLAN.md
 

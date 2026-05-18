@@ -1,6 +1,6 @@
-# ForgeEngine V1
+# Soul Loom V1
 
-**ForgeEngine** is a local-first, AI-native game creation engine that lets hobby creators and indie studios build single-player games without writing code. The engine combines a high-performance **C++ Vulkan runtime**, a **C# visual editor** (Avalonia), and a **Python AI orchestration layer** that handles everything from deep design interviews to prototype generation, NPC behavior, asset pipeline, and Steam readiness checks — all running entirely on your own hardware. What makes it distinct is the tight loop between living-world simulation (NPCs with real schedules and free-will sparks, dynamic weather, economy, and settlement layers) and an AI generation pipeline guided by a per-project Art Bible, so the output is always consistent with your creative vision.
+**Soul Loom** is a local-first, AI-native game creation engine that lets hobby creators and indie studios build single-player games without writing code. The engine combines a high-performance **C++ Vulkan runtime**, a **C# visual editor** (Avalonia), and a **Python AI orchestration layer** that handles everything from deep design interviews to prototype generation, NPC behavior, asset pipeline, and Steam readiness checks — all running entirely on your own hardware. What makes it distinct is the tight loop between living-world simulation (NPCs with real schedules and free-will sparks, dynamic weather, economy, and settlement layers) and an AI generation pipeline guided by a per-project Art Bible, so the output is always consistent with your creative vision.
 
 ---
 
@@ -11,7 +11,7 @@
 - **Building system** — grid-based placement with ghost preview and inventory cost validation before committing a build
 - **Living NPCs** — schedule-driven agents with a probabilistic free-will spark system (LLM-backed); up to 3 spontaneous behavior sparks per NPC per day with per-NPC cap and cooldown, visible in the editor's NPC panel
 - **Settlement layer** — village morale, food/shared stockpile, population tracking, and economy pressure feeding into NPC behavior and dialog tone
-- **Tactical combat** — turn-aware unit state machine with inventory integration and relationship-aware resolution
+- **Combat** — tactical (turn-aware) encounters plus a **real-time combat** simulation layer in the runtime; both tie into inventory and relationships where configured
 - **Weather system** — 7 dynamic profiles (sunny, rain, storm, snow, sandstorm, fog, windy), each modifying movement speed, economy multipliers, relationship drift, and NPC dialog tone in real time
 - **Relationship system** — persistent NPC-to-player and NPC-to-NPC relationship scores that affect dialog branches, weather drift, and combat outcomes
 - **Navmesh** — runtime pathfinding for NPC movement and combat unit routing
@@ -70,12 +70,12 @@ PYTHONPATH=ai-orchestration/python python3 ai-orchestration/python/orchestrator.
 
 ### 3. Run the editor
 ```bash
-dotnet run --project editor/csharp/GameForge.Editor.csproj
+dotnet run --project editor/csharp/Soul.Editor.csproj
 ```
 
 For a terminal-only launcher smoke check used by CI/release evidence:
 ```bash
-dotnet run --project editor/csharp/GameForge.Editor.csproj -- --launcher-smoke
+dotnet run --project editor/csharp/Soul.Editor.csproj -- --launcher-smoke
 ```
 
 ### 4. Generate your first asset or scene
@@ -124,7 +124,7 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 | Inventory system | Stable |
 | Living NPCs — schedule + free-will sparks | Stable |
 | Settlement layer (morale, economy, population) | Stable |
-| Tactical combat | Stable |
+| Combat (tactical + real-time layers) | Stable |
 | Weather system (7 profiles, systemic effects) | Stable |
 | Relationship system | Stable |
 | Navmesh + pathfinding | Stable |
@@ -165,15 +165,21 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 
 | Document | Purpose |
 |---|---|
-| [`GAMEFORGE_V1_BLUEPRINT.md`](GAMEFORGE_V1_BLUEPRINT.md) | Product vision, guiding principles, feature targets, technical scope, and MVP definition |
-| [`CODEX_PROMPT_PLAYBOOK.md`](CODEX_PROMPT_PLAYBOOK.md) | Codex-optimized prompts for milestone-by-milestone implementation, reusable task templates, and scope discipline rules |
-| [`GAMEFORGE_EXECUTION_PLAN.md`](GAMEFORGE_EXECUTION_PLAN.md) | Sprint-level milestone map, risk register, KPI targets, and team operating rhythm |
-| [`GAMEFORGE_UX_FOUNDATIONS.md`](GAMEFORGE_UX_FOUNDATIONS.md) | UX wireframe baseline, interaction patterns, and no-coder-first labeling standards |
+| [`SOUL_LOOM_V1_BLUEPRINT.md`](SOUL_LOOM_V1_BLUEPRINT.md) | **Soul Loom** V1 product vision, principles, feature targets, technical scope, and MVP |
+| [`CODEX_PROMPT_PLAYBOOK.md`](CODEX_PROMPT_PLAYBOOK.md) | Codex-optimized prompts for Soul Loom V1 milestones, task templates, and scope discipline |
+| [`SOUL_LOOM_EXECUTION_PLAN.md`](SOUL_LOOM_EXECUTION_PLAN.md) | Sprint map, risk register, KPI targets, and operating rhythm for Soul Loom V1 |
+| [`SOUL_LOOM_UX_FOUNDATIONS.md`](SOUL_LOOM_UX_FOUNDATIONS.md) | Soul Loom UX baseline: interaction patterns and no-coder-first labeling |
 | [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) | Zero-guesswork setup, prerequisites, and release flow |
 | [`docs/testing/TEST_POLICY.md`](docs/testing/TEST_POLICY.md) | Required test layers, CI gates, and merge expectations |
+| [`docs/SETUP.md`](docs/SETUP.md) | Bootstrap-focused setup and verification (see also one-command `setup.sh` / `Setup-Alpha.ps1` above) |
+| [`docs/ARCHITECTURE_OVERVIEW.md`](docs/ARCHITECTURE_OVERVIEW.md) | V1 stack boundaries and ADR index |
+| [`docs/release/acceptance_traceability_v1.md`](docs/release/acceptance_traceability_v1.md) | Acceptance test ↔ evidence mapping (mirror of `acceptance_traceability_v1.json`) |
+| [`docs/BACKLOG_APRIL_2026.md`](docs/BACKLOG_APRIL_2026.md) | Prioritized **Soul Loom** backlog, AI role routing, and review follow-ups (April 2026) |
+| [`docs/SOUL_LOOM_WORK_PLAN_2026-05-17.md`](docs/SOUL_LOOM_WORK_PLAN_2026-05-17.md) | **Latest work plan** (2026-05-17): RC blockers, phased tasks, sprint board — start here after a break |
+| [`backlog.md`](backlog.md) | **[DEPRICATED]** pointer only — use `docs/BACKLOG_APRIL_2026.md` |
 
 ---
 
 ## License
 
-Free for non-commercial use. Commercial projects (sold games or games containing MTX) are subject to a **5% revenue share after the first $1,000 gross revenue per game**. See [`GAMEFORGE_V1_BLUEPRINT.md`](GAMEFORGE_V1_BLUEPRINT.md) §12 for full terms.
+Free for non-commercial use. Commercial projects (sold games or games containing MTX) are subject to a **5% revenue share after the first $1,000 gross revenue per game**. See [`SOUL_LOOM_V1_BLUEPRINT.md`](SOUL_LOOM_V1_BLUEPRINT.md) §12 for full terms.

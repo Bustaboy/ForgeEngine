@@ -698,7 +698,7 @@ def generate_loot(
         )
 
     return {
-        "schema": "gameforge.loot_generation.v1",
+        "schema": "soulloom.loot_generation.v1",
         "prompt": clean_prompt,
         "seed": used_seed,
         "template_type": normalized_type,
@@ -801,7 +801,7 @@ def _upsert_scene_quality_metadata(scene_payload: dict[str, Any], quality: dict[
         quality_node = {}
         scene_payload["quality_metadata"] = quality_node
 
-    quality_node["schema"] = "gameforge.scene_quality_metadata.v1"
+    quality_node["schema"] = "soulloom.scene_quality_metadata.v1"
     quality_node["score"] = int(quality.get("score", 0))
     quality_node["components"] = quality.get("components", {})
     quality_node["estimated_vram_mb"] = float(quality.get("estimated_vram_mb", 0.0))
@@ -1128,7 +1128,7 @@ def bash_scene(prompt: str, art_bible: ArtBible, existing_modules: list[dict[str
     }
 
     return {
-        "schema": "gameforge.kit_bash_scene.v1",
+        "schema": "soulloom.kit_bash_scene.v1",
         "prompt": clean_prompt,
         "targets": sorted(targets),
         "kits_path": str(kits_path),
@@ -1183,7 +1183,7 @@ def apply_kit_bash_to_scene(
         scene_payload["generated_asset_variants"] = scene_variants
     scene_variants.append(
         {
-            "schema": "gameforge.scene_asset_variants.v1",
+            "schema": "soulloom.scene_asset_variants.v1",
             "source": "kit-bash-scene",
             "prompt": prompt,
             "variant_count": safe_variant_count,

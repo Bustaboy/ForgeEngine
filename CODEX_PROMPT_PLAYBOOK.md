@@ -1,4 +1,4 @@
-# GameForge Codex Prompt Playbook (V1 Execution)
+# Soul Loom Codex Prompt Playbook (V1 Execution)
 
 ## Purpose
 This document converts the V1 execution plan into **Codex-optimized prompts** you can run milestone-by-milestone.
@@ -23,8 +23,8 @@ Use these rules for every prompt:
 4. **Demand verification steps**
    - Ask for checks/tests and a short report of pass/fail.
 5. **Pin context to project docs**
-   - Reference `GAMEFORGE_V1_BLUEPRINT.md` and `GAMEFORGE_EXECUTION_PLAN.md`.
-   - For user-facing work, also reference `GAMEFORGE_UX_FOUNDATIONS.md`.
+   - Reference `SOUL_LOOM_V1_BLUEPRINT.md` and `SOUL_LOOM_EXECUTION_PLAN.md`.
+   - For user-facing work, also reference `SOUL_LOOM_UX_FOUNDATIONS.md`.
 6. **Prefer incremental PR-sized changes**
    - Target 1–3 days of work per prompt.
 7. **Enforce non-destructive behavior**
@@ -42,10 +42,10 @@ Use these rules for every prompt:
 Use this once at the start of a coding session:
 
 ```text
-You are implementing GameForge V1 incrementally.
+You are implementing Soul Loom V1 incrementally.
 Follow these requirements strictly:
 - Prioritize local-first, single-player, no-code-first workflows.
-- Keep scope aligned with GAMEFORGE_V1_BLUEPRINT.md and GAMEFORGE_EXECUTION_PLAN.md.
+- Keep scope aligned with SOUL_LOOM_V1_BLUEPRINT.md and SOUL_LOOM_EXECUTION_PLAN.md.
 - Do not add multiplayer, marketplace, or first-party cloud hosting.
 - Use locked V1 stack:
   - Core runtime/engine: C++
@@ -70,8 +70,8 @@ Goal:
 <what must be true when done>
 
 Context:
-- Read: GAMEFORGE_V1_BLUEPRINT.md
-- Read: GAMEFORGE_EXECUTION_PLAN.md
+- Read: SOUL_LOOM_V1_BLUEPRINT.md
+- Read: SOUL_LOOM_EXECUTION_PLAN.md
 - This task belongs to: <Milestone X>
 
 Scope In:
@@ -160,7 +160,7 @@ Goal:
 Define low-fidelity wireframes and primary navigation flows for Project Home, Interview, Prototype, Editor, Testing, and Publish.
 
 Context:
-- Read GAMEFORGE_UX_FOUNDATIONS.md.
+- Read SOUL_LOOM_UX_FOUNDATIONS.md.
 - Keep flows aligned with no-code-first constraints.
 
 Deliverables:
@@ -196,14 +196,14 @@ Acceptance Criteria:
 
 ### Prompt M1-P1: Repo skeleton + bootstrap
 ```text
-Task: Establish GameForge V1 repository skeleton and local bootstrap flow
+Task: Establish Soul Loom V1 repository skeleton and local bootstrap flow
 
 Goal:
 Create a clean module structure and a single bootstrap command so a new contributor can run the project quickly.
 
 Context:
-- Read GAMEFORGE_EXECUTION_PLAN.md Milestone 1.
-- Read GAMEFORGE_V1_BLUEPRINT.md sections on local-first and V1 scope.
+- Read SOUL_LOOM_EXECUTION_PLAN.md Milestone 1.
+- Read SOUL_LOOM_V1_BLUEPRINT.md sections on local-first and V1 scope.
 
 Scope In:
 - Create top-level folders for app/editor/runtime/ai-orchestration/docs/scripts.
@@ -586,7 +586,7 @@ Use this to prevent hidden debt:
 ```text
 Quality Gate Review:
 - Review recent changes for scope drift, regressions, and architecture consistency.
-- Verify alignment with GAMEFORGE_V1_BLUEPRINT.md and GAMEFORGE_EXECUTION_PLAN.md.
+- Verify alignment with SOUL_LOOM_V1_BLUEPRINT.md and SOUL_LOOM_EXECUTION_PLAN.md.
 - List:
   1) What is done and stable,
   2) What is risky,
@@ -636,7 +636,7 @@ Reject any output that:
 ```text
 Task: Milestone 1 Prompt 1 — Repository skeleton and bootstrap
 
-Use CODEX_PROMPT_PLAYBOOK.md and GAMEFORGE_EXECUTION_PLAN.md as source constraints.
+Use CODEX_PROMPT_PLAYBOOK.md and SOUL_LOOM_EXECUTION_PLAN.md as source constraints.
 Implement only Milestone 1 deliverables for repo/module structure + local bootstrap + minimal run path.
 Do not implement Milestone 2+ features.
 Include setup docs and exact verification commands.
@@ -651,8 +651,8 @@ Return:
 
 ## 9) Supporting Docs Required for Stable Execution
 Use these docs as operational anchors:
-- `GAMEFORGE_DECISIONS_LOCK.md` (final locked decisions and change control)
-- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` (release and sprint pass/fail matrix)
-- `GAMEFORGE_UX_FOUNDATIONS.md` (UX rules, flow definitions, and UX quality targets)
+- `SOUL_LOOM_DECISIONS_LOCK.md` (final locked decisions and change control)
+- `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md` (release and sprint pass/fail matrix)
+- `SOUL_LOOM_UX_FOUNDATIONS.md` (UX rules, flow definitions, and UX quality targets)
 
 When prompts conflict with prior assumptions, update these docs first, then proceed with implementation.

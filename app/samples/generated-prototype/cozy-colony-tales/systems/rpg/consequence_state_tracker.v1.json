@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rpg.consequence_tracker.v1",
+  "schema": "soulloom.rpg.consequence_tracker.v1",
   "module_id": "rpg_choice_consequences",
   "graph": {
     "nodes": [

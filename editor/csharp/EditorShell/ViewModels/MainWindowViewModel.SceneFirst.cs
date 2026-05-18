@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell.ViewModels;
+namespace Soul.Editor.EditorShell.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
@@ -100,7 +100,7 @@ public sealed partial class MainWindowViewModel
     public bool CanSaveScene => HasActiveScenePath;
     public string SceneNameLabel => HasActiveScenePath ? Path.GetFileName(ActiveScenePath) : "No scene";
     public string ProjectRootNameLabel => HasProjectRootPath ? Path.GetFileName(ProjectRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) : "No project";
-    public string WindowTitle => HasActiveScenePath ? $"{SceneNameLabel} - ForgeEngine Editor" : "ForgeEngine Editor";
+    public string WindowTitle => HasActiveScenePath ? $"{SceneNameLabel} - Soul Loom Editor" : "Soul Loom Editor";
 
     public bool IsChatCopilotPanelVisible => HasActiveScenePath && IsCreatorModeEnabled;
 

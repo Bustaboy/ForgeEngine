@@ -1,4 +1,4 @@
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public enum CommercialUseDeclaration
 {

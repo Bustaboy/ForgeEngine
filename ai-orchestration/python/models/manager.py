@@ -33,7 +33,7 @@ class ModelPreparationResult:
 
 def _resolve_models_root(orchestrator_file: Path) -> Path:
     default_root = orchestrator_file.parent / "models" / "artifacts"
-    configured = os.getenv("FORGEENGINE_MODELS_DIR", "").strip()
+    configured = os.getenv("SOUL_LOOM_MODELS_DIR", "").strip()
     if configured:
         configured_path = Path(configured)
         return configured_path if configured_path.is_absolute() else (orchestrator_file.parent / configured_path)
@@ -59,8 +59,8 @@ def prepare_models(orchestrator_file: Path | None = None) -> ModelPreparationRes
     load_dotenv(anchor.parent / ".env")
     models_root = _resolve_models_root(anchor)
 
-    allow_cpu_fallback = read_env_bool("FORGEENGINE_ALLOW_CPU_FALLBACK", True)
-    max_models = read_env_int("FORGEENGINE_MAX_MODELS", len(DEFAULT_MODEL_SET))
+    allow_cpu_fallback = read_env_bool("SOUL_LOOM_ALLOW_CPU_FALLBACK", True)
+    max_models = read_env_int("SOUL_LOOM_MAX_MODELS", len(DEFAULT_MODEL_SET))
 
     gpu = detect_primary_gpu()
     total_vram = gpu.total_vram_gb if gpu else 0

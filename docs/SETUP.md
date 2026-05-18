@@ -1,6 +1,8 @@
-# Soul Loom Setup (Windows + Ubuntu)
+# Soul Loom setup (Windows + Ubuntu)
 
-This setup is intentionally simple and local-first for Milestone 1.
+This setup is intentionally simple and local-first. For the **full** one-command environment (prereqs + Vulkan toolchain on Windows), prefer [`README.md`](../README.md) (`Setup-Alpha.ps1` / `setup.sh`). This page documents the **bootstrap** entrypoints used by CI and minimal verification.
+
+Successful runs should print **`Soul Loom bootstrap (...)`** from `scripts/bootstrap.sh` / `bootstrap.ps1` (and related setup scripts).
 
 ## Scope Guardrails (V1)
 - Single-player only.
@@ -33,14 +35,14 @@ This setup is intentionally simple and local-first for Milestone 1.
 ### Ubuntu/Linux
 ```bash
 git clone <repo-url>
-cd Soul Loom
+cd soul-loom   # or your git clone directory name
 ./scripts/bootstrap.sh
 ```
 
 ### Windows (PowerShell)
 ```powershell
 git clone <repo-url>
-cd Soul Loom
+cd soul-loom   # or your git clone directory name
 pwsh -f scripts/bootstrap.ps1
 ```
 
@@ -72,7 +74,7 @@ pwsh -f scripts/bootstrap.ps1 -RuntimeOnly
 
 ## What Bootstrap Does
 1. Verifies required repository folders exist.
-2. Configures and builds the C++ `forge_runtime` target via CMake.
+2. Configures and builds the C++ `soul_runtime` target via CMake.
 3. Starts C# app entrypoint (`editor/csharp/Program.cs` via `dotnet run`) by default.
 4. If runtime-only mode is used, starts the C++ runtime binary directly.
 

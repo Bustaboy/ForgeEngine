@@ -1,6 +1,6 @@
 {
-  "schema": "gameforge.art-bible.v1",
-  "project_name": "ForgeEngine",
+  "schema": "soulloom.art-bible.v1",
+  "project_name": "Soul Loom",
   "art_direction": "stylized indie 3D with readable silhouettes",
   "rendering_keywords": [
     "stylized PBR",

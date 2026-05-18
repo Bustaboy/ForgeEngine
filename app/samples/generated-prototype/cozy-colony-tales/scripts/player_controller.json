@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.player_controller.v1",
+  "schema": "soulloom.player_controller.v1",
   "movement": {
     "forward": "W",
     "back": "S",

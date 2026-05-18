@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.readiness_metrics.v1",
+  "schema": "soulloom.readiness_metrics.v1",
   "collected_by": "scripts/collect_readiness_metrics.py",
   "input_source": "embedded_default_fixture",
   "metrics": {

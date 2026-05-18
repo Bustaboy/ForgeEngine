@@ -2,12 +2,12 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using GameForge.Editor.EditorShell.EditorSystems;
-using GameForge.Editor.EditorShell.Services;
-using GameForge.Editor.EditorShell.ViewModels;
+using Soul.Editor.EditorShell.EditorSystems;
+using Soul.Editor.EditorShell.Services;
+using Soul.Editor.EditorShell.ViewModels;
 using Moq;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class MainWindowViewModelTests : IDisposable
 {
@@ -109,6 +109,7 @@ public sealed class MainWindowViewModelTests : IDisposable
         var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object)
         {
             ChatPrompt = "Build a cozy village sim",
+            BypassPrototypeGenerationReadinessCheck = true,
         };
 
         await viewModel.GenerateFromBriefAsync(launchRuntime: true);
@@ -175,7 +176,10 @@ public sealed class MainWindowViewModelTests : IDisposable
                 },
             });
 
-        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object);
+        var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object)
+        {
+            BypassPrototypeGenerationReadinessCheck = true,
+        };
 
         await viewModel.CreateProjectFromTemplateAsync(template, "Moonlight Colony", "A gentle night market economy");
 
@@ -224,7 +228,7 @@ public sealed class MainWindowViewModelTests : IDisposable
         var runtime = CreateRuntimeSupervisorMock();
         var settingsPath = Path.Combine(_tempRoot, ".soulloom", "settings.json");
         var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot, settingsPath);
-        var projectPath = Path.Combine(_tempRoot, "alpha-project.gfproj.json");
+        var projectPath = Path.Combine(_tempRoot, "alpha-project.soulproj.json");
 
         viewModel.ChatPrompt = "Local-first polished editor";
         viewModel.IsCodeMode = true;
@@ -386,6 +390,7 @@ public sealed class MainWindowViewModelTests : IDisposable
         var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object)
         {
             ChatPrompt = "Generate prototype",
+            BypassPrototypeGenerationReadinessCheck = true,
         };
 
         orchestrator
@@ -764,8 +769,8 @@ public sealed class MainWindowViewModelTests : IDisposable
             """{"event":"onboarding_stage","stage":"benchmark_complete"}""");
 
         Assert.True(handled);
-        Assert.Equal("Preparing ForgeGuard", viewModel.DownloadProgressTitle);
-        Assert.Equal("Hardware benchmark complete. Preparing ForgeGuard download...", viewModel.DownloadProgressSummary);
+        Assert.Equal("Preparing LoomGuard", viewModel.DownloadProgressTitle);
+        Assert.Equal("Hardware benchmark complete. Preparing LoomGuard download...", viewModel.DownloadProgressSummary);
         Assert.Equal("Benchmark finished. Contacting the model host...", viewModel.DownloadProgressCurrentFile);
         Assert.True(viewModel.IsDownloadProgressIndeterminate);
     }
@@ -862,28 +867,10 @@ public sealed class MainWindowViewModelTests : IDisposable
         var viewModel = new MainWindowViewModel(orchestrator.Object, runtime.Object, settingsPath)
         {
             ChatPrompt = "test prompt",
+            BypassPrototypeGenerationReadinessCheck = true,
         };
 
-        orchestrator
-            .Setup(client => client.CreateBriefFromChatPrompt(It.IsAny<string>()))
-            .Returns(Path.Combine(_tempRoot, "brief.json"));
-        orchestrator
-            .Setup(client => client.RunGenerationPipelineAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PipelineRunResponse
-            {
-                ExitCode = 0,
-                Stdout = "ok",
-                Stderr = string.Empty,
-                Result = new PipelineExecutionEnvelope
-                {
-                    Status = "Completed",
-                    RuntimeLaunchStatus = "Running",
-                    RuntimeLaunchPid = 6001,
-                    PrototypeRoot = prototypeRoot,
-                },
-            });
-
-        viewModel.GenerateFromBriefAsync(launchRuntime: true).GetAwaiter().GetResult();
+        viewModel.LoadPrototypeRootForTests(prototypeRoot);
         return viewModel;
     }
 

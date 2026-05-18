@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GameForge.Editor.Interview;
+namespace Soul.Editor.Interview;
 
 public sealed class InterviewSchemaException(string message) : Exception(message);
 

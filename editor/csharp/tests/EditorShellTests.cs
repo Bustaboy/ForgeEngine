@@ -1,8 +1,8 @@
 using System.Text.Json;
-using GameForge.Editor.EditorShell;
-using GameForge.Editor.EditorShell.EditorSystems;
+using Soul.Editor.EditorShell;
+using Soul.Editor.EditorShell.EditorSystems;
 
-namespace GameForge.Editor.Tests;
+namespace Soul.Editor.Tests;
 
 public sealed class EditorShellTests
 {
@@ -250,7 +250,7 @@ public sealed class EditorShellTests
     [Fact]
     public void CreateOrchestratorStartInfo_UsesUnbufferedPythonOutput()
     {
-        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo("C:\\ForgeEngine", "quick-setup");
+        var startInfo = AiOrchestrationPanel.CreateOrchestratorStartInfo("C:\\Soul", "quick-setup");
 
         Assert.True(startInfo.ArgumentList.Count >= 3);
         Assert.Equal("-u", startInfo.ArgumentList[0]);
@@ -374,7 +374,7 @@ public sealed class EditorShellTests
         for (var i = 0; i < 8; i++)
         {
             var candidate = Path.GetFullPath(Path.Combine(current, string.Join(Path.DirectorySeparatorChar, Enumerable.Repeat("..", i))));
-            if (File.Exists(Path.Combine(candidate, "GAMEFORGE_V1_BLUEPRINT.md")))
+            if (File.Exists(Path.Combine(candidate, "SOUL_LOOM_V1_BLUEPRINT.md")))
             {
                 return candidate;
             }

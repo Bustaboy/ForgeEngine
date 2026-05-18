@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell.ViewModels;
+namespace Soul.Editor.EditorShell.ViewModels;
 
 public sealed class EditorPreferences
 {

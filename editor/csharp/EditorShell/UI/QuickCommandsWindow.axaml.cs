@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace GameForge.Editor.EditorShell.UI;
+namespace Soul.Editor.EditorShell.UI;
 
 public sealed class QuickCommandItem
 {

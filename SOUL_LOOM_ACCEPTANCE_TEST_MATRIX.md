@@ -1,4 +1,6 @@
-# GameForge V1 Acceptance Test Matrix
+# Soul Loom V1 Acceptance Test Matrix
+
+Live traceability is maintained under [`docs/release/acceptance_traceability_v1.json`](docs/release/acceptance_traceability_v1.json) (and [`.md`](docs/release/acceptance_traceability_v1.md)).
 
 This matrix turns V1 goals into concrete pass/fail checks.
 Use it for sprint demos and release-candidate verification.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SRC = REPO_ROOT / "runtime" / "cpp" / "main.cpp"
-RUNTIME_BIN = REPO_ROOT / "build" / "runtime" / "gameforge_runtime"
+RUNTIME_BIN = REPO_ROOT / "build" / "bin" / "soul_runtime"
 
 
 def run_cmd(cmd, cwd=REPO_ROOT):
@@ -39,7 +39,7 @@ def has_missing_native_runtime_deps(output: str) -> bool:
 
 class TestMilestone1Skeleton(unittest.TestCase):
     _runtime_build_dir = REPO_ROOT / "build"
-    _runtime_binary = _runtime_build_dir / "bin" / ("forge_runtime.exe" if os.name == "nt" else "forge_runtime")
+    _runtime_binary = _runtime_build_dir / "bin" / ("soul_runtime.exe" if os.name == "nt" else "soul_runtime")
     _runtime_build_ready = False
 
     @classmethod
@@ -55,7 +55,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
                 raise unittest.SkipTest("Vulkan/GLFW dependencies unavailable in test environment")
             raise AssertionError(configure_proc.stdout + configure_proc.stderr)
 
-        build_proc = run_cmd(["cmake", "--build", str(cls._runtime_build_dir), "--target", "forge_runtime"])
+        build_proc = run_cmd(["cmake", "--build", str(cls._runtime_build_dir), "--target", "soul_runtime"])
         if build_proc.returncode != 0:
             raise AssertionError(build_proc.stdout + build_proc.stderr)
 
@@ -134,7 +134,7 @@ class TestMilestone1Skeleton(unittest.TestCase):
 
 
     def test_editor_csproj_contract(self):
-        csproj_text = (REPO_ROOT / "editor" / "csharp" / "GameForge.Editor.csproj").read_text(encoding="utf-8")
+        csproj_text = (REPO_ROOT / "editor" / "csharp" / "Soul.Editor.csproj").read_text(encoding="utf-8")
         self.assertIn("<TargetFramework>net8.0</TargetFramework>", csproj_text)
         self.assertIn("<OutputType>Exe</OutputType>", csproj_text)
 

@@ -113,12 +113,12 @@ def run_light_benchmark(scene_path: Path) -> dict[str, object]:
     entity_count = _extract_entity_count(scene_path)
 
     metrics = {
-        "fps_avg": round(_coerce_float(os.environ.get("GAMEFORGE_METRIC_FPS_AVG"), estimated_avg_fps), 2),
-        "fps_1pct_low": round(_coerce_float(os.environ.get("GAMEFORGE_METRIC_FPS_1PCT_LOW"), estimated_fps_1pct_low), 2),
-        "vram_usage_mb": round(_coerce_float(os.environ.get("GAMEFORGE_METRIC_VRAM_MB"), 0.0), 2),
-        "draw_calls": _coerce_int(os.environ.get("GAMEFORGE_METRIC_DRAW_CALLS"), 0),
-        "entity_count": _coerce_int(os.environ.get("GAMEFORGE_METRIC_ENTITY_COUNT"), entity_count),
-        "update_time_ms": round(_coerce_float(os.environ.get("GAMEFORGE_METRIC_UPDATE_MS"), max(avg_update_ms, 0.1)), 4),
+        "fps_avg": round(_coerce_float(os.environ.get("SOUL_LOOM_METRIC_FPS_AVG"), estimated_avg_fps), 2),
+        "fps_1pct_low": round(_coerce_float(os.environ.get("SOUL_LOOM_METRIC_FPS_1PCT_LOW"), estimated_fps_1pct_low), 2),
+        "vram_usage_mb": round(_coerce_float(os.environ.get("SOUL_LOOM_METRIC_VRAM_MB"), 0.0), 2),
+        "draw_calls": _coerce_int(os.environ.get("SOUL_LOOM_METRIC_DRAW_CALLS"), 0),
+        "entity_count": _coerce_int(os.environ.get("SOUL_LOOM_METRIC_ENTITY_COUNT"), entity_count),
+        "update_time_ms": round(_coerce_float(os.environ.get("SOUL_LOOM_METRIC_UPDATE_MS"), max(avg_update_ms, 0.1)), 4),
         "sample_count": len(samples),
     }
     return metrics
@@ -150,7 +150,7 @@ def record_performance_snapshot(scene_path: Path, session_name: str) -> dict[str
     snapshots.append(snapshot)
     history_payload.update(
         {
-            "schema": "gameforge.performance_history.v1",
+            "schema": "soulloom.performance_history.v1",
             "project_root": str(project_root),
             "snapshots": snapshots,
         }

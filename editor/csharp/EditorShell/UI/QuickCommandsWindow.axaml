@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="GameForge.Editor.EditorShell.UI.QuickCommandsWindow"
+        x:Class="Soul.Editor.EditorShell.UI.QuickCommandsWindow"
         Title="Command Palette"
         Width="520"
         Height="420"

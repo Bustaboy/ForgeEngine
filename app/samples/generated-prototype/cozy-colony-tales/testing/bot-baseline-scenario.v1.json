@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.bot_playtest_scenario.v1",
+  "schema": "soulloom.bot_playtest_scenario.v1",
   "scenario_id": "cozy-colony-baseline",
   "title": "Cozy Colony Baseline Bot Validation",
   "max_runtime_seconds": 45,

@@ -7,9 +7,9 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildDir = Join-Path $repoRoot "build"
-$runtimeBin = Join-Path $buildDir "bin\forge_runtime.exe"
-$editorProject = Join-Path $repoRoot "editor/csharp/GameForge.Editor.csproj"
-$editorBin = Join-Path $repoRoot "editor/csharp/bin/Release/net8.0/GameForge.Editor.exe"
+$runtimeBin = Join-Path $buildDir "bin\soul_runtime.exe"
+$editorProject = Join-Path $repoRoot "editor/csharp/Soul.Editor.csproj"
+$editorBin = Join-Path $repoRoot "editor/csharp/bin/Release/net8.0/Soul.Editor.exe"
 $jsonHeader = Join-Path $repoRoot "runtime/cpp/external/nlohmann/json.hpp"
 $jsonUrl = "https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp"
 
@@ -190,12 +190,15 @@ New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
 Write-Host "== Building Runtime Entrypoint (C++) =="
 $cmakePath = Configure-RuntimeBuild
-Invoke-CheckedNative -FilePath $cmakePath -Arguments @('--build', $buildDir, '--config', 'Release', '--target', 'forge_runtime', '-j', '4') -FailureMessage 'Runtime build failed'
+Invoke-CheckedNative -FilePath $cmakePath -Arguments @('--build', $buildDir, '--config', 'Release', '--target', 'soul_runtime', '-j', '4') -FailureMessage 'Runtime build failed'
 
 if ($RuntimeOnly) {
     if (Test-Path $runtimeBin) {
-        Write-Host "== Starting Runtime Only =="
-        & $runtimeBin $repoRoot
+        Write-Host "== Starting Runtime Only (Headless Smoke) =="
+        & $runtimeBin --smoke-headless $repoRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "Runtime headless smoke failed (exit code $LASTEXITCODE)"
+        }
     }
     else {
         Write-Host "ERROR: Runtime binary unavailable after successful build."
@@ -213,12 +216,25 @@ if (-not $dotnet) {
 }
 
 Write-Host "== Starting C# App Entrypoint =="
-Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @("build", $editorProject, "-c", "Release", "--no-restore") -FailureMessage 'Editor build failed'
-
-if (-not (Test-Path $editorBin)) {
-    throw "Editor binary missing after successful build: $editorBin"
+if ($LauncherSmoke) {
+    Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @(
+        "run",
+        "--project", $editorProject,
+        "-c", "Release",
+        "--no-restore",
+        "--",
+        "--launcher-smoke",
+        $runtimeBin
+    ) -FailureMessage 'Editor launcher smoke failed'
 }
+else {
+    Invoke-CheckedNative -FilePath $dotnet.Source -Arguments @("build", $editorProject, "-c", "Release", "--no-restore") -FailureMessage 'Editor build failed'
 
-& $editorBin "--editor-ui" $runtimeBin
+    if (-not (Test-Path $editorBin)) {
+        throw "Editor binary missing after successful build: $editorBin"
+    }
+
+    & $editorBin "--editor-ui" $runtimeBin
+}
 
 Write-Host "Bootstrap completed successfully."

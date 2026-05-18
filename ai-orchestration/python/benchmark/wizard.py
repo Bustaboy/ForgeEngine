@@ -94,7 +94,7 @@ def run_benchmark(orchestrator_file: Path | None = None, auto_prepare_models: bo
     state_file.write_text(
         json.dumps(
             {
-                "benchmark_schema": "gameforge.benchmark.v1",
+                "benchmark_schema": "soulloom.benchmark.v1",
                 "benchmark_completed": True,
                 "models_prepared": prepare_invoked,
                 "gpu_vram_gb": vram_gb,
@@ -106,7 +106,7 @@ def run_benchmark(orchestrator_file: Path | None = None, auto_prepare_models: bo
     )
 
     return BenchmarkResult(
-        benchmark_schema="gameforge.benchmark.v1",
+        benchmark_schema="soulloom.benchmark.v1",
         is_first_run=is_first_run,
         prepare_models_invoked=prepare_invoked,
         hardware=HardwareSummary(

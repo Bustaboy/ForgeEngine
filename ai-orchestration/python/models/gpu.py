@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass
 
 
+
 @dataclass(frozen=True)
 class GpuInfo:
     name: str
@@ -23,7 +24,7 @@ class RuntimeSplit:
 def detect_primary_gpu() -> GpuInfo | None:
     """Detect NVIDIA GPU via nvidia-smi and return total VRAM in GB."""
 
-    override_vram = os.getenv("FORGEENGINE_GPU_VRAM_GB", "").strip()
+    override_vram = os.getenv("SOUL_LOOM_GPU_VRAM_GB", "").strip()
     if override_vram:
         try:
             return GpuInfo(name="override", total_vram_gb=max(0, int(override_vram)))

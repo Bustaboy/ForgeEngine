@@ -3,12 +3,12 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-Release}"
-VERSION="${FORGEENGINE_VERSION:-0.1.0}"
+VERSION="${SOUL_LOOM_VERSION:-0.1.0}"
 RID="linux-x64"
 OUTPUT_ROOT="$REPO_ROOT/build/release/$RID"
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 RUNTIME_BIN_DIR="$OUTPUT_ROOT/runtime"
-RUNTIME_BIN="$RUNTIME_BIN_DIR/soul_loom_runtime"
+RUNTIME_BIN="$RUNTIME_BIN_DIR/soul_runtime"
 PACKAGE_ROOT="$OUTPUT_ROOT/package"
 APP_DIR="$PACKAGE_ROOT/SoulLoom"
 DEB_ROOT="$PACKAGE_ROOT/deb"
@@ -28,7 +28,7 @@ echo "[1/8] Building C++ runtime"
 g++ -std=c++17 "$REPO_ROOT/runtime/cpp/main.cpp" -o "$RUNTIME_BIN"
 
 echo "[2/8] Publishing .NET editor"
-dotnet publish "$REPO_ROOT/editor/csharp/GameForge.Editor.csproj" \
+dotnet publish "$REPO_ROOT/editor/csharp/Soul.Editor.csproj" \
   -c "$CONFIGURATION" \
   -r "$RID" \
   --self-contained true \
@@ -40,7 +40,7 @@ echo "[3/8] Staging app payload"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR"
 cp -R "$PUBLISH_DIR"/* "$APP_DIR/"
-cp "$RUNTIME_BIN" "$APP_DIR/soul_loom_runtime"
+cp "$RUNTIME_BIN" "$APP_DIR/soul_runtime"
 cp -R "$REPO_ROOT/ai-orchestration" "$APP_DIR/ai-orchestration"
 cp -R "$REPO_ROOT/app" "$APP_DIR/app"
 
@@ -75,7 +75,7 @@ cat > "$DEB_ROOT/usr/share/applications/soul-loom.desktop" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Name=Soul Loom
-Exec=/opt/soul-loom/GameForge.Editor
+Exec=/opt/soul-loom/Soul.Editor
 Terminal=false
 Type=Application
 Categories=Game;Development;
@@ -92,7 +92,7 @@ cp "$DEB_ROOT/usr/share/applications/soul-loom.desktop" "$APPDIR/soul-loom.deskt
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
 HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/bin/GameForge.Editor" "$@"
+exec "$HERE/usr/bin/Soul.Editor" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 if ! command -v appimagetool >/dev/null 2>&1; then
@@ -109,7 +109,7 @@ cat > "$OUTPUT_ROOT/release_manifest.json" <<MANIFEST
   "rid": "$RID",
   "deb": "$(basename "$DEB_PATH")",
   "appimage": "$(basename "$APPIMAGE_PATH")",
-  "runtime_binary": "soul_loom_runtime",
+  "runtime_binary": "soul_runtime",
   "post_build_validation": [
     "orchestrator.py --prepare-models",
     "orchestrator.py --benchmark",

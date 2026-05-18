@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="GameForge.Editor.EditorShell.UI.SettingsWindow"
-        Title="ForgeEngine Settings"
+        x:Class="Soul.Editor.EditorShell.UI.SettingsWindow"
+        Title="Soul Loom Settings"
         Width="720"
         Height="540"
         MinWidth="540"
@@ -12,7 +12,7 @@
   <Border Padding="18" Classes="shell-dialog-frame">
     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
       <StackPanel>
-        <TextBlock Text="ForgeEngine Settings" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Soul Loom Settings" Foreground="{DynamicResource EditorDialogTitleBrush}" FontSize="22" FontWeight="SemiBold" />
         <TextBlock Text="Project-wide settings saved to .soulloom/settings.json" Foreground="{DynamicResource EditorDialogMutedBrush}" Margin="0,4,0,0" />
       </StackPanel>
 
@@ -130,7 +130,7 @@
             <StackPanel Margin="16" Spacing="12">
               <TextBlock Text="Local model setup and onboarding" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
               <TextBlock Name="ModelRecommendationSummaryText"
-                         Text="Add your Hugging Face token first, then Quick Setup can install ForgeGuard, Free-Will, and Coding."
+                         Text="Add your Hugging Face token first, then Quick Setup can install LoomGuard, Free-Will, and Coding."
                          Foreground="{DynamicResource EditorDialogMutedBrush}"
                          TextWrapping="Wrap" />
 
@@ -158,7 +158,7 @@
 
               <WrapPanel ItemWidth="180" Orientation="Horizontal">
                 <Button Name="QuickStartModelsButton" Content="Quick Start" MinWidth="170" Margin="0,0,8,8" Click="OnQuickStartModelsClick" />
-                <Button Name="DownloadForgeGuardButton" Content="Download ForgeGuard" MinWidth="170" Margin="0,0,8,8" Click="OnDownloadForgeGuardClick" />
+                <Button Name="DownloadLoomGuardButton" Content="Download LoomGuard" MinWidth="170" Margin="0,0,8,8" Click="OnDownloadLoomGuardClick" />
                 <Button Name="RunOnboardingButton" Content="Run Onboarding" MinWidth="170" Margin="0,0,8,8" Click="OnRunModelOnboardingClick" />
                 <Button Name="SetupRecommendedModelsButton" Content="Setup Recommended" MinWidth="170" Margin="0,0,8,8" Click="OnSetupRecommendedModelsClick" />
                 <Button Name="SetupFreeWillModelButton" Content="Download Free-Will" MinWidth="170" Margin="0,0,8,8" Click="OnSetupFreeWillModelClick" />
@@ -177,8 +177,8 @@
                            Height="190"
                            Background="{DynamicResource PanelShellBrush}"
                            Foreground="{DynamicResource EditorDialogTitleBrush}" />
-                  <TextBlock Name="ForgeGuardKeepInstalledMessageText"
-                             Text="ForgeGuard stays installed as a permanent helper for guardrails and critique passes."
+                  <TextBlock Name="LoomGuardKeepInstalledMessageText"
+                             Text="LoomGuard stays installed as a permanent helper for guardrails and critique passes."
                              Foreground="{DynamicResource EditorDialogAccentMutedBrush}"
                              TextWrapping="Wrap" />
                   <TextBlock Name="ModelManagerStatusText"
@@ -228,7 +228,7 @@
         <TabItem Header="About">
           <ScrollViewer Classes="shell-dialog-tab-scroll">
           <StackPanel Margin="16" Spacing="12">
-            <TextBlock Text="ForgeEngine Editor V1" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
+            <TextBlock Text="Soul Loom Editor V1" Foreground="{DynamicResource EditorDialogTitleBrush}" FontWeight="SemiBold" />
             <TextBlock Text="Scene-first editing on top of project storage. Settings are project-wide; scenes remain the primary editing unit."
                        Foreground="{DynamicResource EditorDialogMutedBrush}"
                        TextWrapping="Wrap" />

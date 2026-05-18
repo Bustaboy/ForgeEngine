@@ -2878,7 +2878,7 @@ bool SceneLoader::Save(const std::string& path, const Scene& scene) {
         {"outline_strength", scene.post_processing.outline_strength},
     };
     document["quality_metadata"] = json{
-        {"schema", "gameforge.scene_quality_metadata.v1"},
+        {"schema", "soulloom.scene_quality_metadata.v1"},
         {"score", scene.quality_metadata.score},
         {"estimated_vram_mb", scene.quality_metadata.estimated_vram_mb},
         {"sprite_count", scene.quality_metadata.sprite_count},

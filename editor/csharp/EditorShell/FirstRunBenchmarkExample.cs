@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public sealed record BenchmarkHardwareEnvelope
 {

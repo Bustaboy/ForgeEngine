@@ -308,7 +308,7 @@ void VulkanRenderer::CreateInstance() {
 
     VkApplicationInfo application_info{};
     application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    application_info.pApplicationName = "SoulLoomRuntime";
+    application_info.pApplicationName = "SoulRuntime";
     application_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
     application_info.pEngineName = "Soul Loom";
     application_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);

@@ -28,7 +28,7 @@ If `--input` is omitted, the script uses a deterministic embedded fixture.
 }
 ```
 
-## Output schema (`gameforge.readiness_metrics.v1`)
+## Output schema (`soulloom.readiness_metrics.v1`)
 - `schema`: fixed schema id.
 - `collected_by`: collector script path.
 - `input_source`: input fixture path or `embedded_default_fixture`.
@@ -52,7 +52,7 @@ If `--input` is omitted, the script uses a deterministic embedded fixture.
   - `checks[]`: per-acceptance threshold check details
 
 ## Threshold mapping
-This mapping is aligned with `GAMEFORGE_DECISIONS_LOCK.md` quality gates and existing `SteamReadinessPolicy` gate behavior.
+This mapping is aligned with `SOUL_LOOM_DECISIONS_LOCK.md` quality gates and existing `SteamReadinessPolicy` gate behavior.
 
 | Acceptance ID | Metric key | Threshold | Severity | Source alignment |
 |---|---|---|---|---|
@@ -73,7 +73,7 @@ This mapping is aligned with `GAMEFORGE_DECISIONS_LOCK.md` quality gates and exi
 The output `metrics` object is intentionally field-compatible with `SteamQualityMetrics` JSON loading (`SteamReadinessPolicy.LoadMetrics`) and can be fed directly to:
 
 ```bash
-dotnet run --project editor/csharp/GameForge.Editor.csproj -- \
+dotnet run --project editor/csharp/Soul.Editor.csproj -- \
   --steam-readiness docs/release/evidence/readiness_metrics_sample.json
 ```
 

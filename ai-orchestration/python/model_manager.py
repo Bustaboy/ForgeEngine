@@ -44,7 +44,7 @@ FRIENDLY_NAME_ALIASES: dict[str, str] = {
     "coder": "coding",
     "free-will": "freewill",
     "freewill-spark": "freewill",
-    "forge-guard": "forgeguard",
+    "loom-guard": "loomguard",
     "orchestrator": "coding",
 }
 
@@ -52,11 +52,11 @@ FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
     "coding": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
     "assetgen": "stabilityai/stable-diffusion-2-1-base",
-    "forgeguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
+    "loomguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
 }
 
 ONBOARDING_KEEP_MESSAGE = (
-    "ForgeGuard (tiny helper model) has been installed. "
+    "LoomGuard (tiny helper model) has been installed. "
     "It will be used later for code critique, guardrails, and optimization suggestions. "
     "You can remove it anytime from the Model Manager if you prefer."
 )
@@ -782,7 +782,7 @@ def get_model_path(friendly_name: str, models_json_path: Path | None = None) -> 
     if isinstance(payload, dict) and isinstance(payload.get("path"), str) and payload["path"].strip():
         return payload["path"].strip()
 
-    env_var_name = f"FORGEENGINE_{normalized_name.upper()}_MODEL_PATH"
+    env_var_name = f"SOUL_LOOM_{normalized_name.upper()}_MODEL_PATH"
     env_path = os.getenv(env_var_name, "").strip()
     if env_path:
         return env_path
@@ -996,8 +996,8 @@ def generate_recommendations(
             "estimated_size": assetgen_size,
             "reason": assetgen_reason,
         },
-        "forgeguard": {
-            "repo_id": FRIENDLY_MODEL_REPOS["forgeguard"],
+        "loomguard": {
+            "repo_id": FRIENDLY_MODEL_REPOS["loomguard"],
             "estimated_size": "2.2GB (Q4)",
             "reason": "Tiny helper model used for onboarding plus future guardrail and critique passes.",
             "kept_installed": True,
@@ -1014,7 +1014,7 @@ def run_onboarding(
     cancel_check: Callable[[], bool] | None = None,
     mark_completed: bool = True,
 ) -> dict[str, Any]:
-    """Run first-run onboarding with benchmark + ForgeGuard Q&A + persisted recommendations."""
+    """Run first-run onboarding with benchmark + LoomGuard Q&A + persisted recommendations."""
 
     benchmark = run_benchmark_as_dict(orchestrator_file=orchestrator_file, auto_prepare_models=auto_prepare_models)
     if progress_callback:
@@ -1022,7 +1022,7 @@ def run_onboarding(
     config = _load_models_config(models_json_path=models_json_path)
     resolved_models_path = _models_json_path(models_json_path)
 
-    print("ForgeGuard onboarding started. Answer 4 quick questions.")
+    print("LoomGuard onboarding started. Answer 4 quick questions.")
     questions = [
         ("game_type", "Primary game type (rts/sim/rpg/hybrid): ", "hybrid"),
         ("npc_importance", "How important are NPC depth and dialogue? (low/medium/high): ", "medium"),
@@ -1040,8 +1040,8 @@ def run_onboarding(
         value = str(input_fn(prompt) or "").strip().lower()
         answers[key] = value or default
 
-    forgeguard_record = download_model(
-        friendly_name="forgeguard",
+    loomguard_record = download_model(
+        friendly_name="loomguard",
         quantization=DEFAULT_QUANTIZATION,
         models_json_path=resolved_models_path,
         progress_callback=progress_callback,
@@ -1054,11 +1054,11 @@ def run_onboarding(
     config["onboarding"] = {
         "completed": mark_completed,
         "completed_at_unix": completed_at,
-        "schema": "gameforge.onboarding.v1",
+        "schema": "soulloom.onboarding.v1",
         "benchmark": benchmark,
         "answers": answers,
         "recommendations": recommendations,
-        "forgeguard_keep_message": ONBOARDING_KEEP_MESSAGE,
+        "loomguard_keep_message": ONBOARDING_KEEP_MESSAGE,
     }
     _save_models_config(config, models_json_path=resolved_models_path)
 
@@ -1067,7 +1067,7 @@ def run_onboarding(
         "benchmark": benchmark,
         "answers": answers,
         "recommendations": recommendations,
-        "forgeguard": forgeguard_record,
+        "loomguard": loomguard_record,
         "message": ONBOARDING_KEEP_MESSAGE,
         "completed": mark_completed,
         "models_json": str(resolved_models_path),
@@ -1082,7 +1082,7 @@ def run_quick_setup(
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Run first-launch setup for the guided prototype path: ForgeGuard + Free-Will + Coding."""
+    """Run first-launch setup for the guided prototype path: LoomGuard + Free-Will + Coding."""
 
     onboarding_result = run_onboarding(
         orchestrator_file=orchestrator_file,
@@ -1123,7 +1123,7 @@ def run_quick_setup(
     _save_models_config(config, models_json_path=resolved_models_path)
 
     summary = [
-        "ForgeGuard installed for guardrails, critique, and lightweight decisions.",
+        "LoomGuard installed for guardrails, critique, and lightweight decisions.",
         "Free-Will model installed for local NPC/dialog + gameplay reasoning.",
         "Coding model installed for local prototype/code generation.",
         "Next step: open New Project in the editor and click Generate & Play for your first prototype.",
@@ -1132,7 +1132,7 @@ def run_quick_setup(
 
     return {
         "onboarding": onboarding_result,
-        "forgeguard": onboarding_result.get("forgeguard", {}),
+        "loomguard": onboarding_result.get("loomguard", {}),
         "freewill": freewill_record,
         "coding": coding_record,
         "summary": summary,

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "gameforge.bot-playtest-scenario.v1.schema.json",
+  "$id": "soulloom.bot-playtest-scenario.v1.schema.json",
   "title": "Soul Loom Bot Playtest Scenario V1",
   "type": "object",
   "required": [
@@ -12,7 +12,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "gameforge.bot_playtest_scenario.v1"
+      "const": "soulloom.bot_playtest_scenario.v1"
     },
     "scenario_id": {
       "type": "string",

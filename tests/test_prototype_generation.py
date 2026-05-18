@@ -333,7 +333,7 @@ class TestPrototypeGeneration(unittest.TestCase):
         tracker_path = SAMPLE_PROJECT / "systems" / "rpg" / "consequence_state_tracker.v1.json"
         tracker = json.loads(tracker_path.read_text(encoding="utf-8"))
         branch = {
-            "schema": "gameforge.rpg.branch_view.v1",
+            "schema": "soulloom.rpg.branch_view.v1",
             "view_id": "choice-id-regression",
             "nodes": [],
             "edges": [

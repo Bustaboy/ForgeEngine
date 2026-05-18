@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace GameForge.Editor.EditorShell;
+namespace Soul.Editor.EditorShell;
 
 public enum ReadinessSeverity
 {
@@ -88,7 +88,7 @@ public sealed record PublishAuditTrail
 
 public static class SteamReadinessPolicy
 {
-    private const string AuditSchema = "gameforge.steam_readiness_audit.v1";
+    private const string AuditSchema = "soulloom.steam_readiness_audit.v1";
 
     public static SteamQualityMetrics LoadMetrics(string path)
     {
@@ -264,7 +264,7 @@ public static class SteamReadinessPolicy
     public static string EnsureLocalSigningKey(string? homeDirectoryOverride = null)
     {
         var homePath = homeDirectoryOverride ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var keyDirectory = Path.Combine(homePath, ".gameforge", "keys");
+        var keyDirectory = Path.Combine(homePath, ".soulloom", "keys");
         var keyPath = Path.Combine(keyDirectory, "publish-audit-signing.key");
 
         if (File.Exists(keyPath))

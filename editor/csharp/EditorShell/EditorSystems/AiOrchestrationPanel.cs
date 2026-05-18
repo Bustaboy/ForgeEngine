@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace GameForge.Editor.EditorShell.EditorSystems;
+namespace Soul.Editor.EditorShell.EditorSystems;
 
 public static class AiOrchestrationPanel
 {

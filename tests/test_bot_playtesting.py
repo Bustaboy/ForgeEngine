@@ -64,7 +64,7 @@ class TestBotPlaytesting(unittest.TestCase):
             scenario_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "schema": "soulloom.bot_playtest_scenario.v1",
                         "scenario_id": "unsupported-probe",
                         "title": "Unsupported probe should escalate",
                         "max_runtime_seconds": 20,
@@ -106,7 +106,7 @@ class TestBotPlaytesting(unittest.TestCase):
         self.assertEqual("cozy-colony-baseline", payload["bot_playtest_result"]["scenario_id"])
         self.assertEqual("passed", payload["bot_playtest_result"]["status"])
         self.assertIn("probe_results", payload["bot_playtest_result"])
-        self.assertEqual("gameforge.playtest_report.v1", payload["actionable_report"]["schema"])
+        self.assertEqual("soulloom.playtest_report.v1", payload["actionable_report"]["schema"])
         self.assertEqual(0, payload["actionable_report"]["critical_dead_end_blockers_count"])
         self.assertEqual([], payload["actionable_report"]["critical_dead_end_blockers"])
         section_ids = [section["section_id"] for section in payload["actionable_report"]["sections"]]
@@ -122,7 +122,7 @@ class TestBotPlaytesting(unittest.TestCase):
             scenario_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "schema": "soulloom.bot_playtest_scenario.v1",
                         "scenario_id": "file-exists-non-bool-expected",
                         "title": "Non-boolean expected should be inconclusive",
                         "max_runtime_seconds": 20,
@@ -153,7 +153,7 @@ class TestBotPlaytesting(unittest.TestCase):
             scenario_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "schema": "soulloom.bot_playtest_scenario.v1",
                         "scenario_id": "malformed-json-escalation",
                         "title": "Malformed JSON should escalate",
                         "max_runtime_seconds": 20,
@@ -203,7 +203,7 @@ class TestBotPlaytesting(unittest.TestCase):
             scenario_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "schema": "soulloom.bot_playtest_scenario.v1",
                         "scenario_id": "dead-end-scan-fail",
                         "title": "Dead-end scan fail",
                         "max_runtime_seconds": 20,
@@ -242,7 +242,7 @@ class TestBotPlaytesting(unittest.TestCase):
             scenario_path.write_text(
                 json.dumps(
                     {
-                        "schema": "gameforge.bot_playtest_scenario.v1",
+                        "schema": "soulloom.bot_playtest_scenario.v1",
                         "scenario_id": "dead-end-scan-malformed",
                         "title": "Dead-end malformed graph",
                         "max_runtime_seconds": 20,

@@ -1,16 +1,16 @@
 using System.Diagnostics;
 using Avalonia;
-using GameForge.Editor.EditorDiagnostics;
-using GameForge.Editor;
+using Soul.Editor.EditorDiagnostics;
+using Soul.Editor;
 using System.Text.Json;
-using GameForge.Editor.EditorShell;
-using GameForge.Editor.Interview;
+using Soul.Editor.EditorShell;
+using Soul.Editor.Interview;
 
 internal static class Program
 {
     private static readonly string DefaultRuntimePath = OperatingSystem.IsWindows()
-        ? Path.Combine("build", "bin", "forge_runtime.exe")
-        : Path.Combine("build", "bin", "forge_runtime");
+        ? Path.Combine("build", "bin", "soul_runtime.exe")
+        : Path.Combine("build", "bin", "soul_runtime");
 
     public static async Task<int> Main(string[] args)
     {

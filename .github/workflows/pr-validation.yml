@@ -92,13 +92,13 @@ jobs:
         run: mkdir -p "$TMPDIR"
 
       - name: Restore C# test project
-        run: dotnet restore editor/csharp/tests/GameForge.Editor.Tests.csproj --nologo
+        run: dotnet restore editor/csharp/tests/Soul.Editor.Tests.csproj --nologo
 
       - name: Run C# editor contract subset
         run: >
-          dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj
+          dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj
           --filter
-          "FullyQualifiedName~GameForge.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~GameForge.Editor.Tests.SteamReadinessPolicyTests"
+          "FullyQualifiedName~Soul.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~Soul.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~Soul.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~Soul.Editor.Tests.SteamReadinessPolicyTests"
           --no-restore
           -v minimal
           --nologo

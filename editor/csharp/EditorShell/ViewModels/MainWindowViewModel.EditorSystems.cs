@@ -4,22 +4,12 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
-using GameForge.Editor.EditorShell.EditorSystems;
+using Soul.Editor.EditorShell.EditorSystems;
 
-namespace GameForge.Editor.EditorShell.ViewModels;
+namespace Soul.Editor.EditorShell.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
-    private static readonly string[] LightweightModelDownloadPackages =
-    [
-        "huggingface_hub>=0.25.0",
-        "filelock>=3.0.0",
-        "tqdm>=4.66.0",
-        "python-dotenv>=1.0.0",
-        "requests>=2.32.0",
-        "Pillow>=10.0.0",
-    ];
-
     private const string SystemTabDayNight = "DayNight";
     private const string SystemTabBuildings = "Buildings";
     private const string SystemTabInventoryRecipes = "InventoryRecipes";
@@ -33,9 +23,6 @@ public sealed partial class MainWindowViewModel
     private const string SystemTabCombat = "Combat";
     private const string SystemTabModels = "Models";
     private const string SystemTabSettings = "Settings";
-    private const int ModelsJsonReadRetryCount = 8;
-    private static readonly TimeSpan ModelsJsonReadRetryDelay = TimeSpan.FromMilliseconds(120);
-
     private string _activeSystemTab = SystemTabDayNight;
     private DayNightPanelState _dayNight = new();
     private BuildingPanelState _buildings = new();
@@ -85,7 +72,7 @@ public sealed partial class MainWindowViewModel
     private string _aiPromptEditor = "Add 3 Houses";
     private string _modelManagerStatus = "Model manager idle.";
     private string _modelRecommendationSummary = "Run onboarding to receive hardware-matched model recommendations.";
-    private string _forgeGuardKeepInstalledMessage = "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+    private string _LoomGuardKeepInstalledMessage = "LoomGuard stays installed as a permanent helper for guardrails and critique passes.";
     private bool _isDownloadProgressVisible;
     private bool _isDownloadProgressIndeterminate = true;
     private string _downloadProgressTitle = "Downloading model";
@@ -105,7 +92,7 @@ public sealed partial class MainWindowViewModel
     private string _projectHealthBand = "Yellow";
     private IBrush _projectHealthBrush = Brushes.Goldenrod;
     private string _lightweightMode = "balanced";
-    private string _lightweightModeSuggestion = "Run Optimization Check to get ForgeGuard lightweight recommendation.";
+    private string _lightweightModeSuggestion = "Run Optimization Check to get LoomGuard lightweight recommendation.";
     private string _guardrailStatus = "Guardrails idle.";
     private bool _hardGuardrailsEnabled;
     private int _softGuardrailThreshold = 50;
@@ -528,7 +515,7 @@ public sealed partial class MainWindowViewModel
     public IReadOnlyList<OptimizationSuggestion> OptimizationSuggestions => _optimizationSuggestions;
     public string ModelManagerStatus { get => _modelManagerStatus; private set { _modelManagerStatus = value; OnPropertyChanged(); } }
     public string ModelRecommendationSummary { get => _modelRecommendationSummary; private set { _modelRecommendationSummary = value; OnPropertyChanged(); } }
-    public string ForgeGuardKeepInstalledMessage { get => _forgeGuardKeepInstalledMessage; private set { _forgeGuardKeepInstalledMessage = value; OnPropertyChanged(); } }
+    public string LoomGuardKeepInstalledMessage { get => _LoomGuardKeepInstalledMessage; private set { _LoomGuardKeepInstalledMessage = value; OnPropertyChanged(); } }
     public string OptimizationStatus { get => _optimizationStatus; private set { _optimizationStatus = value; OnPropertyChanged(); } }
     public string PerformanceHealthSummary { get => _performanceHealthSummary; private set { _performanceHealthSummary = value; OnPropertyChanged(); } }
     public int ProjectHealthScore
@@ -686,7 +673,7 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            OptimizationStatus = "Running benchmark + runtime asset optimize + ForgeGuard critique...";
+            OptimizationStatus = "Running benchmark + runtime asset optimize + LoomGuard critique...";
             await RunAiHookProcessAsync("benchmark-now", [scenePath, "optimization_check"]);
             await RunAiHookProcessAsync("runtime-optimize-assets", [scenePath]);
             var critiqueResult = await RunAiHookProcessAsync("optimization-critique", [scenePath, "5"]);
@@ -1395,7 +1382,7 @@ public sealed partial class MainWindowViewModel
             }
 
             var configuredModels = payload["models"] as JsonObject;
-            return IsModelInstalled(configuredModels, "forgeguard")
+            return IsModelInstalled(configuredModels, "LoomGuard")
                 && IsModelInstalled(configuredModels, "freewill")
                 && IsModelInstalled(configuredModels, "coding");
         }
@@ -1424,7 +1411,7 @@ public sealed partial class MainWindowViewModel
             return null;
         }
 
-        for (var attempt = 0; attempt < ModelsJsonReadRetryCount; attempt++)
+        for (var attempt = 0; attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount; attempt++)
         {
             try
             {
@@ -1441,13 +1428,13 @@ public sealed partial class MainWindowViewModel
                 }
                 return JsonNode.Parse(json) as JsonObject;
             }
-            catch (IOException) when (attempt < ModelsJsonReadRetryCount - 1)
+            catch (IOException) when (attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount - 1)
             {
-                await Task.Delay(ModelsJsonReadRetryDelay);
+                await Task.Delay(ModelManagerWorkflowConstants.ModelsJsonReadRetryDelay);
             }
-            catch (JsonException) when (attempt < ModelsJsonReadRetryCount - 1)
+            catch (JsonException) when (attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount - 1)
             {
-                await Task.Delay(ModelsJsonReadRetryDelay);
+                await Task.Delay(ModelManagerWorkflowConstants.ModelsJsonReadRetryDelay);
             }
         }
 
@@ -1472,7 +1459,7 @@ public sealed partial class MainWindowViewModel
             return null;
         }
 
-        for (var attempt = 0; attempt < ModelsJsonReadRetryCount; attempt++)
+        for (var attempt = 0; attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount; attempt++)
         {
             try
             {
@@ -1489,13 +1476,13 @@ public sealed partial class MainWindowViewModel
                 }
                 return JsonNode.Parse(json) as JsonObject;
             }
-            catch (IOException) when (attempt < ModelsJsonReadRetryCount - 1)
+            catch (IOException) when (attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount - 1)
             {
-                Thread.Sleep(ModelsJsonReadRetryDelay);
+                Thread.Sleep(ModelManagerWorkflowConstants.ModelsJsonReadRetryDelay);
             }
-            catch (JsonException) when (attempt < ModelsJsonReadRetryCount - 1)
+            catch (JsonException) when (attempt < ModelManagerWorkflowConstants.ModelsJsonReadRetryCount - 1)
             {
-                Thread.Sleep(ModelsJsonReadRetryDelay);
+                Thread.Sleep(ModelManagerWorkflowConstants.ModelsJsonReadRetryDelay);
             }
         }
 
@@ -1548,7 +1535,7 @@ public sealed partial class MainWindowViewModel
             $"{displayName}: {(IsModelInstalled(configuredModels, friendly) ? "Installed" : "Not found")}";
         return string.Join(
             Environment.NewLine,
-            Label("forgeguard", "ForgeGuard"),
+            Label("LoomGuard", "LoomGuard"),
             Label("freewill", "Free-Will"),
             Label("coding", "Coding"));
     }
@@ -1558,7 +1545,7 @@ public sealed partial class MainWindowViewModel
         if (await RunQuickStartSetupAsync())
         {
             ShowToast(
-                "ForgeGuard, Free-Will, and Coding are on disk and ready.",
+                "LoomGuard, Free-Will, and Coding are on disk and ready.",
                 "Models ready",
                 "Next: File → New Project, then Generate & Play for your first prototype.",
                 isError: false,
@@ -1581,6 +1568,11 @@ public sealed partial class MainWindowViewModel
 
     private async Task<bool> EnsureFirstPrototypeGenerationReadyAsync()
     {
+        if (BypassPrototypeGenerationReadinessCheck)
+        {
+            return true;
+        }
+
         JsonObject? payload;
         try
         {
@@ -1593,20 +1585,20 @@ public sealed partial class MainWindowViewModel
 
         var onboardingCompleted = payload?["onboarding"]?["completed"]?.GetValue<bool?>() == true;
         var configuredModels = payload?["models"] as JsonObject;
-        var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+        var LoomGuardInstalled = IsModelInstalled(configuredModels, "LoomGuard");
         var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
         var codingInstalled = IsModelInstalled(configuredModels, "coding");
 
-        if (onboardingCompleted && forgeGuardInstalled && freeWillInstalled && codingInstalled)
+        if (onboardingCompleted && LoomGuardInstalled && freeWillInstalled && codingInstalled)
         {
             return true;
         }
 
-        if (!onboardingCompleted || !forgeGuardInstalled || !freeWillInstalled)
+        if (!onboardingCompleted || !LoomGuardInstalled || !freeWillInstalled)
         {
             ShowFailureToast(
                 "Quick Setup needed",
-                "Generate & Play needs ForgeGuard, Free-Will, and Coding installed first.",
+                "Generate & Play needs LoomGuard, Free-Will, and Coding installed first.",
                 "Run Quick Setup from the welcome flow, Models & LLM in Settings, or the System tab — same download progress overlay as first launch.",
                 "Run Quick Setup",
                 RunQuickSetupFromGuidanceAsync);
@@ -1616,7 +1608,7 @@ public sealed partial class MainWindowViewModel
         ShowFailureToast(
             "Coding model missing",
             "Install the Coding model to generate your first prototype.",
-            "ForgeGuard and Free-Will are ready. Download Coding from Models & LLM (progress shows in the main window).",
+            "LoomGuard and Free-Will are ready. Download Coding from Models & LLM (progress shows in the main window).",
             "Download Coding",
             DownloadCodingFromGuidanceAsync);
         return false;
@@ -1634,12 +1626,12 @@ public sealed partial class MainWindowViewModel
 
             var recommendations = payload?["onboarding"]?["recommendations"] as JsonObject;
             var configuredModels = payload?["models"] as JsonObject;
-            var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+            var LoomGuardInstalled = IsModelInstalled(configuredModels, "LoomGuard");
             var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
             var codingInstalled = IsModelInstalled(configuredModels, "coding");
             var statusBlock = FormatCoreModelStatusSummary(configuredModels);
             var assetReason = recommendations?["assetgen"]?["reason"]?.GetValue<string>() ?? "Optional local asset generation model.";
-            if (forgeGuardInstalled && freeWillInstalled && codingInstalled)
+            if (LoomGuardInstalled && freeWillInstalled && codingInstalled)
             {
                 return $"All set for your first prototype.{Environment.NewLine}{statusBlock}{Environment.NewLine}Next: Create First Prototype below, or New Project → Generate & Play.{Environment.NewLine}Optional later: Asset-Gen in Models & LLM — {assetReason}";
             }
@@ -1674,8 +1666,8 @@ public sealed partial class MainWindowViewModel
     public async Task RunModelOnboardingAsync()
     {
         var completed = await RunManagedModelOperationWithProgressAsync(
-            operationLabel: "Downloading ForgeGuard",
-            trackedModelNames: ["forgeguard"],
+            operationLabel: "Downloading LoomGuard",
+            trackedModelNames: ["LoomGuard"],
             command: "onboarding-run",
             args: []);
         if (completed)
@@ -1687,13 +1679,13 @@ public sealed partial class MainWindowViewModel
     public async Task<bool> RunQuickStartSetupAsync()
     {
         var completed = await RunManagedModelOperationWithProgressAsync(
-            operationLabel: "Running Quick Setup (ForgeGuard + Free-Will + Coding)",
-            trackedModelNames: ["forgeguard", "freewill", "coding"],
+            operationLabel: "Running Quick Setup (LoomGuard + Free-Will + Coding)",
+            trackedModelNames: ["LoomGuard", "freewill", "coding"],
             command: "quick-setup",
             args: []);
         if (completed)
         {
-            ModelManagerStatus = "Quick Setup complete. ForgeGuard, Free-Will, and Coding are ready for first prototype generation.";
+            ModelManagerStatus = "Quick Setup complete. LoomGuard, Free-Will, and Coding are ready for first prototype generation.";
         }
 
         return completed;
@@ -1756,9 +1748,9 @@ public sealed partial class MainWindowViewModel
         try
         {
             await RunAiHookAsync("remove-model", friendlyName.Trim().ToLowerInvariant());
-            if (string.Equals(friendlyName.Trim(), "forgeguard", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(friendlyName.Trim(), "LoomGuard", StringComparison.OrdinalIgnoreCase))
             {
-                ForgeGuardKeepInstalledMessage = "ForgeGuard removed. You can reinstall it anytime from Models.";
+                LoomGuardKeepInstalledMessage = "LoomGuard removed. You can reinstall it anytime from Models.";
             }
             ModelManagerStatus = $"{friendlyName} removed from local managed models.";
             await RefreshModelManagerAsync();
@@ -1795,7 +1787,7 @@ public sealed partial class MainWindowViewModel
             ("freewill", "Free-Will", "~2.0GB (Q4)"),
             ("coding", "Coding", "~2.4GB (Q4)"),
             ("assetgen", "Asset-Gen", "~5.2GB"),
-            ("forgeguard", "ForgeGuard", "~2.2GB (Q4)"),
+            ("LoomGuard", "LoomGuard", "~2.2GB (Q4)"),
         };
 
         _modelManagerEntries.Clear();
@@ -1808,14 +1800,14 @@ public sealed partial class MainWindowViewModel
             var status = isDownloading ? progressStatus : installed ? "Installed" : "Not found";
             var lastError = _modelLastErrorByName.TryGetValue(model.Friendly, out var errorText) ? errorText : string.Empty;
             var reason = recommendation?["reason"]?.GetValue<string>()
-                ?? (string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal)
+                ?? (string.Equals(model.Friendly, "LoomGuard", StringComparison.Ordinal)
                     ? "Core helper model for onboarding, guardrails, critique passes, and lightweight decisions. It can be installed before onboarding completes."
                     : "No recommendation yet. Run onboarding.");
             var estimatedSize = recommendation?["estimated_size"]?.GetValue<string>() ?? model.Size;
-            var shouldDownload = string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal)
+            var shouldDownload = string.Equals(model.Friendly, "LoomGuard", StringComparison.Ordinal)
                 ? !installed
                 : recommendation is not null && !installed;
-            var removable = string.Equals(model.Friendly, "forgeguard", StringComparison.Ordinal);
+            var removable = string.Equals(model.Friendly, "LoomGuard", StringComparison.Ordinal);
             _modelManagerEntries.Add(new ModelManagerEntry(
                 model.Friendly,
                 model.Display,
@@ -1829,17 +1821,17 @@ public sealed partial class MainWindowViewModel
         }
 
         var onboardingCompleted = onboarding?["completed"]?.GetValue<bool?>() == true;
-        var forgeGuardInstalled = IsModelInstalled(configuredModels, "forgeguard");
+        var LoomGuardInstalled = IsModelInstalled(configuredModels, "LoomGuard");
         var freeWillInstalled = IsModelInstalled(configuredModels, "freewill");
         var codingInstalled = IsModelInstalled(configuredModels, "coding");
         ModelRecommendationSummary =
-            onboardingCompleted && forgeGuardInstalled && freeWillInstalled && codingInstalled
-                ? "First prototype ready: ForgeGuard, Free-Will, and Coding are installed. Next step: New Project → Generate & Play."
+            onboardingCompleted && LoomGuardInstalled && freeWillInstalled && codingInstalled
+                ? "First prototype ready: LoomGuard, Free-Will, and Coding are installed. Next step: New Project → Generate & Play."
                 : onboardingCompleted
-                    ? $"Core model path in progress. Missing: {string.Join(", ", new[] { ("ForgeGuard", forgeGuardInstalled), ("Free-Will", freeWillInstalled), ("Coding", codingInstalled) }.Where(item => !item.Item2).Select(item => item.Item1))}. Asset-Gen stays optional."
-                    : "Quick Setup installs ForgeGuard, Free-Will, and Coding so new users can generate a first prototype without manual model hunting.";
-        ForgeGuardKeepInstalledMessage = onboarding?["forgeguard_keep_message"]?.GetValue<string>()
-            ?? "ForgeGuard stays installed as a permanent helper for guardrails and critique passes.";
+                    ? $"Core model path in progress. Missing: {string.Join(", ", new[] { ("LoomGuard", LoomGuardInstalled), ("Free-Will", freeWillInstalled), ("Coding", codingInstalled) }.Where(item => !item.Item2).Select(item => item.Item1))}. Asset-Gen stays optional."
+                    : "Quick Setup installs LoomGuard, Free-Will, and Coding so new users can generate a first prototype without manual model hunting.";
+        LoomGuardKeepInstalledMessage = onboarding?["loomguard_keep_message"]?.GetValue<string>()
+            ?? "LoomGuard stays installed as a permanent helper for guardrails and critique passes.";
         if (_modelManagerEntries.Count > 0 && string.Equals(ModelManagerStatus, "Model manager idle.", StringComparison.Ordinal))
         {
             ModelManagerStatus = $"Loaded {_modelManagerEntries.Count} managed model entries.";
@@ -1955,7 +1947,7 @@ public sealed partial class MainWindowViewModel
         DownloadProgressSummary = command switch
         {
             "quick-setup" => "Preparing hardware benchmark and recommended model setup...",
-            "onboarding-run" => "Preparing hardware benchmark and ForgeGuard recommendation...",
+            "onboarding-run" => "Preparing hardware benchmark and LoomGuard recommendation...",
             _ => "Starting model download...",
         };
         DownloadProgressSpeed = "Speed: --";
@@ -1963,7 +1955,7 @@ public sealed partial class MainWindowViewModel
         DownloadProgressCurrentFile = command switch
         {
             "quick-setup" => "Running first-launch checks before the download begins...",
-            "onboarding-run" => "Benchmarking this machine before downloading ForgeGuard...",
+            "onboarding-run" => "Benchmarking this machine before downloading LoomGuard...",
             _ => "Contacting model host...",
         };
         ModelManagerStatus = $"{operationLabel}...";
@@ -2085,7 +2077,7 @@ public sealed partial class MainWindowViewModel
         }
 
         return new ModelOperationErrorState(
-            "Soul Loom needs your Hugging Face access token before it can download ForgeGuard, Free-Will, or Coding.",
+            "Soul Loom needs your Hugging Face access token before it can download LoomGuard, Free-Will, or Coding.",
             "Open Models & LLM, paste your token, then use Create Account / Log In / Access Tokens if you still need one.",
             false);
     }
@@ -2229,7 +2221,7 @@ public sealed partial class MainWindowViewModel
         }
 
         var installArgs = new List<string> { "-m", "pip", "install" };
-        installArgs.AddRange(LightweightModelDownloadPackages);
+        installArgs.AddRange(ModelManagerWorkflowConstants.LightweightModelDownloadPackages);
         var pipInstallResult = await RunExternalProcessAsync(
             venvPython,
             repositoryRoot,
@@ -2419,7 +2411,7 @@ public sealed partial class MainWindowViewModel
         if (string.IsNullOrWhiteSpace(friendlyName))
         {
             friendlyName = string.Equals(SafeGetString(payload, "stage"), "benchmark_complete", StringComparison.Ordinal)
-                ? "ForgeGuard"
+                ? "LoomGuard"
                 : "model";
         }
 
@@ -2428,8 +2420,8 @@ public sealed partial class MainWindowViewModel
             var stage = SafeGetString(payload, "stage");
             if (string.Equals(stage, "benchmark_complete", StringComparison.Ordinal))
             {
-                DownloadProgressTitle = "Preparing ForgeGuard";
-                DownloadProgressSummary = "Hardware benchmark complete. Preparing ForgeGuard download...";
+                DownloadProgressTitle = "Preparing LoomGuard";
+                DownloadProgressSummary = "Hardware benchmark complete. Preparing LoomGuard download...";
                 DownloadProgressCurrentFile = "Benchmark finished. Contacting the model host...";
                 DownloadProgressSpeed = "Speed: --";
                 DownloadProgressEta = "ETA: --";
@@ -4078,7 +4070,7 @@ public sealed partial class MainWindowViewModel
             PerformanceHealthSummary = "Performance health unavailable (no prototype scene yet).";
             ProjectHealthScore = 50;
             LightweightMode = "balanced";
-            LightweightModeSuggestion = "Run Optimization Check to get ForgeGuard lightweight recommendation.";
+            LightweightModeSuggestion = "Run Optimization Check to get LoomGuard lightweight recommendation.";
             GuardrailStatus = "Guardrails idle.";
             SetHealthBand();
             return;
@@ -4279,7 +4271,7 @@ public sealed partial class MainWindowViewModel
         {
             var suggested = currentSuggestionNode["suggested"]?.GetValue<string>() ?? LightweightMode;
             var current = currentSuggestionNode["current"]?.GetValue<string>() ?? LightweightMode;
-            LightweightModeSuggestion = $"ForgeGuard: {current} → {suggested} (manual confirmation required).";
+            LightweightModeSuggestion = $"LoomGuard: {current} → {suggested} (manual confirmation required).";
         }
         var guardrails = payload["guardrails"] as JsonObject;
         if (guardrails is not null)

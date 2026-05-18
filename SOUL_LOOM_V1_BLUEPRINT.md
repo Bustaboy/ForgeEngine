@@ -1,7 +1,7 @@
-# GameForge V1 Blueprint
+# Soul Loom V1 Blueprint
 
 ## 1) Product Vision
-GameForge V1 is a **local-first AI game creation engine** aimed at people with little or no coding experience.
+Soul Loom V1 is a **local-first AI game creation engine** aimed at people with little or no coding experience.
 
 Core promise:
 - The AI does the heavy lifting (planning, system setup, logic, content scaffolding, testing support).
@@ -273,7 +273,7 @@ Narrative expectation:
 
 ### Rights and Ownership
 - User owns created game/IP.
-- GameForge acts as tooling.
+- Soul Loom acts as tooling.
 
 ### Copyright Risk Checks
 - Automatic checks for potential content similarity/copyright concerns.
@@ -315,7 +315,7 @@ Note:
 
 ## 14) 3rd-Party Cloud Integration Foundation (No First-Party Hosting)
 Goal:
-- GameForge does not need to run its own cloud.
+- Soul Loom does not need to run its own cloud.
 - Users can connect external providers later.
 
 V1 foundation requirements:
@@ -344,13 +344,13 @@ Primary success criterion (6 months):
 - Creator can build a game they personally want to play without needing to code.
 
 UX reference:
-- UX standards, interaction patterns, and milestone UX deliverables are defined in `GAMEFORGE_UX_FOUNDATIONS.md`.
+- UX standards, interaction patterns, and milestone UX deliverables are defined in `SOUL_LOOM_UX_FOUNDATIONS.md`.
 
 ---
 
 ## 16) Implementation Milestones (2-Person Side Project)
 
-Milestone ordering is aligned to `GAMEFORGE_EXECUTION_PLAN.md` and `CODEX_PROMPT_PLAYBOOK.md`.
+Milestone ordering is aligned to `SOUL_LOOM_EXECUTION_PLAN.md` and `CODEX_PROMPT_PLAYBOOK.md`.
 
 ### Milestone 0: UX Foundation
 - UX wireframes and navigation map

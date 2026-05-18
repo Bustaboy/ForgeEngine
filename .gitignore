@@ -8,7 +8,7 @@ __pycache__/
 pytest-cache-files-*/
 build_probe/
 
-# ForgeEngine AI model artifacts (downloaded locally on first run)
+# Soul Loom — AI model artifacts (downloaded locally on first run)
 ai-orchestration/python/models/artifacts/
 ai-orchestration/python/models/.first-run-state.json
 
@@ -20,15 +20,20 @@ ai-orchestration/python/.env
 
 # Editor local state
 .soulloom/
-.forgeengine/
-forgeengine.log
+soul_loom.log
 models.json
 
 # Build and generated output
 build/
+build-g7/
+build-*/
 app/release/
 app/samples/generated-prototype/**/performance_history.json
 app/samples/generated-prototype/**/testing/reports/
+
+# Local smoke evidence captures (archive manually for AT-010/011 when promoting RC)
+docs/release/evidence/runs/
+docs/release/evidence/logs/
 
 # .NET build output
 **/bin/

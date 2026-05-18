@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GameForge.Editor.Interview;
+namespace Soul.Editor.Interview;
 
 public sealed record SuggestionResponseEnvelope
 {
@@ -159,7 +159,7 @@ public static class UncertaintyOptionBridge
         }
 
         throw new DirectoryNotFoundException(
-            $"Could not resolve GameForge repository root from '{AppContext.BaseDirectory}'.");
+            $"Could not resolve Soul Loom repository root from '{AppContext.BaseDirectory}'.");
     }
 
 }
