@@ -104,8 +104,8 @@ class OnboardingFlowTests(unittest.TestCase):
             payload = json.loads(models_json_path.read_text(encoding="utf-8"))
             self.assertTrue(payload["onboarding"]["completed"])
             self.assertIn("recommendations", payload["onboarding"])
-            self.assertIn("ForgeGuard", payload["onboarding"]["forgeguard_keep_message"])
-            self.assertIn("ForgeGuard", result["message"])
+            self.assertIn("LoomGuard", payload["onboarding"]["forgeguard_keep_message"])
+            self.assertIn("LoomGuard", result["message"])
 
     def test_run_quick_setup_downloads_core_models_for_first_prototype(self):
         with _temporary_repo_dir() as temp_dir:

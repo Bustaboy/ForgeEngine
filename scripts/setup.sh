@@ -315,10 +315,10 @@ create_or_reuse_venv() {
     should_prepare_models=1
   fi
 
-  step "Ensuring ai-orchestration/python is always importable via forge.pth"
+  step "Ensuring ai-orchestration/python is always importable via soul_loom.pth"
   local site_packages
   site_packages="$(python -c 'import site; print(next(p for p in site.getsitepackages() if p.endswith("site-packages")))')"
-  printf "%s\n" "$ORCH_DIR" > "$site_packages/forge.pth"
+  printf "%s\n" "$ORCH_DIR" > "$site_packages/soul_loom.pth"
 
   if [[ -f "$REQ_FILE" ]]; then
     step "Installing Python dependencies from $REQ_FILE"
@@ -328,7 +328,7 @@ create_or_reuse_venv() {
     warn "No requirements.txt found at $REQ_FILE (skipping pip install)."
   fi
 
-  success "Virtual environment and forge.pth configured."
+  success "Virtual environment and soul_loom.pth configured."
   echo "$should_prepare_models"
 }
 

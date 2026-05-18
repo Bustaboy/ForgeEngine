@@ -313,15 +313,15 @@ function Ensure-Venv {
         throw "Virtual environment python not found under $VenvPath\Scripts or $VenvPath\bin"
     }
 
-    Write-Step 'Creating/updating forge.pth for ai-orchestration/python'
+    Write-Step 'Creating/updating soul_loom.pth for ai-orchestration/python'
     $sitePackages = & $venvPython -c "import site; print(next(p for p in site.getsitepackages() if p.endswith('site-packages')))"
     if ($LASTEXITCODE -ne 0 -or -not $sitePackages) {
         throw 'Failed to discover site-packages path in the virtual environment.'
     }
 
-    $pthFile = (Join-Path $sitePackages 'forge.pth').TrimEnd(' ')
+    $pthFile = (Join-Path $sitePackages 'soul_loom.pth').TrimEnd(' ')
     Set-Content -Path $pthFile -Value $OrchestratorPath -Encoding utf8
-    Write-Ok "forge.pth written: $pthFile"
+    Write-Ok "soul_loom.pth written: $pthFile"
 
     if (Test-Path $RequirementsFile) {
         Write-Step "Installing Python dependencies from $RequirementsFile"

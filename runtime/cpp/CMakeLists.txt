@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(SoulLoomRuntime VERSION 0.1.0 LANGUAGES CXX)
+project(SoulRuntime VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -140,9 +140,9 @@ set(FORGE_RUNTIME_SOURCES
     src/input/InputManager.cpp
 )
 
-add_executable(forge_runtime ${FORGE_RUNTIME_SOURCES})
+add_executable(soul_runtime ${FORGE_RUNTIME_SOURCES})
 
-target_include_directories(forge_runtime
+target_include_directories(soul_runtime
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/external
@@ -150,7 +150,7 @@ target_include_directories(forge_runtime
         ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann_json/single_include
 )
 
-target_link_libraries(forge_runtime
+target_link_libraries(soul_runtime
     PRIVATE
         Vulkan::Vulkan
         glfw
@@ -161,16 +161,16 @@ set(FORGE_LLAMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
 if(EXISTS "${FORGE_LLAMA_DIR}/CMakeLists.txt")
     add_subdirectory(${FORGE_LLAMA_DIR} EXCLUDE_FROM_ALL)
     if(TARGET llama)
-        target_link_libraries(forge_runtime PRIVATE llama)
-        target_compile_definitions(forge_runtime PRIVATE FORGE_HAS_LLAMA_CPP=1)
-        target_include_directories(forge_runtime PRIVATE ${FORGE_LLAMA_DIR}/include)
+        target_link_libraries(soul_runtime PRIVATE llama)
+        target_compile_definitions(soul_runtime PRIVATE FORGE_HAS_LLAMA_CPP=1)
+        target_include_directories(soul_runtime PRIVATE ${FORGE_LLAMA_DIR}/include)
     endif()
 endif()
 
 if(MSVC)
-    target_compile_options(forge_runtime PRIVATE /W4 /permissive-)
+    target_compile_options(soul_runtime PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(forge_runtime PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(soul_runtime PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 find_program(GLSLC_EXECUTABLE glslc
@@ -208,11 +208,11 @@ if(GLSLC_EXECUTABLE)
     endforeach()
 
     add_custom_target(compile_shaders ALL DEPENDS ${FORGE_SPV_OUTPUTS})
-    add_dependencies(forge_runtime compile_shaders)
+    add_dependencies(soul_runtime compile_shaders)
 else()
     message(WARNING "glslc not found; shader compilation target disabled.")
 endif()
 
-set_target_properties(forge_runtime PROPERTIES
+set_target_properties(soul_runtime PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )

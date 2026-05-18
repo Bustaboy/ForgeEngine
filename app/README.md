@@ -1,15 +1,17 @@
-# App Module
+# App module
 
-Soul Loom application startup is anchored to the **C# editor/launcher shell** (`editor/csharp/Program.cs`).
+**Soul Loom** application startup is anchored to the **C# editor/launcher shell** (`editor/csharp/Program.cs`).
 
 Module boundaries for V1:
 - **App entrypoint (launcher/editor shell):** C#
 - **Game runtime entrypoint (generated game runtime):** C++ (`runtime/cpp/main.cpp`)
 - **AI orchestration/tooling automation:** Python (`ai-orchestration/python/`), optional for app startup
 
-Bootstrap commands:
+Bootstrap commands (minimal / CI-style):
 - Ubuntu/Linux: `./scripts/bootstrap.sh`
 - Windows: `pwsh -f scripts/bootstrap.ps1`
+
+Full one-command setup (recommended for developers): see root [`README.md`](../README.md) — `scripts/setup.sh`, `scripts/Setup-Alpha.ps1`.
 
 Automation-only launcher smoke commands:
 - Ubuntu/Linux: `./scripts/bootstrap.sh --launcher-smoke`

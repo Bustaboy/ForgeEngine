@@ -1,4 +1,4 @@
-name: ForgeEngine Release Packaging
+name: Soul Loom Release Packaging
 
 on:
   workflow_dispatch:
@@ -18,18 +18,18 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: forgeengine-linux-packages
+            artifact_name: soul-loom-linux-packages
             package_cmd: ./scripts/package_ubuntu.sh
           - os: windows-latest
-            artifact_name: forgeengine-windows-packages
+            artifact_name: soul-loom-windows-packages
             package_cmd: scripts/package_windows.ps1
           - os: macos-latest
-            artifact_name: forgeengine-macos-packages
+            artifact_name: soul-loom-macos-packages
             package_cmd: ./scripts/package_macos.sh
 
     runs-on: ${{ matrix.os }}
     env:
-      FORGEENGINE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      RELEASE_VERSION_RAW: ${{ github.event.inputs.version || github.ref_name }}
 
     steps:
       - name: Checkout
@@ -38,8 +38,10 @@ jobs:
       - name: Normalize version
         shell: bash
         run: |
-          RAW="${FORGEENGINE_VERSION}"
-          echo "FORGEENGINE_VERSION=${RAW#v}" >> "$GITHUB_ENV"
+          RAW="${RELEASE_VERSION_RAW}"
+          V="${RAW#v}"
+          echo "SOUL_LOOM_VERSION=$V" >> "$GITHUB_ENV"
+          echo "FORGEENGINE_VERSION=$V" >> "$GITHUB_ENV"
 
       - name: Setup Python
         uses: actions/setup-python@v5

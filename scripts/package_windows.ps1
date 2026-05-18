@@ -9,10 +9,10 @@ $rid = "win-x64"
 $outputRoot = Join-Path $repoRoot "build/release/$rid"
 $publishDir = Join-Path $outputRoot "publish"
 $runtimeDir = Join-Path $outputRoot "runtime"
-$runtimeExe = Join-Path $runtimeDir "soul_loom_runtime.exe"
+$runtimeExe = Join-Path $runtimeDir "soul_runtime.exe"
 $packageRoot = Join-Path $outputRoot "package"
 $appPayload = Join-Path $packageRoot "SoulLoom"
-$wxsPath = Join-Path $packageRoot "SoulLoom.wxs"
+$wxsPath = Join-Path $packageRoot "SoulEditor.wxs"
 $msiPath = Join-Path $outputRoot "SoulLoom-$Version-win-x64.msi"
 $sampleBrief = Join-Path $repoRoot "app/samples/interview-brief.sample.json"
 $playtestScenario = Join-Path $repoRoot "app/samples/generated-prototype/cozy-colony-tales/testing/bot-baseline-scenario.v1.json"
@@ -35,7 +35,7 @@ if (-not $gpp) { throw "g++ not found. Install MinGW-w64." }
 & $gpp.Source "-std=c++17" (Join-Path $repoRoot "runtime/cpp/main.cpp") "-o" $runtimeExe
 
 Write-Host "[2/7] Publishing .NET editor"
-& dotnet publish (Join-Path $repoRoot "editor/csharp/GameForge.Editor.csproj") `
+& dotnet publish (Join-Path $repoRoot "editor/csharp/Soul.Editor.csproj") `
     -c $Configuration `
     -r $rid `
     --self-contained true `
@@ -47,7 +47,7 @@ Write-Host "[3/7] Staging app payload"
 if (Test-Path $appPayload) { Remove-Item -Recurse -Force $appPayload }
 New-Item -ItemType Directory -Path $appPayload | Out-Null
 Copy-Item -Recurse -Force (Join-Path $publishDir "*") $appPayload
-Copy-Item -Force $runtimeExe (Join-Path $appPayload "soul_loom_runtime.exe")
+Copy-Item -Force $runtimeExe (Join-Path $appPayload "soul_runtime.exe")
 Copy-Item -Recurse -Force (Join-Path $repoRoot "ai-orchestration") (Join-Path $appPayload "ai-orchestration")
 Copy-Item -Recurse -Force (Join-Path $repoRoot "app") (Join-Path $appPayload "app")
 
@@ -68,17 +68,17 @@ if (-not $wix) { throw "wix CLI not found. Install WiX Toolset v4." }
 $appPayloadEscaped = $appPayload -replace "\\", "\\\\"
 @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Soul Loom" Manufacturer="Soul Loom LLC" Version="$Version" UpgradeCode="6F4F0A9F-409C-44AB-9883-9D0A9CE6D0BE">
+  <Package Name="Soul Loom" Manufacturer="Soul Loom LLC" Version="$Version" UpgradeCode="E1C8D4A7-2F9B-4E3D-8A1C-6B5D9023E4F1">
     <MediaTemplate EmbedCab="yes" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Soul Loom">
-        <Component Id="MainExeComponent" Guid="3B3EE665-D90D-4A48-BA38-34F24DB0588D">
-          <File Source="$appPayloadEscaped\\GameForge.Editor.exe" KeyPath="yes" />
+        <Component Id="SoulEditorExeComponent" Guid="7A3C9B1E-5D2F-4A8B-9C6E-1F0D8E7A6B5C">
+          <File Source="$appPayloadEscaped\\Soul.Editor.exe" KeyPath="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
-    <Feature Id="MainFeature" Title="Soul Loom" Level="1">
-      <ComponentRef Id="MainExeComponent" />
+    <Feature Id="SoulEditorFeature" Title="Soul Loom" Level="1">
+      <ComponentRef Id="SoulEditorExeComponent" />
     </Feature>
   </Package>
 </Wix>
@@ -91,7 +91,7 @@ Write-Host "[6/7] Writing manifest"
     version = $Version
     rid = $rid
     msi = (Split-Path $msiPath -Leaf)
-    runtime_binary = "soul_loom_runtime.exe"
+    runtime_binary = "soul_runtime.exe"
     post_build_validation = @(
         "orchestrator.py --prepare-models",
         "orchestrator.py --benchmark",

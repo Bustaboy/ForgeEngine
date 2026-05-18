@@ -9,8 +9,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "app" / "schemas" / "interview-session.v1.schema.json"
-EDITOR_CSPROJ = REPO_ROOT / "editor" / "csharp" / "GameForge.Editor.csproj"
-EDITOR_TEST_CSPROJ = REPO_ROOT / "editor" / "csharp" / "tests" / "GameForge.Editor.Tests.csproj"
+EDITOR_CSPROJ = REPO_ROOT / "editor" / "csharp" / "Soul.Editor.csproj"
+EDITOR_TEST_CSPROJ = REPO_ROOT / "editor" / "csharp" / "tests" / "Soul.Editor.Tests.csproj"
 
 
 def run_cmd(cmd, cwd=REPO_ROOT):

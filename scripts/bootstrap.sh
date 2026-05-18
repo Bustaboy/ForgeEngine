@@ -4,8 +4,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build/runtime"
 RUNTIME_SRC="$REPO_ROOT/runtime/cpp/main.cpp"
-RUNTIME_BIN="$BUILD_DIR/bin/forge_runtime"
-EDITOR_PROJECT="$REPO_ROOT/editor/csharp/GameForge.Editor.csproj"
+RUNTIME_BIN="$BUILD_DIR/bin/soul_runtime"
+EDITOR_PROJECT="$REPO_ROOT/editor/csharp/Soul.Editor.csproj"
 RUNTIME_ONLY="${1:-}"
 LAUNCHER_SMOKE=0
 if [[ "${1:-}" == "--launcher-smoke" ]]; then
@@ -111,7 +111,7 @@ mkdir -p "$BUILD_DIR"
 
 echo "== Building Runtime Entrypoint (C++) =="
 configure_runtime_build
-cmake --build "$BUILD_DIR" --config Release --target forge_runtime -j 4
+cmake --build "$BUILD_DIR" --config Release --target soul_runtime -j 4
 
 if [[ "$RUNTIME_ONLY" == "--runtime-only" ]]; then
   if [[ -x "$RUNTIME_BIN" ]]; then

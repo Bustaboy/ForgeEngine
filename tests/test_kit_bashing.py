@@ -21,7 +21,7 @@ from art_bible import default_art_bible
 
 
 def _art_bible():
-    return default_art_bible(project_name="ForgeEngine Tests")
+    return default_art_bible(project_name="Soul Loom Tests")
 
 
 def test_bash_scene_farmhouse_creates_coherent_cluster() -> None:
