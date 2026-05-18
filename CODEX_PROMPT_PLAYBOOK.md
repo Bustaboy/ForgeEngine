@@ -1,4 +1,6 @@
-# GameForge Codex Prompt Playbook (V1 Execution)
+# Soul Loom Codex Prompt Playbook (V1 Execution)
+
+> **Note:** Filename `CODEX_PROMPT_PLAYBOOK.md` is unchanged; implement against the **Soul Loom** repository (`README.md`).
 
 ## Purpose
 This document converts the V1 execution plan into **Codex-optimized prompts** you can run milestone-by-milestone.
@@ -42,7 +44,7 @@ Use these rules for every prompt:
 Use this once at the start of a coding session:
 
 ```text
-You are implementing GameForge V1 incrementally.
+You are implementing Soul Loom V1 incrementally.
 Follow these requirements strictly:
 - Prioritize local-first, single-player, no-code-first workflows.
 - Keep scope aligned with GAMEFORGE_V1_BLUEPRINT.md and GAMEFORGE_EXECUTION_PLAN.md.
@@ -196,7 +198,7 @@ Acceptance Criteria:
 
 ### Prompt M1-P1: Repo skeleton + bootstrap
 ```text
-Task: Establish GameForge V1 repository skeleton and local bootstrap flow
+Task: Establish Soul Loom V1 repository skeleton and local bootstrap flow
 
 Goal:
 Create a clean module structure and a single bootstrap command so a new contributor can run the project quickly.

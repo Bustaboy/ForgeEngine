@@ -1,7 +1,9 @@
-# GameForge UX Foundations (V1)
+# Soul Loom UX Foundations (V1)
+
+> **Note:** Filename `GAMEFORGE_UX_FOUNDATIONS.md` is kept for stable references.
 
 ## Purpose
-Define UI/UX standards for GameForge V1 so non-coders can build games confidently without needing technical knowledge.
+Define UI/UX standards for Soul Loom V1 so non-coders can build games confidently without needing technical knowledge.
 
 ## UX North Star
 A first-time hobby creator should be able to:

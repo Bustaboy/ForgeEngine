@@ -1,4 +1,6 @@
-# Policy Change Control Note
+# Policy change control note
+
+This note remains **valid** for the commercial revenue-share threshold correction it describes; it is not a full snapshot of current release status.
 
 - **Date (UTC):** 2026-03-22
 - **Owner:** GPT-5.2-Codex (implementation agent)

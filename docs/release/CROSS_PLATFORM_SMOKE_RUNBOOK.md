@@ -6,6 +6,8 @@ This runbook provides executable smoke procedures for:
 
 Milestone: **Milestone 8 hardening**.
 
+Bootstrap scripts print **Soul Loom** in log banners when `scripts/bootstrap.*` runs successfully.
+
 Use this document with:
 - `docs/SETUP.md`
 - `docs/release/evidence/windows_smoke_template.md`
@@ -60,7 +62,7 @@ Optional but recommended:
 
 ### 3.2 Commands (exact)
 
-Run from repository root (`Soul Loom`):
+Run from repository root (your Soul Loom git clone directory):
 
 ```bash
 set -o pipefail
@@ -95,7 +97,7 @@ echo "benchmark_exit=$BENCHMARK_EXIT"
 ### 3.3 Expected output signatures
 
 Runtime-only bootstrap success indicators:
-- `Soul Loom bootstrap (Ubuntu/Linux)`
+- `Soul Loom bootstrap (Ubuntu/Linux)` _(confirms `bootstrap.sh` ran)_
 - `== Building Runtime Entrypoint (C++) ==`
 - `Runtime says hello from C++17` (or runtime launch confirmation)
 
@@ -157,7 +159,7 @@ Optional but recommended:
 
 ### 4.2 Commands (exact)
 
-Run from repository root (`Soul Loom`) in `pwsh`:
+Run from repository root (your Soul Loom git clone directory) in `pwsh`:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path docs/release/evidence/logs/windows | Out-Null
@@ -196,7 +198,7 @@ $BENCHMARK_EXIT = $LASTEXITCODE
 ### 4.3 Expected output signatures
 
 Runtime-only bootstrap success indicators:
-- `Soul Loom bootstrap (Windows)`
+- `Soul Loom bootstrap (Windows)` _(confirms `bootstrap.ps1` ran)_
 - `== Building Runtime Entrypoint (C++) ==`
 - runtime launch confirmation (for example `Runtime says hello from C++17`)
 

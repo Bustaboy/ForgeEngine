@@ -1,4 +1,7 @@
-# Soul Loom RC Readiness Handoff
+# [DEPRICATED] Soul Loom RC Readiness Handoff
+
+> **Historical snapshot only** (frozen **2026-03-22**, baseline commit `33382034a14bee0d03f83a0769a484089a91b26c`). **Do not use the P0/P1 narrative or counts below as current release status** without re-validating against the live traceability JSON.  
+> **Current sources of truth:** [`acceptance_traceability_v1.json`](acceptance_traceability_v1.json), human-readable mirror [`acceptance_traceability_v1.md`](acceptance_traceability_v1.md), product status [`README.md`](../../README.md), and planning [`BACKLOG_APRIL_2026.md`](../BACKLOG_APRIL_2026.md). Product name is **Soul Loom**.
 
 - **Date (UTC):** 2026-03-22
 - **Prepared by:** Release Handoff Agent (GPT-5.2-Codex)
@@ -107,7 +110,7 @@ A **Conditional Go** could be re-evaluated after the required-before-ship checkl
 - [ ] **AT-010 closure:** Windows smoke run executed per runbook, logs archived, template completed with pass verdict.
 - [ ] **AT-011 closure:** Ubuntu smoke run executed per runbook, logs archived, template completed with pass verdict.
 - [ ] **AT-026 closure:** Deterministic quest dead-end blocker scan integrated with failing gate condition, evidence attached.
-- [ ] **C# test validation:** `dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj -v minimal` executed in environment with .NET SDK and result attached.
+- [ ] **C# test validation:** `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal` executed in environment with .NET SDK and result attached.
 - [ ] **Final RC review:** Engineering + QA + Release owners sign off on evidence index and no open P0 gaps.
 
 ---
@@ -150,7 +153,7 @@ EXIT_CODE:0
 **Command**
 
 ```bash
-if command -v dotnet >/dev/null 2>&1; then dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj -v minimal; EC=$?; echo EXIT_CODE:$EC; else echo 'dotnet not found'; echo EXIT_CODE:127; fi
+if command -v dotnet >/dev/null 2>&1; then dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal; EC=$?; echo EXIT_CODE:$EC; else echo 'dotnet not found'; echo EXIT_CODE:127; fi
 ```
 
 **Output**

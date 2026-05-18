@@ -1,7 +1,9 @@
-# GameForge V1 Blueprint
+# Soul Loom V1 Blueprint
+
+> **Note:** This specification file is named `GAMEFORGE_V1_BLUEPRINT.md` for historical link stability; the product is **Soul Loom**.
 
 ## 1) Product Vision
-GameForge V1 is a **local-first AI game creation engine** aimed at people with little or no coding experience.
+Soul Loom V1 is a **local-first AI game creation engine** aimed at people with little or no coding experience.
 
 Core promise:
 - The AI does the heavy lifting (planning, system setup, logic, content scaffolding, testing support).
@@ -273,7 +275,7 @@ Narrative expectation:
 
 ### Rights and Ownership
 - User owns created game/IP.
-- GameForge acts as tooling.
+- Soul Loom acts as tooling.
 
 ### Copyright Risk Checks
 - Automatic checks for potential content similarity/copyright concerns.
@@ -315,7 +317,7 @@ Note:
 
 ## 14) 3rd-Party Cloud Integration Foundation (No First-Party Hosting)
 Goal:
-- GameForge does not need to run its own cloud.
+- Soul Loom does not need to run its own cloud.
 - Users can connect external providers later.
 
 V1 foundation requirements:

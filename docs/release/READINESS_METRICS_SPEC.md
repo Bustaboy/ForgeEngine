@@ -73,7 +73,7 @@ This mapping is aligned with `GAMEFORGE_DECISIONS_LOCK.md` quality gates and exi
 The output `metrics` object is intentionally field-compatible with `SteamQualityMetrics` JSON loading (`SteamReadinessPolicy.LoadMetrics`) and can be fed directly to:
 
 ```bash
-dotnet run --project editor/csharp/GameForge.Editor.csproj -- \
+dotnet run --project editor/csharp/Soul.Editor.csproj -- \
   --steam-readiness docs/release/evidence/readiness_metrics_sample.json
 ```
 

@@ -1,6 +1,6 @@
-# ForgeEngine Test Policy
+# Soul Loom test policy
 
-This document defines the minimum testing standard for current and future code in ForgeEngine.
+This document defines the minimum testing standard for current and future code in the **Soul Loom** repository.
 
 ## Goals
 
@@ -42,7 +42,7 @@ Current enforced gate in this repository:
 
 - `python scripts/validate_traceability.py`
 - `python -m pytest -q tests/test_traceability_validator.py tests/test_m1_skeleton.py -p no:cacheprovider`
-- `dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj --filter "FullyQualifiedName~GameForge.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~GameForge.Editor.Tests.SteamReadinessPolicyTests" --no-restore -v minimal`
+- `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj --filter "FullyQualifiedName~Soul.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~Soul.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~Soul.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~Soul.Editor.Tests.SteamReadinessPolicyTests" --no-restore -v minimal`
 
 Expansion target after the known-red suites are repaired:
 
@@ -70,7 +70,7 @@ Tests must distinguish unsupported hosts from true regressions.
 
 ## Coverage expectations
 
-ForgeEngine does not require a vanity global coverage number as the sole merge gate.
+Soul Loom does not require a vanity global coverage number as the sole merge gate.
 
 Instead:
 
@@ -94,7 +94,7 @@ Typical local validation commands:
 ```bash
 python3 scripts/validate_traceability.py
 python3 -m pytest -q tests/test_traceability_validator.py tests/test_m1_skeleton.py -p no:cacheprovider
-dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj --filter "FullyQualifiedName~GameForge.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~GameForge.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~GameForge.Editor.Tests.SteamReadinessPolicyTests" --no-restore -v minimal
+dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj --filter "FullyQualifiedName~Soul.Editor.Tests.PlaytestReportViewerTests|FullyQualifiedName~Soul.Editor.Tests.InterviewLongSessionContinuityTests|FullyQualifiedName~Soul.Editor.Tests.InterviewUncertaintyTests|FullyQualifiedName~Soul.Editor.Tests.SteamReadinessPolicyTests" --no-restore -v minimal
 ```
 
 Bootstrap smoke examples:

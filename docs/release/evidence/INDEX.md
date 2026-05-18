@@ -1,4 +1,4 @@
-# Soul Loom Evidence Index
+# Soul Loom release evidence index
 
 - **Date (UTC):** 2026-03-22
 - **Prepared by:** Release Handoff Agent (GPT-5.2-Codex)
@@ -54,7 +54,7 @@ Generated run artifacts convention:
 
 - `scripts/validate_traceability.py` — parity/coverage validator for traceability docs.
 - `pytest -q` — Python test suite execution used for repo-wide regression signal.
-- `dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj -v minimal` — C# editor suite (conditional on .NET SDK availability).
+- `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal` — C# editor suite (conditional on .NET SDK availability).
 
 ---
 

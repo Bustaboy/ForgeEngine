@@ -1,4 +1,6 @@
-# GameForge Execution Plan (V1)
+# Soul Loom Execution Plan (V1)
+
+> **Note:** Filename `GAMEFORGE_EXECUTION_PLAN.md` is kept for stable references.
 
 ## Role and Working Model
 This plan treats execution as if run by:

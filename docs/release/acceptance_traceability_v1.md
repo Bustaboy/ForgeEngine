@@ -1,6 +1,6 @@
 # Soul Loom Acceptance Traceability Matrix (Milestone 8 hardening)
 
-This artifact maps **AT-001..AT-031** to current evidence and release-governance metadata.
+This artifact maps **AT-001..AT-031** to current evidence and release-governance metadata for the **Soul Loom** repository.
 
 Source references used:
 - `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md`
@@ -60,7 +60,7 @@ Source references used:
 ## Validation
 - Run `python3 scripts/validate_traceability.py`.
 - Run `pytest -q tests/test_traceability_validator.py` (or `pytest -q` for full suite).
-- Optional if .NET SDK is available: `dotnet test editor/csharp/tests/GameForge.Editor.Tests.csproj -v minimal`.
+- Optional if .NET SDK is available: `dotnet test editor/csharp/tests/Soul.Editor.Tests.csproj -v minimal`.
 
 ## Notes and limitations
 - Coverage statuses are based on repository-visible automated tests/documents at analysis time.

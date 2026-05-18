@@ -1,4 +1,6 @@
-# GameForge V1 UX Wireframe Baseline
+# Soul Loom V1 UX Wireframe Baseline
+
+> **Note:** Filename `GAMEFORGE_UX_WIREFRAME_BASELINE_V1.md` is kept for stable references.
 
 ## Scope and Alignment
 This baseline defines low-fidelity wireframes and navigation for V1 core screens:
@@ -22,7 +24,7 @@ Notation:
 
 ```text
 +--------------------------------------------------------------------------------+
-| GameForge | Project Home                                      [Settings] [Help]|
+| Soul Loom | Project Home                                      [Settings] [Help]|
 +--------------------------------------------------------------------------------+
 | [Primary] New Project   [Primary] Open Project   [Secondary] Import Project    |
 +--------------------------------------------------------------------------------+
