@@ -65,5 +65,5 @@ Use **Python** for AI orchestration as a separate orchestration layer that:
 
 ## References
 - Related ADRs: ADR-0001, ADR-0002, ADR-0003
-- External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+- External references: SOUL_LOOM_V1_BLUEPRINT.md, SOUL_LOOM_EXECUTION_PLAN.md
 

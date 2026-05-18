@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.ui.hud.v1",
+  "schema": "soulloom.ui.hud.v1",
   "widgets": [
     {
       "id": "quest_tracker",

@@ -83,7 +83,7 @@ public sealed class SteamReadinessPolicyTests
         };
         var report = SteamReadinessPolicy.Evaluate(metrics);
 
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"gameforge-steam-ready-{Guid.NewGuid():N}");
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"soulloom-steam-ready-{Guid.NewGuid():N}");
         var homePath = Path.Combine(tempRoot, "home");
         var localAuditPath = Path.Combine(tempRoot, "audit", "steam-readiness-audit.json");
         var externalPath = Path.Combine(tempRoot, "external", "steam-readiness-audit.json");
@@ -105,7 +105,7 @@ public sealed class SteamReadinessPolicyTests
         Assert.True(File.Exists(externalPath));
 
         var payload = JsonDocument.Parse(File.ReadAllText(localAuditPath)).RootElement;
-        Assert.Equal("gameforge.steam_readiness_audit.v1", payload.GetProperty("Schema").GetString());
+        Assert.Equal("soulloom.steam_readiness_audit.v1", payload.GetProperty("Schema").GetString());
     }
     [Fact]
     public void AuditWriteAndUpload_SupportFilenameOnlyPaths()
@@ -121,7 +121,7 @@ public sealed class SteamReadinessPolicyTests
         };
         var report = SteamReadinessPolicy.Evaluate(metrics);
 
-        var tempRoot = Path.Combine(Path.GetTempPath(), $"gameforge-steam-ready-filename-{Guid.NewGuid():N}");
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"soulloom-steam-ready-filename-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempRoot);
         var originalCwd = Environment.CurrentDirectory;
 
@@ -218,7 +218,7 @@ public sealed class SteamReadinessPolicyTests
         for (var i = 0; i < 8; i++)
         {
             var candidate = Path.GetFullPath(Path.Combine(current, string.Join(Path.DirectorySeparatorChar, Enumerable.Repeat("..", i))));
-            if (File.Exists(Path.Combine(candidate, "GAMEFORGE_V1_BLUEPRINT.md")))
+            if (File.Exists(Path.Combine(candidate, "SOUL_LOOM_V1_BLUEPRINT.md")))
             {
                 return candidate;
             }

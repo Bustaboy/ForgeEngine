@@ -1,7 +1,5 @@
 # Soul Loom V1 Decisions Lock
 
-> **Note:** Filename `GAMEFORGE_DECISIONS_LOCK.md` is kept for stable references.
-
 This file is the single-source lock for non-negotiable V1 decisions.
 If another document conflicts with this file, this file wins unless explicitly superseded in a dated update.
 

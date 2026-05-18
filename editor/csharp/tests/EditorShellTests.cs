@@ -374,7 +374,7 @@ public sealed class EditorShellTests
         for (var i = 0; i < 8; i++)
         {
             var candidate = Path.GetFullPath(Path.Combine(current, string.Join(Path.DirectorySeparatorChar, Enumerable.Repeat("..", i))));
-            if (File.Exists(Path.Combine(candidate, "GAMEFORGE_V1_BLUEPRINT.md")))
+            if (File.Exists(Path.Combine(candidate, "SOUL_LOOM_V1_BLUEPRINT.md")))
             {
                 return candidate;
             }

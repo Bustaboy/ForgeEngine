@@ -36,5 +36,5 @@ jobs:
         with:
           files: ./coverage.xml
           flags: unittests
-          name: gameforge-v1
+          name: soulloom-v1
           use_oidc: true

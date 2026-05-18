@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "gameforge.playtest-report.v1.schema.json",
+  "$id": "soulloom.playtest-report.v1.schema.json",
   "title": "Soul Loom Playtest Report V1",
   "type": "object",
   "required": [
@@ -16,7 +16,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "gameforge.playtest_report.v1"
+      "const": "soulloom.playtest_report.v1"
     },
     "report_id": {
       "type": "string",

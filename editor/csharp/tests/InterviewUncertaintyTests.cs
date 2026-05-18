@@ -26,7 +26,7 @@ public sealed class InterviewUncertaintyTests
             ],
         };
 
-        var path = Path.Combine(Path.GetTempPath(), $"gameforge-invalid-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"soulloom-invalid-{Guid.NewGuid():N}.json");
         try
         {
             var ex = await Assert.ThrowsAsync<InterviewSchemaException>(() => InterviewSessionStore.SaveAsync(path, session));
@@ -65,7 +65,7 @@ public sealed class InterviewUncertaintyTests
             ],
         };
 
-        var path = Path.Combine(Path.GetTempPath(), $"gameforge-valid-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"soulloom-valid-{Guid.NewGuid():N}.json");
         try
         {
             await InterviewSessionStore.SaveAsync(path, session);

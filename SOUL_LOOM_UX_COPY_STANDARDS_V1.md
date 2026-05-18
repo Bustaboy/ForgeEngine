@@ -1,7 +1,5 @@
 # Soul Loom V1 UX Copy Standards
 
-> **Note:** Filename `GAMEFORGE_UX_COPY_STANDARDS_V1.md` is kept for stable references.
-
 ## Purpose
 Standardize plain-language copy for high-frequency actions so non-coders can confidently create, test, and publish games in a local-first workflow.
 

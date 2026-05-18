@@ -44,7 +44,7 @@ FRIENDLY_NAME_ALIASES: dict[str, str] = {
     "coder": "coding",
     "free-will": "freewill",
     "freewill-spark": "freewill",
-    "forge-guard": "forgeguard",
+    "loom-guard": "loomguard",
     "orchestrator": "coding",
 }
 
@@ -52,7 +52,7 @@ FRIENDLY_MODEL_REPOS: dict[str, str] = {
     "freewill": "bartowski/Llama-3.2-3B-Instruct-GGUF",
     "coding": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
     "assetgen": "stabilityai/stable-diffusion-2-1-base",
-    "forgeguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
+    "loomguard": "bartowski/Phi-3-mini-4k-instruct-GGUF",
 }
 
 ONBOARDING_KEEP_MESSAGE = (
@@ -782,11 +782,10 @@ def get_model_path(friendly_name: str, models_json_path: Path | None = None) -> 
     if isinstance(payload, dict) and isinstance(payload.get("path"), str) and payload["path"].strip():
         return payload["path"].strip()
 
-    for prefix in ("SOUL_LOOM_", "FORGEENGINE_"):
-        env_var_name = f"{prefix}{normalized_name.upper()}_MODEL_PATH"
-        env_path = os.getenv(env_var_name, "").strip()
-        if env_path:
-            return env_path
+    env_var_name = f"SOUL_LOOM_{normalized_name.upper()}_MODEL_PATH"
+    env_path = os.getenv(env_var_name, "").strip()
+    if env_path:
+        return env_path
     return None
 
 
@@ -997,8 +996,8 @@ def generate_recommendations(
             "estimated_size": assetgen_size,
             "reason": assetgen_reason,
         },
-        "forgeguard": {
-            "repo_id": FRIENDLY_MODEL_REPOS["forgeguard"],
+        "loomguard": {
+            "repo_id": FRIENDLY_MODEL_REPOS["loomguard"],
             "estimated_size": "2.2GB (Q4)",
             "reason": "Tiny helper model used for onboarding plus future guardrail and critique passes.",
             "kept_installed": True,
@@ -1041,8 +1040,8 @@ def run_onboarding(
         value = str(input_fn(prompt) or "").strip().lower()
         answers[key] = value or default
 
-    forgeguard_record = download_model(
-        friendly_name="forgeguard",
+    loomguard_record = download_model(
+        friendly_name="loomguard",
         quantization=DEFAULT_QUANTIZATION,
         models_json_path=resolved_models_path,
         progress_callback=progress_callback,
@@ -1055,11 +1054,11 @@ def run_onboarding(
     config["onboarding"] = {
         "completed": mark_completed,
         "completed_at_unix": completed_at,
-        "schema": "gameforge.onboarding.v1",
+        "schema": "soulloom.onboarding.v1",
         "benchmark": benchmark,
         "answers": answers,
         "recommendations": recommendations,
-        "forgeguard_keep_message": ONBOARDING_KEEP_MESSAGE,
+        "loomguard_keep_message": ONBOARDING_KEEP_MESSAGE,
     }
     _save_models_config(config, models_json_path=resolved_models_path)
 
@@ -1068,7 +1067,7 @@ def run_onboarding(
         "benchmark": benchmark,
         "answers": answers,
         "recommendations": recommendations,
-        "forgeguard": forgeguard_record,
+        "loomguard": loomguard_record,
         "message": ONBOARDING_KEEP_MESSAGE,
         "completed": mark_completed,
         "models_json": str(resolved_models_path),
@@ -1133,7 +1132,7 @@ def run_quick_setup(
 
     return {
         "onboarding": onboarding_result,
-        "forgeguard": onboarding_result.get("forgeguard", {}),
+        "loomguard": onboarding_result.get("loomguard", {}),
         "freewill": freewill_record,
         "coding": coding_record,
         "summary": summary,

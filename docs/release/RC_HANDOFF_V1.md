@@ -79,9 +79,9 @@ Key governance and traceability sources:
 
 - `docs/release/acceptance_traceability_v1.md`
 - `docs/release/acceptance_traceability_v1.json`
-- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md`
-- `GAMEFORGE_EXECUTION_PLAN.md` (Milestone 8)
-- `GAMEFORGE_DECISIONS_LOCK.md`
+- `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md`
+- `SOUL_LOOM_EXECUTION_PLAN.md` (Milestone 8)
+- `SOUL_LOOM_DECISIONS_LOCK.md`
 - `docs/release/policy_change_note.md`
 - `docs/release/READINESS_METRICS_SPEC.md`
 - `docs/release/CROSS_PLATFORM_SMOKE_RUNBOOK.md`

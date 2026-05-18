@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.save.v1",
+  "schema": "soulloom.save.v1",
   "active_slot": "slot_01",
   "last_checkpoint": "baseline_scene:start",
   "player_state": {

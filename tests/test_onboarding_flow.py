@@ -69,8 +69,8 @@ class OnboardingFlowTests(unittest.TestCase):
                 "target_profile": "quality",
             },
         )
-        self.assertEqual(set(recs.keys()), {"freewill", "coding", "assetgen", "forgeguard"})
-        self.assertTrue(recs["forgeguard"]["kept_installed"])
+        self.assertEqual(set(recs.keys()), {"freewill", "coding", "assetgen", "loomguard"})
+        self.assertTrue(recs["loomguard"]["kept_installed"])
 
     def test_coding_aliases_resolve_to_same_repo(self):
         coding_repo = model_manager._get_repo_id("coding")  # noqa: SLF001 - testing module helper
@@ -92,7 +92,7 @@ class OnboardingFlowTests(unittest.TestCase):
                 mock.patch.object(
                     model_manager,
                     "download_model",
-                    return_value={"friendly_name": "forgeguard", "path": "fake.gguf"},
+                    return_value={"friendly_name": "loomguard", "path": "fake.gguf"},
                 ),
             ):
                 result = model_manager.run_onboarding(
@@ -104,7 +104,7 @@ class OnboardingFlowTests(unittest.TestCase):
             payload = json.loads(models_json_path.read_text(encoding="utf-8"))
             self.assertTrue(payload["onboarding"]["completed"])
             self.assertIn("recommendations", payload["onboarding"])
-            self.assertIn("LoomGuard", payload["onboarding"]["forgeguard_keep_message"])
+            self.assertIn("LoomGuard", payload["onboarding"]["loomguard_keep_message"])
             self.assertIn("LoomGuard", result["message"])
 
     def test_run_quick_setup_downloads_core_models_for_first_prototype(self):
@@ -137,7 +137,7 @@ class OnboardingFlowTests(unittest.TestCase):
 
             payload = json.loads(models_json_path.read_text(encoding="utf-8"))
             self.assertTrue(payload["onboarding"]["completed"])
-            self.assertEqual([name for name, _repo in download_calls], ["forgeguard", "freewill", "coding"])
+            self.assertEqual([name for name, _repo in download_calls], ["loomguard", "freewill", "coding"])
             self.assertEqual(result["coding"]["friendly_name"], "coding")
             self.assertTrue(any("first prototype" in line.lower() for line in result["summary"]))
 
@@ -151,7 +151,7 @@ class OnboardingFlowTests(unittest.TestCase):
                 model_manager.snapshot_download = None
                 with self.assertRaises(model_manager.ManagedModelDownloadError) as context:
                     model_manager.download_model(
-                        friendly_name="forgeguard",
+                        friendly_name="loomguard",
                         models_json_path=models_json_path,
                     )
             finally:
@@ -171,7 +171,7 @@ class OnboardingFlowTests(unittest.TestCase):
                     model_manager.snapshot_download = lambda **_kwargs: str(temp_dir / "snapshot")
                     with self.assertRaises(model_manager.ManagedModelDownloadError) as context:
                         model_manager.download_model(
-                            friendly_name="forgeguard",
+                            friendly_name="loomguard",
                             models_json_path=models_json_path,
                         )
                 finally:
@@ -182,7 +182,7 @@ class OnboardingFlowTests(unittest.TestCase):
 
     def test_onboarding_command_dispatches(self):
         with mock.patch.object(orchestrator._core, "run_onboarding", return_value={"status": "ok"}) as mocked:
-            rc = orchestrator._try_run_forge_hooks_cli(["/onboarding_run"])
+            rc = orchestrator._try_run_soul_hooks_cli(["/onboarding_run"])
         self.assertEqual(rc, 0)
         mocked.assert_called_once()
 

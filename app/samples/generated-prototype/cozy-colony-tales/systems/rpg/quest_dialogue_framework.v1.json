@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rpg.quest_dialogue.v1",
+  "schema": "soulloom.rpg.quest_dialogue.v1",
   "module_id": "rpg_baseline_quests",
   "single_player_only": true,
   "quests": [

@@ -1,6 +1,6 @@
 # Soul Loom V1 Acceptance Test Matrix
 
-> **Note:** Live traceability for the Soul Loom repo is maintained under `docs/release/acceptance_traceability_v1.json` (and `.md`). Filename `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` is kept for stable references.
+Live traceability is maintained under [`docs/release/acceptance_traceability_v1.json`](docs/release/acceptance_traceability_v1.json) (and [`.md`](docs/release/acceptance_traceability_v1.md)).
 
 This matrix turns V1 goals into concrete pass/fail checks.
 Use it for sprint demos and release-candidate verification.

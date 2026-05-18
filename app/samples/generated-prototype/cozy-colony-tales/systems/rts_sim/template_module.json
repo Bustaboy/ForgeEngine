@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rts_sim.template.v1",
+  "schema": "soulloom.rts_sim.template.v1",
   "module_id": "rts_sim_baseline",
   "description": "Reusable local-first RTS/sim starter systems module.",
   "single_player_only": true,

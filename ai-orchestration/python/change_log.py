@@ -140,7 +140,7 @@ def append_change_log_entry(
 
     payload.update(
         {
-            "schema": "gameforge.change_log.v1",
+            "schema": "soulloom.change_log.v1",
             "project_root": str(project_root),
             "entries": entries,
         }

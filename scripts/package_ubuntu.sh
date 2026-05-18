@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-Release}"
-VERSION="${SOUL_LOOM_VERSION:-${FORGEENGINE_VERSION:-0.1.0}}"
+VERSION="${SOUL_LOOM_VERSION:-0.1.0}"
 RID="linux-x64"
 OUTPUT_ROOT="$REPO_ROOT/build/release/$RID"
 PUBLISH_DIR="$OUTPUT_ROOT/publish"

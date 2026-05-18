@@ -39,7 +39,7 @@ public sealed record PlaytestReportView
 
 public static class PlaytestReportViewer
 {
-    private const string ExpectedSchema = "gameforge.playtest_report.v1";
+    private const string ExpectedSchema = "soulloom.playtest_report.v1";
 
     private static readonly string[] RequiredSectionIds =
     [

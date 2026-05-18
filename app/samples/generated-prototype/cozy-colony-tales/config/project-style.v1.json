@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.project_style.v1",
+  "schema": "soulloom.project_style.v1",
   "generated_at_utc": "2026-03-22T00:00:00Z",
   "active_preset_id": "moonlit-minimal",
   "helper_mode": "match-project-style"

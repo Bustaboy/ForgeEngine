@@ -13,7 +13,7 @@ from art_bible import ArtBible, default_art_bible
 from kit_bashing import apply_variations, bash_scene, quality_score, _upsert_scene_quality_metadata
 
 
-_PATCH_SCHEMA = "gameforge.scene_live_edit_patch.v1"
+_PATCH_SCHEMA = "soulloom.scene_live_edit_patch.v1"
 
 
 def _seed_for_prompt(prompt: str) -> int:

@@ -1,7 +1,5 @@
 # Soul Loom V1 UX Wireframe Baseline
 
-> **Note:** Filename `GAMEFORGE_UX_WIREFRAME_BASELINE_V1.md` is kept for stable references.
-
 ## Scope and Alignment
 This baseline defines low-fidelity wireframes and navigation for V1 core screens:
 - Project Home
@@ -11,7 +9,7 @@ This baseline defines low-fidelity wireframes and navigation for V1 core screens
 - Testing
 - Publish
 
-This document is aligned with no-code-first and clarity-first principles from `GAMEFORGE_UX_FOUNDATIONS.md` and the V1 end-to-end flow in `GAMEFORGE_V1_BLUEPRINT.md`.
+This document is aligned with no-code-first and clarity-first principles from `SOUL_LOOM_UX_FOUNDATIONS.md` and the V1 end-to-end flow in `SOUL_LOOM_V1_BLUEPRINT.md`.
 
 ## Wireframe Artifacts (Low Fidelity)
 

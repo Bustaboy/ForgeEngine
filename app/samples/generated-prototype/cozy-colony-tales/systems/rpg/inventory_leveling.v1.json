@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rpg.inventory_leveling.v1",
+  "schema": "soulloom.rpg.inventory_leveling.v1",
   "module_id": "rpg_baseline_progression",
   "inventory": {
     "capacity_slots": 20,

@@ -61,5 +61,5 @@ Use **C#** for editor and tooling UI, with architecture that keeps UX logic and 
 
 ## References
 - Related ADRs: ADR-0001, ADR-0003, ADR-0004
-- External references: GAMEFORGE_V1_BLUEPRINT.md, GAMEFORGE_EXECUTION_PLAN.md
+- External references: SOUL_LOOM_V1_BLUEPRINT.md, SOUL_LOOM_EXECUTION_PLAN.md
 

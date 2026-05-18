@@ -19,9 +19,9 @@ This index centralizes evidence artifacts used for V1 RC readiness review.
 
 ## 2) Policy and acceptance baselines
 
-- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` — canonical AT definitions and RC rule.
-- `GAMEFORGE_EXECUTION_PLAN.md` — Milestone 8 target deliverables and exit criteria.
-- `GAMEFORGE_DECISIONS_LOCK.md` — locked V1 policy decisions and quality gates.
+- `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md` — canonical AT definitions and RC rule.
+- `SOUL_LOOM_EXECUTION_PLAN.md` — Milestone 8 target deliverables and exit criteria.
+- `SOUL_LOOM_DECISIONS_LOCK.md` — locked V1 policy decisions and quality gates.
 - `docs/release/policy_change_note.md` — policy consistency correction audit note.
 
 ---

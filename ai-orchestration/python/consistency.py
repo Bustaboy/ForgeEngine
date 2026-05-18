@@ -22,18 +22,18 @@ def _shared_seed(prompts: list[str], art_bible: ArtBible) -> int:
 def _control_hooks_from_env() -> dict[str, object]:
     return {
         "ip_adapter": {
-            "enabled": bool(os.environ.get("GAMEFORGE_COMFYUI_IP_ADAPTER_WORKFLOW", "").strip()),
-            "workflow_path": os.environ.get("GAMEFORGE_COMFYUI_IP_ADAPTER_WORKFLOW", "").strip(),
+            "enabled": bool(os.environ.get("SOUL_LOOM_COMFYUI_IP_ADAPTER_WORKFLOW", "").strip()),
+            "workflow_path": os.environ.get("SOUL_LOOM_COMFYUI_IP_ADAPTER_WORKFLOW", "").strip(),
             # Placeholder: wire IP-Adapter reference image node in ComfyUI workflow JSON.
         },
         "controlnet": {
-            "enabled": bool(os.environ.get("GAMEFORGE_COMFYUI_CONTROLNET_WORKFLOW", "").strip()),
-            "workflow_path": os.environ.get("GAMEFORGE_COMFYUI_CONTROLNET_WORKFLOW", "").strip(),
+            "enabled": bool(os.environ.get("SOUL_LOOM_COMFYUI_CONTROLNET_WORKFLOW", "").strip()),
+            "workflow_path": os.environ.get("SOUL_LOOM_COMFYUI_CONTROLNET_WORKFLOW", "").strip(),
             # Placeholder: wire ControlNet conditioning input in ComfyUI workflow JSON.
         },
         "lora": {
-            "enabled": bool(os.environ.get("GAMEFORGE_COMFYUI_LORA_STACK", "").strip()),
-            "stack": [token.strip() for token in os.environ.get("GAMEFORGE_COMFYUI_LORA_STACK", "").split(",") if token.strip()],
+            "enabled": bool(os.environ.get("SOUL_LOOM_COMFYUI_LORA_STACK", "").strip()),
+            "stack": [token.strip() for token in os.environ.get("SOUL_LOOM_COMFYUI_LORA_STACK", "").split(",") if token.strip()],
             # Placeholder: append LoRA stack entries into checkpoint loader chain.
         },
     }
@@ -99,7 +99,7 @@ def batch_generate(prompts: list[str], art_bible: ArtBible, count: int = 4) -> d
         raise ValueError("prompts must include at least one non-empty prompt")
     safe_count = max(1, int(count))
 
-    shared_seed = int(os.environ.get("GAMEFORGE_GRAPHICS_SHARED_SEED", "0")) or _shared_seed(clean_prompts, art_bible)
+    shared_seed = int(os.environ.get("SOUL_LOOM_GRAPHICS_SHARED_SEED", "0")) or _shared_seed(clean_prompts, art_bible)
     hooks = _control_hooks_from_env()
 
     items: list[dict[str, object]] = []
@@ -125,12 +125,12 @@ def batch_generate(prompts: list[str], art_bible: ArtBible, count: int = 4) -> d
         items.append({"prompt": prompt, "variants": variant_set})
 
     return {
-        "schema": "gameforge.graphics_batch_generation.v1",
+        "schema": "soulloom.graphics_batch_generation.v1",
         "count": safe_count,
         "shared_seed": shared_seed,
         "control_profile": {
-            "mode": os.environ.get("GAMEFORGE_GRAPHICS_CONSISTENCY_MODE", "shared-seed-control"),
-            "comfyui_endpoint": os.environ.get("GAMEFORGE_COMFYUI_ENDPOINT", "http://127.0.0.1:8188"),
+            "mode": os.environ.get("SOUL_LOOM_GRAPHICS_CONSISTENCY_MODE", "shared-seed-control"),
+            "comfyui_endpoint": os.environ.get("SOUL_LOOM_COMFYUI_ENDPOINT", "http://127.0.0.1:8188"),
         },
         "hooks": hooks,
         "generated_at_utc": _utc_now_iso(),

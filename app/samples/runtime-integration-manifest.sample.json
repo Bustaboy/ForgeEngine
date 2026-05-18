@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.pipeline.integration.v1",
+  "schema": "soulloom.pipeline.integration.v1",
   "prototype_root": "REPLACE_WITH_ABSOLUTE_OR_RELATIVE_PROTOTYPE_ROOT",
   "integration_targets": [
     "runtime",

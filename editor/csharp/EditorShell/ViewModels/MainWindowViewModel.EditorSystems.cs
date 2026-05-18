@@ -1830,7 +1830,7 @@ public sealed partial class MainWindowViewModel
                 : onboardingCompleted
                     ? $"Core model path in progress. Missing: {string.Join(", ", new[] { ("LoomGuard", LoomGuardInstalled), ("Free-Will", freeWillInstalled), ("Coding", codingInstalled) }.Where(item => !item.Item2).Select(item => item.Item1))}. Asset-Gen stays optional."
                     : "Quick Setup installs LoomGuard, Free-Will, and Coding so new users can generate a first prototype without manual model hunting.";
-        LoomGuardKeepInstalledMessage = onboarding?["forgeguard_keep_message"]?.GetValue<string>()
+        LoomGuardKeepInstalledMessage = onboarding?["loomguard_keep_message"]?.GetValue<string>()
             ?? "LoomGuard stays installed as a permanent helper for guardrails and critique passes.";
         if (_modelManagerEntries.Count > 0 && string.Equals(ModelManagerStatus, "Model manager idle.", StringComparison.Ordinal))
         {

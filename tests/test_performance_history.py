@@ -30,6 +30,6 @@ def test_record_performance_snapshot_creates_history(tmp_path: Path) -> None:
     assert history_path.exists()
 
     payload = json.loads(history_path.read_text(encoding="utf-8"))
-    assert payload["schema"] == "gameforge.performance_history.v1"
+    assert payload["schema"] == "soulloom.performance_history.v1"
     assert len(payload["snapshots"]) == 1
     assert payload["snapshots"][0]["metrics"]["entity_count"] == 2

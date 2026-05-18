@@ -20,8 +20,6 @@ ai-orchestration/python/.env
 
 # Editor local state
 .soulloom/
-.forgeengine/
-forgeengine.log
 soul_loom.log
 models.json
 

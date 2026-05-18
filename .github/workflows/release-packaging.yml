@@ -41,7 +41,6 @@ jobs:
           RAW="${RELEASE_VERSION_RAW}"
           V="${RAW#v}"
           echo "SOUL_LOOM_VERSION=$V" >> "$GITHUB_ENV"
-          echo "FORGEENGINE_VERSION=$V" >> "$GITHUB_ENV"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -91,7 +90,7 @@ jobs:
       - name: Run packaging command (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: scripts/package_windows.ps1 -Version $env:FORGEENGINE_VERSION
+        run: scripts/package_windows.ps1 -Version $env:SOUL_LOOM_VERSION
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4

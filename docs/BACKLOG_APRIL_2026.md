@@ -2,7 +2,7 @@
 
 **Scope:** Full role registry integration, sprint-ready priorities, and follow-ups from product/code review (README, `TEST_POLICY.md`, blueprint, and execution plan alignment) for **Soul Loom**.
 
-**Related documents:** [`README.md`](../README.md), [`GAMEFORGE_V1_BLUEPRINT.md`](../GAMEFORGE_V1_BLUEPRINT.md), [`GAMEFORGE_EXECUTION_PLAN.md`](../GAMEFORGE_EXECUTION_PLAN.md), [`docs/testing/TEST_POLICY.md`](testing/TEST_POLICY.md).
+**Related documents:** [`README.md`](../README.md), [`SOUL_LOOM_V1_BLUEPRINT.md`](../SOUL_LOOM_V1_BLUEPRINT.md), [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md), [`docs/testing/TEST_POLICY.md`](testing/TEST_POLICY.md).
 
 ---
 
@@ -86,7 +86,7 @@ Execute [`docs/testing/TEST_POLICY.md`](testing/TEST_POLICY.md): widen **PR gate
 
 ### Accessibility and inclusive UX (V1 baseline)
 
-Implement [`GAMEFORGE_UX_FOUNDATIONS.md`](../GAMEFORGE_UX_FOUNDATIONS.md) accessibility baseline where committed: **keyboard**, **focus order**, **contrast**, **control labels** / automation names for Avalonia, without bloating the default simple mode.
+Implement [`SOUL_LOOM_UX_FOUNDATIONS.md`](../SOUL_LOOM_UX_FOUNDATIONS.md) accessibility baseline where committed: **keyboard**, **focus order**, **contrast**, **control labels** / automation names for Avalonia, without bloating the default simple mode.
 
 **Role routing:** Director/Planner → UI/UX Designer (Gemma 4), Player Experience Simulator, QA Tester/Playtester.
 
@@ -171,7 +171,7 @@ Replace **placeholder** README screenshots when the UI stabilizes; keep **deploy
 
 ## Changelog (this document)
 
-- **April 2026 (rebrand — code + binaries):** C# app renamed to **`Soul.Editor`** (assembly, `avares://`, tests project **`Soul.Editor.Tests`**). CMake runtime target/output is **`soul_runtime`** (`project(SoulRuntime)`). Python venv path hook is **`soul_loom.pth`** (replaces `forge.pth`). User-facing **ForgeGuard** copy is **LoomGuard** (config key `forgeguard` / `forgeguard_keep_message` unchanged for JSON compatibility). Log discovery prefers **`%LocalAppData%\Soul\logs`** and still checks **`SoulLoom`** / **`GameForge`** as legacy fallbacks.
-- **April 2026 (rebrand):** Canonical product name is **Soul Loom** across README, specs, editor UI strings, CI artifacts, and Python env vars (`SOUL_LOOM_*`, with `FORGEENGINE_*` retained as legacy aliases). Root **`backlog.md`** and **`docs/release/RC_HANDOFF_V1.md`** remain **`[DEPRICATED]`** snapshots with pointers here and to live traceability.
+- **April 2026 (rebrand — code + binaries):** C# app renamed to **`Soul.Editor`** (assembly, `avares://`, tests project **`Soul.Editor.Tests`**). CMake runtime target/output is **`soul_runtime`** (`project(SoulRuntime)`). Python venv path hook is **`soul_loom.pth`** (replaces `soul_loom.pth`). User-facing **LoomGuard** copy is **LoomGuard** (config key `loomguard` / `loomguard_keep_message` unchanged for JSON compatibility). Log discovery prefers **`%LocalAppData%\Soul\logs`** and still checks **`SoulLoom`** / **`SoulLoom`** as legacy fallbacks.
+- **April 2026 (rebrand):** Canonical product name is **Soul Loom** across README, specs, editor UI strings, CI artifacts, and Python env vars (`SOUL_LOOM_*`, with `SOUL_LOOM_*` retained as legacy aliases). Root **`backlog.md`** and **`docs/release/RC_HANDOFF_V1.md`** remain **`[DEPRICATED]`** snapshots with pointers here and to live traceability.
 - **April 2026 (documentation pass):** Prior doc alignment pass; superseded by rebrand entry above.
 - **April 2026:** Merged sprint backlog with role registry, added gaps from code/product review: **cloud abstraction**, **scene templates**, **TEST_POLICY / CI expansion**, **accessibility**, **schema versioning**, **player persistence**, **generation safety**, **release hardening**, **`.cursor` registry**, and **technical warning / debt** note.

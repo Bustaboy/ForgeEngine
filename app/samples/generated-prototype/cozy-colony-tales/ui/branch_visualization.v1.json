@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rpg.branch_view.v1",
+  "schema": "soulloom.rpg.branch_view.v1",
   "view_id": "quest_dialogue_branch_map",
   "nodes": [
     {

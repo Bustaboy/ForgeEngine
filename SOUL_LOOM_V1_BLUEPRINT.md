@@ -1,7 +1,5 @@
 # Soul Loom V1 Blueprint
 
-> **Note:** This specification file is named `GAMEFORGE_V1_BLUEPRINT.md` for historical link stability; the product is **Soul Loom**.
-
 ## 1) Product Vision
 Soul Loom V1 is a **local-first AI game creation engine** aimed at people with little or no coding experience.
 
@@ -346,13 +344,13 @@ Primary success criterion (6 months):
 - Creator can build a game they personally want to play without needing to code.
 
 UX reference:
-- UX standards, interaction patterns, and milestone UX deliverables are defined in `GAMEFORGE_UX_FOUNDATIONS.md`.
+- UX standards, interaction patterns, and milestone UX deliverables are defined in `SOUL_LOOM_UX_FOUNDATIONS.md`.
 
 ---
 
 ## 16) Implementation Milestones (2-Person Side Project)
 
-Milestone ordering is aligned to `GAMEFORGE_EXECUTION_PLAN.md` and `CODEX_PROMPT_PLAYBOOK.md`.
+Milestone ordering is aligned to `SOUL_LOOM_EXECUTION_PLAN.md` and `CODEX_PROMPT_PLAYBOOK.md`.
 
 ### Milestone 0: UX Foundation
 - UX wireframes and navigation map

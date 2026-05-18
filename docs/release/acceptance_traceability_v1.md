@@ -3,8 +3,8 @@
 This artifact maps **AT-001..AT-031** to current evidence and release-governance metadata for the **Soul Loom** repository.
 
 Source references used:
-- `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md`
-- `GAMEFORGE_EXECUTION_PLAN.md`
+- `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md`
+- `SOUL_LOOM_EXECUTION_PLAN.md`
 - `CODEX_PROMPT_PLAYBOOK.md`
 - current Python and C# test suites under `tests/` and `editor/csharp/tests/`
 

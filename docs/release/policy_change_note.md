@@ -11,8 +11,8 @@ This note remains **valid** for the commercial revenue-share threshold correctio
 Implementation and test messaging used an incorrect higher trigger, which conflicted with locked V1 policy docs that define revenue share as **5% after the first $1,000 gross revenue per game**.
 
 ## Source of truth
-- `GAMEFORGE_DECISIONS_LOCK.md` (Commercial Policy section)
-- `GAMEFORGE_EXECUTION_PLAN.md` (Milestone 8 deliverables)
+- `SOUL_LOOM_DECISIONS_LOCK.md` (Commercial Policy section)
+- `SOUL_LOOM_EXECUTION_PLAN.md` (Milestone 8 deliverables)
 
 ## Change summary
 Canonical threshold is set to **$1,000 USD** across implementation and evidence artifacts.

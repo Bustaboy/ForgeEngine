@@ -23,7 +23,7 @@ from pathlib import Path
 from orchestration.paths import ORCHESTRATOR_SCRIPT_PATH, REPO_ROOT
 
 from benchmark import record_performance_snapshot, run_benchmark_as_dict, should_run_idle_benchmark
-from forge_hooks import (
+from soul_hooks import (
     apply_to_scene_file,
     co_creator_tick,
     generate_building_templates,
@@ -199,7 +199,7 @@ void GF_UpdateBasicNpc(GeneratedSceneState* state, float dt_seconds);
         generated_files.append(str(output_path))
 
     metadata = {
-        "schema": "gameforge.generated_runtime_templates.v1",
+        "schema": "soulloom.generated_runtime_templates.v1",
         "concept": concept,
         "generated_at_utc": _utc_now_iso(),
         "source_templates_root": str(templates_root),
@@ -250,7 +250,7 @@ def _read_asset_catalog(catalog_path: Path) -> list[dict[str, object]]:
 
 def _write_asset_catalog(catalog_path: Path, assets: list[dict[str, object]]) -> None:
     payload = {
-        "schema": "gameforge.asset_catalog.v1",
+        "schema": "soulloom.asset_catalog.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "assets": assets,
     }
@@ -361,7 +361,7 @@ def export_attribution_bundle(
     json_path = output_root / "attribution.bundle.v1.json"
     markdown_path = output_root / "attribution.md"
     payload = {
-        "schema": "gameforge.attribution_bundle.v1",
+        "schema": "soulloom.attribution_bundle.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "asset_count": len(entries),
         "entries": [asdict(entry) for entry in entries],
@@ -494,7 +494,7 @@ def create_user_style_preset(
     )
 
     payload = {
-        "schema": "gameforge.style_preset_library.v1",
+        "schema": "soulloom.style_preset_library.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "custom_presets": existing_custom,
     }
@@ -513,7 +513,7 @@ def select_project_style_preset(project_root: Path, preset_id: str) -> ProjectSt
         _project_style_state_path(project_root),
         json.dumps(
             {
-                "schema": "gameforge.project_style.v1",
+                "schema": "soulloom.project_style.v1",
                 "generated_at_utc": datetime.now(timezone.utc).isoformat(),
                 "active_preset_id": state.active_preset_id,
                 "helper_mode": state.helper_mode,
@@ -804,10 +804,10 @@ def derive_branch_view(branch_view: dict[str, object], tracker: dict[str, object
 
 
 def _generate_with_comfyui(enhanced_prompt: str, seed: int, output_path: Path, asset_type: str) -> tuple[str, str]:
-    endpoint = os.environ.get("GAMEFORGE_COMFYUI_ENDPOINT", "http://127.0.0.1:8188").rstrip("/")
-    workflow_path = os.environ.get("GAMEFORGE_COMFYUI_WORKFLOW_JSON", "").strip()
+    endpoint = os.environ.get("SOUL_LOOM_COMFYUI_ENDPOINT", "http://127.0.0.1:8188").rstrip("/")
+    workflow_path = os.environ.get("SOUL_LOOM_COMFYUI_WORKFLOW_JSON", "").strip()
     if not workflow_path:
-        raise ValueError("ComfyUI backend requires GAMEFORGE_COMFYUI_WORKFLOW_JSON")
+        raise ValueError("ComfyUI backend requires SOUL_LOOM_COMFYUI_WORKFLOW_JSON")
 
     workflow_payload = json.loads(Path(workflow_path).read_text(encoding="utf-8"))
     if not isinstance(workflow_payload, dict):
@@ -824,7 +824,7 @@ def _generate_with_comfyui(enhanced_prompt: str, seed: int, output_path: Path, a
         if "seed" in inputs:
             inputs["seed"] = seed
         if "filename_prefix" in inputs:
-            inputs["filename_prefix"] = f"gameforge_{asset_type}_{output_path.stem}"
+            inputs["filename_prefix"] = f"soulloom_{asset_type}_{output_path.stem}"
 
     request_payload = json.dumps({"prompt": prompt_graph}).encode("utf-8")
     request = urllib.request.Request(
@@ -861,11 +861,11 @@ def _generate_with_comfyui(enhanced_prompt: str, seed: int, output_path: Path, a
         if isinstance(images, list) and images:
             first_image = images[0]
             if isinstance(first_image, dict) and first_image.get("filename"):
-                comfy_output_dir = Path(os.environ.get("GAMEFORGE_COMFYUI_OUTPUT_DIR", str(Path.home() / "ComfyUI" / "output")))
+                comfy_output_dir = Path(os.environ.get("SOUL_LOOM_COMFYUI_OUTPUT_DIR", str(Path.home() / "ComfyUI" / "output")))
                 source_path = comfy_output_dir / str(first_image["filename"])
                 if source_path.exists():
                     output_path.write_bytes(source_path.read_bytes())
-                    return ("comfyui", os.environ.get("GAMEFORGE_COMFYUI_MODEL_NAME", "comfyui-local-workflow"))
+                    return ("comfyui", os.environ.get("SOUL_LOOM_COMFYUI_MODEL_NAME", "comfyui-local-workflow"))
     raise RuntimeError("ComfyUI run finished but no image file could be resolved from history")
 
 
@@ -907,7 +907,7 @@ def quality_scan_scene(scene_path: Path, art_bible_path: Path | None = None) -> 
         scene_payload["quality_metadata"] = quality_node
     quality_node.update(
         {
-            "schema": "gameforge.scene_quality_metadata.v1",
+            "schema": "soulloom.scene_quality_metadata.v1",
             "score": int(quality.get("score", 0)),
             "components": quality.get("components", {}),
             "estimated_vram_mb": float(quality.get("estimated_vram_mb", 0.0)),
@@ -1357,14 +1357,14 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
             models_payload = {}
     installed_models = models_payload.get("installed_models", []) if isinstance(models_payload, dict) else []
     managed_models = models_payload.get("models", {}) if isinstance(models_payload, dict) else {}
-    forgeguard_available = any(
-        isinstance(entry, dict) and str(entry.get("friendly_name", "")).strip().lower() == "forgeguard"
+    loomguard_available = any(
+        isinstance(entry, dict) and str(entry.get("friendly_name", "")).strip().lower() == "loomguard"
         for entry in installed_models if isinstance(installed_models, list)
     )
-    if not forgeguard_available and isinstance(managed_models, dict):
-        forgeguard_entry = managed_models.get("forgeguard", {})
-        forgeguard_path = str(forgeguard_entry.get("path", "")).strip() if isinstance(forgeguard_entry, dict) else ""
-        forgeguard_available = bool(forgeguard_path)
+    if not loomguard_available and isinstance(managed_models, dict):
+        loomguard_entry = managed_models.get("loomguard", {})
+        loomguard_path = str(loomguard_entry.get("path", "")).strip() if isinstance(loomguard_entry, dict) else ""
+        loomguard_available = bool(loomguard_path)
 
     optimization_overrides = scene_payload.get("optimization_overrides", {})
     if not isinstance(optimization_overrides, dict):
@@ -1796,7 +1796,7 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
                     f"Current={scene_mode}, suggested={suggested_lightweight_mode}."
                 ),
                 "safety": "safe",
-                "confidence": 0.84 if forgeguard_available else 0.69,
+                "confidence": 0.84 if loomguard_available else 0.69,
                 "impact": "high",
                 "estimated_win": {
                     "fps_target_gap": round(target_fps - fps_avg, 2),
@@ -1843,7 +1843,7 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         "lightweight_mode_suggestion": {
             "current": scene_mode,
             "suggested": suggested_lightweight_mode,
-            "reason": "forgeguard-heuristic" if forgeguard_available else "heuristic-fallback",
+            "reason": "loomguard-heuristic" if loomguard_available else "heuristic-fallback",
             "requires_confirmation": True,
         },
         "guardrails": {
@@ -1865,14 +1865,14 @@ def optimization_critique(scene_path: Path, max_suggestions: int = 5) -> dict[st
         "recent_changes": recent_changes,
         "suggestions": refined_suggestions,
         "pruning_suggestions": pruned,
-        "source_model": "forgeguard" if forgeguard_available else "heuristic-fallback",
+        "source_model": "loomguard" if loomguard_available else "heuristic-fallback",
         "critique_passes": {
             "pass_1": pass_one_context,
-            "pass_2": {"findings": critique_findings, "model": "forgeguard" if forgeguard_available else "heuristic"},
+            "pass_2": {"findings": critique_findings, "model": "loomguard" if loomguard_available else "heuristic"},
             "prune_pass": {
                 "candidate_count": len(pruning_candidates),
                 "selected_count": len(pruned),
-                "model": "forgeguard" if forgeguard_available else "heuristic",
+                "model": "loomguard" if loomguard_available else "heuristic",
             },
             "pass_3": {"refined_suggestion_count": len(refined_suggestions), "max_suggestions": max_suggestions},
         },
@@ -1934,7 +1934,7 @@ def build_runtime_optimization_assets(scene_path: Path) -> dict[str, object]:
 
     compression = {"potato": "etc2", "balanced": "bc3", "high_fidelity": "bc7"}.get(target_profile, "bc3")
     atlas_manifest = {
-        "schema": "gameforge.runtime_texture_atlas.v1",
+        "schema": "soulloom.runtime_texture_atlas.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "target_hardware_profile": target_profile,
         "compression": compression,
@@ -1951,7 +1951,7 @@ def build_runtime_optimization_assets(scene_path: Path) -> dict[str, object]:
             variants.append({"key": "gaussian_blur", "spv": "gaussian_blur.frag.spv"})
         variants.append({"key": "combine_tonemap", "spv": "combine_tonemap.frag.spv"})
     shader_manifest = {
-        "schema": "gameforge.shader_variant_cache.v1",
+        "schema": "soulloom.shader_variant_cache.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "variants": variants,
     }
@@ -2004,7 +2004,7 @@ def _load_or_create_asset_metadata(asset_path: Path) -> tuple[Path, dict[str, ob
             raise ValueError(f"Asset metadata must be a JSON object: {metadata_path}")
     else:
         payload = {
-            "schema": "gameforge.generated-graphic-asset.v1",
+            "schema": "soulloom.generated-graphic-asset.v1",
             "generated": True,
             "generated_at_utc": _utc_now_iso(),
             "output_path": str(asset_path),
@@ -2125,13 +2125,13 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
     enhanced_prompt = art_bible.enhance_prompt(prompt_clean)
     safe_count = max(1, int(count))
 
-    seed = int(os.environ.get("GAMEFORGE_GRAPHICS_SEED", "0")) or int(time.time()) % 2_147_483_647
+    seed = int(os.environ.get("SOUL_LOOM_GRAPHICS_SEED", "0")) or int(time.time()) % 2_147_483_647
     generated_root, approved_root, rejected_root = _graphics_asset_roots(Path.cwd())
     generated_root.mkdir(parents=True, exist_ok=True)
     approved_root.mkdir(parents=True, exist_ok=True)
     rejected_root.mkdir(parents=True, exist_ok=True)
     file_stem = f"{normalized_type}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{seed}"
-    backend_mode = os.environ.get("GAMEFORGE_GRAPHICS_BACKEND", "debug-local").strip().lower()
+    backend_mode = os.environ.get("SOUL_LOOM_GRAPHICS_BACKEND", "debug-local").strip().lower()
     output_extension = ".png" if backend_mode == "comfyui" else ".svg"
     output_path = generated_root / f"{file_stem}{output_extension}"
 
@@ -2143,7 +2143,7 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
     elif backend_mode == "debug-local":
         backend, model = _generate_with_debug_backend(enhanced_prompt, primary_seed, output_path, normalized_type)
     else:
-        raise ValueError("Unsupported GAMEFORGE_GRAPHICS_BACKEND. Supported values: comfyui, debug-local")
+        raise ValueError("Unsupported SOUL_LOOM_GRAPHICS_BACKEND. Supported values: comfyui, debug-local")
 
     quality = quality_score({"prompt": prompt_clean, "enhanced_prompt": enhanced_prompt, "dimensions": {"width": 1024, "height": 1024}}, art_bible=art_bible)
     consistency = consistency_score({"prompt": prompt_clean, "enhanced_prompt": enhanced_prompt}, art_bible=art_bible)
@@ -2177,7 +2177,7 @@ def generate_asset(prompt: str, art_bible_path: Path | None = None, type: str = 
         )
 
     metadata_payload = {
-        "schema": "gameforge.generated-graphic-asset.v1",
+        "schema": "soulloom.generated-graphic-asset.v1",
         "generated": True,
         "generated_at_utc": _utc_now_iso(),
         "asset_type": normalized_type,
@@ -2232,16 +2232,16 @@ def _run_stage_hook(hook_command: str | None, stage: StageDefinition, status: Pi
     if not hook_command:
         return
     env = os.environ.copy()
-    env["GAMEFORGE_PIPELINE_STAGE_ID"] = stage.stage_id
-    env["GAMEFORGE_PIPELINE_STAGE_TITLE"] = stage.title
-    env["GAMEFORGE_PIPELINE_STAGE_STATUS"] = status.value
-    env["GAMEFORGE_PIPELINE_OUTPUT_ROOT"] = str(output_root)
+    env["SOUL_LOOM_PIPELINE_STAGE_ID"] = stage.stage_id
+    env["SOUL_LOOM_PIPELINE_STAGE_TITLE"] = stage.title
+    env["SOUL_LOOM_PIPELINE_STAGE_STATUS"] = status.value
+    env["SOUL_LOOM_PIPELINE_OUTPUT_ROOT"] = str(output_root)
     subprocess.run(hook_command, shell=True, check=False, env=env)
 
 
 def _default_bot_scenario(prototype_root: Path) -> Path:
     scenario = {
-        "schema": "gameforge.bot_playtest.scenario.v1",
+        "schema": "soulloom.bot_playtest.scenario.v1",
         "scenario_id": "pipeline-default-smoke",
         "title": "Pipeline default smoke validation",
         "max_runtime_seconds": 60,
@@ -2340,7 +2340,7 @@ def _execute_generation_pipeline(
 
     def stage_story_analysis() -> tuple[dict[str, object], list[str]]:
         story = {
-            "schema": "gameforge.pipeline.story_analysis.v1",
+            "schema": "soulloom.pipeline.story_analysis.v1",
             "concept": str(brief.get("concept", "Soul Loom Prototype")).strip(),
             "narrative_weight": brief.get("narrative", {}),
             "constraints": {"single_player_only": True, "local_first": True},
@@ -2373,7 +2373,7 @@ def _execute_generation_pipeline(
     def stage_asset_planning() -> tuple[dict[str, object], list[str]]:
         policy = _evaluate_commercial_policy(brief)
         plan = {
-            "schema": "gameforge.pipeline.asset_planning.v1",
+            "schema": "soulloom.pipeline.asset_planning.v1",
             "allowed_licenses": sorted(ALLOWED_LICENSES),
             "blocked_licenses": sorted(BLOCKED_LICENSES),
             "commercial_policy": policy,
@@ -2394,7 +2394,7 @@ def _execute_generation_pipeline(
         if prototype_root is None:
             raise ValueError("Prototype root missing from code generation stage.")
         integration_manifest = {
-            "schema": "gameforge.pipeline.integration.v1",
+            "schema": "soulloom.pipeline.integration.v1",
             "prototype_root": str(prototype_root),
             "integration_targets": ["runtime", "editor-shell", "asset-catalog"],
             "future_hooks": ["csharp_editor_entrypoint", "native_runtime_bridge"],
@@ -2446,7 +2446,7 @@ def _execute_generation_pipeline(
             asset_plan=asset_plan_payload,
         )
         export_manifest = {
-            "schema": "gameforge.pipeline.export.v1",
+            "schema": "soulloom.pipeline.export.v1",
             "prototype_root": str(prototype_root),
             "dead_end_blockers": dead_end_blockers,
             "benchmark_state_path": benchmark_result.get("state_path"),
@@ -2511,7 +2511,7 @@ def _execute_generation_pipeline(
         f"--run-generation-pipeline --generate-prototype {brief_path} --output {output_root} --launch-runtime"
     )
     return PipelineExecutionResult(
-        schema="gameforge.pipeline.execution.v1",
+        schema="soulloom.pipeline.execution.v1",
         pipeline_id=f"pipeline-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
         status=pipeline_status,
         brief_path=str(brief_path),
@@ -2541,7 +2541,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     prototype_root.mkdir(parents=True, exist_ok=True)
 
     manifest = {
-        "generator": "gameforge-v1-prototype",
+        "generator": "soulloom-v1-prototype",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "source_brief": str(brief_path),
         "project_name": concept,
@@ -2559,14 +2559,14 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     player_controller = {
-        "schema": "gameforge.player_controller.v1",
+        "schema": "soulloom.player_controller.v1",
         "movement": {"forward": "W", "back": "S", "left": "A", "right": "D", "jump": "Space"},
         "look": {"mouse_sensitivity": 1.0},
         "interaction": {"primary": "Mouse0", "secondary": "Mouse1"},
     }
 
     ui_layout = {
-        "schema": "gameforge.ui.hud.v1",
+        "schema": "soulloom.ui.hud.v1",
         "widgets": [
             {"id": "quest_tracker", "anchor": "top-left", "enabled": True},
             {"id": "health_bar", "anchor": "top-center", "enabled": True},
@@ -2576,14 +2576,14 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     save_stub = {
-        "schema": "gameforge.save.v1",
+        "schema": "soulloom.save.v1",
         "active_slot": "slot_01",
         "last_checkpoint": "baseline_scene:start",
         "player_state": {"level": 1, "xp": 0},
     }
 
     rts_sim_template = {
-        "schema": "gameforge.rts_sim.template.v1",
+        "schema": "soulloom.rts_sim.template.v1",
         "module_id": "rts_sim_baseline",
         "description": "Reusable local-first RTS/sim starter systems module.",
         "single_player_only": True,
@@ -2615,7 +2615,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     rts_sim_map = {
-        "schema": "gameforge.rts_sim.scenario_map.v1",
+        "schema": "soulloom.rts_sim.scenario_map.v1",
         "map_id": "green-valley-outpost",
         "size": {"width": 64, "height": 64},
         "spawn": {
@@ -2632,7 +2632,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     rts_sim_balance = {
-        "schema": "gameforge.rts_sim.balance.v1",
+        "schema": "soulloom.rts_sim.balance.v1",
         "difficulty": "medium",
         "economy": {
             "starting_food": 120,
@@ -2654,7 +2654,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     rpg_quest_dialogue = {
-        "schema": "gameforge.rpg.quest_dialogue.v1",
+        "schema": "soulloom.rpg.quest_dialogue.v1",
         "module_id": "rpg_baseline_quests",
         "single_player_only": True,
         "quests": [
@@ -2700,7 +2700,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     rpg_inventory_leveling = {
-        "schema": "gameforge.rpg.inventory_leveling.v1",
+        "schema": "soulloom.rpg.inventory_leveling.v1",
         "module_id": "rpg_baseline_progression",
         "inventory": {
             "capacity_slots": 20,
@@ -2719,7 +2719,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     consequence_tracker = {
-        "schema": "gameforge.rpg.consequence_tracker.v1",
+        "schema": "soulloom.rpg.consequence_tracker.v1",
         "module_id": "rpg_choice_consequences",
         "graph": {
             "nodes": [
@@ -2757,7 +2757,7 @@ def _generate_prototype(brief_path: Path, output_dir: Path) -> Path:
     }
 
     branch_view = {
-        "schema": "gameforge.rpg.branch_view.v1",
+        "schema": "soulloom.rpg.branch_view.v1",
         "view_id": "quest_dialogue_branch_map",
         "nodes": [
             {"node_id": "dialogue_mayor_intro", "label": "Mayor Intro", "position": {"x": 0, "y": 0}},
@@ -3376,7 +3376,7 @@ def generate_actionable_playtest_report(result: BotPlaytestResult) -> Actionable
     ]
 
     return ActionablePlaytestReport(
-        schema="gameforge.playtest_report.v1",
+        schema="soulloom.playtest_report.v1",
         report_id=f"{result.scenario_id}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
         scenario_id=result.scenario_id,
         prototype_root=result.prototype_root,
@@ -3444,7 +3444,7 @@ def run_bot_playtest_with_report(prototype_root: Path, scenario_path: Path, outp
     return result, report, json_path, markdown_path
 
 
-def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
+def _try_run_soul_hooks_cli(raw_args: list[str]) -> int | None:
     """Dispatch simple hook commands before argparse-based legacy flags."""
     if not raw_args:
         return None
@@ -3727,7 +3727,7 @@ def _try_run_forge_hooks_cli(raw_args: list[str]) -> int | None:
         if len(raw_args) < 2:
             raise ValueError("Usage: orchestrator.py review-asset <asset_path> [decision]")
         decision = raw_args[2] if len(raw_args) >= 3 else "approve"
-        reviewer = os.environ.get("GAMEFORGE_ASSET_REVIEWER", "local-user")
+        reviewer = os.environ.get("SOUL_LOOM_ASSET_REVIEWER", "local-user")
         result = review_asset(raw_args[1], decision=decision, reviewer=reviewer)
         print(json.dumps(asdict(result), indent=2))
         return 0
@@ -3942,7 +3942,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    hook_result = _try_run_forge_hooks_cli(sys.argv[1:])
+    hook_result = _try_run_soul_hooks_cli(sys.argv[1:])
     if hook_result is not None:
         return hook_result
 

@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "gameforge.readiness_metrics.v1"
+SCHEMA = "soulloom.readiness_metrics.v1"
 
 THRESHOLDS: dict[str, dict[str, Any]] = {
     "crash_free_session_rate_percent": {"operator": ">=", "value": 97.0, "acceptance_id": "AT-020", "severity": "critical"},

@@ -1,7 +1,5 @@
 # Soul Loom UX Foundations (V1)
 
-> **Note:** Filename `GAMEFORGE_UX_FOUNDATIONS.md` is kept for stable references.
-
 ## Purpose
 Define UI/UX standards for Soul Loom V1 so non-coders can build games confidently without needing technical knowledge.
 
@@ -88,7 +86,7 @@ Top-level navigation (V1):
 - Tooltips for all non-obvious controls.
 
 ## UX Deliverables by Milestone
-- M1: Navigation map + wireframe set (low fidelity). Baseline artifact: `GAMEFORGE_UX_WIREFRAME_BASELINE_V1.md`.
+- M1: Navigation map + wireframe set (low fidelity). Baseline artifact: `SOUL_LOOM_UX_WIREFRAME_BASELINE_V1.md`.
 - M2: Interview UX flow + summary panel.
 - M3: Prototype progress UX and recovery states.
 - M4: Editor interaction model finalized.
@@ -107,10 +105,10 @@ Top-level navigation (V1):
 - Multi-user collaborative editor UX.
 
 ## Supporting UX Copy Artifact
-- Canonical UX copy baseline for core actions, warnings, and confirmations: `GAMEFORGE_UX_COPY_STANDARDS_V1.md`.
+- Canonical UX copy baseline for core actions, warnings, and confirmations: `SOUL_LOOM_UX_COPY_STANDARDS_V1.md`.
 
 ## Change Control
 - Major UX flow changes must update:
-  - `GAMEFORGE_V1_BLUEPRINT.md`
-  - `GAMEFORGE_EXECUTION_PLAN.md`
-  - `GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md` (if acceptance behavior changes)
+  - `SOUL_LOOM_V1_BLUEPRINT.md`
+  - `SOUL_LOOM_EXECUTION_PLAN.md`
+  - `SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md` (if acceptance behavior changes)

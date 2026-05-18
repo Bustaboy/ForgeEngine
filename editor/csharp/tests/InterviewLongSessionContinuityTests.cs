@@ -11,7 +11,7 @@ public sealed class InterviewLongSessionContinuityTests
         var fixture = LoadLongSessionFixture();
         var expectedQuestionBeforeSave = InterviewQuestionPlanner.BuildNextQuestion(fixture);
 
-        var path = Path.Combine(Path.GetTempPath(), $"gameforge-at003-long-session-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"soulloom-at003-long-session-{Guid.NewGuid():N}.json");
         try
         {
             await InterviewSessionStore.SaveAsync(path, fixture);
@@ -87,7 +87,7 @@ public sealed class InterviewLongSessionContinuityTests
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var candidate = Path.Combine(current.FullName, "GAMEFORGE_ACCEPTANCE_TEST_MATRIX.md");
+            var candidate = Path.Combine(current.FullName, "SOUL_LOOM_ACCEPTANCE_TEST_MATRIX.md");
             if (File.Exists(candidate))
             {
                 return current.FullName;

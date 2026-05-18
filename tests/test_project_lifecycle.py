@@ -28,7 +28,7 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _assert_save_payload_integrity(payload: dict) -> None:
-    assert payload["schema"] == "gameforge.save.v1"
+    assert payload["schema"] == "soulloom.save.v1"
     assert isinstance(payload["active_slot"], str) and payload["active_slot"]
     assert isinstance(payload["last_checkpoint"], str) and payload["last_checkpoint"]
     assert isinstance(payload["player_state"], dict)

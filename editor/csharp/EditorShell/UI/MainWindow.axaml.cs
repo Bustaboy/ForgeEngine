@@ -26,8 +26,8 @@ namespace Soul.Editor.EditorShell.UI;
 public partial class MainWindow : Window
 {
     private const double MarkerSize = 34.0;
-    private const string AssetDragFormat = "application/x-gameforge-asset-id";
-    private const string HierarchyDragFormat = "application/x-gameforge-hierarchy-entity";
+    private const string AssetDragFormat = "application/x-soulloom-asset-id";
+    private const string HierarchyDragFormat = "application/x-soulloom-hierarchy-entity";
     private readonly MainWindowViewModel _viewModel = new();
     private bool _firstRunModalChecked;
     private bool _isSyncingEditorText;
@@ -2520,7 +2520,7 @@ public partial class MainWindow : Window
             [
                 new FilePickerFileType("Soul Loom Project")
                 {
-                    Patterns = ["*.gfproj.json", "*.json"],
+                    Patterns = ["*.soulproj.json", "*.json"],
                 },
             ],
         });
@@ -2552,12 +2552,12 @@ public partial class MainWindow : Window
         var target = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save Soul Loom Project",
-            SuggestedFileName = "soul-loom-project.gfproj.json",
+            SuggestedFileName = "soul-loom-project.soulproj.json",
             FileTypeChoices =
             [
                 new FilePickerFileType("Soul Loom Project")
                 {
-                    Patterns = ["*.gfproj.json"],
+                    Patterns = ["*.soulproj.json"],
                 },
             ],
             ShowOverwritePrompt = true,

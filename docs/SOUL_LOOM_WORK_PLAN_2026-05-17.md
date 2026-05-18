@@ -11,7 +11,7 @@
 
 ## 1) Executive summary
 
-Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`GAMEFORGE_EXECUTION_PLAN.md`](../GAMEFORGE_EXECUTION_PLAN.md): foundation, interview, prototype generation, editor shell, genre scaffolds, asset pipeline, bot playtest, and Steam readiness **policy/UI**. The product is **not RC-shippable** today because **3 P0 acceptance tests remain partial** (fresh install + Windows/Ubuntu smoke evidence), several **P1 UX tests are open**, and **active-development epics** (kit-bashing depth, adaptive music, scene templates, cloud abstraction) are unfinished.
+Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md): foundation, interview, prototype generation, editor shell, genre scaffolds, asset pipeline, bot playtest, and Steam readiness **policy/UI**. The product is **not RC-shippable** today because **3 P0 acceptance tests remain partial** (fresh install + Windows/Ubuntu smoke evidence), several **P1 UX tests are open**, and **active-development epics** (kit-bashing depth, adaptive music, scene templates, cloud abstraction) are unfinished.
 
 **Strategic goal for the next phase:** close RC blockers first, then land one high-value gameplay epic from the April backlog without scope creep.
 
@@ -21,8 +21,8 @@ Soul Loom has completed the **feature skeleton for Milestones 1–8** of [`GAMEF
 
 | Need | Document |
 |---|---|
-| Product vision & scope lock | [`GAMEFORGE_V1_BLUEPRINT.md`](../GAMEFORGE_V1_BLUEPRINT.md), [`GAMEFORGE_DECISIONS_LOCK.md`](../GAMEFORGE_DECISIONS_LOCK.md) |
-| Milestone history & sprint rhythm | [`GAMEFORGE_EXECUTION_PLAN.md`](../GAMEFORGE_EXECUTION_PLAN.md) |
+| Product vision & scope lock | [`SOUL_LOOM_V1_BLUEPRINT.md`](../SOUL_LOOM_V1_BLUEPRINT.md), [`SOUL_LOOM_DECISIONS_LOCK.md`](../SOUL_LOOM_DECISIONS_LOCK.md) |
+| Milestone history & sprint rhythm | [`SOUL_LOOM_EXECUTION_PLAN.md`](../SOUL_LOOM_EXECUTION_PLAN.md) |
 | Sprint priorities & AI role routing | [`docs/BACKLOG_APRIL_2026.md`](BACKLOG_APRIL_2026.md) |
 | Release pass/fail (AT-001..031) | [`docs/release/acceptance_traceability_v1.json`](../docs/release/acceptance_traceability_v1.json) |
 | Feature status (stable vs in dev) | [`README.md`](../README.md) |
@@ -198,7 +198,7 @@ Schedule after Phase 1 exit or in parallel if second contributor available.
 | Scene templates | village / dungeon / overworld / arena starters | README in active dev; backlog §lower |
 | Cloud abstraction foundation | provider interface, job contract, no first-party hosting | Blueprint §14; backlog medium |
 | Scene schema versioning | version fields, migration path for scene JSON | backlog medium |
-| Accessibility baseline | keyboard, focus, contrast, automation names | `GAMEFORGE_UX_FOUNDATIONS.md` |
+| Accessibility baseline | keyboard, focus, contrast, automation names | `SOUL_LOOM_UX_FOUNDATIONS.md` |
 | Generation safety | path safety, untrusted JSON, HF token handling | backlog medium |
 | Kit-bashing upgrades | consistency scoring, editor validation | `kit_bashing.py` + tests |
 | Player persistence (exported games) | clarify scope vs editor save | backlog lower |
@@ -213,8 +213,8 @@ Tracked separately because they affect non-coder RC narrative but do not block P
 
 | # | Task | AT | Reference |
 |---|---|---|---|
-| 5.1 | Navigation discoverability test fixture | AT-029 | `GAMEFORGE_UX_FOUNDATIONS.md` §Information Architecture |
-| 5.2 | Plain-language copy audit of core dialogs | AT-031 | `GAMEFORGE_UX_COPY_STANDARDS_V1.md` |
+| 5.1 | Navigation discoverability test fixture | AT-029 | `SOUL_LOOM_UX_FOUNDATIONS.md` §Information Architecture |
+| 5.2 | Plain-language copy audit of core dialogs | AT-031 | `SOUL_LOOM_UX_COPY_STANDARDS_V1.md` |
 | 5.3 | Verify Project Home → Interview → Prototype → Editor → Testing → Publish flow without docs | AT-029 manual | One recorded walkthrough |
 
 ---

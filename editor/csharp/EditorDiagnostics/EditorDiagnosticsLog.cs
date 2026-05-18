@@ -157,18 +157,15 @@ internal static class EditorDiagnosticsLog
             yield return Path.Combine(localAppData, "Soul Loom LLC", "Soul Loom", "logs");
             yield return Path.Combine(localAppData, "Soul", "logs");
             yield return Path.Combine(localAppData, "SoulLoom", "logs");
-            yield return Path.Combine(localAppData, "GameForge", "logs");
         }
 
         yield return Path.Combine(Environment.CurrentDirectory, ".soulloom", "logs");
-        yield return Path.Combine(Environment.CurrentDirectory, ".forgeengine", "logs");
 
         var tempPath = Path.GetTempPath();
         if (!string.IsNullOrWhiteSpace(tempPath))
         {
             yield return Path.Combine(tempPath, "Soul", "logs");
             yield return Path.Combine(tempPath, "SoulLoom", "logs");
-            yield return Path.Combine(tempPath, "GameForge", "logs");
         }
     }
 }

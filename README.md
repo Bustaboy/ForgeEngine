@@ -165,10 +165,10 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 
 | Document | Purpose |
 |---|---|
-| [`GAMEFORGE_V1_BLUEPRINT.md`](GAMEFORGE_V1_BLUEPRINT.md) | **Soul Loom** V1 product vision, principles, feature targets, technical scope, and MVP (`GAMEFORGE_*` filename retained for links) |
+| [`SOUL_LOOM_V1_BLUEPRINT.md`](SOUL_LOOM_V1_BLUEPRINT.md) | **Soul Loom** V1 product vision, principles, feature targets, technical scope, and MVP |
 | [`CODEX_PROMPT_PLAYBOOK.md`](CODEX_PROMPT_PLAYBOOK.md) | Codex-optimized prompts for Soul Loom V1 milestones, task templates, and scope discipline |
-| [`GAMEFORGE_EXECUTION_PLAN.md`](GAMEFORGE_EXECUTION_PLAN.md) | Sprint map, risk register, KPI targets, and operating rhythm for Soul Loom V1 |
-| [`GAMEFORGE_UX_FOUNDATIONS.md`](GAMEFORGE_UX_FOUNDATIONS.md) | Soul Loom UX baseline: interaction patterns and no-coder-first labeling |
+| [`SOUL_LOOM_EXECUTION_PLAN.md`](SOUL_LOOM_EXECUTION_PLAN.md) | Sprint map, risk register, KPI targets, and operating rhythm for Soul Loom V1 |
+| [`SOUL_LOOM_UX_FOUNDATIONS.md`](SOUL_LOOM_UX_FOUNDATIONS.md) | Soul Loom UX baseline: interaction patterns and no-coder-first labeling |
 | [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) | Zero-guesswork setup, prerequisites, and release flow |
 | [`docs/testing/TEST_POLICY.md`](docs/testing/TEST_POLICY.md) | Required test layers, CI gates, and merge expectations |
 | [`docs/SETUP.md`](docs/SETUP.md) | Bootstrap-focused setup and verification (see also one-command `setup.sh` / `Setup-Alpha.ps1` above) |
@@ -182,4 +182,4 @@ See [`DEPLOYMENT_GUIDE_IDIOT_PROOF.md`](DEPLOYMENT_GUIDE_IDIOT_PROOF.md) for zer
 
 ## License
 
-Free for non-commercial use. Commercial projects (sold games or games containing MTX) are subject to a **5% revenue share after the first $1,000 gross revenue per game**. See [`GAMEFORGE_V1_BLUEPRINT.md`](GAMEFORGE_V1_BLUEPRINT.md) §12 for full terms.
+Free for non-commercial use. Commercial projects (sold games or games containing MTX) are subject to a **5% revenue share after the first $1,000 gross revenue per game**. See [`SOUL_LOOM_V1_BLUEPRINT.md`](SOUL_LOOM_V1_BLUEPRINT.md) §12 for full terms.

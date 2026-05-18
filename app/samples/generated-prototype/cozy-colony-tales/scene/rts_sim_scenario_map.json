@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rts_sim.scenario_map.v1",
+  "schema": "soulloom.rts_sim.scenario_map.v1",
   "map_id": "green-valley-outpost",
   "size": {
     "width": 64,

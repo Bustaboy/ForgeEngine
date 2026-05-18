@@ -1,5 +1,5 @@
 {
-  "schema": "gameforge.rts_sim.balance.v1",
+  "schema": "soulloom.rts_sim.balance.v1",
   "difficulty": "medium",
   "economy": {
     "starting_food": 120,

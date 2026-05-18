@@ -228,7 +228,7 @@ public sealed class MainWindowViewModelTests : IDisposable
         var runtime = CreateRuntimeSupervisorMock();
         var settingsPath = Path.Combine(_tempRoot, ".soulloom", "settings.json");
         var viewModel = CreateGeneratedViewModel(orchestrator, runtime, prototypeRoot, settingsPath);
-        var projectPath = Path.Combine(_tempRoot, "alpha-project.gfproj.json");
+        var projectPath = Path.Combine(_tempRoot, "alpha-project.soulproj.json");
 
         viewModel.ChatPrompt = "Local-first polished editor";
         viewModel.IsCodeMode = true;

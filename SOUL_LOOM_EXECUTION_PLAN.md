@@ -1,7 +1,5 @@
 # Soul Loom Execution Plan (V1)
 
-> **Note:** Filename `GAMEFORGE_EXECUTION_PLAN.md` is kept for stable references.
-
 ## Role and Working Model
 This plan treats execution as if run by:
 - **Senior Developer**: responsible for architecture, technical quality, and implementation sequencing.
@@ -55,7 +53,7 @@ Create a stable technical base so later work does not collapse.
 2. Architecture decision record (ADR) document with chosen stack and rationale.
 3. Local project bootstrap command that starts app + services for development.
 4. Minimal “hello project” flow (create/load/save empty project).
-5. Initial UX wireframes + navigation map in `GAMEFORGE_UX_FOUNDATIONS.md`.
+5. Initial UX wireframes + navigation map in `SOUL_LOOM_UX_FOUNDATIONS.md`.
 
 Stack lock for V1 ADR baseline:
 - Core engine/runtime systems: C++
@@ -236,7 +234,7 @@ Ship an end-to-end V1 candidate.
    - Track startup time, memory use, and editor responsiveness.
 2. **UX simplification**
    - Replace unclear labels, reduce jargon, streamline actions.
-   - Keep `GAMEFORGE_UX_FOUNDATIONS.md` aligned with current product behavior.
+   - Keep `SOUL_LOOM_UX_FOUNDATIONS.md` aligned with current product behavior.
 3. **Reliability and crash recovery**
    - Autosave integrity checks, recovery path after crash.
 4. **Telemetry (local-friendly)**

@@ -4,7 +4,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COLLECTOR = REPO_ROOT / "scripts" / "collect_readiness_metrics.py"
-DECISIONS_LOCK = REPO_ROOT / "GAMEFORGE_DECISIONS_LOCK.md"
+DECISIONS_LOCK = REPO_ROOT / "SOUL_LOOM_DECISIONS_LOCK.md"
 SPEC = REPO_ROOT / "docs" / "release" / "READINESS_METRICS_SPEC.md"
 
 
@@ -20,7 +20,7 @@ def test_collector_output_schema_and_required_keys(tmp_path: Path) -> None:
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
 
-    assert payload["schema"] == "gameforge.readiness_metrics.v1"
+    assert payload["schema"] == "soulloom.readiness_metrics.v1"
     assert payload["collected_by"] == "scripts/collect_readiness_metrics.py"
     assert payload["input_source"] == "embedded_default_fixture"
     assert set(
